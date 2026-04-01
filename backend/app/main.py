@@ -2,12 +2,33 @@ import os
 import asyncio
 import logging
 from typing import Optional
+from datetime import datetime
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
 import asyncpg
 
 app = FastAPI()
 db_pool: Optional[asyncpg.pool.Pool] = None
+
+# Pydantic models
+class CarbonProject(BaseModel):
+    name: str
+    location: str
+    tons_offset: float
+    description: Optional[str] = None
+
+class CarbonProjectResponse(BaseModel):
+    id: int
+    name: str
+    location: str
+    tons_offset: float
+    description: Optional[str] = None
+    created_at: str
+
+# In-memory storage (replace with DB queries in production)
+projects_db = []
+project_counter = 0
 
 
 async def _create_pool_with_retries(host, port, user, password, database, max_retries=10, base_delay=1):
@@ -59,3 +80,27 @@ async def db_version():
     async with db_pool.acquire() as conn:
         version = await conn.fetchval("select version()")
     return {"version": version}
+
+
+@app.get("/projects", response_model=list[CarbonProjectResponse])
+async def list_projects(min_tons: float = 0):
+    """Get all carbon projects, optionally filtered by minimum tons offset."""
+    filtered = [p for p in projects_db if p["tons_offset"] >= min_tons]
+    return filtered
+
+
+@app.post("/projects", response_model=CarbonProjectResponse)
+async def create_project(project: CarbonProject):
+    """Create a new carbon offset project."""
+    global project_counter
+    project_counter += 1
+    new_project = {
+        "id": project_counter,
+        "name": project.name,
+        "location": project.location,
+        "tons_offset": project.tons_offset,
+        "description": project.description,
+        "created_at": datetime.utcnow().isoformat()
+    }
+    projects_db.append(new_project)
+    return new_project
