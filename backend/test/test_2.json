@@ -70,5 +70,17 @@
         "spacing_system": "2.5x8",
         "rubber_clone": "RRIM 600",
         "tree_count": null
+    },
+    {
+        "id": "TC_004_NULL_YEAR_HOMOGENEOUS",
+        "comment": "Case: Raster extraction for age. Tests AgeMapService 80% dominance logic. Polygon is homogeneous in age. but year of planting is null.",
+        "geometry": {
+          "type": "MultiPolygon",
+          "coordinates": [[[[101.489, 12.987],[101.490, 12.986],[101.492, 12.992],[101.491, 12.992],[101.490, 12.991],[101.490, 12.990],[101.490, 12.989],[101.489, 12.988],[101.489, 12.987]]]]
+        }, 
+        "year_of_planting": null,
+        "spacing_system": "3x7",
+        "rubber_clone": "RRIT 251",
+        "tree_count": null
     }
 ]

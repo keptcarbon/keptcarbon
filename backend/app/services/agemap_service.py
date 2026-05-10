@@ -1,4 +1,5 @@
 import rasterio
+import geopandas as gpd
 from rasterio.mask import mask
 from shapely.geometry import shape
 from collections import Counter
@@ -13,24 +14,27 @@ class AgeMapService:
         self.base_path = Path("app/data/rasters")
         self.tree_svc = TreeService()
         self.target_crs = "EPSG:32647"
+        self._raster_handles = {}
+
+        for p_code, cfg in REGION_CONFIG.items():
+            raster_path = self.base_path / cfg["plaining_year_map"]
+            if raster_path.exists():
+                # Keep the connection open for fast windowed reading
+                self._raster_handles[p_code] = rasterio.open(raster_path)
+            else:
+                print(f"Warning: Age raster file not found for P_CODE: {p_code}")
 
     def get_plantation_age_count(self, poly_data: dict) -> list:
         p_code = poly_data.get("province_code")
-        config = REGION_CONFIG.get(p_code)
+        
+        # 1. Retrieve the pre-opened handle
+        src = self._raster_handles.get(p_code)
 
-        if config is None:
+        # 2. Check if the handle exists in our registry (not the file system)
+        if src is None:
             raise HTTPException(
                 status_code=400,
-                detail=f"NO REGION CONFIG FOUND FOR PROVINCE: {p_code}"
-            )
-
-        raster_file = config.get("age_raster")
-        raster_path = self.base_path / raster_file
-
-        if not raster_path.exists():
-            raise HTTPException(
-                status_code=500,
-                detail=f"AGE RASTER NOT FOUND FOR PROVINCE: {p_code}"
+                detail=f"AGE RASTER NOT AVAILABLE FOR PROVINCE: {p_code}"
             )
 
         try:
@@ -47,31 +51,26 @@ class AgeMapService:
             # Ensure geometry is in raster CRS
             plantation_gdf = plantation_gdf.to_crs(self.target_crs)  
 
-            with rasterio.open(raster_path) as src:
-                out_image, out_transform = mask(
-                    src,
-                    [plantation_gdf.geometry[0]],
-                    crop=True,
-                    filled=True,
-                    nodata=-9999
-                )
+            out_image, out_transform = mask(
+                src,
+                [plantation_gdf.geometry[0]],
+                crop=True,
+                filled=True,
+                nodata=-9999
+            )
 
-                data = out_image[0]
+            data = out_image[0]
 
-                valid_pixels = data[
-                    (data != -9999) &
-                    (data != src.nodata) &
-                    (data >= 1988) &
-                    (data <= datetime.now().year + 1)
-                ]
-                
-                # Converting 1 to 0 which mean cannot determine the age, and valid age pixels remain unchanged. 
-                # This way, we can count the valid age pixels without including the undetermined ones.
-                valid_pixels = valid_pixels.copy()
-                valid_pixels[valid_pixels == 1] = 0
-
-                counts = Counter(valid_pixels.flatten())
-
+            valid_pixels = data[
+                (data != -9999) &
+                (data != src.nodata) #&
+                #(data >= 1988) &
+                #(data <= datetime.now().year + 1)
+            ]
+            print(f"Valid age pixels count: {len(valid_pixels)} out of {data.size} total pixels")
+            
+            counts = Counter(valid_pixels.flatten())
+            
             return counts
 
         except Exception as e:
@@ -89,6 +88,7 @@ class AgeMapService:
         current_year = datetime.now().year
         most_common_year, max_count = counts.most_common(1)[0]
 
+        # homologous age class (dominated by one age class) - use the most common age and calculate tree count based on the pixel count of that age class
         if (max_count / total_pixels) > TREE_AGE_HOMOLOGOUS_THRESHOLD:
             tree_info = self.tree_svc.get_tree_count_raster_pixel(poly_data, int(max_count), total_pixels)
             reliable_tree_count = tree_info['tree_count']
@@ -112,10 +112,12 @@ class AgeMapService:
     def get_plantation_year_check(self, poly_data: dict) -> list:
 
         counts = self.get_plantation_age_count(poly_data)
-        total_pixels = sum(counts.values())
+        print(f"Age counts for polygon {poly_data['id']}: {counts}")
 
+        total_pixels = sum(counts.values())
         current_year = datetime.now().year
         most_common_year, max_count = counts.most_common(1)[0]
+        print(f"Most common planting year: {most_common_year} with count: {max_count} out of {total_pixels} pixels")
 
         if (max_count / total_pixels) > TREE_AGE_HOMOLOGOUS_THRESHOLD:
             return {
@@ -137,4 +139,3 @@ class AgeMapService:
 
 
 
-        

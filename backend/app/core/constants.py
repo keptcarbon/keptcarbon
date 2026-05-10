@@ -4,6 +4,9 @@
 TREE_AGE_HOMOLOGOUS_THRESHOLD = 0.8
 TREE_COUNT_VALIDATION_THRESHOLD = 0.05
 
+# Gorwth model parameters 
+GROWTH_MODEL_YEAR = 35
+
 # Biometric Constants 
 CARBON_FRACTION = 0.47 
 CARBON_EQUIVALENT_FACTOR = 3.667  # C to CO2  Molecular weight ratio 44/12
@@ -29,14 +32,14 @@ REGION_CONFIG = {
             ("RRIM 600", "cubic_poly", "hytonen_2018"): "rrim600_cubic_poly_hytonen_rayong.csv",
             ("RRIT 251", "cubic_poly", "hytonen_2018"): "rrit251_cubic_poly_hytonen_rayong.csv"
         }
-    },
-    "SRT": {  # Surat Thani Province
-        "province_name": "Surat Thani",
-        "lu_vector": "LU_SNI_2567.gpkg",
-        "plaining_year_map": "establishment_year_surat.tif",
-        "plaining_year_map_qa": "establishment_year_surat_qa.tif",
-        "biomass_estimation_tables": {
-            ("RRIM 600", "cubic_poly", "hytonen_2018"): "rrim600_cubic_poly_hytonen_surat.csv"
-        }
-    }
+    }#,
+    #"SRT": {  # Surat Thani Province
+    #    "province_name": "Surat Thani",
+    #    "lu_vector": "LU_SNI_2567.gpkg",
+    #    "plaining_year_map": "establishment_year_surat.tif",
+    #    "plaining_year_map_qa": "establishment_year_surat_qa.tif",
+    #    "biomass_estimation_tables": {
+    #        ("RRIM 600", "cubic_poly", "hytonen_2018"): "rrim600_cubic_poly_hytonen_surat.csv"
+    #    }
+    #}
 }

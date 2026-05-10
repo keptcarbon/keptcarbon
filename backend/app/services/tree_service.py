@@ -18,6 +18,7 @@ class TreeService:
         area_ha = self.spatial_utils.calculate_area_ha(
             poly_data["a302_geometry"]
         )
+        print(f"Calculated area (ha) for polygon {poly_data['id']}: {area_ha}")
 
         spacing = poly_data.get("spacing_system") or "2.5x8"
         density = TREE_DENSITIES.get(spacing, 500)

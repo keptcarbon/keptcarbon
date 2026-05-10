@@ -13,14 +13,26 @@ class LanduseService:
         The Land Development Department (LDD) LULC code for rubber is A302.
         """
         self.target_crs = "EPSG:32647"
+        self._lu_registry = {}
+
+        # Initialize all regional vectors into memory
+        for p_code, cfg in REGION_CONFIG.items():
+            file_path = Path(f"app/data/shp/LU/{cfg['lu_vector']}")
+            if file_path.exists():
+                gdf = gpd.read_file(file_path)
+                if gdf.crs != self.target_crs:
+                    gdf = gdf.to_crs(self.target_crs)
+                self._lu_registry[p_code] = gdf
+                print(f"Loaded Landuse Vector for P_CODE: {p_code}")
+            else:
+                print(f"Warning: Landuse vector file not found for P_CODE: {p_code}")
 
     def find_rubber_cultivation_area(self, poly_data: dict):
 
         p_code = poly_data.get("province_code")
+        lu_gdf = self._lu_registry.get(p_code)
 
-        config = REGION_CONFIG.get(p_code)
-
-        if config is None:
+        if lu_gdf is None:
             poly_data["a302_geometry"] = None
             poly_data["status"] = {
                 "status": "error",
@@ -32,17 +44,7 @@ class LanduseService:
             }
             return poly_data
 
-        self.file_path = Path(f"app/data/shp/LU/{config['lu_vector']}")
-
-        if not self.file_path.exists():
-            raise HTTPException(
-                status_code=500,
-                detail="LANDUSE VECTOR FILE NOT FOUND."
-            )
-
         try:
-            # Load LULC data
-            lu_gdf = gpd.read_file(self.file_path)
 
             # GeoJSON geometry -> Shapely geometry
             plantation_geom = shape(poly_data["geometry"])

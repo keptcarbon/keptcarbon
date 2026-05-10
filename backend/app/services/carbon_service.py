@@ -12,7 +12,8 @@ from app.services.spatial_utils import SpatialUtils
 from app.core.constants import (
     CARBON_FRACTION,
     CARBON_EQUIVALENT_FACTOR,
-    REGION_CONFIG
+    REGION_CONFIG,
+    GROWTH_MODEL_YEAR
 )
 
 class CarbonService:
@@ -60,7 +61,8 @@ class CarbonService:
         # Using max() with a generator expression
         max_age = max(cohort['age'] for cohort in cohorts)
         limit_year = current_year + (max_age_profile -  max_age) # Filter threshold
-
+        print(f"Max cohort age: {max_age}, Profile limit year: {limit_year}")
+        
         # Spatiotemporal Aggregation: Yearly sum of all cohorts
         for year_offset in range(0, max_age_profile + 1):
             target_year = current_year + year_offset
@@ -109,8 +111,11 @@ class CarbonService:
     async def get_carbon_profile(self, poly_data) -> dict:
         # Step 1: Determines the province code (P_CODE) for the user-drawn polygon.
         poly_data = self.pro_svc.get_province(poly_data)
+        print(f"Province code determined: {poly_data.get('province_code')}")
+        
         if poly_data["province_code"] is None:
             # If no valid province code, return with error status
+            print(f"Error: No valid province code found. Status: {poly_data['status']}")
             return {
                 "polygon_id": poly_data["id"],
                 "status": poly_data["status"],
@@ -119,8 +124,10 @@ class CarbonService:
 
         # Step 2: Filters the user-drawn polygon to isolate only A302 rubber cultivation zones.
         poly_data = self.lu_svc.find_rubber_cultivation_area(poly_data)
+
         if poly_data["a302_geometry"] is None:
             # If no valid rubber cultivation area, return with error status
+            print(f"Error: No valid rubber data found. Status: {poly_data['status']}")
             return {
                 "polygon_id": poly_data["id"],
                 "status": poly_data["status"],
@@ -128,34 +135,38 @@ class CarbonService:
             }
 
         # Step 3: Determines the carbon stock profile.
+        # print(poly_data["a302_geometry"])
 
         # Check year of planting again raster map using the A302 zone geometry. 
         #This will also determine the reliability of the user-input year of planting, if it is provided.
         planting_year_info = self.age_map_svc.get_plantation_year_check(poly_data) # This will perform the year check 
-
+        print(f"Planting year info: {planting_year_info}")
         if planting_year_info["year"] is None: 
             # Found heterogeneous age classes with significant deviation, 
             # which means the user-input year of planting is not reliable, if it is provided
             # then egnore the user-input year of planting and use the year from age map to form the cohort and generate profile.
 
             cohorts = self.age_map_svc.get_plantation_age_cohorts(poly_data)
-
+            print(f"Extracted age cohorts: {cohorts}")
             # find 0 in chorts.
-            cohorts_with_zero_age = [cohort for cohort in cohorts if cohort['age'] == 0]
-            if cohorts_with_zero_age:
+            # if there are cohorts with age 0, it means the age map cannot determine the year of planting for those pixels.
+            
+            cohorts_with_null_age = [c for c in cohorts if c['age'] > GROWTH_MODEL_YEAR]
+            print(f"Cohorts with null age: {cohorts_with_null_age}")
+            if cohorts_with_null_age:
                 # If there are cohorts with age 0, it means the age map cannot determine the year of planting for those pixels. 
                 # In this case, we will generate the carbon profile using the cohorts with determined age, 
                 # but we will flag the profile as potentially unreliable due to the undetermined planting year for some portion of the plantation.
                 reliable_mgs_add = " (NOTE: SOME PIXELS HAVE UNDETERMINED PLANTING YEAR)"
 
                 # Use only cohorts with determined age for profile generation
-                cohorts = [c for c in cohorts if c['age'] > 0] 
+                cohorts = [c for c in cohorts if c['age'] <= GROWTH_MODEL_YEAR] 
             else:
                 # If there are no cohorts with age 0, it means all pixels have a determined planting year, 
                 # and we can proceed with profile generation as usual.
                 reliable_mgs_add = ""
 
-            
+            print(f"Final cohorts used for profile generation: {cohorts}")
             profile = self.generate_carbon_profile(poly_data, cohorts)
 
             reliable_mgs = (
@@ -173,8 +184,8 @@ class CarbonService:
             }
 
 
-        elif planting_year_info["year"] == 0: 
-            # >80% of year pixels are 0, which means the age map cannot determine the year.
+        elif planting_year_info["year"] == 1: 
+            # >80% of year pixels are 1, which means the age map cannot determine the year.
             # Assume the user-input year of planting is reliable, if it is provided, otherwise, return None with message.
             if poly_data["year_of_planting"] is None:
                 # If the user has not provided a year of planting and the age map cannot determine the year, 
@@ -238,6 +249,7 @@ class CarbonService:
                 age = current_year - planting_year_info["year"]
 
                 tree_info = self.tree_svc.get_tree_count_user_input(poly_data)
+                print(f"Tree count info: {tree_info}")
                 reliable_tree_count = tree_info['tree_count']  
                 
                 # Form cohorts (Age + Tree Count pairs) 
@@ -267,13 +279,15 @@ class CarbonService:
 
             else :
                 # If the user-input year of planting is provided, assume it is reliable and use it to form the cohort and generate profile.
+                print(f"User-input year of planting provided: {poly_data['year_of_planting']}. Using it for profile generation.")
                 
                 current_year = datetime.now().year
                 age = current_year - poly_data["year_of_planting"]
 
                 tree_info = self.tree_svc.get_tree_count_user_input(poly_data)
+                print(f"Tree count info: {tree_info}")
                 reliable_tree_count = tree_info['tree_count']  
-                
+                #print(f"Reliable tree count: {reliable_tree_count}")
                 # Form cohorts (Age + Tree Count pairs) 
                 cohorts = [{'age': age, 'tree_count': reliable_tree_count}]
 

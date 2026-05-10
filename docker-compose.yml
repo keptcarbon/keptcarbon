@@ -34,6 +34,10 @@ services:
       - '8000:8000'
     volumes:
       - ./backend:/app # Useful for live code reloading during dev
+    deploy:
+      resources:
+        limits:
+          memory: 4G
 
   frontend:
     build: ./frontend
