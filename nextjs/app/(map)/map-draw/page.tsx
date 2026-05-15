@@ -16,6 +16,7 @@ import {
   truncateCoords,
 } from "@/lib/map-utils";
 import { ParcelResultsPanel } from "@/app/components/organisms";
+import type { CarbonResultForMap } from "@/app/components/organisms/ParcelResultsPanel/ParcelResultsPanel";
 
 type Tab = "draw" | "shp";
 type NdviStatus = number | null | "loading" | "error";
@@ -104,6 +105,31 @@ export default function MapDrawPage() {
   }, [drawnParcels]);
 
   const runParcelSearchRef = useRef<() => void>(() => { });
+
+  // Carbon results from API — keyed by plotIdx
+  const [parcelCo2, setParcelCo2] = useState<Record<number, number>>({});
+
+  const handleCarbonResults = useCallback((results: CarbonResultForMap[]) => {
+    const map: Record<number, number> = {};
+    results.forEach(r => { if (r.co2Now > 0) map[r.plotIdx] = r.co2Now; });
+    setParcelCo2(map);
+  }, []);
+
+  // Re-enrich matched-parcels source with CO2 data when results arrive
+  useEffect(() => {
+    const m = mapRef.current;
+    if (!m || !mapLoadedRef.current || parcelFeatures.length === 0) return;
+    if (Object.keys(parcelCo2).length === 0) return;
+    const enriched = parcelFeatures.map((f, i) => ({
+      ...f,
+      properties: {
+        ...(f.properties ?? {}),
+        ...(parcelCo2[i] != null ? { co2_tco2e: parcelCo2[i] } : {}),
+      },
+    }));
+    (m.getSource("matched-parcels") as maplibregl.GeoJSONSource | undefined)
+      ?.setData({ type: "FeatureCollection", features: enriched });
+  }, [parcelCo2, parcelFeatures]);
 
 
   // ===== MAP INIT =====
@@ -250,7 +276,15 @@ export default function MapDrawPage() {
         id: "matched-parcels-fill",
         type: "fill",
         source: "matched-parcels",
-        paint: { "fill-color": "#ff9100", "fill-opacity": 0.5 },
+        paint: {
+          "fill-color": [
+            "case",
+            ["has", "co2_tco2e"],
+            ["interpolate", ["linear"], ["get", "co2_tco2e"], 0, "#c8e6c9", 30, "#66bb6a", 100, "#2e7d32"],
+            "#ff9100",
+          ],
+          "fill-opacity": 0.65,
+        },
       });
       map.addLayer({
         id: "matched-parcels-line",
@@ -263,13 +297,23 @@ export default function MapDrawPage() {
         type: "symbol",
         source: "matched-parcels",
         layout: {
-          "text-field": "{plot_index}",
-          "text-size": 16,
+          "text-field": [
+            "case",
+            ["has", "co2_tco2e"],
+            ["concat",
+              ["get", "plot_index"],
+              "\n",
+              ["number-format", ["get", "co2_tco2e"], { "max-fraction-digits": 1 }],
+              " tCO₂e"
+            ],
+            ["get", "plot_index"],
+          ],
+          "text-size": 13,
           "text-allow-overlap": false,
         },
         paint: {
           "text-color": "#ffffff",
-          "text-halo-color": "#fa0303ff",
+          "text-halo-color": ["case", ["has", "co2_tco2e"], "#1b5e20", "#fa0303ff"],
           "text-halo-width": 3,
         },
       });
@@ -605,6 +649,7 @@ export default function MapDrawPage() {
       (map.getSource("plot") as maplibregl.GeoJSONSource | undefined)?.setData(emptyFC());
       (map.getSource("matched-parcels") as maplibregl.GeoJSONSource | undefined)?.setData(emptyFC());
     }
+    setSelectedPlotIndex("total");
     setCurrentStep(1);
   };
 
@@ -612,6 +657,7 @@ export default function MapDrawPage() {
     searchAbortRef.current?.abort();
     searchAbortRef.current = null;
     setSearchRunning(false);
+    setSelectedPlotIndex("total");
     setCurrentStep(1);
     setSearchCount(null);
     setSearchErr(null);
@@ -661,6 +707,7 @@ export default function MapDrawPage() {
     };
 
     setDrawnGeometry(combinedGeom);
+    setSelectedPlotIndex("total");
     setSearchRunning(true);
     setCurrentStep(2);
     setSearchErr(null);
@@ -1296,6 +1343,7 @@ export default function MapDrawPage() {
                 onStepChange={setCurrentStep}
                 selectedMapPlotIndex={selectedPlotIndex}
                 onMapPlotSelected={setSelectedPlotIndex}
+                onCarbonResults={handleCarbonResults}
               />
             </div>
           )}

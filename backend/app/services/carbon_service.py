@@ -39,14 +39,26 @@ class CarbonService:
         # Regional and Model Configuration
         p_code = poly_data.get("province_code")
         config = REGION_CONFIG.get(p_code)
-        
+        if config is None:
+            raise HTTPException(
+                status_code=422,
+                detail=f"Province code '{p_code}' is not supported. Supported: {list(REGION_CONFIG.keys())}"
+            )
+
         clone = poly_data.get("rubber_clone") or "RRIM 600"
-        growth_model = "cubic_poly" 
+        growth_model = "cubic_poly"
         allometry = "hytonen_2018"
-        
+
         # Direct Lookup Table retrieval from REGION_CONFIG
         table_key = (clone, growth_model, allometry)
         file_name = config["biomass_estimation_tables"].get(table_key)
+        if file_name is None:
+            available = list(config["biomass_estimation_tables"].keys())
+            raise HTTPException(
+                status_code=422,
+                detail=f"No lookup table for clone='{clone}', model='{growth_model}', allometry='{allometry}'. "
+                       f"Available combinations: {available}"
+            )
 
         # Load the R&D validated table directly
         try:

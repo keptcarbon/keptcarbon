@@ -3,10 +3,16 @@ import { useState, useMemo, useEffect } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { carbonForAge } from "@/lib/map-utils";
 import { useAuth } from "@/lib/auth-context";
+import { estimateCarbon, type PlantationPolygon } from "@/lib/carbon-api";
 import { CarbonBarChart, buildBarPoints, carbonCo2 } from "./CarbonBarChart";
 
 
 // ── Types ─────────────────────────────────────────────────────────────────
+export interface CarbonResultForMap {
+    plotIdx: number;
+    co2Now: number;
+}
+
 type Props = {
     searchRunning: boolean;
     searchErr: string | null;
@@ -23,6 +29,7 @@ type Props = {
     onStepChange: (step: 1 | 2 | 3) => void;
     selectedMapPlotIndex?: number | "total";
     onMapPlotSelected?: (idx: number | "total") => void;
+    onCarbonResults?: (results: CarbonResultForMap[]) => void;
 };
 
 type PlotTab = "analyze" | "forecast";
@@ -378,6 +385,7 @@ export function ParcelResultsPanel({
     onStepChange,
     selectedMapPlotIndex = "total",
     onMapPlotSelected,
+    onCarbonResults,
 }: Props) {
     const [expandedIdx, setExpandedIdx] = useState<number | null>(null);
     const [plotTabs, setPlotTabs] = useState<Record<number, PlotTab>>({});
@@ -419,6 +427,7 @@ export function ParcelResultsPanel({
     const [saveState, setSaveState] = useState<"idle" | "saving" | "done">("idle");
     const [plotForms, setPlotForms] = useState<PlotFormData[]>([]);
     const [carbonResults, setCarbonResults] = useState<CarbonResult[]>([]);
+    const [processingCarbon, setProcessingCarbon] = useState(false);
 
     // Initialize plotForms automatically when ready
     useEffect(() => {
@@ -435,45 +444,116 @@ export function ParcelResultsPanel({
         }
     }, [searchCount, searchRunning, searchErr, plots, plotForms.length, parcelFeatures]);
 
-    const handleProcessCarbon = () => {
+    const handleProcessCarbon = async () => {
+        setProcessingCarbon(true);
         const CURRENT_BE_NOW = new Date().getFullYear() + 543;
-        const results: CarbonResult[] = plots.map((p, i) => {
+
+        // Build plantation polygons for API call
+        const polygonsToEstimate: PlantationPolygon[] = plots.map((p, i) => {
             const form = plotForms[i];
-            const userPlantYear = form?.plantYear ? parseInt(form.plantYear) : 0;
-            const userTrees = form?.treeCount ? parseInt(form.treeCount) : 0;
-            const userSpacing = form?.spacing || "";
-            const userVariety = form?.variety || "";
-
-            const userAge = userPlantYear > 0 ? CURRENT_BE_NOW - userPlantYear : 0;
-
-            // Priority: User Input > Backend Data > Fallback (e.g. 5 years)
-            const finalAge = userAge > 0 ? userAge : (p.age > 0 ? p.age : 5);
-            const finalPlantYear = userPlantYear > 0 ? userPlantYear : (p.plantYearBE > 0 ? p.plantYearBE : CURRENT_BE_NOW - finalAge);
-
-            // Priority: User Input > Estimation (area * 76)
-            const estimatedTrees = Math.round(p.areaRai * 76);
-            const finalTrees = userTrees > 0 ? userTrees : estimatedTrees;
-
-            const finalSpacing = userSpacing || "3*7";
-            const finalVariety = userVariety || "RRIM 600";
-
-            const co2Now = (finalAge > 0 && finalTrees > 0) ? carbonCo2(finalAge, finalTrees, finalSpacing) : 0;
+            const feat = parcelFeatures[i];
+            const userPlantYear = form?.plantYear ? parseInt(form.plantYear) : null;
+            const userTrees = form?.treeCount ? parseInt(form.treeCount) : null;
+            const userSpacing = form?.spacing || null;
+            const userVariety = form?.variety || null;
 
             return {
-                plotIdx: i,
-                age: finalAge,
-                plantYearBE: finalPlantYear,
-                trees: finalTrees,
-                spacing: finalSpacing,
-                variety: finalVariety,
-                co2Now,
-                source: (userPlantYear > 0 || userTrees > 0) ? "user" : "backend",
+                id: `plot_${i}`,
+                geometry: feat.geometry,
+                year_of_planting: userPlantYear || (p.plantYearBE > 0 ? p.plantYearBE : null),
+                rubber_clone: userVariety || "RRIM 600",
+                tree_count: userTrees || (p.areaRai > 0 ? Math.round(p.areaRai * 76) : null),
+                spacing_system: userSpacing || "3*7",
             };
         });
-        setCarbonResults(results);
-        if (onMapPlotSelected) onMapPlotSelected("total");
-        setSubStep("carbon");
-        onStepChange(3);
+
+        try {
+            // Call the real backend API
+            const apiResults = await estimateCarbon(polygonsToEstimate);
+
+            // Convert API results to CarbonResult format
+            const results: CarbonResult[] = plots.map((p, i) => {
+                const form = plotForms[i];
+                const apiResult = apiResults[i];
+                const userPlantYear = form?.plantYear ? parseInt(form.plantYear) : 0;
+                const userTrees = form?.treeCount ? parseInt(form.treeCount) : 0;
+
+                const userAge = userPlantYear > 0 ? CURRENT_BE_NOW - userPlantYear : 0;
+                const finalAge = userAge > 0 ? userAge : (p.age > 0 ? p.age : 5);
+                const finalPlantYear = userPlantYear > 0 ? userPlantYear : (p.plantYearBE > 0 ? p.plantYearBE : CURRENT_BE_NOW - finalAge);
+
+                const estimatedTrees = Math.round(p.areaRai * 76);
+                const finalTrees = userTrees > 0 ? userTrees : estimatedTrees;
+
+                const finalSpacing = form?.spacing || "3*7";
+                const finalVariety = form?.variety || "RRIM 600";
+
+                // Get CO2 from API if available, fall back to mockup calculation
+                let co2Now = 0;
+                if (apiResult?.carbon_profile && apiResult.carbon_profile.length > 0) {
+                    // Use the current year CO2 from API (first entry or matching age)
+                    const currentYearData = apiResult.carbon_profile[0];
+                    co2Now = currentYearData?.total_carbon_tCO2e || 0;
+                } else {
+                    // Fall back to mockup calculation
+                    co2Now = (finalAge > 0 && finalTrees > 0) ? carbonCo2(finalAge, finalTrees, finalSpacing) : 0;
+                }
+
+                return {
+                    plotIdx: i,
+                    age: finalAge,
+                    plantYearBE: finalPlantYear,
+                    trees: finalTrees,
+                    spacing: finalSpacing,
+                    variety: finalVariety,
+                    co2Now,
+                    source: (userPlantYear > 0 || userTrees > 0) ? "user" : "backend",
+                };
+            });
+
+            setCarbonResults(results);
+            onCarbonResults?.(results.map(r => ({ plotIdx: r.plotIdx, co2Now: r.co2Now })));
+            if (onMapPlotSelected) onMapPlotSelected("total");
+            setSubStep("carbon");
+            onStepChange(3);
+        } catch (error) {
+            console.error("Failed to estimate carbon:", error);
+            // Fall back to mockup calculation on error
+            const results: CarbonResult[] = plots.map((p, i) => {
+                const form = plotForms[i];
+                const userPlantYear = form?.plantYear ? parseInt(form.plantYear) : 0;
+                const userTrees = form?.treeCount ? parseInt(form.treeCount) : 0;
+                const userSpacing = form?.spacing || "";
+                const userVariety = form?.variety || "";
+
+                const userAge = userPlantYear > 0 ? CURRENT_BE_NOW - userPlantYear : 0;
+                const finalAge = userAge > 0 ? userAge : (p.age > 0 ? p.age : 5);
+                const finalPlantYear = userPlantYear > 0 ? userPlantYear : (p.plantYearBE > 0 ? p.plantYearBE : CURRENT_BE_NOW - finalAge);
+                const estimatedTrees = Math.round(p.areaRai * 76);
+                const finalTrees = userTrees > 0 ? userTrees : estimatedTrees;
+                const finalSpacing = userSpacing || "3*7";
+                const finalVariety = userVariety || "RRIM 600";
+                const co2Now = (finalAge > 0 && finalTrees > 0) ? carbonCo2(finalAge, finalTrees, finalSpacing) : 0;
+
+                return {
+                    plotIdx: i,
+                    age: finalAge,
+                    plantYearBE: finalPlantYear,
+                    trees: finalTrees,
+                    spacing: finalSpacing,
+                    variety: finalVariety,
+                    co2Now,
+                    source: (userPlantYear > 0 || userTrees > 0) ? "user" : "backend",
+                };
+            });
+            setCarbonResults(results);
+            onCarbonResults?.(results.map(r => ({ plotIdx: r.plotIdx, co2Now: r.co2Now })));
+            if (onMapPlotSelected) onMapPlotSelected("total");
+            setSubStep("carbon");
+            onStepChange(3);
+        } finally {
+            setProcessingCarbon(false);
+        }
     };
 
 
@@ -690,13 +770,26 @@ export function ParcelResultsPanel({
                     <button
                         className="prp-btn-primary"
                         onClick={handleProcessCarbon}
-                        disabled={!projectName.trim()}
+                        disabled={!projectName.trim() || processingCarbon}
                         style={{
-                            background: projectName.trim() ? "linear-gradient(135deg,#10b981,#059669)" : "#cbd5e1",
-                            cursor: projectName.trim() ? "pointer" : "not-allowed"
+                            background: projectName.trim() && !processingCarbon ? "linear-gradient(135deg,#10b981,#059669)" : "#cbd5e1",
+                            cursor: projectName.trim() && !processingCarbon ? "pointer" : "not-allowed",
+                            display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
                         }}
                     >
-                        <i className="bi bi-graph-up-arrow me-2" />ประมวลผลคาร์บอน
+                        {processingCarbon ? (
+                            <>
+                                <span style={{
+                                    width: 16, height: 16, border: "2.5px solid rgba(255,255,255,0.4)",
+                                    borderTopColor: "#fff", borderRadius: "50%",
+                                    display: "inline-block",
+                                    animation: "prp-spin 0.7s linear infinite",
+                                }} />
+                                กำลังวิเคราะห์คาร์บอน...
+                            </>
+                        ) : (
+                            <><i className="bi bi-graph-up-arrow" />ประมวลผลคาร์บอน</>
+                        )}
                     </button>
                     <button
                         className="prp-btn-primary"
@@ -823,17 +916,56 @@ export function ParcelResultsPanel({
 
                     {isTotal ? (
                         <>
-                            {/* Total summary */}
-                            <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 6, marginBottom: 10 }}>
-                                {[
-                                    { label: "คาร์บอนรวมปัจจุบัน", val: `${summaryTotalCo2.toFixed(1)} tCO₂`, color: "#0d9488" },
-                                ].map(({ label, val, color }) => (
-                                    <div key={label} style={{ background: "#fff", borderRadius: 10, padding: "12px 8px", textAlign: "center", border: "1px solid rgba(0,0,0,0.06)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4 }}>
-                                        <div style={{ fontSize: 12, color: "#64748b", fontWeight: 600 }}>{label}</div>
-                                        <div style={{ fontSize: isMobile ? 18 : 22, fontWeight: 800, color }}>{val}</div>
-                                    </div>
-                                ))}
+                            {/* Total CO₂ */}
+                            <div style={{ background: "#fff", borderRadius: 10, padding: "12px 8px", textAlign: "center", border: "1px solid rgba(0,0,0,0.06)", marginBottom: 10 }}>
+                                <div style={{ fontSize: 12, color: "#64748b", fontWeight: 600 }}>คาร์บอนรวมปัจจุบัน</div>
+                                <div style={{ fontSize: isMobile ? 18 : 22, fontWeight: 800, color: "#0d9488" }}>{summaryTotalCo2.toFixed(1)} tCO₂</div>
                             </div>
+
+                            {/* Per-parcel breakdown */}
+                            {carbonResults.length > 0 && (
+                                <div style={{ marginBottom: 10, borderRadius: 10, border: "1px solid rgba(0,0,0,0.06)", overflow: "hidden", background: "#fff" }}>
+                                    {carbonResults.map((cr, i) => (
+                                        <div
+                                            key={i}
+                                            onClick={() => {
+                                                onMapPlotSelected?.(i);
+                                                if (parcelFeatures[i]) onFlyTo(parcelFeatures[i]);
+                                            }}
+                                            style={{
+                                                display: "flex",
+                                                alignItems: "center",
+                                                gap: 10,
+                                                padding: "9px 12px",
+                                                borderBottom: i < carbonResults.length - 1 ? "1px solid rgba(0,0,0,0.05)" : "none",
+                                                cursor: "pointer",
+                                                transition: "background 0.15s",
+                                            }}
+                                            onMouseEnter={e => (e.currentTarget.style.background = "#f0fdf4")}
+                                            onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
+                                        >
+                                            <div style={{
+                                                width: 26, height: 26, borderRadius: 8,
+                                                background: "linear-gradient(135deg, #34d399, #059669)",
+                                                color: "#fff", fontSize: 12, fontWeight: 800,
+                                                display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+                                            }}>
+                                                {i + 1}
+                                            </div>
+                                            <div style={{ flex: 1, minWidth: 0 }}>
+                                                <div style={{ fontSize: 12, color: "#374151", fontWeight: 600 }}>แปลงที่ {i + 1}</div>
+                                                <div style={{ fontSize: 10, color: "#94a3b8" }}>อายุ {cr.age} ปี · {cr.trees.toLocaleString()} ต้น</div>
+                                            </div>
+                                            <div style={{ textAlign: "right", flexShrink: 0 }}>
+                                                <div style={{ fontSize: 13, fontWeight: 800, color: "#0d9488" }}>{cr.co2Now.toFixed(1)}</div>
+                                                <div style={{ fontSize: 10, color: "#94a3b8" }}>tCO₂e</div>
+                                            </div>
+                                            <i className="bi bi-chevron-right" style={{ fontSize: 11, color: "#cbd5e1" }} />
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+
                             <CarbonBarChart pts={pts} isMobile={isMobile} narrowMode={!isMobile} />
                             <div style={{ fontSize: 10, color: "#94a3b8", textAlign: "center", marginTop: 4 }}>
                                 hover บนแท่งเพื่อดูรายละเอียด

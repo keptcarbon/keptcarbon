@@ -647,6 +647,12 @@ body.map-draw-active.scrolled .header {
   }
 }
 
+@keyframes prp-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 /* Metric cards */
 #panel .metric {
   background: #ffffff !important;

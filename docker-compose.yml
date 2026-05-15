@@ -1,50 +1,70 @@
 services:
-  db:
-    platform: linux/amd64 
-    image: postgis/postgis:15-3.3-alpine
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: keptcarbon
-    volumes:
-      - db-data:/var/lib/postgresql/data
+  # ── Next.js application ────────────────────────
+  nextjs:
+    build:
+      context: ./nextjs
+      dockerfile: Dockerfile
     ports:
-      - '5432:5432'
+      - "3000:3000"
+    container_name: keptcarbon-nextjs
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - LINE_CHANNEL_ID=${LINE_CHANNEL_ID}
+      - LINE_CHANNEL_SECRET=${LINE_CHANNEL_SECRET}
+      - LINE_CALLBACK_URL=${LINE_CALLBACK_URL}
+      - JWT_SECRET=${JWT_SECRET}
+    volumes:
+      - /app/node_modules
+      - /app/.next
+    working_dir: /app
+    depends_on:
+      postgis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ── PostgreSQL + PostGIS ───────────────────────
+  postgis:
+    image: postgis/postgis:16-3.4
+    ports:
+      - "4533:5432"
+    container_name: keptcarbon-postgis
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-keptcarbon}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./postgis/init:/docker-entrypoint-initdb.d
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d keptcarbon"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-keptcarbon}"]
       interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 10
+    restart: unless-stopped
 
   backend:
     build: ./backend  # Ensure this points to the folder containing your 'app' dir
     platform: linux/arm64
     depends_on:
-      db:
-        condition: service_healthy # Only starts once DB is ready
+      postgis:
+        condition: service_healthy
     environment:
-      DATABASE_HOST: db
+      DATABASE_HOST: postgis
       DATABASE_PORT: 5432
-      DATABASE_USER: postgres
-      DATABASE_PASSWORD: postgres
-      DATABASE_NAME: keptcarbon
+      DATABASE_USER: ${POSTGRES_USER:-postgres}
+      DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      DATABASE_NAME: ${POSTGRES_DB:-keptcarbon}
       # Added PYTHONPATH to ensure app.services is discoverable
       PYTHONPATH: /app
     ports:
-      - '8000:8000'
+      - '8080:8000'
     volumes:
       - ./backend:/app # Useful for live code reloading during dev
     deploy:
       resources:
         limits:
           memory: 4G
-
-  frontend:
-    build: ./frontend
-    depends_on:
-      - backend
-    ports:
-      - '3000:80'
+    restart: unless-stopped
 
 volumes:
-  db-data:
+  pgdata:

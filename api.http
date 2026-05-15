@@ -1,11 +1,11 @@
-@baseUrl = http://localhost:8000
+@baseUrl = http://localhost:8080
 
 ### Health check
 GET {{baseUrl}}/
 Accept: application/json
 
 ### Estimate carbon for one plantation polygon
-POST {{baseUrl}}/api/v1/estimate
+POST {{baseUrl}}/api/estimate
 Content-Type: application/json
 Accept: application/json
 
@@ -24,7 +24,7 @@ Accept: application/json
 ]
 
 ### Estimate carbon for multiple polygons
-POST {{baseUrl}}/api/v1/estimate
+POST {{baseUrl}}/api/estimate
 Content-Type: application/json
 Accept: application/json
 
