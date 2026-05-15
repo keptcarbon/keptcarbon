@@ -47,13 +47,14 @@ export async function POST(request: NextRequest) {
     WITH q AS (
       SELECT ST_MakeValid(ST_SetSRID(ST_GeomFromGeoJSON($1::text), 4326)) AS g
     )
-    SELECT p.id, p.farm_name, p.farm_idc, p.app_no, p.land_seq, p.land_right, p.land_name,
-           p.land_moo, p.land_vill, p.tambon, p.amphoe_t, p.province,
-           p.grow_year, p.rip_type, p.grow_area,
-           p.rubber_age, p.gee_age, p.gee_plant_year, p.gee_confidence, p.gee_carbon,
+    SELECT p.id,
+           p.lu_code, p.lu_des_th, p.lu_des_en, p.lul1_code, p.lul2_code,
+           p.rai AS grow_area,
+           p.shape_area,
            ST_AsGeoJSON(p.geom)::json AS geometry
-    FROM rubber_plots p, q
-    WHERE ${buildCondition(rel)}
+    FROM lu_rayong p, q
+    WHERE p.lu_code = 'A302'
+      AND ${buildCondition(rel)}
     LIMIT ${HARD_LIMIT}
   `;
 
