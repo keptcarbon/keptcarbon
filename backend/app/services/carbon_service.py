@@ -70,6 +70,9 @@ class CarbonService:
         max_age_profile = 35
         projections = []
         
+        if not cohorts:
+            return []
+
         # Using max() with a generator expression
         max_age = max(cohort['age'] for cohort in cohorts)
         limit_year = current_year + (max_age_profile -  max_age) # Filter threshold
@@ -179,6 +182,22 @@ class CarbonService:
                 reliable_mgs_add = ""
 
             print(f"Final cohorts used for profile generation: {cohorts}")
+
+            if not cohorts:
+                return {
+                    "polygon_id": poly_data["id"],
+                    "status": {
+                        "status": "error",
+                        "status_code": "E04",
+                        "message": (
+                            "CARBON PROFILE CANNOT BE GENERATED: "
+                            "NO VALID AGE DATA FOUND IN THE RASTER FOR THIS POLYGON. "
+                            "PLEASE PROVIDE A YEAR OF PLANTING."
+                        ),
+                    },
+                    "carbon_profile": None,
+                }
+
             profile = self.generate_carbon_profile(poly_data, cohorts)
 
             reliable_mgs = (
@@ -188,8 +207,8 @@ class CarbonService:
 
             return {
                 "polygon_id": poly_data["id"],
-                "status": {"status": "success", 
-                            "status_code": "S04", 
+                "status": {"status": "success",
+                            "status_code": "S04",
                             "message": reliable_mgs
                             },
                 "carbon_profile": profile

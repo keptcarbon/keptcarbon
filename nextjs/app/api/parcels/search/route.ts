@@ -43,6 +43,7 @@ export async function POST(request: NextRequest) {
     : "intersects";
 
   // CTE computes ST_MakeValid once and reuses it; bbox pre-filter (&&) hits the spatial index.
+  // ST_Intersection clips each parcel to the drawn boundary so only the overlapping portion is returned.
   const sql = `
     WITH q AS (
       SELECT ST_MakeValid(ST_SetSRID(ST_GeomFromGeoJSON($1::text), 4326)) AS g
@@ -51,7 +52,7 @@ export async function POST(request: NextRequest) {
            p.lu_code, p.lu_des_th, p.lu_des_en, p.lul1_code, p.lul2_code,
            p.rai AS grow_area,
            p.shape_area,
-           ST_AsGeoJSON(p.geom)::json AS geometry
+           ST_AsGeoJSON(ST_Multi(ST_Intersection(p.geom, q.g)))::json AS geometry
     FROM lu_rayong p, q
     WHERE p.lu_code = 'A302'
       AND ${buildCondition(rel)}
