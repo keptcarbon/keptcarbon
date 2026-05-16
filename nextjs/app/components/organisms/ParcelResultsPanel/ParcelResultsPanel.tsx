@@ -29,6 +29,7 @@ type Props = {
     isDrawing?: boolean;
     onFinishDraw?: () => void;
     onCancelDraw?: () => void;
+    onLandUseChange?: (checked: Record<string, boolean>) => void;
 };
 
 type PlotTab = "analyze" | "forecast";
@@ -452,6 +453,7 @@ export function ParcelResultsPanel({
     isDrawing,
     onFinishDraw,
     onCancelDraw,
+    onLandUseChange,
 }: Props) {
     const [expandedIdx, setExpandedIdx] = useState<number | null>(0);
     const [plotTabs, setPlotTabs] = useState<Record<number, PlotTab>>({});
@@ -462,6 +464,31 @@ export function ParcelResultsPanel({
 
     const plots = useMemo(() => parcelFeatures.map(computePlot), [parcelFeatures]);
     const totalArea = useMemo(() => plots.reduce((s, p) => s + p.areaRai, 0), [plots]);
+
+    // Build real land-use area data from parcelFeatures (lu_polygon properties from plantation-info API)
+    const luRealData = useMemo(() => {
+        const data: Record<string, { rai: number; pct: number }> = {};
+        let totalM2 = 0;
+        for (const feat of parcelFeatures) {
+            const p = (feat.properties ?? {}) as Record<string, unknown>;
+            const m2 = (p.area_m2 as number) || 0;
+            if (p.lu_class) totalM2 += m2;
+        }
+        for (const feat of parcelFeatures) {
+            const p = (feat.properties ?? {}) as Record<string, unknown>;
+            const cls = p.lu_class as string | undefined;
+            const m2 = (p.area_m2 as number) || 0;
+            const pct = (p.area_percent as number) || (totalM2 > 0 ? (m2 / totalM2) * 100 : 0);
+            if (cls) data[cls] = { rai: m2 / 1600, pct: Math.round(pct * 10) / 10 };
+        }
+        // "A" parent = sum of all A-type lu classes
+        const aM2 = parcelFeatures.reduce((s, f) => {
+            const p = (f.properties ?? {}) as Record<string, unknown>;
+            return (p.lu_class as string)?.startsWith("A") ? s + ((p.area_m2 as number) || 0) : s;
+        }, 0);
+        if (aM2 > 0) data["A"] = { rai: aM2 / 1600, pct: Math.round(totalM2 > 0 ? (aM2 / totalM2) * 1000 : 0) / 10 };
+        return data;
+    }, [parcelFeatures]);
     const totalCO2 = useMemo(() => plots.reduce((s, p) => s + p.co2, 0), [plots]);
     const summaryPts = useMemo(() => summaryForecast(plots, summaryFcYrs), [plots, summaryFcYrs]);
     const dominantProvince = useMemo(() => {
@@ -532,43 +559,68 @@ export function ParcelResultsPanel({
         const CURRENT_BE_NOW = new Date().getFullYear() + 543;
         const SUPPORTED_CLONES = ["RRIM 600", "RRIT 251"];
 
-        const polygons: PlantationPolygon[] = parcelFeatures.map((feat, i) => {
-            const form = plotForms[i];
-            const props = (feat.properties ?? {}) as Record<string, unknown>;
-            const plantYearBE = form?.plantYear ? parseInt(form.plantYear) : 0;
-            return {
-                id: String(props.id || `plot-${i + 1}`),
-                geometry: feat.geometry,
-                year_of_planting: plantYearBE > 0 ? plantYearBE - 543 : null,
-                rubber_clone: (form?.variety && SUPPORTED_CLONES.includes(form.variety)) ? form.variety : null,
-                tree_count: form?.treeCount ? (parseInt(form.treeCount) || null) : null,
-                spacing_system: form?.spacing || null,
-            };
+        // Collect all lu classes checked across any plot form
+        const checkedClasses = new Set<string>();
+        plotForms.forEach(f => {
+            Object.entries(f.luChecked || {}).forEach(([cls, on]) => { if (on) checkedClasses.add(cls); });
         });
+
+        // Filter to only checked lu_class features
+        const selectedFeats = parcelFeatures.filter(feat => {
+            const luClass = ((feat.properties ?? {}) as Record<string, unknown>).lu_class as string | undefined;
+            return luClass ? checkedClasses.has(luClass) : true; // include non-lu features as-is
+        });
+
+        if (selectedFeats.length === 0) {
+            setCarbonErr("กรุณาเลือกพื้นที่อย่างน้อย 1 ประเภทการใช้ที่ดิน");
+            setProcessingCarbon(false);
+            return;
+        }
+
+        // Combine selected geometries into one MultiPolygon
+        const allRings: GeoJSON.Position[][][] = [];
+        for (const feat of selectedFeats) {
+            const geom = feat.geometry as GeoJSON.Polygon | GeoJSON.MultiPolygon;
+            if (geom.type === "Polygon") allRings.push(geom.coordinates);
+            else if (geom.type === "MultiPolygon") allRings.push(...geom.coordinates);
+        }
+        const combinedGeom: GeoJSON.Geometry = allRings.length === 1
+            ? { type: "Polygon", coordinates: allRings[0] }
+            : { type: "MultiPolygon", coordinates: allRings };
+
+        // Use form data from the first plot
+        const form = plotForms[0];
+        const plantYearBE = form?.plantYear ? parseInt(form.plantYear) : 0;
+        const polygons: PlantationPolygon[] = [{
+            id: "selected-lu",
+            geometry: combinedGeom,
+            year_of_planting: plantYearBE > 0 ? plantYearBE - 543 : null,
+            rubber_clone: (form?.variety && SUPPORTED_CLONES.includes(form.variety)) ? form.variety : null,
+            tree_count: form?.treeCount ? (parseInt(form.treeCount) || null) : null,
+            spacing_system: form?.spacing || null,
+        }];
 
         try {
             const responses = await estimateCarbon(polygons);
             setBackendResponses(responses);
 
-            const results: CarbonResult[] = responses.map((resp, i) => {
-                const profile = resp.carbon_profile ?? [];
-                const form = plotForms[i];
-                const plantYearBE = form?.plantYear ? parseInt(form.plantYear) : 0;
-                const startAge = plantYearBE > 0 ? CURRENT_BE_NOW - plantYearBE : (plots[i]?.age || 5);
-                const finalPlantYear = plantYearBE > 0 ? plantYearBE : (plots[i]?.plantYearBE || CURRENT_BE_NOW - startAge);
-                const userTrees = form?.treeCount ? parseInt(form.treeCount) : 0;
-                const finalTrees = userTrees > 0 ? userTrees : Math.round((plots[i]?.areaRai || 1) * 76);
-                return {
-                    plotIdx: i,
-                    age: startAge,
-                    plantYearBE: finalPlantYear,
-                    trees: finalTrees,
-                    spacing: form?.spacing || "2.5x8",
-                    variety: form?.variety || "RRIM 600",
-                    co2Now: profile[0]?.total_carbon_tCO2e ?? 0,
-                    source: "backend" as const,
-                };
-            });
+            const startAge = plantYearBE > 0 ? CURRENT_BE_NOW - plantYearBE : (plots[0]?.age || 5);
+            const finalPlantYear = plantYearBE > 0 ? plantYearBE : (plots[0]?.plantYearBE || CURRENT_BE_NOW - startAge);
+            const userTrees = form?.treeCount ? parseInt(form.treeCount) : 0;
+            const totalAreaRai = selectedFeats.reduce((s, f) => s + (((f.properties ?? {}) as Record<string, unknown>).area_m2 as number || 0) / 1600, 0);
+            const finalTrees = userTrees > 0 ? userTrees : Math.round(totalAreaRai * 76);
+            const profile = responses[0]?.carbon_profile ?? [];
+
+            const results: CarbonResult[] = [{
+                plotIdx: 0,
+                age: startAge,
+                plantYearBE: finalPlantYear,
+                trees: finalTrees,
+                spacing: form?.spacing || "2.5x8",
+                variety: form?.variety || "RRIM 600",
+                co2Now: profile[0]?.total_carbon_tCO2e ?? 0,
+                source: "backend" as const,
+            }];
             setCarbonResults(results);
             if (onMapPlotSelected) onMapPlotSelected("total");
             setSubStep("carbon");
@@ -890,31 +942,51 @@ export function ParcelResultsPanel({
                                                     { id: "W", label: "W แหล่งน้ำ", fixed: false, disabled: true },
                                                 ].map(lu => {
                                                     const isChecked = form.luChecked?.[lu.id] || false;
-                                                    const mockData = form.luMockData?.[lu.id];
+                                                    const realData = luRealData[lu.id];
+                                                    const hasArea = realData && realData.rai > 0;
                                                     return (
                                                         <label key={lu.id} style={{
-                                                            display: "flex", alignItems: "center", gap: 8, cursor: lu.disabled || lu.fixed ? "not-allowed" : "pointer",
-                                                            opacity: lu.disabled ? 0.5 : 1, paddingLeft: lu.indent ? 24 : 0
+                                                            display: "flex", alignItems: "center", gap: 8,
+                                                            cursor: lu.disabled || lu.fixed ? "not-allowed" : "pointer",
+                                                            opacity: lu.disabled ? 0.4 : (!hasArea && !lu.fixed ? 0.45 : 1),
+                                                            paddingLeft: lu.indent ? 24 : 0
                                                         }}>
                                                             <input
                                                                 type="checkbox"
                                                                 checked={isChecked}
                                                                 disabled={lu.fixed || lu.disabled}
-                                                                style={{ accentColor: lu.disabled ? "#000" : "#10b981", width: 16, height: 16 }}
+                                                                style={{ accentColor: isChecked ? "#f97316" : "#94a3b8", width: 16, height: 16 }}
                                                                 onChange={(e) => {
                                                                     const newChecked = { ...form.luChecked, [lu.id]: e.target.checked };
-                                                                    setPlotForms(prev => prev.map((f, idx) => idx === i ? { ...f, luChecked: newChecked, luMockData: generateMockLU(p.areaRai, newChecked) } : f));
+                                                                    setPlotForms(prev => prev.map((f, idx) => idx === i ? { ...f, luChecked: newChecked } : f));
+                                                                    onLandUseChange?.(newChecked);
                                                                 }}
                                                             />
-                                                            <span style={{ flex: 1, color: lu.disabled ? "#000" : "#334155", fontWeight: isChecked ? 600 : 400 }}>{lu.label}</span>
-                                                            <span style={{ color: (mockData && mockData.rai > 0) ? "#059669" : "#94a3b8", fontSize: 12, fontWeight: 700 }}>
-                                                                {(mockData?.rai || 0).toFixed(2)} ไร่ <span style={{ opacity: 0.7, fontSize: 11 }}>({mockData?.pct || 0}%)</span>
+                                                            <span style={{ flex: 1, color: "#334155", fontWeight: isChecked ? 600 : 400 }}>{lu.label}</span>
+                                                            <span style={{ color: hasArea ? (isChecked ? "#ea580c" : "#64748b") : "#cbd5e1", fontSize: 12, fontWeight: 700 }}>
+                                                                {hasArea ? `${realData.rai.toFixed(2)} ไร่` : "0.00 ไร่"}
+                                                                <span style={{ opacity: 0.7, fontSize: 11 }}> ({hasArea ? realData.pct : 0}%)</span>
                                                             </span>
                                                         </label>
                                                     );
                                                 })}
                                             </div>
-
+                                            {/* Selected area summary */}
+                                            {(() => {
+                                                const selectedRai = Object.entries(form.luChecked || {})
+                                                    .filter(([cls, on]) => on && luRealData[cls])
+                                                    .reduce((s, [cls]) => s + (luRealData[cls]?.rai || 0), 0);
+                                                return selectedRai > 0 ? (
+                                                    <div style={{ marginTop: 12, padding: "8px 12px", background: "rgba(249,115,22,0.08)", borderRadius: 8, border: "1px solid rgba(249,115,22,0.2)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                                                        <span style={{ fontSize: 12, color: "#92400e", fontWeight: 600 }}>
+                                                            <i className="bi bi-check2-square me-1" /> พื้นที่ที่เลือก
+                                                        </span>
+                                                        <span style={{ fontSize: 13, color: "#c2410c", fontWeight: 700 }}>
+                                                            {selectedRai.toFixed(2)} ไร่
+                                                        </span>
+                                                    </div>
+                                                ) : null;
+                                            })()}
                                         </div>
                                     </>
                                 )}

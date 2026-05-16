@@ -107,6 +107,35 @@ export default function MapDrawPage() {
   const runPlantationInfoRef = useRef<() => void>(() => { });
   const needsPlantationSearchRef = useRef(false);
 
+  // Tracks which lu_class values are checked in the panel (for map highlighting)
+  const [visibleLuClasses, setVisibleLuClasses] = useState<Record<string, boolean>>({ A: true, A302: true });
+
+  const handleLandUseChange = useCallback((checked: Record<string, boolean>) => {
+    setVisibleLuClasses(checked);
+    const map = mapRef.current;
+    if (!map || !mapLoadedRef.current) return;
+    // All checked lu classes → orange; unchecked → gray
+    const checkedClasses = Object.entries(checked)
+      .filter(([, on]) => on)
+      .map(([cls]) => cls);
+    // Build match expression: for each known lu_class, orange if checked, gray if not
+    const allKnown = ["A302", "A303", "A304", "A401", "A403", "A204", "A205", "A300", "F", "W", "U", "M"];
+    const colorExpr: unknown[] = ["match", ["get", "lu_class"]];
+    const opacityExpr: unknown[] = ["match", ["get", "lu_class"]];
+    allKnown.forEach(cls => {
+      const isChecked = checkedClasses.some(c => cls.startsWith(c) || c.startsWith(cls) || c === cls);
+      colorExpr.push(cls, isChecked ? "#ff9100" : "#94a3b8");
+      opacityExpr.push(cls, isChecked ? 0.65 : 0.18);
+    });
+    colorExpr.push("#ff9100"); // default fallback = orange (checked)
+    opacityExpr.push(0.65);
+    map.setPaintProperty("matched-parcels-fill", "fill-color", colorExpr as maplibregl.ExpressionSpecification);
+    map.setPaintProperty("matched-parcels-fill", "fill-opacity", opacityExpr as maplibregl.ExpressionSpecification);
+    map.setPaintProperty("matched-parcels-line", "line-color",
+      checkedClasses.length > 0 ? "#e65c00" : "#94a3b8" as maplibregl.ExpressionSpecification
+    );
+  }, []);
+
 
   // ===== MAP INIT =====
   useEffect(() => {
@@ -248,36 +277,18 @@ export default function MapDrawPage() {
       });
 
       map.addSource("matched-parcels", { type: "geojson", data: emptyFC() });
-      // Land-use colour palette: A302 rubber=orange, F forest=green, W water=blue, U urban=slate, M misc=purple, fallback=indigo
-      const LU_FILL_COLOR: maplibregl.ExpressionSpecification = [
-        "match", ["get", "lu_class"],
-        "A302", "#ff9100",
-        "F",    "#22c55e",
-        "W",    "#3b82f6",
-        "U",    "#94a3b8",
-        "M",    "#c084fc",
-        "#6366f1",
-      ];
-      const LU_LINE_COLOR: maplibregl.ExpressionSpecification = [
-        "match", ["get", "lu_class"],
-        "A302", "#ff6a00",
-        "F",    "#16a34a",
-        "W",    "#2563eb",
-        "U",    "#64748b",
-        "M",    "#9333ea",
-        "#4f46e5",
-      ];
+      // Initial colours: A302 orange (selected by default), everything else gray
       map.addLayer({
         id: "matched-parcels-fill",
         type: "fill",
         source: "matched-parcels",
-        paint: { "fill-color": LU_FILL_COLOR, "fill-opacity": 0.45 },
+        paint: { "fill-color": "#ff9100", "fill-opacity": 0.65 },
       });
       map.addLayer({
         id: "matched-parcels-line",
         type: "line",
         source: "matched-parcels",
-        paint: { "line-color": LU_LINE_COLOR, "line-width": 2.2 },
+        paint: { "line-color": "#e65c00", "line-width": 2.2 },
       });
       map.addLayer({
         id: "matched-parcels-label",
@@ -771,6 +782,9 @@ export default function MapDrawPage() {
         (map.getSource("matched-parcels") as maplibregl.GeoJSONSource | undefined)
           ?.setData({ type: "FeatureCollection", features });
 
+        // Apply initial lu checked state to map colors
+        handleLandUseChange(visibleLuClasses);
+
         // Fit map to show all returned land-use polygons
         if (features.length > 0) {
           const bounds = new maplibregl.LngLatBounds();
@@ -811,7 +825,7 @@ export default function MapDrawPage() {
     } finally {
       setSearchRunning(false);
     }
-  }, [drawnParcels, totalDrawnArea]);
+  }, [drawnParcels, totalDrawnArea, handleLandUseChange, visibleLuClasses]);
 
   useEffect(() => {
     runPlantationInfoRef.current = runPlantationInfo;
@@ -1325,6 +1339,7 @@ export default function MapDrawPage() {
                 isDrawing={drawing}
                 onFinishDraw={() => finishDraw()}
                 onCancelDraw={cancelDrawMode}
+                onLandUseChange={handleLandUseChange}
               />
             </div>
           )}
