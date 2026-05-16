@@ -3,7 +3,7 @@
  * Calls the real backend API instead of using mockup calculations
  */
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_API_URL || "http://localhost:8080";
+const API_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_API_URL || "http://localhost:8080/api/v1";
 
 export interface PlantationPolygon {
     id: string;
@@ -60,7 +60,7 @@ export async function estimateCarbon(
     polygons: PlantationPolygon[]
 ): Promise<EstimationResponse[]> {
     try {
-        const response = await fetch(`${API_BASE_URL}/api/v1/estimate`, {
+        const response = await fetch(`${API_BASE_URL}/estimate`, {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
@@ -93,7 +93,7 @@ export async function getPlantationInfo(polygon: {
     project_type?: string | null;
     output_crs?: string | null;
 }): Promise<PlantationInfoResponse> {
-    const response = await fetch(`${API_BASE_URL}/api/v1/plantation-info`, {
+    const response = await fetch(`${API_BASE_URL}/plantation-info`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(polygon),
