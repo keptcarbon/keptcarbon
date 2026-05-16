@@ -1,18 +1,26 @@
-FROM node:20-alpine
+# ── Stage 1: build ────────────────────────────────────────────────
+FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-# Copy package files first for better caching
 COPY package.json package-lock.json ./
-
-# Install dependencies
 RUN npm ci
 
-# Copy the rest of the app
 COPY . .
+RUN npm run build
 
-# Expose Next.js dev port
+# ── Stage 2: production runtime ───────────────────────────────────
+FROM node:20-alpine AS runner
+
+WORKDIR /app
+
+ENV NODE_ENV=production
+
+# Copy only the files Next needs to run
+COPY --from=builder /app/public ./public
+COPY --from=builder /app/.next/standalone ./
+COPY --from=builder /app/.next/static ./.next/static
+
 EXPOSE 3000
 
-# Run in development mode
-CMD ["sh", "-c", "if [ ! -f package.json ]; then echo 'Error: package.json not found in /app'; pwd; ls -la; exit 1; fi && npm run dev"]
+CMD ["node", "server.js"]
