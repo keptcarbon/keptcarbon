@@ -14,6 +14,7 @@ type Props = {
     searchCount: number | null;
     searchTruncated: boolean;
     parcelFeatures: GeoJSON.Feature[];
+    luFeatures?: GeoJSON.Feature[];
     userDisplayName?: string;
     drawnGeometry?: GeoJSON.Geometry | null;
     onFlyTo: (feature: GeoJSON.Feature) => void;
@@ -438,6 +439,7 @@ export function ParcelResultsPanel({
     searchCount,
     searchTruncated,
     parcelFeatures,
+    luFeatures = [],
     userDisplayName = "",
     drawnGeometry = null,
     onFlyTo,
@@ -465,16 +467,17 @@ export function ParcelResultsPanel({
     const plots = useMemo(() => parcelFeatures.map(computePlot), [parcelFeatures]);
     const totalArea = useMemo(() => plots.reduce((s, p) => s + p.areaRai, 0), [plots]);
 
-    // Build real land-use area data from parcelFeatures (lu_polygon properties from plantation-info API)
+    // Build real land-use area data from luFeatures (lu_polygon properties from plantation-info API)
     const luRealData = useMemo(() => {
         const data: Record<string, { rai: number; pct: number }> = {};
+        const featuresToUse = luFeatures.length > 0 ? luFeatures : parcelFeatures;
         let totalM2 = 0;
-        for (const feat of parcelFeatures) {
+        for (const feat of featuresToUse) {
             const p = (feat.properties ?? {}) as Record<string, unknown>;
             const m2 = (p.area_m2 as number) || 0;
             if (p.lu_class) totalM2 += m2;
         }
-        for (const feat of parcelFeatures) {
+        for (const feat of featuresToUse) {
             const p = (feat.properties ?? {}) as Record<string, unknown>;
             const cls = p.lu_class as string | undefined;
             const m2 = (p.area_m2 as number) || 0;
@@ -482,13 +485,13 @@ export function ParcelResultsPanel({
             if (cls) data[cls] = { rai: m2 / 1600, pct: Math.round(pct * 10) / 10 };
         }
         // "A" parent = sum of all A-type lu classes
-        const aM2 = parcelFeatures.reduce((s, f) => {
+        const aM2 = featuresToUse.reduce((s, f) => {
             const p = (f.properties ?? {}) as Record<string, unknown>;
             return (p.lu_class as string)?.startsWith("A") ? s + ((p.area_m2 as number) || 0) : s;
         }, 0);
         if (aM2 > 0) data["A"] = { rai: aM2 / 1600, pct: Math.round(totalM2 > 0 ? (aM2 / totalM2) * 1000 : 0) / 10 };
         return data;
-    }, [parcelFeatures]);
+    }, [parcelFeatures, luFeatures]);
     const totalCO2 = useMemo(() => plots.reduce((s, p) => s + p.co2, 0), [plots]);
     const summaryPts = useMemo(() => summaryForecast(plots, summaryFcYrs), [plots, summaryFcYrs]);
     const dominantProvince = useMemo(() => {
@@ -566,7 +569,8 @@ export function ParcelResultsPanel({
         });
 
         // Filter to only checked lu_class features
-        const selectedFeats = parcelFeatures.filter(feat => {
+        const featuresToUse = luFeatures.length > 0 ? luFeatures : parcelFeatures;
+        const selectedFeats = featuresToUse.filter(feat => {
             const luClass = ((feat.properties ?? {}) as Record<string, unknown>).lu_class as string | undefined;
             return luClass ? checkedClasses.has(luClass) : true; // include non-lu features as-is
         });

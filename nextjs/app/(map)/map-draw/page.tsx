@@ -1324,6 +1324,7 @@ export default function MapDrawPage() {
                 searchCount={searchCount}
                 searchTruncated={searchTruncated}
                 parcelFeatures={drawnParcels}
+                luFeatures={parcelFeatures}
                 userDisplayName={user?.fullname ?? ""}
                 drawnGeometry={drawnGeometry}
                 onFlyTo={flyToFeature}
