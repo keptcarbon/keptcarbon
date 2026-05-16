@@ -1,0 +1,105 @@
+/* ==========================================================================
+   Button atom styles
+   Uses design tokens exclusively — no hardcoded values.
+   ========================================================================== */
+
+.kc-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--kc-space-2);
+  padding: 13px 28px;
+  border-radius: var(--kc-radius-md);
+  font-weight: var(--kc-font-weight-bold);
+  font-size: var(--kc-font-size-base);
+  letter-spacing: 0.2px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: var(--kc-transition);
+  font-family: var(--kc-font-family);
+  text-decoration: none;
+  white-space: nowrap;
+  line-height: var(--kc-line-height-normal);
+}
+
+.kc-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+/* ── Variants ──────────────────────────────────── */
+.kc-btn--primary {
+  background: var(--kc-grad);
+  color: var(--kc-white);
+  box-shadow: var(--kc-shadow-button);
+}
+.kc-btn--primary:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--kc-shadow-button-hover);
+  color: var(--kc-white);
+}
+
+.kc-btn--ghost {
+  background: rgba(45, 158, 95, 0.06);
+  color: var(--kc-green-dark);
+  border-color: rgba(45, 158, 95, 0.18);
+}
+.kc-btn--ghost:hover {
+  background: rgba(45, 158, 95, 0.12);
+  border-color: var(--kc-line-strong);
+  color: var(--kc-green-dark);
+  transform: translateY(-2px);
+}
+
+.kc-btn--soft {
+  background: var(--kc-white);
+  color: var(--kc-green-dark);
+  border-color: var(--kc-line);
+  box-shadow: var(--kc-shadow-sm);
+}
+.kc-btn--soft:hover {
+  border-color: var(--kc-line-strong);
+  box-shadow: var(--kc-shadow-card);
+  color: var(--kc-green-dark);
+  transform: translateY(-2px);
+}
+
+.kc-btn--danger {
+  background: rgba(229, 62, 62, 0.08);
+  color: var(--kc-error);
+  border-color: rgba(229, 62, 62, 0.18);
+}
+.kc-btn--danger:hover {
+  background: rgba(229, 62, 62, 0.14);
+  color: var(--kc-error);
+}
+
+/* ── Sizes ─────────────────────────────────────── */
+.kc-btn--sm {
+  padding: 9px 18px;
+  font-size: var(--kc-font-size-sm);
+  border-radius: 11px;
+}
+.kc-btn--lg {
+  padding: var(--kc-space-4) 36px;
+  font-size: var(--kc-font-size-lg);
+  border-radius: var(--kc-radius-lg);
+}
+.kc-btn--block {
+  width: 100%;
+}
+
+/* ── Spinner ───────────────────────────────────── */
+.kc-btn__spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-top-color: var(--kc-white);
+  border-radius: var(--kc-radius-circle);
+  animation: kc-spin 0.7s linear infinite;
+}
+
+@keyframes kc-spin {
+  to { transform: rotate(360deg); }
+}

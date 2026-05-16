@@ -1,18 +1,17 @@
 """
-This class uses geopandas to perform a spatial intersection between 
-the user-drawn polygon and the provincial boundaries.
+Province detection via spatial index (sindex) — faster than full overlay.
 """
 import geopandas as gpd
 from shapely.geometry import shape
 from fastapi import HTTPException
 from pathlib import Path
 
+
 class ProvinceService:
     def __init__(self):
         self.file_path = Path("app/data/shp/TH_PROVINCE.gpkg")
         self.target_crs = "EPSG:32647"
 
-        # Pre-load provincial boundaries into memory
         if self.file_path.exists():
             try:
                 self._provinces_gdf = gpd.read_file(self.file_path).to_crs(self.target_crs)
@@ -29,19 +28,20 @@ class ProvinceService:
     def get_province(self, poly_data: dict):
         if self._provinces_gdf is None:
             raise HTTPException(status_code=500, detail="PROVINCE BOUNDARY FILE NOT FOUND.")
-        
+
         try:
-            # 1. Quick conversion
             plantation_geom = shape(poly_data["geometry"])
             plantation_gdf = gpd.GeoDataFrame(
                 index=[0], crs="EPSG:4326", geometry=[plantation_geom]
             ).to_crs(self.target_crs)
-            
+
             target_geom = plantation_gdf.geometry.iloc[0]
             poly_data["total_area_m2"] = round(target_geom.area, 4)
 
-            # 2. FAST SPATIAL INDEX SEARCH (Find candidate provinces instantly)
-            possible_matches_index = self._provinces_gdf.sindex.query(target_geom, predicate="intersects")
+            # Fast spatial index query — only evaluate precise intersection on candidates
+            possible_matches_index = self._provinces_gdf.sindex.query(
+                target_geom, predicate="intersects"
+            )
             candidates = self._provinces_gdf.iloc[possible_matches_index]
 
             if candidates.empty:
@@ -52,10 +52,9 @@ class ProvinceService:
                 }
                 return poly_data
 
-            # 3. Precise Area Intersection evaluation (only on candidates)
+            # Pick the province with the largest intersection area
             best_match = None
             max_intersect_area = 0.0
-
             for _, prov_row in candidates.iterrows():
                 inter_geom = target_geom.intersection(prov_row.geometry)
                 if not inter_geom.is_empty and inter_geom.area > max_intersect_area:
@@ -64,7 +63,10 @@ class ProvinceService:
 
             if best_match is None:
                 poly_data["province_code"] = None
-                poly_data["status"] = {"status": "error", "status_code": "E01", "message": "NO VALID INTERSECTION FOUND."}
+                poly_data["status"] = {
+                    "status": "error", "status_code": "E01",
+                    "message": "NO VALID INTERSECTION FOUND."
+                }
                 return poly_data
 
             poly_data["province_code"] = str(best_match["P_CODE"])
@@ -75,5 +77,7 @@ class ProvinceService:
             return poly_data
 
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"PROVINCE IDENTIFICATION FAILED: {str(e)}")
-
+            raise HTTPException(
+                status_code=500,
+                detail=f"PROVINCE IDENTIFICATION FAILED: {str(e)}"
+            )

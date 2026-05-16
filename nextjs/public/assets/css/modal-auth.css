@@ -1,0 +1,292 @@
+/* ==========================================================================
+   Auth Modal Styles
+   Overlay modals for Login / Register — uses design tokens from tokens.css
+   ========================================================================== */
+
+/* ── Modal card ────────────────────────────────── */
+.modal-auth-card {
+  position: relative;
+  overflow: hidden;
+  padding: 40px 36px 32px;
+  background: rgba(255, 255, 255, 0.97);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-radius: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  box-shadow:
+    0 32px 80px rgba(0, 0, 0, 0.18),
+    0 0 0 1px rgba(45, 158, 95, 0.06);
+  animation: modalCardIn 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes modalCardIn {
+  from { opacity: 0; transform: translateY(24px) scale(0.96); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* Gradient ribbon at the top */
+.modal-auth-card::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, var(--kc-green, #2d9e5f), var(--kc-teal, #0d9488), var(--kc-mint, #4ade80));
+  border-radius: 24px 24px 0 0;
+}
+
+/* ── Logo ──────────────────────────────────────── */
+.modal-auth-logo {
+  text-align: center;
+  margin-bottom: 8px;
+}
+
+/* ── Heading & subtitle ────────────────────────── */
+.modal-auth-heading {
+  font-size: 26px;
+  font-weight: 800;
+  color: var(--kc-ink, #1a3d2b);
+  letter-spacing: -0.4px;
+  margin: 0 0 4px;
+}
+
+.modal-auth-sub {
+  font-size: 13.5px;
+  color: var(--kc-sage, #5a7a65);
+  line-height: 1.6;
+  margin-bottom: 20px;
+}
+
+/* ── Form groups ───────────────────────────────── */
+.modal-auth-form-group {
+  margin-bottom: 14px;
+}
+
+.modal-auth-form-group label {
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--kc-sage, #5a7a65);
+  text-transform: uppercase;
+  letter-spacing: 0.7px;
+  margin-bottom: 7px;
+  font-family: inherit;
+}
+
+/* ── Input wrappers ────────────────────────────── */
+.modal-inp-wrap {
+  position: relative;
+}
+
+.modal-inp-wrap > i {
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--kc-sage-soft, #738f7d);
+  font-size: 15px;
+  pointer-events: none;
+  transition: color 0.2s;
+}
+
+.modal-inp-wrap input {
+  width: 100%;
+  padding: 12px 14px 12px 42px;
+  background: #ffffff;
+  border: 1.5px solid #e6f0ea;
+  border-radius: 12px;
+  font-size: 14px;
+  color: var(--kc-ink, #1a3d2b);
+  font-family: inherit;
+  outline: none;
+  transition: all 0.2s;
+}
+
+.modal-inp-wrap input:focus {
+  border-color: var(--kc-green, #2d9e5f);
+  background: var(--kc-green-50, #edfaf3);
+  box-shadow: 0 0 0 4px rgba(45, 158, 95, 0.12);
+}
+
+.modal-inp-wrap input:focus + i,
+.modal-inp-wrap:focus-within > i {
+  color: var(--kc-green, #2d9e5f);
+}
+
+.modal-inp-wrap input::placeholder {
+  color: #b3c4ba;
+}
+
+/* ── Password strength bar ─────────────────────── */
+.modal-pwd-strength {
+  margin-top: 6px;
+  height: 3px;
+  border-radius: 4px;
+  background: #e6f0ea;
+  overflow: hidden;
+}
+
+.modal-pwd-bar {
+  height: 100%;
+  border-radius: 4px;
+  transition: all 0.3s;
+}
+
+/* ── Submit button ─────────────────────────────── */
+.modal-btn-submit {
+  width: 100%;
+  margin-top: 8px;
+  padding: 14px 24px;
+  background: linear-gradient(135deg, var(--kc-green, #2d9e5f), var(--kc-teal, #0d9488));
+  border: none;
+  border-radius: 14px;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  letter-spacing: 0.3px;
+  box-shadow: 0 10px 28px rgba(45, 158, 95, 0.32);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.modal-btn-submit:hover:not(:disabled) {
+  transform: translateY(-3px);
+  box-shadow: 0 14px 36px rgba(45, 158, 95, 0.42);
+}
+
+.modal-btn-submit:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* ── Alert banners ─────────────────────────────── */
+.modal-auth-alert {
+  display: none;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 11px;
+  font-size: 13.5px;
+  font-weight: 500;
+  margin-bottom: 16px;
+}
+
+.modal-auth-alert.show {
+  display: flex;
+}
+
+.modal-auth-alert.error {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #c53030;
+}
+
+.modal-auth-alert.success {
+  background: var(--kc-green-50, #edfaf3);
+  border: 1px solid rgba(45, 158, 95, 0.3);
+  color: var(--kc-green-dark, #1e7a47);
+}
+
+/* ── OR divider ────────────────────────────────── */
+.modal-divider {
+  position: relative;
+  text-align: center;
+  color: var(--kc-sage-soft, #738f7d);
+  font-size: 11px;
+  letter-spacing: 1.6px;
+  text-transform: uppercase;
+  font-weight: 700;
+  margin: 22px 0 18px;
+}
+
+.modal-divider::before,
+.modal-divider::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  width: calc(50% - 28px);
+  height: 1px;
+  background: rgba(45, 158, 95, 0.15);
+}
+
+.modal-divider::before { left: 0; }
+.modal-divider::after  { right: 0; }
+
+/* ── Footer links ──────────────────────────────── */
+.modal-auth-links {
+  text-align: center;
+  font-size: 13.5px;
+  color: var(--kc-sage, #5a7a65);
+}
+
+.modal-auth-links a {
+  color: var(--kc-green, #2d9e5f);
+  font-weight: 700;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.modal-auth-links a:hover {
+  color: var(--kc-green-dark, #1e7a47);
+  text-decoration: underline;
+}
+
+/* ── LINE Login button ─────────────────────────── */
+.modal-btn-line {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  padding: 13px 24px;
+  background: #06C755;
+  border: none;
+  border-radius: 14px;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  text-decoration: none;
+  letter-spacing: 0.3px;
+  box-shadow: 0 8px 24px rgba(6, 199, 85, 0.3);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.modal-btn-line:hover {
+  background: #05b04c;
+  transform: translateY(-2px);
+  box-shadow: 0 12px 32px rgba(6, 199, 85, 0.4);
+  color: #fff;
+  text-decoration: none;
+}
+
+.modal-btn-line:active {
+  transform: translateY(0);
+  box-shadow: 0 6px 18px rgba(6, 199, 85, 0.25);
+}
+
+.modal-btn-line svg {
+  flex-shrink: 0;
+}
+
+/* ── Mobile adjustments ────────────────────────── */
+@media (max-width: 540px) {
+  .modal-auth-card {
+    padding: 32px 20px 24px;
+    border-radius: 20px;
+  }
+
+  .modal-auth-heading {
+    font-size: 22px;
+  }
+
+  .modal-auth-logo img {
+    max-width: 140px !important;
+  }
+}

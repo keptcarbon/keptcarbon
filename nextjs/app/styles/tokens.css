@@ -1,0 +1,123 @@
+/* ==========================================================================
+   KeptCarbon Design Tokens
+   Single source of truth for all visual values across the application.
+   Import this file in globals.css — it MUST load before any component CSS.
+   ========================================================================== */
+
+:root {
+  /* ── Color: Brand ─────────────────────────────── */
+  --kc-green: #2d9e5f;
+  --kc-green-dark: #1e7a47;
+  --kc-green-50: #edfaf3;
+  --kc-teal: #0d9488;
+  --kc-mint: #4ade80;
+
+  /* ── Color: Ink / Text ────────────────────────── */
+  --kc-ink: #1a3d2b;
+  --kc-ink-soft: #2d4d3a;
+  --kc-sage: #5a7a65;
+  --kc-sage-soft: #738f7d;
+  --kc-muted: #94a3b8;
+
+  /* ── Color: Surface / Background ──────────────── */
+  --kc-cream: #f8fdfb;
+  --kc-cream-2: #f8fbf9;
+  --kc-white: #ffffff;
+  --kc-surface: rgba(255, 255, 255, 0.92);
+
+  /* ── Color: Border / Line ─────────────────────── */
+  --kc-line: rgba(45, 158, 95, 0.12);
+  --kc-line-strong: rgba(45, 158, 95, 0.25);
+  --kc-border-input: #e6f0ea;
+
+  /* ── Color: Semantic ──────────────────────────── */
+  --kc-error: #c53030;
+  --kc-error-bg: #fef2f2;
+  --kc-error-border: #fecaca;
+  --kc-success: #22c55e;
+  --kc-success-bg: var(--kc-green-50);
+  --kc-success-border: rgba(45, 158, 95, 0.3);
+  --kc-warning: #eab308;
+  --kc-danger: #ef4444;
+
+  /* ── Gradients ────────────────────────────────── */
+  --kc-grad: linear-gradient(135deg, #2d9e5f, #0d9488);
+  --kc-grad-soft: linear-gradient(135deg, rgba(45, 158, 95, 0.1), rgba(13, 148, 136, 0.1));
+  --kc-grad-cream: linear-gradient(180deg, #f8fdfb 0%, #ffffff 100%);
+
+  /* ── Typography ───────────────────────────────── */
+  --kc-font-family: var(--font-noto-sans-thai), 'Noto Sans Thai', 'Noto Sans', system-ui, sans-serif;
+  --kc-font-size-xs: 11px;
+  --kc-font-size-sm: 13px;
+  --kc-font-size-base: 14px;
+  --kc-font-size-md: 15px;
+  --kc-font-size-lg: 16px;
+  --kc-font-size-xl: 24px;
+  --kc-font-size-2xl: 32px;
+  --kc-font-size-3xl: 44px;
+  --kc-font-weight-light: 300;
+  --kc-font-weight-normal: 400;
+  --kc-font-weight-medium: 500;
+  --kc-font-weight-semibold: 600;
+  --kc-font-weight-bold: 700;
+  --kc-font-weight-extrabold: 800;
+  --kc-line-height-tight: 1.15;
+  --kc-line-height-normal: 1.5;
+  --kc-line-height-relaxed: 1.7;
+  --kc-letter-spacing-tight: -0.8px;
+  --kc-letter-spacing-normal: 0;
+  --kc-letter-spacing-wide: 0.6px;
+
+  /* ── Spacing ──────────────────────────────────── */
+  --kc-space-1: 4px;
+  --kc-space-2: 8px;
+  --kc-space-3: 12px;
+  --kc-space-4: 16px;
+  --kc-space-5: 20px;
+  --kc-space-6: 24px;
+  --kc-space-8: 32px;
+  --kc-space-10: 40px;
+  --kc-space-12: 48px;
+  --kc-space-16: 64px;
+
+  /* ── Border Radius ────────────────────────────── */
+  --kc-radius-sm: 10px;
+  --kc-radius-md: 14px;
+  --kc-radius-lg: 20px;
+  --kc-radius-pill: 50px;
+  --kc-radius-circle: 50%;
+  --kc-radius-input: 12px;
+
+  /* ── Shadows ──────────────────────────────────── */
+  --kc-shadow-xs: 0 1px 3px rgba(0, 0, 0, 0.04);
+  --kc-shadow-sm: 0 4px 14px rgba(0, 0, 0, 0.04);
+  --kc-shadow-card: 0 10px 40px rgba(45, 158, 95, 0.06);
+  --kc-shadow-lift: 0 16px 40px rgba(45, 158, 95, 0.12);
+  --kc-shadow-button: 0 10px 24px rgba(45, 158, 95, 0.3);
+  --kc-shadow-button-hover: 0 14px 32px rgba(45, 158, 95, 0.4);
+  --kc-shadow-modal: 0 20px 60px rgba(0, 0, 0, 0.2);
+
+  /* ── Transitions ──────────────────────────────── */
+  --kc-ease: cubic-bezier(0.4, 0, 0.2, 1);
+  --kc-duration-fast: 150ms;
+  --kc-duration-normal: 300ms;
+  --kc-duration-slow: 500ms;
+  --kc-transition: all var(--kc-duration-normal) var(--kc-ease);
+  --kc-transition-fast: all var(--kc-duration-fast) var(--kc-ease);
+
+  /* ── Z-index ──────────────────────────────────── */
+  --kc-z-base: 0;
+  --kc-z-dropdown: 100;
+  --kc-z-sticky: 200;
+  --kc-z-header: 300;
+  --kc-z-sidebar: 400;
+  --kc-z-overlay: 500;
+  --kc-z-modal: 600;
+  --kc-z-toast: 700;
+
+  /* ── Breakpoints (reference only — use in media queries) ── */
+  /* --kc-bp-sm: 540px;  */
+  /* --kc-bp-md: 768px;  */
+  /* --kc-bp-lg: 1024px; */
+  /* --kc-bp-xl: 1280px; */
+}

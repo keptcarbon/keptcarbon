@@ -1,0 +1,401 @@
+/* ==========================================================================
+   KeptCarbon — Editorial Greenhouse Design System
+   Shared visual language across auth, dashboard, and map-draw pages.
+   Derived from the marketing page (.beautiful-section-header, .stats-box,
+   .keptcarbon-meaning-card, gradient text, hero grid overlay).
+   ========================================================================== */
+
+:root {
+  --kc-green: #2d9e5f;
+  --kc-green-d: #1e7a47;
+  --kc-green-50: #edfaf3;
+  --kc-teal: #0d9488;
+  --kc-mint: #4ade80;
+  --kc-ink: #1a3d2b;
+  --kc-ink-soft: #2d4d3a;
+  --kc-sage: #5a7a65;
+  --kc-sage-soft: #738f7d;
+  --kc-line: rgba(45, 158, 95, 0.12);
+  --kc-line-strong: rgba(45, 158, 95, 0.25);
+  --kc-cream: #f8fdfb;
+  --kc-cream-2: #f8fbf9;
+
+  --kc-grad: linear-gradient(135deg, #2d9e5f, #0d9488);
+  --kc-grad-soft: linear-gradient(135deg, rgba(45, 158, 95, 0.1), rgba(13, 148, 136, 0.1));
+
+  --kc-shadow-card: 0 10px 40px rgba(45, 158, 95, 0.06);
+  --kc-shadow-lift: 0 16px 40px rgba(45, 158, 95, 0.12);
+  --kc-shadow-button: 0 10px 24px rgba(45, 158, 95, 0.3);
+  --kc-shadow-button-hover: 0 14px 32px rgba(45, 158, 95, 0.4);
+
+  --kc-radius-sm: 10px;
+  --kc-radius-md: 14px;
+  --kc-radius-lg: 20px;
+  --kc-radius-pill: 50px;
+}
+
+/* ==========================================================================
+   1. Atmospheric backgrounds (cream + grid + soft orbs)
+   Reused by the auth shell and dashboard welcome hero.
+   ========================================================================== */
+.kc-cream-bg {
+  background: linear-gradient(180deg, #f8fdfb 0%, #ffffff 100%);
+  position: relative;
+  overflow: hidden;
+}
+.kc-cream-bg::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 10% 20%, rgba(45, 158, 95, 0.05) 0%, transparent 40%),
+    radial-gradient(circle at 90% 80%, rgba(13, 148, 136, 0.05) 0%, transparent 40%);
+  pointer-events: none;
+  z-index: 0;
+}
+.kc-cream-bg > * { position: relative; z-index: 1; }
+
+.kc-grid-overlay {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(45, 158, 95, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(45, 158, 95, 0.05) 1px, transparent 1px);
+  background-size: 40px 40px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.kc-orb {
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+  filter: blur(40px);
+  z-index: 0;
+  animation: kcFloat 9s ease-in-out infinite;
+}
+.kc-orb-a {
+  width: 520px; height: 520px;
+  background: radial-gradient(circle, rgba(45, 158, 95, 0.22) 0%, transparent 65%);
+  top: -180px; right: -120px;
+}
+.kc-orb-b {
+  width: 380px; height: 380px;
+  background: radial-gradient(circle, rgba(13, 148, 136, 0.18) 0%, transparent 65%);
+  bottom: -120px; left: -100px;
+  animation-delay: -4.5s;
+  animation-direction: reverse;
+}
+@keyframes kcFloat {
+  0%, 100% { transform: translate(0, 0); }
+  50% { transform: translate(24px, -24px); }
+}
+
+/* ==========================================================================
+   2. Eyebrow pill (matches .project-tag from marketing)
+   ========================================================================== */
+.kc-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 18px;
+  border-radius: var(--kc-radius-pill);
+  background: rgba(45, 158, 95, 0.1);
+  color: var(--kc-green);
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  border: 1px solid rgba(45, 158, 95, 0.22);
+  text-transform: uppercase;
+  font-family: 'Noto Sans Thai', 'Noto Sans', sans-serif;
+}
+.kc-eyebrow.kc-eyebrow-dark {
+  background: rgba(0, 0, 0, 0.55);
+  color: var(--kc-mint);
+  border-color: rgba(74, 222, 128, 0.4);
+  text-transform: none;
+  letter-spacing: 0.4px;
+}
+
+/* ==========================================================================
+   3. Headlines + title divider
+   ========================================================================== */
+.kc-headline {
+  font-size: 44px;
+  font-weight: 800;
+  color: var(--kc-ink);
+  line-height: 1.15;
+  letter-spacing: -0.8px;
+  margin: 0;
+  font-family: 'Noto Sans Thai', 'Noto Sans', sans-serif;
+}
+.kc-headline-sm { font-size: 32px; letter-spacing: -0.5px; }
+.kc-headline-xs { font-size: 24px; letter-spacing: -0.3px; }
+.kc-headline .kc-grad-text,
+.kc-grad-text {
+  background: var(--kc-grad);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.kc-sub {
+  color: var(--kc-sage);
+  font-size: 15px;
+  line-height: 1.7;
+  margin: 8px 0 0;
+}
+.kc-divider {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin: 14px 0 18px;
+}
+.kc-divider .line { height: 1px; width: 60px; background: #cbd5e1; }
+.kc-divider .dash { height: 4px; width: 44px; background: var(--kc-green); border-radius: 4px; }
+
+/* ==========================================================================
+   4. Glass card (the marketing meaning-card vibe)
+   ========================================================================== */
+.kc-card {
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  border-radius: var(--kc-radius-lg);
+  box-shadow: var(--kc-shadow-card);
+  position: relative;
+  overflow: hidden;
+}
+.kc-card-accent {
+  border-left: 4px solid var(--kc-green);
+}
+.kc-card::after {
+  content: "";
+  position: absolute;
+  top: -30px;
+  right: -30px;
+  width: 120px;
+  height: 120px;
+  background: radial-gradient(circle, rgba(45, 158, 95, 0.12) 0%, transparent 70%);
+  border-radius: 50%;
+  pointer-events: none;
+}
+.kc-card-clean::after { display: none; }
+
+/* ==========================================================================
+   5. Buttons (lift on hover, gradient primary)
+   ========================================================================== */
+.kc-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 13px 28px;
+  border-radius: var(--kc-radius-md);
+  font-weight: 700;
+  font-size: 14.5px;
+  letter-spacing: 0.2px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  font-family: 'Noto Sans Thai', 'Noto Sans', sans-serif;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.kc-btn:disabled { opacity: 0.6; cursor: not-allowed; pointer-events: none; }
+
+.kc-btn-primary {
+  background: var(--kc-grad);
+  color: #fff;
+  box-shadow: var(--kc-shadow-button);
+}
+.kc-btn-primary:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--kc-shadow-button-hover);
+  color: #fff;
+}
+
+.kc-btn-ghost {
+  background: rgba(45, 158, 95, 0.06);
+  color: var(--kc-green-d);
+  border-color: rgba(45, 158, 95, 0.18);
+}
+.kc-btn-ghost:hover {
+  background: rgba(45, 158, 95, 0.12);
+  border-color: rgba(45, 158, 95, 0.32);
+  color: var(--kc-green-d);
+  transform: translateY(-2px);
+}
+
+.kc-btn-soft {
+  background: #fff;
+  color: var(--kc-green-d);
+  border-color: var(--kc-line);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.04);
+}
+.kc-btn-soft:hover {
+  border-color: var(--kc-line-strong);
+  box-shadow: 0 8px 22px rgba(45, 158, 95, 0.1);
+  color: var(--kc-green-d);
+  transform: translateY(-2px);
+}
+
+.kc-btn-danger {
+  background: rgba(229, 62, 62, 0.08);
+  color: #c53030;
+  border-color: rgba(229, 62, 62, 0.18);
+}
+.kc-btn-danger:hover { background: rgba(229, 62, 62, 0.14); color: #c53030; }
+
+.kc-btn-sm { padding: 9px 18px; font-size: 13px; border-radius: 11px; }
+.kc-btn-lg { padding: 16px 36px; font-size: 16px; border-radius: 16px; }
+.kc-btn-block { width: 100%; }
+
+/* Spinner inside buttons */
+.kc-spin {
+  width: 16px; height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: kcSpin 0.7s linear infinite;
+}
+@keyframes kcSpin { to { transform: rotate(360deg); } }
+
+/* ==========================================================================
+   6. Form fields (refined inputs)
+   ========================================================================== */
+.kc-field { display: block; margin-bottom: 16px; }
+.kc-field-label {
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--kc-sage);
+  text-transform: uppercase;
+  letter-spacing: 0.7px;
+  margin-bottom: 7px;
+  font-family: 'Noto Sans Thai', 'Noto Sans', sans-serif;
+}
+.kc-field-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+@media (max-width: 540px) { .kc-field-grid { grid-template-columns: 1fr; } }
+
+.kc-input-wrap { position: relative; }
+.kc-input-wrap > i {
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--kc-sage-soft);
+  font-size: 15px;
+  pointer-events: none;
+  transition: color 0.2s;
+}
+.kc-input,
+.kc-input-wrap input,
+.kc-input-wrap select,
+.kc-input-wrap textarea {
+  width: 100%;
+  padding: 12px 14px 12px 42px;
+  background: #ffffff;
+  border: 1.5px solid #e6f0ea;
+  border-radius: 12px;
+  font-size: 14px;
+  color: var(--kc-ink);
+  font-family: 'Noto Sans Thai', 'Noto Sans', sans-serif;
+  outline: none;
+  transition: all 0.2s;
+}
+.kc-input:focus,
+.kc-input-wrap input:focus,
+.kc-input-wrap select:focus,
+.kc-input-wrap textarea:focus {
+  border-color: var(--kc-green);
+  background: var(--kc-green-50);
+  box-shadow: 0 0 0 4px rgba(45, 158, 95, 0.12);
+}
+.kc-input-wrap input:focus + i,
+.kc-input-wrap:focus-within > i { color: var(--kc-green); }
+.kc-input-wrap input::placeholder { color: #b3c4ba; }
+.kc-input-bare { padding-left: 14px; }
+.kc-input-bare + i { display: none; }
+
+.kc-pwd-meter {
+  margin-top: 6px;
+  height: 3px;
+  border-radius: 4px;
+  background: #e6f0ea;
+  overflow: hidden;
+}
+.kc-pwd-meter > div {
+  height: 100%;
+  border-radius: 4px;
+  transition: all 0.3s;
+}
+
+/* ==========================================================================
+   7. Alerts
+   ========================================================================== */
+.kc-alert {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 11px;
+  font-size: 13.5px;
+  font-weight: 500;
+  margin-bottom: 16px;
+  font-family: 'Noto Sans Thai', 'Noto Sans', sans-serif;
+}
+.kc-alert.error {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #c53030;
+}
+.kc-alert.success {
+  background: var(--kc-green-50);
+  border: 1px solid rgba(45, 158, 95, 0.3);
+  color: var(--kc-green-d);
+}
+
+/* ==========================================================================
+   8. Soft divider with center text
+   ========================================================================== */
+.kc-divider-text {
+  position: relative;
+  text-align: center;
+  color: var(--kc-sage-soft);
+  font-size: 11.5px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  margin: 22px 0;
+  font-weight: 600;
+}
+.kc-divider-text::before,
+.kc-divider-text::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  width: calc(50% - 32px);
+  height: 1px;
+  background: var(--kc-line);
+}
+.kc-divider-text::before { left: 0; }
+.kc-divider-text::after { right: 0; }
+
+/* ==========================================================================
+   9. Sticky pill (used by brand mark, status indicators)
+   ========================================================================== */
+.kc-brand-stamp {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 16px 8px 8px;
+  border-radius: var(--kc-radius-pill);
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--kc-line);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.05);
+}
+.kc-brand-stamp img { width: 28px; height: 28px; border-radius: 8px; }
+.kc-brand-stamp .name { font-size: 14px; font-weight: 800; color: var(--kc-ink); letter-spacing: -0.3px; }
+.kc-brand-stamp .name span { color: var(--kc-green); }

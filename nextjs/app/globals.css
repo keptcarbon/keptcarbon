@@ -1,0 +1,53 @@
+/* ==========================================================================
+   KeptCarbon Global Styles
+   1. Design tokens (single source of truth)
+   2. Legacy vendor CSS is loaded via <link> in layout.tsx
+   ========================================================================== */
+
+@import "./styles/tokens.css";
+
+/* ── Global resets using token values ──────────── */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: var(--kc-font-family);
+  color: var(--kc-ink);
+  line-height: var(--kc-line-height-normal);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ── Field error (atoms/Input) ─────────────────── */
+.kc-field-error {
+  display: block;
+  margin-top: var(--kc-space-1);
+  font-size: var(--kc-font-size-xs);
+  color: var(--kc-error);
+}
+
+/* ── MapLibre Popup Overrides (kc-custom-popup) ── */
+
+/* Strip default MapLibre popup chrome */
+.kc-custom-popup .maplibregl-popup-content {
+  padding: 0 !important;
+  border-radius: 20px !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  border: none !important;
+  overflow: visible !important;
+}
+
+/* Hide the default triangle tip — card shadow handles depth */
+.kc-custom-popup .maplibregl-popup-tip {
+  display: none !important;
+}
+
+/* Apply depth via filter drop-shadow on the outer wrapper */
+.kc-custom-popup {
+  padding: 0 !important;
+  filter: drop-shadow(0 20px 40px rgba(0, 0, 0, 0.20));
+}

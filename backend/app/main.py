@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.api.routes import plantation_info, estimate
+from app.api.routes import estimate, plantation_info
+
 
 def create_application() -> FastAPI:
     """
@@ -15,29 +16,30 @@ def create_application() -> FastAPI:
     # Configure CORS for the frontend web map to interact with the API
     application.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],  # In production, replace with specific frontend domains
+        # In production, replace with specific frontend domains
+        allow_origins=["*"],
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
     )
 
-    # Include the estimation routes
     application.include_router(
-        estimate.router, 
-        prefix="/api/v1", 
+        estimate.router,
+        prefix="/api/v1",
         tags=["Carbon Estimation"]
     )
 
-    # Include the plantation info routes
     application.include_router(
         plantation_info.router,
         prefix="/api/v1",
-        tags=["Plantation Management"]
+        tags=["Plantation Info"]
     )
 
     return application
 
+
 app = create_application()
+
 
 @app.get("/")
 async def root():
