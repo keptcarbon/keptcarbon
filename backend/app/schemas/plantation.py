@@ -43,6 +43,10 @@ class EstimationResponse(BaseModel):
     status: StatusMessage
     carbon_profile: Optional[List[YearlyEstimate]] = None
 
+# Backward-compatible aliases
+PlantationEstimatePolygon = PlantationPolygon
+PlantationEstimationResponse = EstimationResponse
+
 
 # ── Plantation-info endpoint (new /api/v1/plantation-info) ────────────────────
 
