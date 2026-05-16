@@ -132,7 +132,7 @@ export default function MapDrawPage() {
     map.setPaintProperty("matched-parcels-fill", "fill-color", colorExpr as maplibregl.ExpressionSpecification);
     map.setPaintProperty("matched-parcels-fill", "fill-opacity", opacityExpr as maplibregl.ExpressionSpecification);
     map.setPaintProperty("matched-parcels-line", "line-color",
-      checkedClasses.length > 0 ? "#e65c00" : "#94a3b8" as maplibregl.ExpressionSpecification
+      (checkedClasses.length > 0 ? "#e65c00" : "#94a3b8") as unknown as maplibregl.ExpressionSpecification
     );
   }, []);
 
