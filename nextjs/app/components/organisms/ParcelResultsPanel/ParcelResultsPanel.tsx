@@ -52,12 +52,24 @@ const VARIETY_OPTIONS = [
     "RRIT 408", "RRIT 251", "สงขลา 36", "RRIM 712", "อื่นๆ",
 ];
 const SPACING_OPTIONS = ["2.5x8", "3x7", "2.5x7", "2x6", "3x8"];
+const SUPPORTED_CLONES = ["RRIM 600", "RRIT 251"];
 
 const CURRENT_CE = new Date().getFullYear();
 const CURRENT_BE = CURRENT_CE + 543;
 
 const NEW_YEAR_OPTIONS = Array.from({ length: 11 }, (_, i) => String(CURRENT_BE + i));
 const OLD_YEAR_OPTIONS = Array.from({ length: 2572 - 2534 + 1 }, (_, i) => String(2572 - i));
+
+const LU_DESC_MAP: Record<string, string> = {
+    "A": "พื้นที่เกษตรกรรม",
+    "A302": "ยางพารา",
+    "A303": "ปาล์มน้ำมัน",
+    "A304": "พืชสวนอื่นๆ",
+    "U": "พื้นที่ชุมชนและสิ่งปลูกสร้าง",
+    "F": "พื้นที่ป่าไม้",
+    "W": "พื้นที่แหล่งน้ำ",
+    "M": "พื้นที่อื่นๆ"
+};
 
 interface CarbonResult {
     plotIdx: number;
@@ -68,6 +80,9 @@ interface CarbonResult {
     variety: string;
     co2Now: number;
     source: "user" | "backend";
+    yearUsedDetails?: string;
+    selectedAreaRai?: number;
+    luBreakdown?: Record<string, { rai: number; pct: number; desc: string }>;
 }
 
 interface PlotInfo {
@@ -97,6 +112,50 @@ const THAI_PROVINCES = [
 ];
 
 // ── Helpers ───────────────────────────────────────────────────────────────
+function getCentroid(coords: [number, number][]): [number, number] {
+    let sumX = 0, sumY = 0;
+    coords.forEach(([x, y]) => {
+        sumX += x;
+        sumY += y;
+    });
+    return [sumX / coords.length, sumY / coords.length];
+}
+
+function getSamplePoint(geom: GeoJSON.Geometry): [number, number] {
+    if (geom.type === "Polygon") {
+        return getCentroid(geom.coordinates[0] as [number, number][]);
+    }
+    if (geom.type === "MultiPolygon") {
+        return getCentroid(geom.coordinates[0][0] as [number, number][]);
+    }
+    return [0, 0];
+}
+
+function isPointInPolygon(point: [number, number], polygon: [number, number][][]): boolean {
+    const [x, y] = point;
+    let inside = false;
+    for (const ring of polygon) {
+        for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+            const xi = ring[i][0], yi = ring[i][1];
+            const xj = ring[j][0], yj = ring[j][1];
+            const intersect = ((yi > y) !== (yj > y))
+                && (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
+            if (intersect) inside = !inside;
+        }
+    }
+    return inside;
+}
+
+function isPointInGeometry(point: [number, number], geom: GeoJSON.Geometry): boolean {
+    if (geom.type === "Polygon") {
+        return isPointInPolygon(point, geom.coordinates as [number, number][][]);
+    }
+    if (geom.type === "MultiPolygon") {
+        return (geom.coordinates as [number, number][][][]).some(poly => isPointInPolygon(point, poly));
+    }
+    return false;
+}
+
 function parseRai(v: unknown): number {
     if (!v) return 0;
     const s = String(v).trim();
@@ -483,8 +542,8 @@ export function ParcelResultsPanel({
         }
 
         // 2. We want the sum of land use areas to match totalArea (which is totalDrawnRai)
-        const scaleFactor = (totalIntersectedM2 > 0 && totalArea > 0) 
-            ? (totalArea * 1600) / totalIntersectedM2 
+        const scaleFactor = (totalIntersectedM2 > 0 && totalArea > 0)
+            ? (totalArea * 1600) / totalIntersectedM2
             : 1.0;
 
         // 3. Process each feature and apply scaling
@@ -493,7 +552,7 @@ export function ParcelResultsPanel({
             const cls = p.lu_class as string | undefined;
             const desc = p.lu_class_desc_th as string | undefined;
             const rawM2 = (p.area_m2 as number) || 0;
-            
+
             if (cls) {
                 const scaledM2 = rawM2 * scaleFactor;
                 const scaledRai = scaledM2 / 1600;
@@ -518,16 +577,16 @@ export function ParcelResultsPanel({
             }
         }
         if (aRai > 0) {
-            data["A"] = { 
-                rai: aRai, 
-                pct: aPct, 
-                desc: "พื้นที่เกษตรกรรม" 
+            data["A"] = {
+                rai: aRai,
+                pct: aPct,
+                desc: "พื้นที่เกษตรกรรม"
             };
         }
 
         // 5. Round the results nicely for display
         const parentKeys = ["A", "U", "F", "W", "M"];
-        
+
         let roundedParentRaiSum = 0;
         let roundedParentPctSum = 0;
         let largestParentKey = "";
@@ -536,7 +595,7 @@ export function ParcelResultsPanel({
         for (const key in data) {
             data[key].rai = Math.round(data[key].rai * 100) / 100;
             data[key].pct = Math.round(data[key].pct * 10) / 10;
-            
+
             if (parentKeys.includes(key)) {
                 roundedParentRaiSum += data[key].rai;
                 roundedParentPctSum += data[key].pct;
@@ -581,7 +640,7 @@ export function ParcelResultsPanel({
                 if (largestSubKey) {
                     const subRaiDiff = data["A"].rai - roundedSubRaiSum;
                     const subPctDiff = data["A"].pct - roundedSubPctSum;
-                    
+
                     if (Math.abs(subRaiDiff) < 0.2) {
                         data[largestSubKey].rai = Math.round((data[largestSubKey].rai + subRaiDiff) * 100) / 100;
                     }
@@ -662,15 +721,17 @@ export function ParcelResultsPanel({
         setCarbonErr(null);
         setProcessingCarbon(true);
         const CURRENT_BE_NOW = new Date().getFullYear() + 543;
-        const SUPPORTED_CLONES = ["RRIM 600", "RRIT 251"];
 
-        // Collect all lu classes checked across any plot form
+        // Build polygons array for the estimateCarbon backend API call, one polygon per plot!
+        const polygons: PlantationPolygon[] = [];
         const checkedClasses = new Set<string>();
         plotForms.forEach(f => {
             Object.entries(f.luChecked || {}).forEach(([cls, on]) => { if (on) checkedClasses.add(cls); });
         });
 
         const featuresToUse = luFeatures.length > 0 ? luFeatures : parcelFeatures;
+
+        // Filter land-use features to only those classes that are checked
         const selectedFeats = featuresToUse.filter(feat => {
             const luClass = ((feat.properties ?? {}) as Record<string, unknown>).lu_class as string | undefined;
             if (!luClass) return true; // include non-lu features as-is
@@ -683,50 +744,145 @@ export function ParcelResultsPanel({
             return;
         }
 
-        // Combine selected geometries into one MultiPolygon
-        const allRings: GeoJSON.Position[][][] = [];
-        for (const feat of selectedFeats) {
-            const geom = feat.geometry as GeoJSON.Polygon | GeoJSON.MultiPolygon;
-            if (geom.type === "Polygon") allRings.push(geom.coordinates);
-            else if (geom.type === "MultiPolygon") allRings.push(...geom.coordinates);
+        // Group selectedFeats by their containing plot parent index
+        const featsByPlot: Record<number, typeof selectedFeats> = {};
+        for (let idx = 0; idx < parcelFeatures.length; idx++) {
+            featsByPlot[idx] = [];
         }
-        const combinedGeom: GeoJSON.Geometry = allRings.length === 1
-            ? { type: "Polygon", coordinates: allRings[0] }
-            : { type: "MultiPolygon", coordinates: allRings };
 
-        // Use form data from the first plot
-        const form = plotForms[0];
-        const plantYearBE = form?.plantYear ? parseInt(form.plantYear) : 0;
-        const polygons: PlantationPolygon[] = [{
-            id: "selected-lu",
-            geometry: combinedGeom,
-            year_of_planting: plantYearBE > 0 ? plantYearBE - 543 : null,
-            rubber_clone: (form?.variety && SUPPORTED_CLONES.includes(form.variety)) ? form.variety : null,
-            tree_count: form?.treeCount ? (parseInt(form.treeCount) || null) : null,
-            spacing_system: form?.spacing || null,
-        }];
+        selectedFeats.forEach(feat => {
+            const samplePoint = getSamplePoint(feat.geometry);
+            let matchedPlotIdx = 0; // fallback to 0
+            for (let idx = 0; idx < parcelFeatures.length; idx++) {
+                if (isPointInGeometry(samplePoint, parcelFeatures[idx].geometry)) {
+                    matchedPlotIdx = idx;
+                    break;
+                }
+            }
+            featsByPlot[matchedPlotIdx].push(feat);
+        });
+
+        // Now, for each plot `idx`, build its combined geometry and PlantationPolygon!
+        for (let idx = 0; idx < parcelFeatures.length; idx++) {
+            const plotFeats = featsByPlot[idx] || [];
+            if (plotFeats.length === 0) continue; // skip plots with no selected land-use
+
+            const allRings: GeoJSON.Position[][][] = [];
+            for (const feat of plotFeats) {
+                const geom = feat.geometry as GeoJSON.Polygon | GeoJSON.MultiPolygon;
+                if (geom.type === "Polygon") allRings.push(geom.coordinates);
+                else if (geom.type === "MultiPolygon") allRings.push(...geom.coordinates);
+            }
+            const combinedGeom: GeoJSON.Geometry = allRings.length === 1
+                ? { type: "Polygon", coordinates: allRings[0] }
+                : { type: "MultiPolygon", coordinates: allRings };
+
+            const form = plotForms[idx] || { plantYear: "", variety: "", treeCount: "", spacing: "2.5*8" };
+            const backendYearBE = plots[idx]?.plantYearBE || 0;
+            const userYearBE = form.plantYear ? parseInt(form.plantYear) : 0;
+
+            let finalPlantYearBE = 0;
+
+            if (userYearBE > 0) {
+                finalPlantYearBE = userYearBE;
+            } else {
+                if (backendYearBE > 0) {
+                    finalPlantYearBE = backendYearBE;
+                } else {
+                    finalPlantYearBE = CURRENT_BE_NOW - 5;
+                }
+            }
+
+            polygons.push({
+                id: `plot-${idx}`,
+                geometry: combinedGeom,
+                year_of_planting: finalPlantYearBE - 543, // Convert to CE for Backend API
+                rubber_clone: (form.variety && SUPPORTED_CLONES.includes(form.variety)) ? form.variety : null,
+                tree_count: form.treeCount ? (parseInt(form.treeCount) || null) : null,
+                spacing_system: form.spacing || null,
+            });
+        }
+
+        if (polygons.length === 0) {
+            setCarbonErr("ไม่พบขอบเขตพื้นที่ที่สามารถประมวลผลได้");
+            setProcessingCarbon(false);
+            return;
+        }
 
         try {
             const responses = await estimateCarbon(polygons);
             setBackendResponses(responses);
 
-            const startAge = plantYearBE > 0 ? CURRENT_BE_NOW - plantYearBE : (plots[0]?.age || 5);
-            const finalPlantYear = plantYearBE > 0 ? plantYearBE : (plots[0]?.plantYearBE || CURRENT_BE_NOW - startAge);
-            const userTrees = form?.treeCount ? parseInt(form.treeCount) : 0;
-            const totalAreaRai = selectedFeats.reduce((s, f) => s + (((f.properties ?? {}) as Record<string, unknown>).area_m2 as number || 0) / 1600, 0);
-            const finalTrees = userTrees > 0 ? userTrees : Math.round(totalAreaRai * 76);
-            const profile = responses[0]?.carbon_profile ?? [];
+            const results: CarbonResult[] = [];
+            for (let idx = 0; idx < parcelFeatures.length; idx++) {
+                const form = plotForms[idx] || { plantYear: "", variety: "", treeCount: "", spacing: "2.5*8", luChecked: {} };
+                const plotFeats = featsByPlot[idx] || [];
+                const totalAreaRai = plotFeats.reduce((s, f) => s + (((f.properties ?? {}) as Record<string, unknown>).area_m2 as number || 0) / 1600, 0);
 
-            const results: CarbonResult[] = [{
-                plotIdx: 0,
-                age: startAge,
-                plantYearBE: finalPlantYear,
-                trees: finalTrees,
-                spacing: form?.spacing || "2.5x8",
-                variety: form?.variety || "RRIM 600",
-                co2Now: profile[0]?.total_carbon_tCO2e ?? 0,
-                source: "backend" as const,
-            }];
+                // --- Calculate real land use breakdown for this plot ---
+                const totalPlotSelectedM2 = plotFeats.reduce((s, f) => s + (((f.properties ?? {}) as Record<string, unknown>).area_m2 as number || 0), 0);
+                const totalPlotSelectedRai = totalPlotSelectedM2 / 1600;
+
+                const classM2s: Record<string, number> = {};
+                plotFeats.forEach(feat => {
+                    const luClass = ((feat.properties ?? {}) as Record<string, unknown>).lu_class as string || "M";
+                    classM2s[luClass] = (classM2s[luClass] || 0) + (((feat.properties ?? {}) as Record<string, unknown>).area_m2 as number || 0);
+                });
+
+                const luBreakdown: Record<string, { rai: number; pct: number; desc: string }> = {};
+                Object.entries(classM2s).forEach(([cls, m2]) => {
+                    const rai = m2 / 1600;
+                    const pct = totalPlotSelectedM2 > 0 ? (m2 / totalPlotSelectedM2) * 100 : 0;
+                    luBreakdown[cls] = {
+                        rai: Math.round(rai * 100) / 100,
+                        pct: Math.round(pct * 10) / 10,
+                        desc: LU_DESC_MAP[cls] || cls
+                    };
+                });
+
+                const backendYearBE = plots[idx]?.plantYearBE || 0;
+                const userYearBE = form.plantYear ? parseInt(form.plantYear) : 0;
+
+                let finalPlantYearBE = 0;
+                let yearUsedDetails = "";
+
+                if (userYearBE > 0) {
+                    finalPlantYearBE = userYearBE;
+                    yearUsedDetails = `ใช้ตามที่คุณระบุ (พ.ศ. ${userYearBE})`;
+                } else {
+                    if (backendYearBE > 0) {
+                        finalPlantYearBE = backendYearBE;
+                        yearUsedDetails = `ใช้ปีจากดาวเทียมที่ตรวจพบ (พ.ศ. ${backendYearBE})`;
+                    } else {
+                        finalPlantYearBE = CURRENT_BE_NOW - 5;
+                        yearUsedDetails = `ใช้ค่าเริ่มต้นระบบ (พ.ศ. ${finalPlantYearBE})`;
+                    }
+                }
+
+                const startAge = CURRENT_BE_NOW - finalPlantYearBE;
+                const userTrees = form.treeCount ? parseInt(form.treeCount) : 0;
+                const finalTrees = userTrees > 0 ? userTrees : Math.round(totalAreaRai * 76);
+
+                // Find corresponding response by matching polygon ID
+                const resp = responses.find(r => r.polygon_id === `plot-${idx}`);
+                const profile = resp?.carbon_profile ?? [];
+                const co2Now = profile[0]?.total_carbon_tCO2e ?? 0;
+
+                results.push({
+                    plotIdx: idx,
+                    age: startAge,
+                    plantYearBE: finalPlantYearBE,
+                    trees: finalTrees,
+                    spacing: form.spacing || "2.5x8",
+                    variety: form.variety || "RRIM 600",
+                    co2Now,
+                    source: "backend" as const,
+                    yearUsedDetails,
+                    selectedAreaRai: totalPlotSelectedRai,
+                    luBreakdown
+                });
+            }
+
             setCarbonResults(results);
             if (onMapPlotSelected) onMapPlotSelected("total");
             setSubStep("carbon");
@@ -1013,7 +1169,7 @@ export function ParcelResultsPanel({
                                         {/* Status Selection */}
                                         <div style={{ padding: isMobile ? "16px 16px 0" : "20px 24px 0", background: "#fff" }}>
                                             <div style={{ fontSize: 13, fontWeight: 700, color: "#1e293b", marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
-                                                <i className="bi bi-info-circle" style={{ color: "#10b981" }} /> สถานะแปลง
+                                                <i className="bi bi-info-circle" style={{ color: "#10b981" }} /> สถานะแปลง <span style={{ color: "#ef4444" }}>*</span>
                                             </div>
                                             <div style={{ display: "flex", gap: 16 }}>
                                                 <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, cursor: "pointer" }}>
@@ -1339,6 +1495,8 @@ export function ParcelResultsPanel({
                         )}
                     </div>
 
+
+
                     {isTotal ? (
                         <>
                             {/* Total summary */}
@@ -1407,11 +1565,44 @@ export function ParcelResultsPanel({
                                     <div><strong>พื้นที่รวม:</strong> {totalArea.toFixed(2)} ไร่</div>
                                     <div style={{ marginTop: 8 }}><strong>รายละเอียดแปลง:</strong></div>
                                     <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 4 }}>
+                                        {plots.length > 1 && (
+                                            <div
+                                                onClick={() => onMapPlotSelected?.("total")}
+                                                style={{
+                                                    padding: "10px 12px",
+                                                    background: isTotal ? "rgba(16,185,129,0.06)" : "#fff",
+                                                    borderRadius: 8,
+                                                    border: isTotal ? "2px solid #10b981" : "1px solid rgba(0,0,0,0.06)",
+                                                    cursor: "pointer",
+                                                    transition: "all 0.2s",
+                                                    display: "flex",
+                                                    alignItems: "center",
+                                                    gap: 10
+                                                }}
+                                            >
+                                                <div style={{
+                                                    width: 24,
+                                                    height: 24,
+                                                    borderRadius: 6,
+                                                    background: isTotal ? "#10b981" : "#f1f5f9",
+                                                    display: "flex",
+                                                    alignItems: "center",
+                                                    justifyContent: "center",
+                                                    color: isTotal ? "#fff" : "#64748b"
+                                                }}>
+                                                    <i className="bi bi-pie-chart-fill" style={{ fontSize: 12 }} />
+                                                </div>
+                                                <div style={{ fontWeight: 700, color: isTotal ? "#047857" : "#334155", fontSize: 12 }}>
+                                                    ภาพรวมคาร์บอนรวมทุกแปลง ({totalArea.toFixed(2)} ไร่)
+                                                </div>
+                                            </div>
+                                        )}
+
                                         {plots.map((p, i) => {
-                                            if (!isTotal && selectedMapPlotIndex !== i) return null;
                                             const f = plotForms[i];
                                             const crInfo = carbonResults[i];
                                             if (!f || !crInfo) return null;
+                                            const isSel = selectedMapPlotIndex === i;
                                             return (
                                                 <div
                                                     key={i}
@@ -1421,20 +1612,45 @@ export function ParcelResultsPanel({
                                                             onMapPlotSelected?.(i);
                                                         }
                                                     }}
-                                                    style={{ padding: "8px 10px", background: "#fff", borderRadius: 8, border: "1px solid rgba(0,0,0,0.05)", cursor: "pointer" }}
+                                                    style={{
+                                                        padding: "10px 12px",
+                                                        background: isSel ? "rgba(16,185,129,0.06)" : "#fff",
+                                                        borderRadius: 8,
+                                                        border: isSel ? "2px solid #10b981" : "1px solid rgba(0,0,0,0.06)",
+                                                        cursor: "pointer",
+                                                        transition: "all 0.2s"
+                                                    }}
                                                 >
-                                                    <div style={{ fontWeight: 600, color: "#0f172a", marginBottom: 4 }}>แปลงที่ {i + 1} ({p.areaRai.toFixed(2)} ไร่)</div>
-                                                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4, fontSize: 11, color: "#64748b" }}>
-                                                        <div>• ปีที่ปลูก: พ.ศ. {crInfo.plantYearBE}</div>
-                                                        <div>• พันธุ์ยาง: {crInfo.variety}</div>
-                                                        <div>• จำนวนต้น: {crInfo.trees} ต้น</div>
-                                                        <div>• ระยะปลูก: {crInfo.spacing} ม.</div>
+                                                    <div style={{ fontWeight: 700, color: isSel ? "#047857" : "#0f172a", marginBottom: 6, display: "flex", alignItems: "center", gap: 6 }}>
+                                                        <i className="bi bi-geo-alt-fill" style={{ color: isSel ? "#10b981" : "#64748b" }} />
+                                                        แปลงที่ {i + 1} ({p.areaRai.toFixed(2)} ไร่)
                                                     </div>
-                                                    {f.luMockData && Object.keys(f.luMockData).length > 0 && (
-                                                        <div style={{ marginTop: 4, fontSize: 11, color: "#10b981", display: "flex", flexWrap: "wrap", gap: 6 }}>
-                                                            {Object.entries(f.luMockData).map(([k, v]) => (
-                                                                <span key={k}>{k}: {v.pct}%</span>
-                                                            ))}
+                                                    <div style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 11, color: "#64748b" }}>
+                                                        <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                                                            <div>• ปีที่ปลูกที่ใช้ประมวลผล: <strong>พ.ศ. {crInfo.plantYearBE}</strong></div>
+                                                        </div>
+                                                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4, marginTop: 2 }}>
+                                                            <div>• พันธุ์ยาง: {crInfo.variety}</div>
+                                                            <div>• จำนวนต้น: {crInfo.trees} ต้น</div>
+                                                            <div>• ระยะปลูก: {crInfo.spacing} ม.</div>
+                                                        </div>
+                                                    </div>
+                                                    {crInfo.selectedAreaRai !== undefined && (
+                                                        <div style={{ marginTop: 6, paddingTop: 6, borderTop: "1px dashed rgba(16,185,129,0.15)", fontSize: 11 }}>
+                                                            <div style={{ display: "flex", justifyContent: "space-between", color: "#0284c7", fontWeight: 700, marginBottom: 4 }}>
+                                                                <span>• พื้นที่ที่เลือกทั้งหมด:</span>
+                                                                <span>{crInfo.selectedAreaRai.toFixed(2)} ไร่</span>
+                                                            </div>
+                                                            {crInfo.luBreakdown && Object.keys(crInfo.luBreakdown).length > 0 && (
+                                                                <div style={{ display: "flex", flexDirection: "column", gap: 2, paddingLeft: 8 }}>
+                                                                    {Object.entries(crInfo.luBreakdown).map(([cls, info]) => (
+                                                                        <div key={cls} style={{ display: "flex", justifyContent: "space-between", color: "#059669", fontWeight: 600 }}>
+                                                                            <span>↳ {info.desc}:</span>
+                                                                            <span>{info.rai.toFixed(2)} ไร่ ({info.pct}%)</span>
+                                                                        </div>
+                                                                    ))}
+                                                                </div>
+                                                            )}
                                                         </div>
                                                     )}
                                                 </div>

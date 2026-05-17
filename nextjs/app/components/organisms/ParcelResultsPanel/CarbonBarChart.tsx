@@ -175,9 +175,9 @@ export function CarbonBarChart({
               <g key={i} onMouseEnter={() => setHoverIdx(i)} onMouseLeave={() => setHoverIdx(null)} style={{ cursor: "pointer" }}>
                 {isHov && <rect x={x - 2} y={PT} width={barW + 4} height={iH} rx={4} fill={col.bar} opacity={0.06} />}
                 <rect x={x} y={y} width={barW} height={bh} rx={isMobile ? 2 : 4} fill={`url(#cycleGradGreen${cycleClamp})`} filter={isHov ? "url(#barShadow)" : undefined} style={{ transition: "all 0.2s" }} />
-                <line x1={lineX} y1={y - errorSize} x2={lineX} y2={y + errorSize} stroke={isHov ? col.bar : "#94a3b8"} strokeWidth={1} opacity={0.6} />
-                <line x1={lineX - 2} y1={y - errorSize} x2={lineX + 2} y2={y - errorSize} stroke={isHov ? col.bar : "#94a3b8"} strokeWidth={1} opacity={0.6} />
-                <line x1={lineX - 2} y1={y + errorSize} x2={lineX + 2} y2={y + errorSize} stroke={isHov ? col.bar : "#94a3b8"} strokeWidth={1} opacity={0.6} />
+                <line x1={lineX} y1={y - errorSize} x2={lineX} y2={y + errorSize} stroke="#000000" strokeWidth={1} opacity={0.8} />
+                <line x1={lineX - 2} y1={y - errorSize} x2={lineX + 2} y2={y - errorSize} stroke="#000000" strokeWidth={1} opacity={0.8} />
+                <line x1={lineX - 2} y1={y + errorSize} x2={lineX + 2} y2={y + errorSize} stroke="#000000" strokeWidth={1} opacity={0.8} />
               </g>
             );
           })}
