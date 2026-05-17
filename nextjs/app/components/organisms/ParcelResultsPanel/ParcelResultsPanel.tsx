@@ -689,6 +689,11 @@ export function ParcelResultsPanel({
     const [processingCarbon, setProcessingCarbon] = useState(false);
     const [carbonErr, setCarbonErr] = useState<string | null>(null);
 
+    const hasEmptyStatus = useMemo(() => {
+        if (plotForms.length === 0) return true;
+        return plotForms.some(f => !f.plantStatus);
+    }, [plotForms]);
+
     // Initialize plotForms automatically when ready
     useEffect(() => {
         if (plots.length !== plotForms.length) {
@@ -718,6 +723,10 @@ export function ParcelResultsPanel({
     }, [plots, plotForms.length, parcelFeatures]);
 
     const handleProcessCarbon = async () => {
+        if (hasEmptyStatus) {
+            setCarbonErr("กรุณากรอกสถานะแปลงให้ครบทุกแปลงก่อนทำการประมวลผล");
+            return;
+        }
         setCarbonErr(null);
         setProcessingCarbon(true);
         const CURRENT_BE_NOW = new Date().getFullYear() + 543;
@@ -898,6 +907,10 @@ export function ParcelResultsPanel({
     // Removed: if (!(searchRunning || searchErr || searchCount !== null)) return null;
 
     const handleSave = async (overrideResults?: CarbonResult[]) => {
+        if (hasEmptyStatus) {
+            setCarbonErr("กรุณากรอกสถานะแปลงให้ครบทุกแปลงก่อนทำการบันทึก");
+            return;
+        }
         const resultsToSave = overrideResults || carbonResults;
         const hasCarbonResults = resultsToSave.length > 0;
 
@@ -1054,6 +1067,31 @@ export function ParcelResultsPanel({
                         <span>{carbonErr}</span>
                     </div>
                 )}
+                {(!projectName.trim() || hasEmptyStatus) && (
+                    <div style={{
+                        marginBottom: 16,
+                        padding: "10px 14px",
+                        background: "rgba(249,115,22,0.06)",
+                        border: "1px solid rgba(249,115,22,0.2)",
+                        borderRadius: 10,
+                        fontSize: 12,
+                        color: "#c2410c",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 8,
+                        fontWeight: 600
+                    }}>
+                        <i className="bi bi-exclamation-circle-fill" style={{ flexShrink: 0 }} />
+                        <span>
+                            {!projectName.trim() && hasEmptyStatus
+                                ? 'กรุณากรอก "ชื่อโครงการ" และเลือก "สถานะแปลง" ให้ครบทุกแปลง เพื่อประมวลผลหรือบันทึกข้อมูล'
+                                : !projectName.trim()
+                                ? 'กรุณากรอก "ชื่อโครงการ" เพื่อประมวลผลหรือบันทึกข้อมูล'
+                                : 'กรุณาเลือก "สถานะแปลง" ให้ครบทุกแปลง เพื่อประมวลผลหรือบันทึกข้อมูล'
+                            }
+                        </span>
+                    </div>
+                )}
                 <div style={{ display: "flex", gap: isMobile ? 6 : 8, marginBottom: 16, flexWrap: "nowrap" }}>
                     {onDrawMore && !isDrawing && (
                         <button className="prp-btn-ghost" style={{ flex: 1, padding: isMobile ? "8px 2px" : "10px 4px", fontSize: isMobile ? 11 : 12, display: "flex", flexDirection: "column", alignItems: "center", gap: isMobile ? 4 : 6, background: "rgba(16,185,129,0.1)", color: "#059669", border: "1px solid rgba(16,185,129,0.2)", borderRadius: isMobile ? 10 : 12 }} onClick={onDrawMore}>
@@ -1063,13 +1101,13 @@ export function ParcelResultsPanel({
                     <button
                         className="prp-btn-primary"
                         onClick={() => handleSave([])}
-                        disabled={!projectName.trim() || saveState === "saving"}
+                        disabled={!projectName.trim() || hasEmptyStatus || saveState === "saving"}
                         style={{
                             flex: 1, padding: isMobile ? "8px 2px" : "10px 4px", fontSize: isMobile ? 11 : 12, display: "flex", flexDirection: "column", alignItems: "center", gap: isMobile ? 4 : 6,
-                            background: projectName.trim() ? "linear-gradient(135deg,#0ea5e9,#0284c7)" : "#cbd5e1",
+                            background: (projectName.trim() && !hasEmptyStatus) ? "linear-gradient(135deg,#0ea5e9,#0284c7)" : "#cbd5e1",
                             color: "#fff", border: "none", borderRadius: isMobile ? 10 : 12,
-                            cursor: projectName.trim() ? "pointer" : "not-allowed",
-                            boxShadow: projectName.trim() ? "0 4px 10px rgba(2,132,199,0.2)" : "none"
+                            cursor: (projectName.trim() && !hasEmptyStatus) ? "pointer" : "not-allowed",
+                            boxShadow: (projectName.trim() && !hasEmptyStatus) ? "0 4px 10px rgba(2,132,199,0.2)" : "none"
                         }}
                     >
                         {saveState === "saving" ? (
@@ -1081,13 +1119,13 @@ export function ParcelResultsPanel({
                     <button
                         className="prp-btn-primary"
                         onClick={() => { void handleProcessCarbon(); }}
-                        disabled={!projectName.trim() || processingCarbon}
+                        disabled={!projectName.trim() || hasEmptyStatus || processingCarbon}
                         style={{
                             flex: 1, padding: isMobile ? "8px 2px" : "10px 4px", fontSize: isMobile ? 11 : 12, display: "flex", flexDirection: "column", alignItems: "center", gap: isMobile ? 4 : 6,
-                            background: (projectName.trim() && !processingCarbon) ? "linear-gradient(135deg,#10b981,#059669)" : "#cbd5e1",
+                            background: (projectName.trim() && !hasEmptyStatus && !processingCarbon) ? "linear-gradient(135deg,#10b981,#059669)" : "#cbd5e1",
                             color: "#fff", border: "none", borderRadius: isMobile ? 10 : 12,
-                            cursor: (projectName.trim() && !processingCarbon) ? "pointer" : "not-allowed",
-                            boxShadow: (projectName.trim() && !processingCarbon) ? "0 4px 10px rgba(16,185,129,0.2)" : "none"
+                            cursor: (projectName.trim() && !hasEmptyStatus && !processingCarbon) ? "pointer" : "not-allowed",
+                            boxShadow: (projectName.trim() && !hasEmptyStatus && !processingCarbon) ? "0 4px 10px rgba(16,185,129,0.2)" : "none"
                         }}
                     >
                         {processingCarbon ? (
@@ -1674,7 +1712,7 @@ export function ParcelResultsPanel({
                             ) : saveState === "done" ? (
                                 <><i className="bi bi-check-circle-fill me-2" />บันทึกสำเร็จ!</>
                             ) : (
-                                <><i className="bi bi-floppy-disk me-2" />บันทึกผลลงฐานข้อมูล</>
+                                <><i className="bi bi-save me-2" />บันทึกผลลงฐานข้อมูล</>
                             )}
                         </button>
                         <button className="prp-btn-ghost" onClick={() => onStepChange(2)}>← กลับแก้ไขข้อมูล</button>
