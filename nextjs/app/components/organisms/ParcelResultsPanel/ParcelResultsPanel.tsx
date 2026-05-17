@@ -1101,40 +1101,7 @@ export function ParcelResultsPanel({
                     })}
                 </div>
 
-                {/* Drawing placeholder card */}
-                {isDrawing && (
-                    <div style={{
-                        background: "rgba(16,185,129,0.03)",
-                        border: "2px dashed rgba(16,185,129,0.4)",
-                        borderRadius: 14,
-                        padding: "24px 16px",
-                        display: "flex",
-                        flexDirection: "column",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        gap: 16,
-                    }}>
-                        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
-                            <div className="mds-dot-pulse" style={{ background: "#10b981", width: 10, height: 10, margin: 0 }} />
-                            <div style={{ fontSize: 14, fontWeight: 700, color: "#059669" }}>กำลังวาดแปลงใหม่บนแผนที่...</div>
-                            <div style={{ fontSize: 12, color: "#64748b", textAlign: "center" }}>คลิกบนแผนที่เพื่อเพิ่มจุดขอบเขต หรือดับเบิลคลิกเพื่อปิดแปลง</div>
-                        </div>
-                        <div style={{ display: "flex", gap: 12, width: "100%" }}>
-                            <button
-                                onClick={onCancelDraw}
-                                style={{ flex: 1, background: "#fff", border: "1px solid #cbd5e1", color: "#64748b", padding: "10px", borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: "pointer" }}
-                            >
-                                <i className="bi bi-x-circle me-1" /> ยกเลิก
-                            </button>
-                            <button
-                                onClick={onFinishDraw}
-                                style={{ flex: 1, background: "linear-gradient(135deg,#10b981,#059669)", border: "none", color: "#fff", padding: "10px", borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: "pointer", boxShadow: "0 4px 10px rgba(16,185,129,0.2)" }}
-                            >
-                                <i className="bi bi-check-circle me-1" /> วาดเสร็จแล้ว
-                            </button>
-                        </div>
-                    </div>
-                )}
+
 
                 {/* Action buttons moved to top */}
             </div>

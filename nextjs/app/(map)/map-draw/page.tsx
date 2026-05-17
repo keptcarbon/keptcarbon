@@ -95,6 +95,42 @@ export default function MapDrawPage() {
 
   // Multi-parcel support
   const [drawnParcels, setDrawnParcels] = useState<GeoJSON.Feature[]>([]);
+  const drawnParcelsRef = useRef<GeoJSON.Feature[]>([]);
+  
+  useEffect(() => {
+    drawnParcelsRef.current = drawnParcels;
+    const map = mapRef.current;
+    if (map && mapLoadedRef.current) {
+      // Sync plot layer (fills and outlines)
+      const plotSrc = map.getSource("plot") as maplibregl.GeoJSONSource | undefined;
+      if (plotSrc) {
+        plotSrc.setData({
+          type: "FeatureCollection",
+          features: drawnParcels,
+        });
+      }
+
+      // Sync plot vertices (nodes)
+      const vertFeatures: GeoJSON.Feature[] = [];
+      drawnParcels.forEach((parcel, pIdx) => {
+        if (parcel.geometry.type === "Polygon") {
+          const coords = parcel.geometry.coordinates[0];
+          coords.slice(0, -1).forEach((c, vIdx) => {
+            vertFeatures.push({
+              type: "Feature",
+              geometry: { type: "Point", coordinates: c as [number, number] },
+              properties: { pIdx, vIdx }
+            });
+          });
+        }
+      });
+      const src = map.getSource("plot-verts") as maplibregl.GeoJSONSource | undefined;
+      if (src) {
+        src.setData({ type: "FeatureCollection", features: vertFeatures });
+      }
+    }
+  }, [drawnParcels]);
+
   const totalDrawnArea = useMemo(() => {
     return drawnParcels.reduce((acc, p) => {
       if (p.geometry.type === "Polygon") {
@@ -106,6 +142,238 @@ export default function MapDrawPage() {
 
   const runPlantationInfoRef = useRef<() => void>(() => { });
   const needsPlantationSearchRef = useRef(false);
+
+  // Editable polygon logic
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapLoaded) return;
+
+    let activePIdx = -1;
+    let activeVIdx = -1;
+
+    const onVertsDown = (e: maplibregl.MapMouseEvent) => {
+      if (drawingRef.current) return;
+
+      // Detect Right-Click (button === 2) -> Delete Node
+      if (e.originalEvent && e.originalEvent.button === 2) {
+        e.preventDefault();
+        const features = map.queryRenderedFeatures(e.point, { layers: ['plot-verts-l'] });
+        if (!features.length) return;
+        const pIdx = features[0].properties.pIdx;
+        const vIdx = features[0].properties.vIdx;
+
+        const parcels = [...drawnParcelsRef.current];
+        const parcel = parcels[pIdx];
+        if (parcel && parcel.geometry.type === "Polygon") {
+          const coords = parcel.geometry.coordinates[0];
+          if (coords.length <= 4) {
+            setToast("แปลงที่ดินต้องมีอย่างน้อย 3 จุด");
+            return;
+          }
+
+          const activeVerts = coords.slice(0, -1);
+          activeVerts.splice(vIdx, 1);
+          const newCoords = [...activeVerts, activeVerts[0]];
+
+          parcel.geometry.coordinates[0] = newCoords;
+          parcel.properties = parcel.properties || {};
+          parcel.properties.rai = polygonAreaM2(newCoords as LngLat[]) / 1600;
+
+          setDrawnParcels(parcels);
+          needsPlantationSearchRef.current = true;
+          if (runPlantationInfoRef.current) runPlantationInfoRef.current();
+        }
+        return;
+      }
+
+      // Only allow Left-Click (button === 0) for dragging
+      if (e.originalEvent && e.originalEvent.button !== 0) return;
+
+      e.preventDefault();
+      const features = map.queryRenderedFeatures(e.point, { layers: ['plot-verts-l'] });
+      if (!features.length) return;
+      activePIdx = features[0].properties.pIdx;
+      activeVIdx = features[0].properties.vIdx;
+      map.getCanvas().style.cursor = 'grabbing';
+      map.on('mousemove', onVertsMove);
+      map.on('mouseup', onVertsUp);
+    };
+
+    const onVertsMove = (e: maplibregl.MapMouseEvent) => {
+      if (activePIdx === -1) return;
+      const parcels = [...drawnParcelsRef.current];
+      const parcel = parcels[activePIdx];
+      if (parcel && parcel.geometry.type === "Polygon") {
+        const coords = [...parcel.geometry.coordinates[0]];
+        coords[activeVIdx] = [e.lngLat.lng, e.lngLat.lat];
+        if (activeVIdx === 0) {
+           coords[coords.length - 1] = [e.lngLat.lng, e.lngLat.lat];
+        }
+        parcel.geometry.coordinates[0] = coords;
+        
+        const srcPlot = map.getSource("plot") as maplibregl.GeoJSONSource | undefined;
+        if (srcPlot) {
+           srcPlot.setData({ type: "FeatureCollection", features: parcels });
+        }
+        
+        const vertFeatures: GeoJSON.Feature[] = [];
+        parcels.forEach((p, pIdx) => {
+          if (p.geometry.type === "Polygon") {
+            const cArr = p.geometry.coordinates[0];
+            cArr.slice(0, -1).forEach((c, vIdx) => {
+              vertFeatures.push({
+                type: "Feature",
+                geometry: { type: "Point", coordinates: c as [number, number] },
+                properties: { pIdx, vIdx }
+              });
+            });
+          }
+        });
+        const srcVerts = map.getSource("plot-verts") as maplibregl.GeoJSONSource | undefined;
+        if (srcVerts) {
+           srcVerts.setData({ type: "FeatureCollection", features: vertFeatures });
+        }
+      }
+    };
+
+    const onVertsUp = () => {
+      if (activePIdx !== -1) {
+        map.getCanvas().style.cursor = '';
+        map.off('mousemove', onVertsMove);
+        map.off('mouseup', onVertsUp);
+        const parcels = [...drawnParcelsRef.current];
+        const parcel = parcels[activePIdx];
+        if (parcel && parcel.geometry.type === "Polygon") {
+          parcel.properties = parcel.properties || {};
+          parcel.properties.rai = polygonAreaM2(parcel.geometry.coordinates[0] as LngLat[]) / 1600;
+        }
+        setDrawnParcels(parcels);
+        needsPlantationSearchRef.current = true;
+        if (runPlantationInfoRef.current) runPlantationInfoRef.current();
+        activePIdx = -1;
+      }
+    };
+
+    const onLineDown = (e: maplibregl.MapMouseEvent) => {
+      if (drawingRef.current) return;
+      
+      // If clicked on a vertex, ignore to let onVertsDown handle it
+      const vertsHit = map.queryRenderedFeatures(e.point, { layers: ['plot-verts-l'] });
+      if (vertsHit.length > 0) return;
+
+      // Only handle Left-Click for adding + dragging
+      if (e.originalEvent && e.originalEvent.button !== 0) return;
+
+      const clickPt = [e.lngLat.lng, e.lngLat.lat];
+      let minD = Infinity;
+      let bestPIdx = -1;
+      let bestSIdx = -1;
+      const p = map.project(clickPt as [number, number]);
+
+      drawnParcelsRef.current.forEach((parcel, pIdx) => {
+        if (parcel.geometry.type === "Polygon") {
+          const coords = parcel.geometry.coordinates[0];
+          for (let i = 0; i < coords.length - 1; i++) {
+             const p1 = map.project(coords[i] as [number, number]);
+             const p2 = map.project(coords[i+1] as [number, number]);
+             const l2 = (p1.x - p2.x)**2 + (p1.y - p2.y)**2;
+             let t = 0;
+             if (l2 !== 0) {
+                 t = Math.max(0, Math.min(1, ((p.x - p1.x)*(p2.x - p1.x) + (p.y - p1.y)*(p2.y - p1.y)) / l2));
+             }
+             const proj = { x: p1.x + t*(p2.x - p1.x), y: p1.y + t*(p2.y - p1.y) };
+             const d = Math.hypot(p.x - proj.x, p.y - proj.y);
+             if (d < minD) {
+               minD = d;
+               bestPIdx = pIdx;
+               bestSIdx = i;
+             }
+          }
+        }
+      });
+
+      if (minD < 15 && bestPIdx !== -1) {
+         e.preventDefault();
+         const newParcels = [...drawnParcelsRef.current];
+         const parcel = { ...newParcels[bestPIdx] };
+         if (parcel.geometry.type === "Polygon") {
+            const coords = [...parcel.geometry.coordinates[0]];
+            coords.splice(bestSIdx + 1, 0, clickPt);
+            parcel.geometry.coordinates[0] = coords;
+            parcel.properties = parcel.properties || {};
+            parcel.properties.rai = polygonAreaM2(coords as LngLat[]) / 1600;
+            newParcels[bestPIdx] = parcel;
+
+            setDrawnParcels(newParcels);
+            drawnParcelsRef.current = newParcels;
+
+            // Set index of the new vertex for immediate dragging!
+            activePIdx = bestPIdx;
+            activeVIdx = bestSIdx + 1;
+
+            map.getCanvas().style.cursor = 'grabbing';
+            map.on('mousemove', onVertsMove);
+            map.on('mouseup', onVertsUp);
+         }
+      }
+    };
+
+    const onVertsContextMenu = (e: maplibregl.MapMouseEvent) => {
+      if (drawingRef.current) return;
+      e.preventDefault();
+      const features = map.queryRenderedFeatures(e.point, { layers: ['plot-verts-l'] });
+      if (!features.length) return;
+      const pIdx = features[0].properties.pIdx;
+      const vIdx = features[0].properties.vIdx;
+
+      const parcels = [...drawnParcelsRef.current];
+      const parcel = parcels[pIdx];
+      if (parcel && parcel.geometry.type === "Polygon") {
+        const coords = parcel.geometry.coordinates[0];
+        if (coords.length <= 4) {
+          setToast("แปลงที่ดินต้องมีอย่างน้อย 3 จุด");
+          return;
+        }
+
+        const activeVerts = coords.slice(0, -1);
+        activeVerts.splice(vIdx, 1);
+        const newCoords = [...activeVerts, activeVerts[0]];
+
+        parcel.geometry.coordinates[0] = newCoords;
+        parcel.properties = parcel.properties || {};
+        parcel.properties.rai = polygonAreaM2(newCoords as LngLat[]) / 1600;
+
+        setDrawnParcels(parcels);
+        needsPlantationSearchRef.current = true;
+        if (runPlantationInfoRef.current) runPlantationInfoRef.current();
+        setToast("ลบจุด Node สำเร็จ");
+      }
+    };
+
+    const mouseEnterVerts = () => { if (!drawingRef.current) map.getCanvas().style.cursor = 'move'; };
+    const mouseLeaveVerts = () => { if (!drawingRef.current) map.getCanvas().style.cursor = ''; };
+    const mouseEnterLine = () => { if (!drawingRef.current) map.getCanvas().style.cursor = 'crosshair'; };
+    const mouseLeaveLine = () => { if (!drawingRef.current) map.getCanvas().style.cursor = ''; };
+
+     map.on('mousedown', 'plot-verts-l', onVertsDown);
+    map.on('contextmenu', 'plot-verts-l', onVertsContextMenu);
+    map.on('mouseenter', 'plot-verts-l', mouseEnterVerts);
+    map.on('mouseleave', 'plot-verts-l', mouseLeaveVerts);
+ 
+    map.on('mousedown', 'plot-line', onLineDown);
+    map.on('mouseenter', 'plot-line', mouseEnterLine);
+    map.on('mouseleave', 'plot-line', mouseLeaveLine);
+ 
+    return () => {
+      map.off('mousedown', 'plot-verts-l', onVertsDown);
+      map.off('contextmenu', 'plot-verts-l', onVertsContextMenu);
+      map.off('mouseenter', 'plot-verts-l', mouseEnterVerts);
+      map.off('mouseleave', 'plot-verts-l', mouseLeaveVerts);
+      map.off('mousedown', 'plot-line', onLineDown);
+      map.off('mouseenter', 'plot-line', mouseEnterLine);
+      map.off('mouseleave', 'plot-line', mouseLeaveLine);
+    };
+  }, [mapLoaded]);
 
   // Tracks which lu_class values are checked in the panel (for map highlighting)
   const [visibleLuClasses, setVisibleLuClasses] = useState<Record<string, boolean>>({ A: true, A302: true });
@@ -255,6 +523,7 @@ export default function MapDrawPage() {
         id: "draw-line-l",
         type: "line",
         source: "draw-line",
+        layout: { "line-join": "round", "line-cap": "round" },
         paint: { "line-color": "#3b82f6", "line-width": 2, "line-dasharray": [3, 2] },
       });
       map.addSource("draw-fill", { type: "geojson", data: emptyFC() });
@@ -287,8 +556,11 @@ export default function MapDrawPage() {
         id: "plot-line",
         type: "line",
         source: "plot",
+        layout: { "line-join": "round", "line-cap": "round" },
         paint: { "line-color": "#3b82f6", "line-width": 2.5 },
       });
+
+
 
       map.addSource("matched-parcels", { type: "geojson", data: emptyFC() });
       map.addLayer({
@@ -312,6 +584,7 @@ export default function MapDrawPage() {
         id: "matched-parcels-line",
         type: "line",
         source: "matched-parcels",
+        layout: { "line-join": "round", "line-cap": "round" },
         paint: { "line-color": "#64748b", "line-width": 2.2 },
       });
       map.addLayer({
@@ -327,6 +600,19 @@ export default function MapDrawPage() {
           "text-color": "#ffffff",
           "text-halo-color": "#0f172a",
           "text-halo-width": 2,
+        },
+      });
+
+      map.addSource("plot-verts", { type: "geojson", data: emptyFC() });
+      map.addLayer({
+        id: "plot-verts-l",
+        type: "circle",
+        source: "plot-verts",
+        paint: {
+          "circle-color": "#ffffff",
+          "circle-radius": ["interpolate", ["linear"], ["zoom"], 4, 4, 14, 6],
+          "circle-stroke-color": "#3b82f6",
+          "circle-stroke-width": 2,
         },
       });
 
@@ -627,8 +913,8 @@ export default function MapDrawPage() {
     };
 
     const onContextMenu = (e: maplibregl.MapMouseEvent) => {
-      if (!drawingRef.current || vertsRef.current.length < 3) return;
       e.preventDefault();
+      if (!drawingRef.current || vertsRef.current.length < 3) return;
       finishDraw();
     };
 
