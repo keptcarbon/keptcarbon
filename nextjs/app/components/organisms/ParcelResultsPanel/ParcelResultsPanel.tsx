@@ -489,7 +489,7 @@ export function ParcelResultsPanel({
                 }
                 data[cls].rai += m2 / 1600;
                 data[cls].pct += pct;
-                if(desc) data[cls].desc = desc;
+                if (desc) data[cls].desc = desc;
             }
         }
         // "A" parent = sum of all A-type lu classes
@@ -498,9 +498,9 @@ export function ParcelResultsPanel({
             return (p.lu_class as string)?.startsWith("A") ? s + ((p.area_m2 as number) || 0) : s;
         }, 0);
         if (aM2 > 0) data["A"] = { rai: aM2 / 1600, pct: Math.round(totalM2 > 0 ? (aM2 / totalM2) * 1000 : 0) / 10, desc: "พื้นที่เกษตรกรรม" };
-        
-        for(const key in data) {
-           data[key].pct = Math.round(data[key].pct * 10) / 10;
+
+        for (const key in data) {
+            data[key].pct = Math.round(data[key].pct * 10) / 10;
         }
         return data;
     }, [parcelFeatures, luFeatures]);
@@ -741,8 +741,8 @@ export function ParcelResultsPanel({
                 <div className="s1-results-error">
                     <i className="bi bi-exclamation-triangle me-2" />{searchErr}
                 </div>
-                {onBack && (
-                    <button className="mds-btn mds-btn-soft" style={{ marginTop: 12 }} onClick={onBack}>
+                {onReset && (
+                    <button className="mds-btn mds-btn-soft" style={{ marginTop: 12 }} onClick={onReset}>
                         <i className="bi bi-arrow-left me-1" /> กลับขั้นตอนที่ 1
                     </button>
                 )}
@@ -788,6 +788,57 @@ export function ParcelResultsPanel({
                             <i className="bi bi-arrow-left-circle" /> ย้อนกลับ
                         </div>
                     )}
+                </div>
+
+                {/* Action buttons (Moved to top) */}
+                {carbonErr && (
+                    <div style={{ marginBottom: 16, padding: "10px 14px", background: "rgba(220,38,38,0.08)", border: "1px solid rgba(220,38,38,0.25)", borderRadius: 10, fontSize: 12, color: "#dc2626", display: "flex", alignItems: "flex-start", gap: 8 }}>
+                        <i className="bi bi-exclamation-triangle-fill" style={{ flexShrink: 0, marginTop: 1 }} />
+                        <span>{carbonErr}</span>
+                    </div>
+                )}
+                <div style={{ display: "flex", gap: isMobile ? 6 : 8, marginBottom: 16, flexWrap: "nowrap" }}>
+                    {onDrawMore && !isDrawing && (
+                        <button className="prp-btn-ghost" style={{ flex: 1, padding: isMobile ? "8px 2px" : "10px 4px", fontSize: isMobile ? 11 : 12, display: "flex", flexDirection: "column", alignItems: "center", gap: isMobile ? 4 : 6, background: "rgba(16,185,129,0.1)", color: "#059669", border: "1px solid rgba(16,185,129,0.2)", borderRadius: isMobile ? 10 : 12 }} onClick={onDrawMore}>
+                            <i className="bi bi-pencil-square" style={{ fontSize: isMobile ? 16 : 18 }} /> <span style={{ fontWeight: 600, textAlign: "center", lineHeight: 1.2 }}>วาดแปลงเพิ่ม</span>
+                        </button>
+                    )}
+                    <button
+                        className="prp-btn-primary"
+                        onClick={() => handleSave([])}
+                        disabled={!projectName.trim() || saveState === "saving"}
+                        style={{
+                            flex: 1, padding: isMobile ? "8px 2px" : "10px 4px", fontSize: isMobile ? 11 : 12, display: "flex", flexDirection: "column", alignItems: "center", gap: isMobile ? 4 : 6,
+                            background: projectName.trim() ? "linear-gradient(135deg,#0ea5e9,#0284c7)" : "#cbd5e1",
+                            color: "#fff", border: "none", borderRadius: isMobile ? 10 : 12,
+                            cursor: projectName.trim() ? "pointer" : "not-allowed",
+                            boxShadow: projectName.trim() ? "0 4px 10px rgba(2,132,199,0.2)" : "none"
+                        }}
+                    >
+                        {saveState === "saving" ? (
+                            <><span className="s1-spin" style={{ width: isMobile ? 16 : 18, height: isMobile ? 16 : 18, border: "2px solid rgba(255,255,255,0.3)", borderTopColor: "#fff" }} /> <span style={{ fontWeight: 600, textAlign: "center", lineHeight: 1.2 }}>กำลังบันทึก</span></>
+                        ) : (
+                            <><i className="bi bi-save" style={{ fontSize: isMobile ? 16 : 18 }} /> <span style={{ fontWeight: 600, textAlign: "center", lineHeight: 1.2 }}>บันทึกข้อมูล</span></>
+                        )}
+                    </button>
+                    <button
+                        className="prp-btn-primary"
+                        onClick={() => { void handleProcessCarbon(); }}
+                        disabled={!projectName.trim() || processingCarbon}
+                        style={{
+                            flex: 1, padding: isMobile ? "8px 2px" : "10px 4px", fontSize: isMobile ? 11 : 12, display: "flex", flexDirection: "column", alignItems: "center", gap: isMobile ? 4 : 6,
+                            background: (projectName.trim() && !processingCarbon) ? "linear-gradient(135deg,#10b981,#059669)" : "#cbd5e1",
+                            color: "#fff", border: "none", borderRadius: isMobile ? 10 : 12,
+                            cursor: (projectName.trim() && !processingCarbon) ? "pointer" : "not-allowed",
+                            boxShadow: (projectName.trim() && !processingCarbon) ? "0 4px 10px rgba(16,185,129,0.2)" : "none"
+                        }}
+                    >
+                        {processingCarbon ? (
+                            <><span className="s1-spin" style={{ width: isMobile ? 16 : 18, height: isMobile ? 16 : 18, border: "2px solid rgba(255,255,255,0.3)", borderTopColor: "#fff" }} /> <span style={{ fontWeight: 600, textAlign: "center", lineHeight: 1.2 }}>ประมวลผล</span></>
+                        ) : (
+                            <><i className="bi bi-graph-up-arrow" style={{ fontSize: isMobile ? 16 : 18 }} /> <span style={{ fontWeight: 600, textAlign: "center", lineHeight: 1.2 }}>ประมวลผล</span></>
+                        )}
+                    </button>
                 </div>
 
                 {/* Project name — shared */}
@@ -963,7 +1014,7 @@ export function ParcelResultsPanel({
                                                             if (!aSubtypes.includes("A302")) aSubtypes.push("A302");
                                                             if (!aSubtypes.includes("A303")) aSubtypes.push("A303");
                                                             if (!aSubtypes.includes("A304")) aSubtypes.push("A304");
-                                                            
+
                                                             aSubtypes.forEach(sub => {
                                                                 const desc = luRealData[sub]?.desc || (sub === "A302" ? "ยางพารา" : sub === "A303" ? "ปาล์มน้ำมัน" : sub === "A304" ? "ไม้ผล" : "หมวดย่อย A");
                                                                 displayLU.push({
@@ -1019,14 +1070,14 @@ export function ParcelResultsPanel({
                                                 const checkedArray = Object.entries(form.luChecked || {})
                                                     .filter(([cls, on]) => on && !['W', 'M'].includes(cls)) // Exclude W and M manually just in case
                                                     .map(([cls]) => cls);
-                                                
+
                                                 const featuresToUse = luFeatures.length > 0 ? luFeatures : parcelFeatures;
                                                 const selectedRai = featuresToUse.reduce((sum, feat) => {
                                                     const p = (feat.properties ?? {}) as Record<string, unknown>;
                                                     const cls = p.lu_class as string | undefined;
                                                     const m2 = (p.area_m2 as number) || 0;
                                                     if (!cls) return sum; // don't count features without lu_class in this summary
-                                                    
+
                                                     const isSelected = checkedArray.includes(cls);
                                                     return isSelected ? sum + m2 : sum;
                                                 }, 0) / 1600;
@@ -1085,51 +1136,7 @@ export function ParcelResultsPanel({
                     </div>
                 )}
 
-                {/* Action buttons */}
-                {carbonErr && (
-                    <div style={{ marginTop: 12, padding: "10px 14px", background: "rgba(220,38,38,0.08)", border: "1px solid rgba(220,38,38,0.25)", borderRadius: 10, fontSize: 12, color: "#dc2626", display: "flex", alignItems: "flex-start", gap: 8 }}>
-                        <i className="bi bi-exclamation-triangle-fill" style={{ flexShrink: 0, marginTop: 1 }} />
-                        <span>{carbonErr}</span>
-                    </div>
-                )}
-                <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 18 }}>
-                    <button
-                        className="prp-btn-primary"
-                        onClick={() => { void handleProcessCarbon(); }}
-                        disabled={!projectName.trim() || processingCarbon}
-                        style={{
-                            background: (projectName.trim() && !processingCarbon) ? "linear-gradient(135deg,#10b981,#059669)" : "#cbd5e1",
-                            cursor: (projectName.trim() && !processingCarbon) ? "pointer" : "not-allowed"
-                        }}
-                    >
-                        {processingCarbon ? (
-                            <><span className="s1-spin" style={{ width: 14, height: 14, border: "2px solid rgba(255,255,255,0.3)", borderTopColor: "#fff", marginRight: 8 }} />กำลังประมวลผล...</>
-                        ) : (
-                            <><i className="bi bi-graph-up-arrow me-2" />ประมวลผลคาร์บอน</>
-                        )}
-                    </button>
-                    <button
-                        className="prp-btn-primary"
-                        onClick={() => handleSave([])}
-                        disabled={!projectName.trim() || saveState === "saving"}
-                        style={{
-                            background: projectName.trim() ? "linear-gradient(135deg,#0369a1,#0284c7)" : "#cbd5e1",
-                            cursor: projectName.trim() ? "pointer" : "not-allowed"
-                        }}
-                    >
-                        {saveState === "saving" ? (
-                            <><span className="s1-spin" style={{ width: 14, height: 14, border: "2px solid rgba(255,255,255,0.3)", borderTopColor: "#fff", marginRight: 8 }} /> กำลังบันทึก...</>
-                        ) : (
-                            <><i className="bi bi-floppy-disk me-2" />บันทึกลงฐานข้อมูล</>
-                        )}
-                    </button>
-                    {onDrawMore && !isDrawing && (
-                        <button className="prp-btn-ghost" style={{ background: "rgba(16,185,129,0.1)", color: "#059669" }} onClick={onDrawMore}>
-                            <i className="bi bi-pencil-square me-1" /> วาดแปลงเพิ่ม
-                        </button>
-                    )}
-
-                </div>
+                {/* Action buttons moved to top */}
             </div>
         );
     }
