@@ -676,7 +676,15 @@ export default function MapDrawPage() {
           features: next,
         });
       }
-      if (next.length === 0) setHasGeom(false);
+      if (next.length === 0) {
+        setHasGeom(false);
+        setParcelFeatures([]);
+        if (map && mapLoadedRef.current) {
+          (map.getSource("matched-parcels") as maplibregl.GeoJSONSource)?.setData(emptyFC());
+        }
+      } else {
+        needsPlantationSearchRef.current = true;
+      }
       return next;
     });
   }, []);
