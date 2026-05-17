@@ -469,7 +469,7 @@ export function ParcelResultsPanel({
 
     // Build real land-use area data from luFeatures (lu_polygon properties from plantation-info API)
     const luRealData = useMemo(() => {
-        const data: Record<string, { rai: number; pct: number }> = {};
+        const data: Record<string, { rai: number; pct: number; desc?: string }> = {};
         const featuresToUse = luFeatures.length > 0 ? luFeatures : parcelFeatures;
         let totalM2 = 0;
         for (const feat of featuresToUse) {
@@ -480,16 +480,28 @@ export function ParcelResultsPanel({
         for (const feat of featuresToUse) {
             const p = (feat.properties ?? {}) as Record<string, unknown>;
             const cls = p.lu_class as string | undefined;
+            const desc = p.lu_class_desc_th as string | undefined;
             const m2 = (p.area_m2 as number) || 0;
             const pct = (p.area_percent as number) || (totalM2 > 0 ? (m2 / totalM2) * 100 : 0);
-            if (cls) data[cls] = { rai: m2 / 1600, pct: Math.round(pct * 10) / 10 };
+            if (cls) {
+                if (!data[cls]) {
+                    data[cls] = { rai: 0, pct: 0, desc: desc || "" };
+                }
+                data[cls].rai += m2 / 1600;
+                data[cls].pct += pct;
+                if(desc) data[cls].desc = desc;
+            }
         }
         // "A" parent = sum of all A-type lu classes
         const aM2 = featuresToUse.reduce((s, f) => {
             const p = (f.properties ?? {}) as Record<string, unknown>;
             return (p.lu_class as string)?.startsWith("A") ? s + ((p.area_m2 as number) || 0) : s;
         }, 0);
-        if (aM2 > 0) data["A"] = { rai: aM2 / 1600, pct: Math.round(totalM2 > 0 ? (aM2 / totalM2) * 1000 : 0) / 10 };
+        if (aM2 > 0) data["A"] = { rai: aM2 / 1600, pct: Math.round(totalM2 > 0 ? (aM2 / totalM2) * 1000 : 0) / 10, desc: "พื้นที่เกษตรกรรม" };
+        
+        for(const key in data) {
+           data[key].pct = Math.round(data[key].pct * 10) / 10;
+        }
         return data;
     }, [parcelFeatures, luFeatures]);
     const totalCO2 = useMemo(() => plots.reduce((s, p) => s + p.co2, 0), [plots]);
@@ -572,7 +584,8 @@ export function ParcelResultsPanel({
         const featuresToUse = luFeatures.length > 0 ? luFeatures : parcelFeatures;
         const selectedFeats = featuresToUse.filter(feat => {
             const luClass = ((feat.properties ?? {}) as Record<string, unknown>).lu_class as string | undefined;
-            return luClass ? checkedClasses.has(luClass) : true; // include non-lu features as-is
+            if (!luClass) return true; // include non-lu features as-is
+            return Array.from(checkedClasses).some(c => luClass === c || luClass.startsWith(c));
         });
 
         if (selectedFeats.length === 0) {
@@ -935,51 +948,90 @@ export function ParcelResultsPanel({
                                                 <i className="bi bi-layers" style={{ color: "#10b981" }} /> ชั้นข้อมูลการใช้ประโยชน์ที่ดิน (กรมพัฒนาที่ดิน)
                                             </div>
                                             <div style={{ display: "flex", flexDirection: "column", gap: 10, fontSize: 13 }}>
-                                                {[
-                                                    { id: "F", label: "F พื้นที่ป่าไม้", fixed: false },
-                                                    { id: "A", label: "A พื้นที่เกษตรกรรม", fixed: true },
-                                                    { id: "A302", label: "A302 ยางพารา (หมวดย่อย A)", fixed: true, indent: true },
-                                                    { id: "A303", label: "A303 ปาล์มน้ำมัน (หมวดย่อย A)", fixed: false, indent: true },
-                                                    { id: "A304", label: "A304 ไม้ผล (หมวดย่อย A)", fixed: false, indent: true },
-                                                    { id: "M", label: "M พื้นที่อื่นๆ", fixed: false },
-                                                    { id: "U", label: "U พื้นที่สิ่งปลูกสร้าง", fixed: false, disabled: true },
-                                                    { id: "W", label: "W แหล่งน้ำ", fixed: false, disabled: true },
-                                                ].map(lu => {
-                                                    const isChecked = form.luChecked?.[lu.id] || false;
-                                                    const realData = luRealData[lu.id];
-                                                    const hasArea = realData && realData.rai > 0;
-                                                    return (
-                                                        <label key={lu.id} style={{
-                                                            display: "flex", alignItems: "center", gap: 8,
-                                                            cursor: lu.disabled || lu.fixed ? "not-allowed" : "pointer",
-                                                            opacity: lu.disabled ? 0.4 : (!hasArea && !lu.fixed ? 0.45 : 1),
-                                                            paddingLeft: lu.indent ? 24 : 0
-                                                        }}>
-                                                            <input
-                                                                type="checkbox"
-                                                                checked={isChecked}
-                                                                disabled={lu.fixed || lu.disabled}
-                                                                style={{ accentColor: isChecked ? "#f97316" : "#94a3b8", width: 16, height: 16 }}
-                                                                onChange={(e) => {
-                                                                    const newChecked = { ...form.luChecked, [lu.id]: e.target.checked };
-                                                                    setPlotForms(prev => prev.map((f, idx) => idx === i ? { ...f, luChecked: newChecked } : f));
-                                                                    onLandUseChange?.(newChecked);
-                                                                }}
-                                                            />
-                                                            <span style={{ flex: 1, color: "#334155", fontWeight: isChecked ? 600 : 400 }}>{lu.label}</span>
-                                                            <span style={{ color: hasArea ? (isChecked ? "#ea580c" : "#64748b") : "#cbd5e1", fontSize: 12, fontWeight: 700 }}>
-                                                                {hasArea ? `${realData.rai.toFixed(2)} ไร่` : "0.00 ไร่"}
-                                                                <span style={{ opacity: 0.7, fontSize: 11 }}> ({hasArea ? realData.pct : 0}%)</span>
-                                                            </span>
-                                                        </label>
-                                                    );
-                                                })}
+                                                {(() => {
+                                                    const baseLU = [
+                                                        { id: "U", label: "U พื้นที่ชุมชนและสิ่งปลูกสร้าง", disabled: false, fixed: false, color: "#ef4444" },
+                                                        { id: "A", label: "A พื้นที่เกษตรกรรม", disabled: false, fixed: true, color: "#84cc16" },
+                                                        { id: "F", label: "F พื้นที่ป่าไม้", disabled: false, fixed: false, color: "#166534" },
+                                                        { id: "W", label: "W แหล่งน้ำ", disabled: true, fixed: false, color: "#3b82f6" },
+                                                        { id: "M", label: "M พื้นที่เบ็ดเตล็ด", disabled: true, fixed: false, color: "#9ca3af" },
+                                                    ];
+                                                    const displayLU: any[] = [];
+                                                    baseLU.forEach(base => {
+                                                        displayLU.push(base);
+                                                        if (base.id === "A") {
+                                                            const aSubtypes = Object.keys(luRealData).filter(k => k.startsWith("A") && k !== "A").sort();
+                                                            if (!aSubtypes.includes("A302")) aSubtypes.push("A302");
+                                                            if (!aSubtypes.includes("A303")) aSubtypes.push("A303");
+                                                            if (!aSubtypes.includes("A304")) aSubtypes.push("A304");
+                                                            
+                                                            aSubtypes.forEach(sub => {
+                                                                const desc = luRealData[sub]?.desc || (sub === "A302" ? "ยางพารา" : sub === "A303" ? "ปาล์มน้ำมัน" : sub === "A304" ? "ไม้ผล" : "หมวดย่อย A");
+                                                                displayLU.push({
+                                                                    id: sub,
+                                                                    label: `${sub} ${desc}`,
+                                                                    disabled: false,
+                                                                    fixed: sub === "A302",
+                                                                    indent: true,
+                                                                    color: "#84cc16"
+                                                                });
+                                                            });
+                                                        }
+                                                    });
+
+                                                    return displayLU.map(lu => {
+                                                        // Fallback checked values to false except what was originally initialized
+                                                        // W and M are forced to be false because they are disabled.
+                                                        // fixed items (A, A302) are forced to be true.
+                                                        const isChecked = lu.disabled ? false : (lu.fixed ? true : (form.luChecked?.[lu.id] || false));
+                                                        const realData = luRealData[lu.id];
+                                                        const hasArea = realData && realData.rai > 0;
+                                                        return (
+                                                            <label key={lu.id} style={{
+                                                                display: "flex", alignItems: "center", gap: 8,
+                                                                cursor: (lu.disabled || lu.fixed) ? "not-allowed" : "pointer",
+                                                                opacity: (!hasArea && !lu.disabled && !lu.fixed) ? 0.45 : (lu.disabled ? 0.3 : 1),
+                                                                paddingLeft: lu.indent ? 24 : 0
+                                                            }}>
+                                                                <input
+                                                                    type="checkbox"
+                                                                    checked={isChecked}
+                                                                    disabled={lu.disabled || lu.fixed}
+                                                                    style={{ accentColor: isChecked ? lu.color : "#94a3b8", width: 16, height: 16 }}
+                                                                    onChange={(e) => {
+                                                                        const newChecked = { ...form.luChecked, [lu.id]: e.target.checked };
+                                                                        setPlotForms(prev => prev.map((f, idx) => idx === i ? { ...f, luChecked: newChecked } : f));
+                                                                        onLandUseChange?.(newChecked);
+                                                                    }}
+                                                                />
+                                                                <div style={{ width: 12, height: 12, borderRadius: 2, backgroundColor: lu.color, flexShrink: 0 }} />
+                                                                <span style={{ flex: 1, color: lu.disabled ? "#94a3b8" : "#0f172a", fontWeight: isChecked ? 600 : 400 }}>{lu.label}</span>
+                                                                <span style={{ color: hasArea ? (isChecked ? lu.color : "#64748b") : "#cbd5e1", fontSize: 12, fontWeight: 700 }}>
+                                                                    {hasArea ? `${realData.rai.toFixed(2)} ไร่` : "0.00 ไร่"}
+                                                                    <span style={{ opacity: 0.7, fontSize: 11 }}> ({hasArea ? realData.pct : 0}%)</span>
+                                                                </span>
+                                                            </label>
+                                                        );
+                                                    });
+                                                })()}
                                             </div>
                                             {/* Selected area summary */}
                                             {(() => {
-                                                const selectedRai = Object.entries(form.luChecked || {})
-                                                    .filter(([cls, on]) => on && luRealData[cls])
-                                                    .reduce((s, [cls]) => s + (luRealData[cls]?.rai || 0), 0);
+                                                const checkedArray = Object.entries(form.luChecked || {})
+                                                    .filter(([cls, on]) => on && !['W', 'M'].includes(cls)) // Exclude W and M manually just in case
+                                                    .map(([cls]) => cls);
+                                                
+                                                const featuresToUse = luFeatures.length > 0 ? luFeatures : parcelFeatures;
+                                                const selectedRai = featuresToUse.reduce((sum, feat) => {
+                                                    const p = (feat.properties ?? {}) as Record<string, unknown>;
+                                                    const cls = p.lu_class as string | undefined;
+                                                    const m2 = (p.area_m2 as number) || 0;
+                                                    if (!cls) return sum; // don't count features without lu_class in this summary
+                                                    
+                                                    const isSelected = checkedArray.some(c => cls === c || cls.startsWith(c));
+                                                    return isSelected ? sum + m2 : sum;
+                                                }, 0) / 1600;
+
                                                 return selectedRai > 0 ? (
                                                     <div style={{ marginTop: 12, padding: "8px 12px", background: "rgba(249,115,22,0.08)", borderRadius: 8, border: "1px solid rgba(249,115,22,0.2)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                                                         <span style={{ fontSize: 12, color: "#92400e", fontWeight: 600 }}>

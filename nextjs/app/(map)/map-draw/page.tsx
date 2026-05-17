@@ -112,28 +112,7 @@ export default function MapDrawPage() {
 
   const handleLandUseChange = useCallback((checked: Record<string, boolean>) => {
     setVisibleLuClasses(checked);
-    const map = mapRef.current;
-    if (!map || !mapLoadedRef.current) return;
-    // All checked lu classes → orange; unchecked → gray
-    const checkedClasses = Object.entries(checked)
-      .filter(([, on]) => on)
-      .map(([cls]) => cls);
-    // Build match expression: for each known lu_class, orange if checked, gray if not
-    const allKnown = ["A302", "A303", "A304", "A401", "A403", "A204", "A205", "A300", "F", "W", "U", "M"];
-    const colorExpr: unknown[] = ["match", ["get", "lu_class"]];
-    const opacityExpr: unknown[] = ["match", ["get", "lu_class"]];
-    allKnown.forEach(cls => {
-      const isChecked = checkedClasses.some(c => cls.startsWith(c) || c.startsWith(cls) || c === cls);
-      colorExpr.push(cls, isChecked ? "#ff9100" : "#94a3b8");
-      opacityExpr.push(cls, isChecked ? 0.65 : 0.18);
-    });
-    colorExpr.push("#ff9100"); // default fallback = orange (checked)
-    opacityExpr.push(0.65);
-    map.setPaintProperty("matched-parcels-fill", "fill-color", colorExpr as maplibregl.ExpressionSpecification);
-    map.setPaintProperty("matched-parcels-fill", "fill-opacity", opacityExpr as maplibregl.ExpressionSpecification);
-    map.setPaintProperty("matched-parcels-line", "line-color",
-      (checkedClasses.length > 0 ? "#e65c00" : "#94a3b8") as unknown as maplibregl.ExpressionSpecification
-    );
+    // Colors are now statically applied in addLayer, so no style updates needed here.
   }, []);
 
 
@@ -277,18 +256,28 @@ export default function MapDrawPage() {
       });
 
       map.addSource("matched-parcels", { type: "geojson", data: emptyFC() });
-      // Initial colours: A302 orange (selected by default), everything else gray
       map.addLayer({
         id: "matched-parcels-fill",
         type: "fill",
         source: "matched-parcels",
-        paint: { "fill-color": "#ff9100", "fill-opacity": 0.65 },
+        paint: {
+          "fill-color": [
+            "case",
+            ["==", ["slice", ["to-string", ["coalesce", ["get", "lu_class"], ""]], 0, 1], "U"], "#ef4444",
+            ["==", ["slice", ["to-string", ["coalesce", ["get", "lu_class"], ""]], 0, 1], "A"], "#84cc16",
+            ["==", ["slice", ["to-string", ["coalesce", ["get", "lu_class"], ""]], 0, 1], "F"], "#166534",
+            ["==", ["slice", ["to-string", ["coalesce", ["get", "lu_class"], ""]], 0, 1], "W"], "#3b82f6",
+            ["==", ["slice", ["to-string", ["coalesce", ["get", "lu_class"], ""]], 0, 1], "M"], "#9ca3af",
+            "#ff9100" // default fallback
+          ],
+          "fill-opacity": 0.65
+        },
       });
       map.addLayer({
         id: "matched-parcels-line",
         type: "line",
         source: "matched-parcels",
-        paint: { "line-color": "#e65c00", "line-width": 2.2 },
+        paint: { "line-color": "#64748b", "line-width": 2.2 },
       });
       map.addLayer({
         id: "matched-parcels-label",
