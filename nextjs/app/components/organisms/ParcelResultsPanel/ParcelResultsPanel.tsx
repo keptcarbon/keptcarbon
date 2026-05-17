@@ -1312,14 +1312,16 @@ export function ParcelResultsPanel({
 
                                                             aSubtypes.forEach(sub => {
                                                                 const desc = luRealData[sub]?.desc || (sub === "A302" ? "ยางพารา" : sub === "A303" ? "ปาล์มน้ำมัน" : sub === "A304" ? "ไม้ผล" : "หมวดย่อย A");
-                                                                displayLU.push({
-                                                                    id: sub,
-                                                                    label: `${sub} ${desc}`,
-                                                                    disabled: false,
-                                                                    fixed: sub === "A302",
-                                                                    indent: true,
-                                                                    color: "#84cc16"
-                                                                });
+                                                                 const isA302 = sub === "A302";
+                                                                 const isA302Detected = !!(luRealData["A302"] && luRealData["A302"].rai > 0);
+                                                                 displayLU.push({
+                                                                     id: sub,
+                                                                     label: `${sub} ${desc}`,
+                                                                     disabled: isA302 ? !isA302Detected : false,
+                                                                     fixed: isA302 ? isA302Detected : false,
+                                                                     indent: true,
+                                                                     color: "#84cc16"
+                                                                 });
                                                             });
                                                         }
                                                     });
