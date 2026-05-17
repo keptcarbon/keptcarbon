@@ -241,7 +241,7 @@ export default function Home() {
               },
               {
                 img: "team-5.jpg",
-                name: "ดร. ศักดิ์ดา หอมหวล",
+                name: "ผศ.ดร. ศักดิ์ดา หอมหวล",
                 desc: "คณะสังคมศาสตร์",
                 affil: "มหาวิทยาลัยเชียงใหม่",
                 delay: 500,

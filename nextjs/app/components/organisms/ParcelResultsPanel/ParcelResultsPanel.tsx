@@ -1031,17 +1031,17 @@ export function ParcelResultsPanel({
                         <button
                             onClick={onBack}
                             style={{
-                                fontSize: 11,
+                                fontSize: isMobile ? 10 : 11,
                                 fontWeight: 700,
                                 color: "#0f766e",
                                 cursor: "pointer",
                                 background: "#f0fdfa",
                                 border: "1px solid rgba(13,148,136,0.3)",
-                                padding: "6px 12px",
-                                borderRadius: 8,
+                                padding: isMobile ? "4px 8px" : "6px 12px",
+                                borderRadius: isMobile ? 6 : 8,
                                 display: "flex",
                                 alignItems: "center",
-                                gap: 6,
+                                gap: isMobile ? 4 : 6,
                                 transition: "all 0.2s",
                                 outline: "none",
                                 boxShadow: "0 2px 5px rgba(13,148,136,0.05)"
@@ -1513,11 +1513,11 @@ export function ParcelResultsPanel({
                             <div
                                 onClick={() => onMapPlotSelected?.("total")}
                                 style={{
-                                    fontSize: 11,
+                                    fontSize: isMobile ? 10 : 11,
                                     fontWeight: 700,
                                     color: "#059669",
                                     cursor: "pointer",
-                                    padding: "6px 12px",
+                                    padding: isMobile ? "4px 8px" : "6px 12px",
                                     borderRadius: 20,
                                     background: "rgba(16,185,129,0.08)",
                                     border: "1px solid rgba(16,185,129,0.2)",
@@ -1715,7 +1715,21 @@ export function ParcelResultsPanel({
                                 <><i className="bi bi-save me-2" />บันทึกผลลงฐานข้อมูล</>
                             )}
                         </button>
-                        <button className="prp-btn-ghost" onClick={() => onStepChange(2)}>← กลับแก้ไขข้อมูล</button>
+                        <button
+                            className="prp-btn-ghost"
+                            onClick={() => onStepChange(2)}
+                            style={isMobile ? {
+                                padding: "6px 12px",
+                                fontSize: 11,
+                                borderRadius: 10,
+                                width: "auto",
+                                alignSelf: "center",
+                                minWidth: 140,
+                                background: "rgba(45, 158, 95, 0.05)"
+                            } : undefined}
+                        >
+                            ← กลับแก้ไขข้อมูล
+                        </button>
                         <button className="prp-btn-text" onClick={onReset}><i className="bi bi-x-circle me-1" />ไม่บันทึก</button>
                     </div>
                 </div>

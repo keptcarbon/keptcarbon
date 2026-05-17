@@ -116,17 +116,17 @@ export function CarbonBarChart({
   const linePath = linePoints.map((p, i) => (i === 0 ? `M ${p.x},${p.y}` : `L ${p.x},${p.y}`)).join(" ");
 
   return (
-    <div style={{ background: "linear-gradient(135deg,#f0fdf4,#dcfce7)", borderRadius: 20, padding: isMobile ? "16px 8px 10px" : "20px 16px 12px", boxShadow: "0 10px 30px -5px rgba(5,150,105,0.12)", maxWidth: (isMobile || narrowMode) ? undefined : 860, margin: (isMobile || narrowMode) ? undefined : "0 auto", border: "1px solid rgba(16,185,129,0.15)" }}>
+    <div style={{ background: "linear-gradient(135deg,#f0fdf4,#dcfce7)", borderRadius: 16, padding: isMobile ? "12px 10px 8px" : "20px 16px 12px", boxShadow: "0 10px 30px -5px rgba(5,150,105,0.12)", maxWidth: (isMobile || narrowMode) ? undefined : 860, margin: (isMobile || narrowMode) ? undefined : "0 auto", border: "1px solid rgba(16,185,129,0.15)" }}>
       {title && (
-        <div style={{ textAlign: "center", fontSize: isMobile ? 14 : (narrowMode ? 17 : 20), fontWeight: 800, color: "#064e3b", marginBottom: 10 }}>
-          {title} •
+        <div style={{ textAlign: "center", fontSize: isMobile ? 12 : (narrowMode ? 17 : 20), fontWeight: 800, color: "#064e3b", marginBottom: 8 }}>
+          {title}
         </div>
       )}
 
-      <div style={{ overflowX: "auto" }}>
+      <div>
         <svg
           viewBox={`0 0 ${W} ${H}`}
-          style={{ width: isMobile ? Math.max(W, pts.length * 18) : "100%", height: "auto", display: "block", overflow: "visible" }}
+          style={{ width: "100%", height: "auto", display: "block", overflow: "visible" }}
         >
           <defs>
             {GREEN_THEME_COLORS.map((c, i) => (

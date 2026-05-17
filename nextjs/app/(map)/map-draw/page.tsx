@@ -151,6 +151,81 @@ export default function MapDrawPage() {
     let activePIdx = -1;
     let activeVIdx = -1;
 
+    function onVertsTouchStart(e: maplibregl.MapTouchEvent) {
+      const map = mapRef.current;
+      if (!map || drawingRef.current) return;
+      e.preventDefault();
+      const features = map.queryRenderedFeatures(e.point, { layers: ['plot-verts-l'] });
+      if (!features.length) return;
+      activePIdx = features[0].properties.pIdx;
+      activeVIdx = features[0].properties.vIdx;
+      
+      map.dragPan.disable();
+      
+      map.on('touchmove', onVertsTouchMove);
+      map.on('touchend', onVertsTouchEnd);
+    }
+
+    function onVertsTouchMove(e: maplibregl.MapTouchEvent) {
+      const map = mapRef.current;
+      if (!map || activePIdx === -1) return;
+      if (!e.lngLats || !e.lngLats.length) return;
+      const parcels = [...drawnParcelsRef.current];
+      const parcel = parcels[activePIdx];
+      if (parcel && parcel.geometry.type === "Polygon") {
+        const coords = [...parcel.geometry.coordinates[0]];
+        const touch = e.lngLats[0];
+        coords[activeVIdx] = [touch.lng, touch.lat];
+        if (activeVIdx === 0) {
+           coords[coords.length - 1] = [touch.lng, touch.lat];
+        }
+        parcel.geometry.coordinates[0] = coords;
+        
+        const srcPlot = map.getSource("plot") as maplibregl.GeoJSONSource | undefined;
+        if (srcPlot) {
+           srcPlot.setData({ type: "FeatureCollection", features: parcels });
+        }
+        
+        const vertFeatures: GeoJSON.Feature[] = [];
+        parcels.forEach((p, pIdx) => {
+          if (p.geometry.type === "Polygon") {
+            const cArr = p.geometry.coordinates[0];
+            cArr.slice(0, -1).forEach((c, vIdx) => {
+              vertFeatures.push({
+                type: "Feature",
+                geometry: { type: "Point", coordinates: c as [number, number] },
+                properties: { pIdx, vIdx }
+              });
+            });
+          }
+        });
+        const srcVerts = map.getSource("plot-verts") as maplibregl.GeoJSONSource | undefined;
+        if (srcVerts) {
+           srcVerts.setData({ type: "FeatureCollection", features: vertFeatures });
+        }
+      }
+    }
+
+    function onVertsTouchEnd() {
+      const map = mapRef.current;
+      if (!map || activePIdx === -1) return;
+      map.off('touchmove', onVertsTouchMove);
+      map.off('touchend', onVertsTouchEnd);
+      
+      map.dragPan.enable();
+      
+      const parcels = [...drawnParcelsRef.current];
+      const parcel = parcels[activePIdx];
+      if (parcel && parcel.geometry.type === "Polygon") {
+        parcel.properties = parcel.properties || {};
+        parcel.properties.rai = polygonAreaM2(parcel.geometry.coordinates[0] as LngLat[]) / 1600;
+      }
+      setDrawnParcels(parcels);
+      needsPlantationSearchRef.current = true;
+      if (runPlantationInfoRef.current) runPlantationInfoRef.current();
+      activePIdx = -1;
+    }
+
     const onVertsDown = (e: maplibregl.MapMouseEvent) => {
       if (drawingRef.current) return;
 
@@ -355,7 +430,8 @@ export default function MapDrawPage() {
     const mouseEnterLine = () => { if (!drawingRef.current) map.getCanvas().style.cursor = 'crosshair'; };
     const mouseLeaveLine = () => { if (!drawingRef.current) map.getCanvas().style.cursor = ''; };
 
-     map.on('mousedown', 'plot-verts-l', onVertsDown);
+    map.on('mousedown', 'plot-verts-l', onVertsDown);
+    map.on('touchstart', 'plot-verts-l', onVertsTouchStart);
     map.on('contextmenu', 'plot-verts-l', onVertsContextMenu);
     map.on('mouseenter', 'plot-verts-l', mouseEnterVerts);
     map.on('mouseleave', 'plot-verts-l', mouseLeaveVerts);
@@ -365,7 +441,12 @@ export default function MapDrawPage() {
     map.on('mouseleave', 'plot-line', mouseLeaveLine);
  
     return () => {
+      map.dragPan.enable();
+      map.off('touchmove', onVertsTouchMove);
+      map.off('touchend', onVertsTouchEnd);
+
       map.off('mousedown', 'plot-verts-l', onVertsDown);
+      map.off('touchstart', 'plot-verts-l', onVertsTouchStart);
       map.off('contextmenu', 'plot-verts-l', onVertsContextMenu);
       map.off('mouseenter', 'plot-verts-l', mouseEnterVerts);
       map.off('mouseleave', 'plot-verts-l', mouseLeaveVerts);
@@ -827,21 +908,14 @@ export default function MapDrawPage() {
 
     // Transition to step 2 automatically to fill form
     setCurrentStep(2);
+    setIsPanelOpen(true);
 
 
     // Reset current drawing vertices
     vertsRef.current = [];
     setVertCount(0);
 
-    if (!skipFit) {
-      // Fit to the new feature
-      const lngs = ring.map((p) => p[0]);
-      const lats = ring.map((p) => p[1]);
-      mapRef.current?.fitBounds(
-        [[Math.min(...lngs), Math.min(...lats)], [Math.max(...lngs), Math.max(...lats)]],
-        { padding: 60, duration: 600 }
-      );
-    }
+    // Removed duplicate camera bounce (fitBounds) here to allow the subsequent plantation-info fetch to animate smoothly just once!
   }, []);
 
   // Map click / dblclick / Escape handlers — keep refs in sync
@@ -947,7 +1021,11 @@ export default function MapDrawPage() {
   const startDrawFlow = () => {
     const map = mapRef.current;
     if (!map) return;
-    setIsPanelOpen(true);
+    if (isMobile()) {
+      setIsPanelOpen(false);
+    } else {
+      setIsPanelOpen(true);
+    }
     drawingRef.current = true;
     setDrawing(true);
     map.getCanvas().style.cursor = 'crosshair';
@@ -985,6 +1063,7 @@ export default function MapDrawPage() {
       map.getCanvas().style.cursor = "";
     }
     setCurrentStep(1);
+    setIsPanelOpen(true);
   };
 
   const deleteParcel = useCallback((idx: number) => {
@@ -1015,6 +1094,7 @@ export default function MapDrawPage() {
     setDrawing(false);
     vertsRef.current = [];
     setStatus("ยกเลิกการวาด");
+    setIsPanelOpen(true);
     const map = mapRef.current;
     if (map) {
       map.getCanvas().style.cursor = '';
@@ -1435,6 +1515,107 @@ export default function MapDrawPage() {
           ))}
         </div>
 
+        {/* Mobile active drawing floating action bar */}
+        {drawing && isMobile() && (
+          <div
+            style={{
+              position: "fixed",
+              bottom: "20px",
+              left: "16px",
+              right: "70px",
+              zIndex: 100,
+              display: "flex",
+              flexDirection: "column",
+              gap: "8px",
+              background: "rgba(255, 255, 255, 0.96)",
+              backdropFilter: "blur(12px)",
+              WebkitBackdropFilter: "blur(12px)",
+              borderRadius: "14px",
+              padding: "12px",
+              boxShadow: "0 10px 25px -5px rgba(5, 150, 105, 0.15), 0 8px 16px -4px rgba(0, 0, 0, 0.05)",
+              border: "1px solid rgba(16, 185, 129, 0.25)",
+              boxSizing: "border-box",
+              animation: "mdsFabIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)"
+            }}
+          >
+            {/* Draw info label */}
+            <div
+              style={{
+                fontSize: "11px",
+                color: "#064e3b",
+                textAlign: "center",
+                fontWeight: "700",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "5px"
+              }}
+            >
+              <span
+                style={{
+                  display: "inline-block",
+                  width: "6px",
+                  height: "6px",
+                  borderRadius: "50%",
+                  background: "#10b981",
+                  boxShadow: "0 0 8px #10b981"
+                }}
+                className="mds-status-blink"
+              />
+              {vertCount === 0 ? "แตะบนแผนที่เพื่อเริ่มวาดแปลง" : `กำลังวาด: ${vertCount} จุด (ต้องการอย่างน้อย 3)`}
+            </div>
+
+            {/* Action buttons */}
+            <div style={{ display: "flex", gap: "8px", width: "100%" }}>
+              <button
+                onClick={() => finishDraw()}
+                disabled={vertCount < 3}
+                style={{
+                  flex: 1,
+                  height: "36px",
+                  borderRadius: "10px",
+                  boxSizing: "border-box",
+                  border: vertCount < 3 ? "1px solid #e2e8f0" : "1px solid transparent",
+                  background: vertCount < 3 ? "#f1f5f9" : "linear-gradient(135deg, #10b981, #059669)",
+                  color: vertCount < 3 ? "#94a3b8" : "#fff",
+                  fontSize: "12px",
+                  fontWeight: "700",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  padding: "0 8px",
+                  gap: "6px",
+                  transition: "all 0.2s"
+                }}
+              >
+                <i className="bi bi-check-circle-fill" /> เสร็จสิ้น
+              </button>
+              <button
+                onClick={clearDraw}
+                style={{
+                  flex: 1,
+                  height: "36px",
+                  borderRadius: "10px",
+                  boxSizing: "border-box",
+                  border: "1px solid transparent",
+                  background: "linear-gradient(135deg, #ef4444, #dc2626)",
+                  color: "#fff",
+                  fontSize: "12px",
+                  fontWeight: "700",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  padding: "0 8px",
+                  gap: "6px",
+                  transition: "all 0.2s"
+                }}
+              >
+                <i className="bi bi-x-circle-fill" /> ยกเลิก
+              </button>
+            </div>
+          </div>
+        )}
+
       </div>
 
       {/* ── Toggle Panel Button (when closed) ── */}
@@ -1445,6 +1626,7 @@ export default function MapDrawPage() {
           title="เปิดแผงเครื่องมือ"
         >
           <i className="bi bi-clipboard2-data-fill" />
+          <span className="mds-panel-toggle-text">กรอกข้อมูล</span>
         </button>
       )}
 
