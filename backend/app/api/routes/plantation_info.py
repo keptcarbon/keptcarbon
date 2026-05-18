@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException
-from app.schemas.plantation import PlantationInfoPolygon, PlantationInfoResponse
+from app.schemas.plantation import PlantationInfoRequest, PlantationInfoResponse
 from app.services.plantation_service import PlantationService
 
 router = APIRouter()
@@ -8,7 +8,7 @@ service = PlantationService()
 
 
 @router.post("/plantation-info", response_model=PlantationInfoResponse)
-async def get_info(polygon: PlantationInfoPolygon):
+async def get_info(polygon: PlantationInfoRequest):
     try:
         poly_data = polygon.model_dump()
         result = await service.get_plantation_info(poly_data)

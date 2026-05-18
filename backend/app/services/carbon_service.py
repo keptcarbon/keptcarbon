@@ -30,30 +30,6 @@ class CarbonService:
         self.spatial_svc = SpatialUtils()
         self.lookup_file_path = Path("app/data/lookup_tables")
 
-    @staticmethod
-    def merge_all_lu_geometries(poly_data: dict):
-        """Merge all lu_polygon geometries into one unified MultiPolygon."""
-        lu_list = poly_data.get("lu_polygon", [])
-        print(f"Number of LU polygons to merge: {len(lu_list)}")
-        all_geoms = [shape(item["geometry"]) for item in lu_list]
-
-        if not all_geoms:
-            poly_data["merged_geometry"] = None
-            poly_data["status"] = {
-                "status": "error",
-                "status_code": "E04",
-                "message": "NO VALID MERGED POLYGON."
-            }
-            return poly_data
-
-        unified_geom = unary_union(all_geoms)
-        poly_data["merged_geometry"] = mapping(unified_geom)
-        poly_data["status"] = {
-            "status": "success",
-            "status_code": "S04",
-            "message": "MERGING ALL POLYGONS SUCCESSFUL."
-        }
-        return poly_data
 
     def generate_carbon_profile(self, poly_data, cohorts) -> list:
         """
@@ -93,29 +69,45 @@ class CarbonService:
         current_year = datetime.now().year
         projections = []
 
+        # Using max() with a generator expression
+        max_age = max(cohort['age'] for cohort in cohorts)
+        limit_year = current_year + (GROWTH_MODEL_YEAR -  max_age) # Filter threshold
+        print(f"Max cohort age: {max_age}, Profile limit year: {limit_year}")
+
         for year_offset in range(0, GROWTH_MODEL_YEAR):
+
             target_year = current_year + year_offset
+
+            if target_year > limit_year:
+                break # Exit the loop once pass year threshold
 
             sum_biomass_est = 0.0
             sum_biomass_lower = 0.0
             sum_biomass_upper = 0.0
 
             for cohort in cohorts:
-                raw_age = cohort['age'] + year_offset
+                #raw_age = cohort['age'] + year_offset
                 # Apply replanting cycle: trees cut and replanted at CUT_AGE
-                if raw_age > CUT_AGE:
-                    future_age = ((raw_age - 1) % CUT_AGE) + 1
-                else:
-                    future_age = raw_age
+                #if raw_age > CUT_AGE:
+                #    future_age = ((raw_age - 1) % CUT_AGE) + 1
+                #else:
+                #    future_age = raw_age
 
-                row = lookup_df[lookup_df['Age'] == future_age]
-                if not row.empty:
-                    data = row.iloc[0]
-                    count = cohort['tree_count']
-                    sum_biomass_est += data['Biomass_Est'] * count
-                    sum_biomass_lower += data['Biomass_CI_Lower'] * count
-                    sum_biomass_upper += data['Biomass_CI_Upper'] * count
+                future_age = cohort['age'] + year_offset
 
+                # Check cohort eligibility within the 35-year modeled window 
+                if future_age <= GROWTH_MODEL_YEAR:
+                    row = lookup_df[lookup_df['Age'] == future_age]
+                    if not row.empty:
+                        data = row.iloc[0]
+                        count = cohort['tree_count']
+                        sum_biomass_est += data['Biomass_Est'] * count
+                        sum_biomass_lower += data['Biomass_CI_Lower'] * count
+                        sum_biomass_upper += data['Biomass_CI_Upper'] * count
+            
+            # Convert aggregated biomass (kg) to Total Carbon (tC)
+            # Formula: (Summed Biomass * Carbon Fraction 0.47) / 1000 to convert kg to tC
+            # Then convert tC to tCO2e using the equivalent factor 3.667 (44/12)
             if sum_biomass_est > 0:
                 projections.append({
                     "year": target_year,
@@ -145,7 +137,7 @@ class CarbonService:
             }
 
         # Step 2: Multi-Polygon Dissolve & Geometry Merge
-        poly_data = self.merge_all_lu_geometries(poly_data)
+        poly_data = self.lu_svc.find_rubber_cultivation_area(poly_data)
         if poly_data["merged_geometry"] is None:
             print(f"Error: No valid merged geometry found. Status: {poly_data['status']}")
             return {

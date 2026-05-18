@@ -7,7 +7,7 @@ Carbon stock estimation system for Thai rubber plantations.
 | Service | URL | Description |
 |---|---|---|
 | Next.js frontend | http://localhost:3000 | Web app + Next.js API routes |
-| FastAPI backend | http://localhost:8080 | Carbon estimation engine |
+| FastAPI backend | http://localhost:8000 | Carbon estimation engine |
 | PostGIS | localhost:4533 | Spatial database |
 
 ## API Reference
@@ -30,10 +30,12 @@ See [api.http](api.http) for runnable request examples.
 |---|---|---|---|
 | `id` | string | yes | Unique identifier from the frontend map |
 | `geometry` | GeoJSON | yes | Polygon or MultiPolygon (EPSG:4326) |
+| `project_type` | string | no | e.g. `"replanting"`, `"existing"` |
 | `year_of_planting` | int | no | CE year — extracted from raster if null |
 | `rubber_clone` | string | no | `"RRIM 600"` (default) or `"RRIT 251"` |
 | `tree_count` | int | no | User-defined count — calculated from area + spacing if null |
 | `spacing_system` | string | no | `"2.5x8"` (default), `"3x7"`, `"3x8"`, `"2.5x7"`, `"3x6"` |
+| `selected_lu_classes` | string | yes | List of LU CODE `"A302"` (default), `"A..."`, `"M"`, `"F"`, `"U"`, `"W"` |
 
 #### `POST /api/v1/estimate` — response
 
@@ -43,7 +45,10 @@ See [api.http](api.http) for runnable request examples.
     "polygon_id": "string",
     "status": { "status": "success|error", "status_code": "S01|E01…", "message": "string" },
     "carbon_profile": [
-      { "year": 2025, "total_carbon_tCO2e": 12.3, "ci_lower_tCO2e": 10.1, "ci_upper_tCO2e": 14.5 }
+      {"year": 2026, "total_carbon_tCO2e": 604.4726, "ci_lower_tCO2e": 557.7541, "ci_upper_tCO2e": 651.1887},
+      {"year": 2027, "total_carbon_tCO2e": 731.5381, "ci_lower_tCO2e": 672.5556, "ci_upper_tCO2e": 790.5147},
+      {"year": 2028, "total_carbon_tCO2e": 890.7099, "ci_lower_tCO2e": 815.5158, "ci_upper_tCO2e": 965.8999},
+      {"year": 2029, "total_carbon_tCO2e": 1080.5864, "ci_lower_tCO2e": 986.4597, "ci_upper_tCO2e": 1174.707}
     ]
   }
 ]
