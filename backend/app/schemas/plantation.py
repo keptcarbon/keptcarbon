@@ -30,8 +30,10 @@ class LUPolygon(BaseModel):
 
 class PlantationPolygon(BaseModel):
     id: str = Field(..., description="Unique ID from the frontend map")
-    geometry: Dict[str, Any] = Field(..., description="GeoJSON Polygon or MultiPolygon")
-
+    province_code: Optional[str] = Field(None, description="Province code for region-specific data lookup")
+    #geometry: Dict[str, Any] = Field(..., description="GeoJSON Polygon or MultiPolygon")
+    lu_polygon: List[LUPolygon] = Field(..., description="Land use classification polygons within the plantation area")
+    
     year_of_planting: Optional[int] = Field(None, description="Manual year. If None, extract from raster.")
     rubber_clone: Optional[str] = Field(None, description="Clone type for growth coefficients")
     tree_count: Optional[int] = Field(None, description="User-defined count. If None, calculate using area and spacing.")
