@@ -133,19 +133,15 @@ export default function DashboardMap({
       map.addLayer({ id: "plots-boundary-fill", type: "fill", source: "plots-boundary", paint: { "fill-color": "#f97316", "fill-opacity": 0.12 } });
       map.addLayer({ id: "plots-boundary-line", type: "line", source: "plots-boundary", paint: { "line-color": "#ea580c", "line-width": 2.5 } });
       map.addSource("plots-detected", { type: "geojson", data: { type: "FeatureCollection", features: detectedFeatures } });
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       map.addLayer({ id: "plots-detected-fill", type: "fill", source: "plots-detected", paint: {
         "fill-color": ["interpolate", ["linear"], ["get", "carbon"],
-          0,   "#d1fae5",
-          30,  "#6ee7b7",
-          80,  "#34d399",
-          150, "#10b981",
-          280, "#059669",
-          500, "#047857",
+          0,   "#fed7aa",   // ต่ำ
+          100, "#f97316",   // ปานกลาง
+          250, "#9a3412",   // สูง
         ] as any,
         "fill-opacity": 0.85,
       } } as any); // eslint-disable-line
-      map.addLayer({ id: "plots-detected-line", type: "line", source: "plots-detected", paint: { "line-color": "#065f46", "line-width": 0.6, "line-opacity": 0.45 } });
+      map.addLayer({ id: "plots-detected-line", type: "line", source: "plots-detected", paint: { "line-color": "#431407", "line-width": 0.8, "line-opacity": 0.65 } });
 
 
       // ── District markers ───────────────────────────────────────────────────
@@ -191,26 +187,25 @@ export default function DashboardMap({
       {mounted && !isMobile && (
         <div style={{
           position: "absolute", bottom: 48, left: 12,
-          background: "rgba(10,18,35,0.9)", backdropFilter: "blur(12px)",
+          background: "rgba(15,23,42,0.9)", backdropFilter: "blur(16px)",
           borderRadius: 13, padding: "12px 16px",
-          border: "1px solid rgba(255,255,255,0.1)",
+          border: "1px solid rgba(255,255,255,0.12)",
+          borderTop: "3px solid #ea580c",
           boxShadow: "0 6px 24px rgba(0,0,0,0.4)",
           fontFamily: "'Noto Sans Thai','Inter',sans-serif", minWidth: 168,
         }}>
-          <div style={{ fontSize: 10, fontWeight: 800, color: "#6ee7b7", marginBottom: 8, letterSpacing: 0.6 }}>
-            ระดับคาร์บอนต่อแปลง (tCO₂)
+          <div style={{ fontSize: 10, fontWeight: 800, color: "#fdba74", marginBottom: 8, letterSpacing: 0.6, display: "flex", alignItems: "center", gap: 5 }}>
+            <i className="bi bi-info-circle-fill" style={{ color: "#ea580c" }} /> ระดับคาร์บอนต่อแปลง (tCO₂)
           </div>
           {([
-            { color: "#d1fae5", label: "ต่ำมาก",  range: "< 30" },
-            { color: "#6ee7b7", label: "ต่ำ",      range: "30–80" },
-            { color: "#34d399", label: "ปานกลาง", range: "80–150" },
-            { color: "#10b981", label: "สูง",      range: "150–280" },
-            { color: "#059669", label: "สูงมาก",  range: "> 280" },
+            { color: "#fed7aa", label: "ต่ำ",      range: "< 100" },
+            { color: "#f97316", label: "ปานกลาง", range: "100–250" },
+            { color: "#9a3412", label: "สูง",      range: "> 250" },
           ] as const).map(s => (
             <div key={s.label} style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 5 }}>
-              <div style={{ width: 12, height: 12, borderRadius: 3, flexShrink: 0, background: s.color, border: "1px solid rgba(255,255,255,0.15)" }} />
-              <span style={{ fontSize: 10, color: "#94a3b8", flex: 1 }}>{s.label}</span>
-              <span style={{ fontSize: 9, color: "#475569", fontWeight: 600 }}>{s.range}</span>
+              <div style={{ width: 12, height: 12, borderRadius: 3, flexShrink: 0, background: s.color, border: "1px solid rgba(255,255,255,0.15)", boxShadow: `0 0 4px ${s.color}66` }} />
+              <span style={{ fontSize: 10, color: "#cbd5e1", flex: 1 }}>{s.label}</span>
+              <span style={{ fontSize: 9, color: "#94a3b8", fontWeight: 600 }}>{s.range}</span>
             </div>
           ))}
         </div>
@@ -230,27 +225,26 @@ export default function DashboardMap({
               background: "rgba(15,23,42,0.92)", backdropFilter: "blur(12px)",
               borderRadius: 14, padding: "12px 14px",
               border: "1px solid rgba(255,255,255,0.08)",
+              borderTop: "3px solid #ea580c",
               boxShadow: "0 8px 24px -4px rgba(0,0,0,0.5)",
               minWidth: 180,
               animation: "fadeIn 0.2s ease-out",
             }}>
-              <div style={{ fontSize: 10, fontWeight: 700, color: "#a7f3d0", marginBottom: 8, letterSpacing: 0.3 }}>
-                คาร์บอนต่อแปลง (tCO₂)
+              <div style={{ fontSize: 10, fontWeight: 700, color: "#fdba74", marginBottom: 8, letterSpacing: 0.3, display: "flex", alignItems: "center", gap: 4 }}>
+                <i className="bi bi-info-circle-fill" style={{ color: "#ea580c", fontSize: 10 }} /> คาร์บอนต่อแปลง (tCO₂)
               </div>
 
               {/* Segmented bar for mobile */}
               <div style={{ display: "flex", height: 6, borderRadius: 3, overflow: "hidden", marginBottom: 5 }}>
-                <div style={{ flex: 1, background: "#d1fae5" }} />
-                <div style={{ flex: 1, background: "#6ee7b7" }} />
-                <div style={{ flex: 1, background: "#34d399" }} />
-                <div style={{ flex: 1, background: "#10b981" }} />
-                <div style={{ flex: 1, background: "#059669" }} />
+                <div style={{ flex: 1, background: "#fed7aa" }} />
+                <div style={{ flex: 1, background: "#f97316" }} />
+                <div style={{ flex: 1, background: "#9a3412" }} />
               </div>
               
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: 8.5, color: "#94a3b8", fontWeight: 600, marginBottom: 10 }}>
-                <span>&lt;30</span>
-                <span>150</span>
-                <span>&gt;280</span>
+                <span>&lt;100</span>
+                <span>100–250</span>
+                <span>&gt;250</span>
               </div>
             </div>
           )}
@@ -264,11 +258,11 @@ export default function DashboardMap({
               backdropFilter: "blur(8px)",
               border: "1px solid rgba(255,255,255,0.12)",
               borderRadius: 20, padding: "6px 14px",
-              color: "#a7f3d0", fontSize: 11, fontWeight: 600,
+              color: "#fdba74", fontSize: 11, fontWeight: 600,
               cursor: "pointer", boxShadow: "0 4px 12px rgba(0,0,0,0.3)",
               fontFamily: "inherit", transition: "all 0.2s",
             }}>
-            <div style={{ width: 10, height: 10, borderRadius: 2, background: "linear-gradient(135deg,#34d399,#059669)", flexShrink: 0 }} />
+            <div style={{ width: 10, height: 10, borderRadius: 2, background: "linear-gradient(135deg,#f97316,#ea580c)", flexShrink: 0 }} />
             สัญลักษณ์
             <span style={{ fontSize: 9, opacity: 0.6, marginLeft: 2, transform: legendOpen ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }}>▼</span>
           </button>

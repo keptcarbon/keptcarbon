@@ -296,7 +296,7 @@ export default function DashboardPage() {
                             <div key={age}
                               title={`อายุ ${age} ปี: ${cnt} แปลง`}
                               style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", height: "100%", justifyContent: "flex-end", gap: 0 }}>
-                              {cnt > 0 && cnt >= maxCount * 0.85 && (
+                              {cnt > 0 && (
                                 <span style={{ fontSize: 8.5, color: getColor(age), fontWeight: 900, marginBottom: 2, lineHeight: 1 }}>{cnt}</span>
                               )}
                               <div style={{
