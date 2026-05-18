@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, Suspense } from "react";
 import maplibregl, { type Map as MLMap } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import JSZip from "jszip";
@@ -17,6 +17,7 @@ import {
 } from "@/lib/map-utils";
 import { getPlantationInfo } from "@/lib/carbon-api";
 import { ParcelResultsPanel } from "@/app/components/organisms";
+import { useSearchParams } from "next/navigation";
 
 type Tab = "draw" | "shp";
 type NdviStatus = number | null | "loading" | "error";
@@ -28,7 +29,7 @@ type BfastStatus = {
   ndviLatest?: number | null;
 };
 
-export default function MapDrawPage() {
+function MapDrawContent() {
   const { user } = useAuth();
 
   // Toggle body class for full-screen layout
@@ -42,6 +43,8 @@ export default function MapDrawPage() {
   const mapRef = useRef<MLMap | null>(null);
   const mapLoadedRef = useRef(false);
   const searchAbortRef = useRef<AbortController | null>(null);
+  
+  const searchParams = useSearchParams();
 
   // Draw state
   const [drawing, setDrawing] = useState(false);
@@ -92,6 +95,7 @@ export default function MapDrawPage() {
   // Drawn boundary geometry (set when search is confirmed)
   const [drawnGeometry, setDrawnGeometry] = useState<GeoJSON.Geometry | null>(null);
   const [selectedPlotIndex, setSelectedPlotIndex] = useState<number | "total">("total");
+  const [projectType, setProjectType] = useState<"replanting" | "existing" | null>(null);
 
   // Multi-parcel support
   const [drawnParcels, setDrawnParcels] = useState<GeoJSON.Feature[]>([]);
@@ -140,7 +144,7 @@ export default function MapDrawPage() {
     }, 0);
   }, [drawnParcels]);
 
-  const runPlantationInfoRef = useRef<() => void>(() => { });
+  const runPlantationInfoRef = useRef<(projType?: string | null) => void>(() => { });
   const needsPlantationSearchRef = useRef(false);
 
   // Editable polygon logic
@@ -727,15 +731,26 @@ export default function MapDrawPage() {
     const map = mapRef.current;
     if (!map || !mapLoaded || !user) return;
 
-    const params = new URLSearchParams(window.location.search);
-    const projName = params.get("project");
-    const action = params.get("action");
+    let projName = searchParams?.get("project");
+    let action = searchParams?.get("action");
+    
+    // Fallback in case searchParams is not available
+    if (!projName && typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      projName = params.get("project") || projName;
+      action = params.get("action") || action;
+    }
 
-    if (projName && action === "calc" && parcelFeatures.length === 0) {
+    console.log("[AUTO-LOAD] Effect triggered", { projName, action, currentDrawnCount: drawnParcels.length });
+
+    if (projName && action === "calc" && drawnParcels.length === 0) {
       try {
         const key = `user_saved_plots_${user.id}`;
-        const stored = JSON.parse(localStorage.getItem(key) || "[]");
+        const storedRaw = localStorage.getItem(key);
+        console.log("[AUTO-LOAD] LocalStorage storedRaw:", storedRaw);
+        const stored = JSON.parse(storedRaw || "[]");
         const projectPlots = stored.filter((p: any) => p.name === projName);
+        console.log("[AUTO-LOAD] Filtered projectPlots for:", projName, projectPlots);
 
         if (projectPlots.length > 0) {
           const feats: GeoJSON.Feature[] = projectPlots.map((p: any, i: number) => ({
@@ -749,7 +764,10 @@ export default function MapDrawPage() {
             }
           }));
 
+          console.log("[AUTO-LOAD] Setting drawnParcels and parcelFeatures to feats:", feats);
+          setDrawnParcels(feats);
           setParcelFeatures(feats);
+          needsPlantationSearchRef.current = true;
           setSearchCount(feats.length);
           if (projectPlots[0].boundaryGeojson) {
             setDrawnGeometry(projectPlots[0].boundaryGeojson as GeoJSON.Geometry);
@@ -778,7 +796,7 @@ export default function MapDrawPage() {
         console.error("Failed to auto-load project for calculation", err);
       }
     }
-  }, [user, mapLoaded]);
+  }, [user, mapLoaded, searchParams]);
 
   // ===== DRAW HELPERS =====
   const previewDraw = useCallback(() => {
@@ -1053,6 +1071,7 @@ export default function MapDrawPage() {
     setShpFile(null);
     setShpStatus(null);
     setDrawnParcels([]);
+    setProjectType(null);
     const map = mapRef.current;
     if (map && mapLoadedRef.current) {
       (map.getSource("draw-line") as maplibregl.GeoJSONSource | undefined)?.setData(emptyFC());
@@ -1121,7 +1140,14 @@ export default function MapDrawPage() {
 
 
   // ===== PLANTATION INFO (rubber area search via backend) =====
-  const runPlantationInfo = useCallback(async () => {
+  const runPlantationInfo = useCallback(async (projType?: string | null) => {
+    const activeProjType = projType !== undefined ? projType : projectType;
+    console.log("[runPlantationInfo] Called", {
+      drawnParcelsLength: drawnParcels.length,
+      totalDrawnArea,
+      drawnParcels,
+      activeProjType
+    });
     if (drawnParcels.length === 0) {
       setSearchErr("กรุณาวาดแปลงหรืออัปโหลด Shapefile ก่อน");
       return;
@@ -1154,6 +1180,7 @@ export default function MapDrawPage() {
       const result = await getPlantationInfo({
         id: `search-${Date.now()}`,
         geometry: truncateCoords(combinedGeom),
+        project_type: activeProjType,
         output_crs: "EPSG:4326",
       });
 
@@ -1219,7 +1246,12 @@ export default function MapDrawPage() {
     } finally {
       setSearchRunning(false);
     }
-  }, [drawnParcels, totalDrawnArea, handleLandUseChange, visibleLuClasses]);
+  }, [drawnParcels, totalDrawnArea, handleLandUseChange, visibleLuClasses, projectType]);
+
+  const handleProjectTypeChange = useCallback((type: "replanting" | "existing") => {
+    setProjectType(type);
+    runPlantationInfo(type);
+  }, [runPlantationInfo]);
 
   useEffect(() => {
     runPlantationInfoRef.current = runPlantationInfo;
@@ -1227,11 +1259,17 @@ export default function MapDrawPage() {
 
   // Auto-trigger plantation info search when new parcels are drawn
   useEffect(() => {
+    console.log("[AUTO-TRIGGER] Effect evaluated", {
+      needsPlantationSearch: needsPlantationSearchRef.current,
+      drawnParcelsLength: drawnParcels.length,
+      drawnParcels
+    });
     if (needsPlantationSearchRef.current && drawnParcels.length > 0) {
       needsPlantationSearchRef.current = false;
-      runPlantationInfoRef.current();
+      console.log("[AUTO-TRIGGER] Launching runPlantationInfoRef.current()");
+      runPlantationInfoRef.current(projectType);
     }
-  }, [drawnParcels]);
+  }, [drawnParcels, projectType]);
 
   // Search is auto-triggered after finishDraw or loadShp
 
@@ -1905,6 +1943,14 @@ export default function MapDrawPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function MapDrawPage() {
+  return (
+    <Suspense fallback={<div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#f8fdfb" }}><div className="spinner-border" style={{ color: "#10b981" }} /></div>}>
+      <MapDrawContent />
+    </Suspense>
   );
 }
 

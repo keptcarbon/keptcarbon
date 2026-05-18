@@ -149,99 +149,7 @@ export default function DashboardMap({
 
 
       // ── District markers ───────────────────────────────────────────────────
-      if (districts.length > 0) {
-        const features: GeoJSON.Feature[] = districts.map(d => ({
-          type: "Feature",
-          geometry: { type: "Point", coordinates: [d.lng, d.lat] } as GeoJSON.Point,
-          properties: { id: d.id, name: d.name, carbon: d.carbon, plots: d.plots },
-        }));
-
-        map.addSource("districts", {
-          type: "geojson",
-          data: { type: "FeatureCollection", features },
-        });
-
-        // Soft glow ring (pulse effect)
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        map.addLayer({
-          id: "districts-glow",
-          type: "circle",
-          source: "districts",
-          paint: {
-            "circle-radius": ["interpolate", ["linear"], ["get", "carbon"], CARBON_MIN, 26, CARBON_MAX, 50],
-            "circle-color": ["interpolate", ["linear"], ["get", "carbon"], CARBON_MIN, "#4ade80", 75000, "#16a34a", CARBON_MAX, "#14532d"],
-            "circle-opacity": 0.2,
-            "circle-blur": 1.4,
-          },
-        } as any); // eslint-disable-line
-
-        // Main circle — colored by carbon level
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        map.addLayer({
-          id: "districts-circle",
-          type: "circle",
-          source: "districts",
-          paint: {
-            "circle-radius": ["interpolate", ["linear"], ["get", "carbon"],
-              CARBON_MIN, 13,
-              50000, 18,
-              80000, 24,
-              CARBON_MAX, 30,
-            ],
-            "circle-color": ["interpolate", ["linear"], ["get", "carbon"],
-              CARBON_MIN, "#4ade80",
-              40000, "#34d399",
-              60000, "#22c55e",
-              90000, "#16a34a",
-              CARBON_MAX, "#14532d",
-            ],
-            "circle-opacity": 0.92,
-            "circle-stroke-width": 2.5,
-            "circle-stroke-color": "#ffffff",
-            "circle-stroke-opacity": 0.95,
-          },
-        } as any); // eslint-disable-line
-
-        // Selected district highlight ring (amber)
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        map.addLayer({
-          id: "districts-selected",
-          type: "circle",
-          source: "districts",
-          filter: ["==", ["get", "id"], ""],
-          paint: {
-            "circle-radius": ["interpolate", ["linear"], ["get", "carbon"],
-              CARBON_MIN, 20, CARBON_MAX, 38,
-            ],
-            "circle-color": "rgba(0,0,0,0)",
-            "circle-stroke-width": 3.5,
-            "circle-stroke-color": "#fbbf24",
-            "circle-stroke-opacity": 0.95,
-          },
-        } as any); // eslint-disable-line
-
-        // Click to select district
-        map.on("click", "districts-circle", (e) => {
-          const props = e.features?.[0]?.properties as { id?: string } | undefined;
-          if (props?.id) onSelectRef.current?.(props.id);
-        });
-        map.on("mouseenter", "districts-circle", () => { map.getCanvas().style.cursor = "pointer"; });
-        map.on("mouseleave", "districts-circle", () => { map.getCanvas().style.cursor = ""; });
-
-        // HTML label markers below each circle
-        for (const d of districts) {
-          const radius = Math.round(13 + 17 * (d.carbon - CARBON_MIN) / (CARBON_MAX - CARBON_MIN));
-          const el = document.createElement("div");
-          el.style.cssText = "text-align:center;pointer-events:none;";
-          el.innerHTML = `
-            <div style="font-size:11px;font-weight:800;color:#fff;text-shadow:0 1px 4px rgba(0,0,0,0.95),0 0 10px rgba(0,0,0,0.6);white-space:nowrap;line-height:1.4">${d.name}</div>
-            <div style="font-size:9.5px;font-weight:700;color:#86efac;text-shadow:0 1px 3px rgba(0,0,0,0.95);white-space:nowrap">${(d.carbon / 1000).toFixed(0)}k tCO₂</div>
-          `;
-          new maplibregl.Marker({ element: el, anchor: "top", offset: [0, radius + 5] })
-            .setLngLat([d.lng, d.lat])
-            .addTo(map);
-        }
-      }
+      // District markers removed based on user request
 
       // ── Fit bounds ─────────────────────────────────────────────────────────
       if (bbox) {
@@ -305,17 +213,6 @@ export default function DashboardMap({
               <span style={{ fontSize: 9, color: "#475569", fontWeight: 600 }}>{s.range}</span>
             </div>
           ))}
-          <div style={{ height: 1, background: "rgba(255,255,255,0.07)", margin: "8px 0" }} />
-          <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
-              <div style={{ width: 12, height: 12, borderRadius: "50%", flexShrink: 0, background: "linear-gradient(135deg,#4ade80,#14532d)", border: "1.5px solid rgba(255,255,255,0.6)" }} />
-              <span style={{ fontSize: 10, color: "#94a3b8" }}>สรุปรายอำเภอ</span>
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
-              <div style={{ width: 12, height: 12, borderRadius: "50%", flexShrink: 0, background: "transparent", border: "2px solid #fbbf24" }} />
-              <span style={{ fontSize: 10, color: "#94a3b8" }}>อำเภอที่เลือก</span>
-            </div>
-          </div>
         </div>
       )}
 
@@ -354,20 +251,6 @@ export default function DashboardMap({
                 <span>&lt;30</span>
                 <span>150</span>
                 <span>&gt;280</span>
-              </div>
-
-              <div style={{ height: 1, background: "rgba(255,255,255,0.08)", marginBottom: 10 }} />
-
-              {/* District markers — horizontal */}
-              <div style={{ display: "flex", gap: 14 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                  <div style={{ width: 10, height: 10, borderRadius: "50%", background: "linear-gradient(135deg,#4ade80,#14532d)", border: "1px solid rgba(255,255,255,0.7)", flexShrink: 0 }} />
-                  <span style={{ fontSize: 9.5, color: "#cbd5e1" }}>สรุปอำเภอ</span>
-                </div>
-                <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                  <div style={{ width: 10, height: 10, borderRadius: "50%", background: "transparent", border: "1.5px solid #fbbf24", flexShrink: 0 }} />
-                  <span style={{ fontSize: 9.5, color: "#cbd5e1" }}>เลือกอยู่</span>
-                </div>
               </div>
             </div>
           )}

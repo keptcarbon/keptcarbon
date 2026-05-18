@@ -31,6 +31,7 @@ type Props = {
     onFinishDraw?: () => void;
     onCancelDraw?: () => void;
     onLandUseChange?: (checked: Record<string, boolean>) => void;
+    onProjectTypeChange?: (type: "replanting" | "existing") => void;
 };
 
 type PlotTab = "analyze" | "forecast";
@@ -515,6 +516,7 @@ export function ParcelResultsPanel({
     onFinishDraw,
     onCancelDraw,
     onLandUseChange,
+    onProjectTypeChange,
 }: Props) {
     const [expandedIdx, setExpandedIdx] = useState<number | null>(0);
     const [plotTabs, setPlotTabs] = useState<Record<number, PlotTab>>({});
@@ -525,6 +527,15 @@ export function ParcelResultsPanel({
 
     const plots = useMemo(() => parcelFeatures.map(computePlot), [parcelFeatures]);
     const totalArea = useMemo(() => plots.reduce((s, p) => s + p.areaRai, 0), [plots]);
+
+    console.log("[ParcelResultsPanel] Render/Props:", {
+        parcelFeaturesCount: parcelFeatures.length,
+        luFeaturesCount: luFeatures.length,
+        plotsCount: plots.length,
+        totalArea,
+        parcelFeatures,
+        luFeatures
+    });
 
     // Build real land-use area data from luFeatures (lu_polygon properties from plantation-info API)
     const luRealData = useMemo(() => {
@@ -704,8 +715,19 @@ export function ParcelResultsPanel({
                         const feat = parcelFeatures[i];
                         const props = feat?.properties as any || {};
                         const initialLU = { A: true, A302: true };
+
+                        let initialStatus: "new" | "old" | "" = "";
+                        if (props.plantYearBE) {
+                            const yStr = String(props.plantYearBE);
+                            if (NEW_YEAR_OPTIONS.includes(yStr)) {
+                                initialStatus = "new";
+                            } else if (OLD_YEAR_OPTIONS.includes(yStr)) {
+                                initialStatus = "old";
+                            }
+                        }
+
                         next.push({
-                            plantStatus: "",
+                            plantStatus: initialStatus,
                             plantYear: props.plantYearBE ? String(props.plantYearBE) : "",
                             treeCount: props.trees ? String(props.trees) : "",
                             variety: props.variety || "",
@@ -1211,11 +1233,11 @@ export function ParcelResultsPanel({
                                             </div>
                                             <div style={{ display: "flex", gap: 16 }}>
                                                 <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, cursor: "pointer" }}>
-                                                    <input type="radio" name={`status-${i}`} value="new" checked={form.plantStatus === "new"} onChange={() => { updateForm(i, "plantStatus", "new"); updateForm(i, "plantYear", ""); }} />
+                                                    <input type="radio" name={`status-${i}`} value="new" checked={form.plantStatus === "new"} onChange={() => { updateForm(i, "plantStatus", "new"); updateForm(i, "plantYear", ""); onProjectTypeChange?.("replanting"); }} />
                                                     เริ่มปลูก
                                                 </label>
                                                 <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, cursor: "pointer" }}>
-                                                    <input type="radio" name={`status-${i}`} value="old" checked={form.plantStatus === "old"} onChange={() => { updateForm(i, "plantStatus", "old"); updateForm(i, "plantYear", ""); }} />
+                                                    <input type="radio" name={`status-${i}`} value="old" checked={form.plantStatus === "old"} onChange={() => { updateForm(i, "plantStatus", "old"); updateForm(i, "plantYear", ""); onProjectTypeChange?.("existing"); }} />
                                                     ปลูกมาแล้ว
                                                 </label>
                                             </div>
