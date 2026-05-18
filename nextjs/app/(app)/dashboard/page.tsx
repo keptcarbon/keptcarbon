@@ -127,7 +127,7 @@ export default function DashboardPage() {
                 แดชบอร์ดวิเคราะห์คาร์บอนสะสมสวนยางพารา
               </h1>
               <p style={{ fontSize: isMobile ? 11.5 : 13, color: "#64748b", margin: "4px 0 0", fontWeight: 500 }}>
-                ค้นหาและกรองข้อมูลแยกตามอำเภอในจังหวัดระยอง · ข้อมูลทั้งหมด {fmt(provinceTotal.plots)} แปลง
+                ค้นหาและกรองข้อมูลแยกตามอำเภอในจังหวัดระยอง
               </p>
             </div>
             {selectedId !== "all" && (
@@ -325,6 +325,73 @@ export default function DashboardPage() {
                       ))}
                     </div>
                     <div style={{ textAlign: "center", fontSize: 11, color: "#94a3b8", fontWeight: 600, marginTop: 4 }}>อายุต้นยาง (ปี)</div>
+                  </div>
+                </div>
+
+                {/* Beautiful Legend & Explanation Panel */}
+                <div style={{
+                  background: "rgba(244,247,246,0.6)",
+                  backdropFilter: "blur(4px)",
+                  border: "1px solid rgba(16,185,129,0.12)",
+                  borderRadius: 14,
+                  padding: isMobile ? "12px 14px" : "14px 20px",
+                  marginTop: 18,
+                  display: "flex",
+                  flexDirection: isMobile ? "column" : "row",
+                  gap: 16,
+                  justifyContent: "space-between",
+                  alignItems: isMobile ? "flex-start" : "center"
+                }}>
+                  {/* Left: Color Ranges */}
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    <div style={{ fontSize: 11, fontWeight: 800, color: "#064e3b", textTransform: "uppercase", letterSpacing: 0.5, display: "flex", alignItems: "center", gap: 5 }}>
+                      <i className="bi bi-palette-fill" style={{ color: "#10b981" }} /> คำอธิบายสีช่วงอายุต้นยาง (ปี):
+                    </div>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: isMobile ? "6px 12px" : "12px", alignItems: "center" }}>
+                      {[
+                        { range: "1–5 ปี", color: "#4ade80" },
+                        { range: "6–12 ปี", color: "#22c55e" },
+                        { range: "13–20 ปี", color: "#16a34a" },
+                        { range: "21–28 ปี", color: "#15803d" },
+                        { range: "29–35 ปี", color: "#14532d" },
+                      ].map((item, idx) => (
+                        <div key={idx} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                          <span style={{ 
+                            display: "inline-block", 
+                            width: 10, 
+                            height: 10, 
+                            borderRadius: "50%", 
+                            background: item.color, 
+                            boxShadow: `0 0 6px ${item.color}bb` 
+                          }} />
+                          <span style={{ fontSize: 11.5, fontWeight: 700, color: "#1e293b" }}>{item.range}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Divider on Mobile */}
+                  {isMobile && <div style={{ width: "100%", height: 1, background: "rgba(16,185,129,0.1)" }} />}
+
+                  {/* Right: Numbers Meaning */}
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    <div style={{ fontSize: 11, fontWeight: 800, color: "#064e3b", textTransform: "uppercase", letterSpacing: 0.5, display: "flex", alignItems: "center", gap: 5 }}>
+                      <i className="bi bi-info-circle-fill" style={{ color: "#10b981" }} /> ความหมายของตัวเลข:
+                    </div>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: isMobile ? 8 : 14 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6, background: "#fff", padding: "4px 10px", borderRadius: 8, border: "1px solid rgba(16,185,129,0.08)" }}>
+                        <i className="bi bi-bar-chart-line-fill" style={{ color: "#10b981", fontSize: 12 }} />
+                        <span style={{ fontSize: 10.5, color: "#334155", fontWeight: 500 }}>
+                          <strong style={{ color: "#059669" }}>ตัวเลขบนแท่งกราฟ:</strong> จำนวนแปลงของแต่ละปีอายุ (เช่น อายุ 15 ปี มีกี่แปลง)
+                        </span>
+                      </div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6, background: "#fff", padding: "4px 10px", borderRadius: 8, border: "1px solid rgba(16,185,129,0.08)" }}>
+                        <i className="bi bi-card-text" style={{ color: "#10b981", fontSize: 12 }} />
+                        <span style={{ fontSize: 10.5, color: "#334155", fontWeight: 500 }}>
+                          <strong style={{ color: "#059669" }}>ตัวเลขในการ์ดด้านล่าง:</strong> จำนวนแปลงรวม และสัดส่วนเปอร์เซ็นต์ (%) ของกลุ่มอายุนั้นๆ
+                        </span>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
