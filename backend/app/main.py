@@ -11,6 +11,9 @@ def create_application() -> FastAPI:
         title="Rubber Plantation Carbon Estimator",
         description="Backend API for spatiotemporal mapping of biomass and carbon stocks",
         version="1.0.0",
+        docs_url="/api/v1/docs",
+        redoc_url="/api/v1/redoc",
+        openapi_url="/api/v1/openapi.json",
     )
 
     # Configure CORS for the frontend web map to interact with the API
