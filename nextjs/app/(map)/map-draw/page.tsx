@@ -509,6 +509,7 @@ function MapDrawContent() {
     if (!mapContainerRef.current || mapRef.current) return;
     const map = new maplibregl.Map({
       container: mapContainerRef.current,
+      pixelRatio: Math.min(typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1, 2),
       style: {
         version: 8,
         glyphs: "https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf",
@@ -518,7 +519,7 @@ function MapDrawContent() {
             tiles: ["https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"],
             tileSize: 256,
             minzoom: 1,
-            maxzoom: 17,
+            maxzoom: 20,
             attribution: "",
           },
           street: {
@@ -534,7 +535,7 @@ function MapDrawContent() {
             tiles: ["https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}"],
             tileSize: 256,
             minzoom: 1,
-            maxzoom: 17,
+            maxzoom: 20,
             attribution: "",
           },
         },
