@@ -21,43 +21,46 @@ class LUPolygon(BaseModel):
     lu_class: str
     lu_class_desc_th: Optional[str] = None
     lu_class_desc_en: Optional[str] = None
-    geometry: Dict[str, Any] = Field(..., description="GeoJSON Polygon or MultiPolygon")
+    geometry: Dict[str, Any] = Field(..., description="GeoJSON Polygon or MultiPolygon with 'EPSG:4326' = WGS84 lon/lat coordinates")
     area_m2: float = Field(..., description="Area in square meters")
     area_percent: float = Field(..., description="Percentage of total area")
 
 
-# ── Estimation endpoint (existing /api/estimate) ──────────────────────────────
-
-class PlantationPolygon(BaseModel):
+class BasePlantationRequest(BaseModel):
+    """The generalized blueprint for any plantation API call."""
     id: str = Field(..., description="Unique ID from the frontend map")
-    geometry: Dict[str, Any] = Field(..., description="GeoJSON Polygon or MultiPolygon")
+    geometry: Dict[str, Any] = Field(..., description="GeoJSON Raw Drawn Polygon/MultiPolygon with 'EPSG:4326' = WGS84 lon/lat coordinates")
+    project_type: Optional[str] = Field(None, description="e.g., 'replanting', 'existing'")
 
+
+# ── Estimation endpoint (/api/estimate) ──────────────────────────────
+
+class PlantationEstimateRequest(BasePlantationRequest):
+    """Payload for /estimate (Extends base structure with metrics and flags)"""
+    # Spatiotemporal Inputs
     year_of_planting: Optional[int] = Field(None, description="Manual year. If None, extract from raster.")
     rubber_clone: Optional[str] = Field(None, description="Clone type for growth coefficients")
     tree_count: Optional[int] = Field(None, description="User-defined count. If None, calculate using area and spacing.")
     spacing_system: Optional[str] = Field(None, description="Standard spacing, e.g. '2.5x8' = 500 trees/ha")
+    
+    # THE ARCHITECTURAL WIN: Simple filtering flags instead of heavy geometries
+    selected_lu_classes: List[str] = Field(
+        default=["A302"], 
+        description="List of LU codes the user wants included in carbon calculations"
+    )
 
-
-class EstimationResponse(BaseModel):
+class PlantationEstimationResponse(BaseModel):
     polygon_id: str
     status: StatusMessage
     carbon_profile: Optional[List[YearlyEstimate]] = None
 
-# Backward-compatible aliases
-PlantationEstimatePolygon = PlantationPolygon
-PlantationEstimationResponse = EstimationResponse
 
+# ── Plantation-info endpoint (/api/v1/plantation-info) ────────────────────
 
-# ── Plantation-info endpoint (new /api/v1/plantation-info) ────────────────────
-
-class PlantationInfoPolygon(BaseModel):
-    id: str = Field(..., description="Unique ID from the frontend map")
-    geometry: Dict[str, Any] = Field(..., description="GeoJSON Polygon or MultiPolygon")
-    project_type: Optional[str] = Field(None, description="e.g. 'replanting', 'existing'")
-    output_crs: Optional[str] = Field(
-        "EPSG:4326",
-        description="CRS for returned geometry coordinates. 'EPSG:4326' = WGS84 lon/lat (default). 'EPSG:32647' = UTM Zone 47N (metres).",
-    )
+class PlantationInfoRequest(BasePlantationRequest):
+    """Payload for /plantation-info (Extends base structure with output CRS)"""
+    
+    output_crs: Optional[str] = Field('EPSG:4326', description="Desired CRS for returned geometries, e.g. 'EPSG:4326'. Defaults to 'EPSG:4326' if not provided.")
 
 
 class PlantationInfoResponse(BaseModel):

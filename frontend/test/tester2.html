@@ -22,8 +22,8 @@
 <body>
 
 <div class="container">
-    <h2>Rubber Plantation Carbon API Tester (api/plantation-info)</h2>
-    <p>Click the button to load <code>test1.json</code> and POST it to the backend.</p>
+    <h2>Rubber Plantation Carbon API Tester (api/estimate)</h2>
+    <p>Click the button to load <code>test2.json</code> and POST it to the backend.</p>
     
     <button id="testBtn">Test API</button>
     <div id="statusLabel" class="status"></div>
@@ -32,8 +32,8 @@
 </div>
 
 <script>
-    const API_ENDPOINT = 'http://localhost:8000/api/v1/plantation-info';
-    const JSON_FILE = 'test1.json';
+    const API_ENDPOINT = 'http://localhost:8000/api/v1/estimate';
+    const JSON_FILE = 'test2.json';
 
     document.getElementById('testBtn').addEventListener('click', async () => {
         const responseArea = document.getElementById('responseArea');

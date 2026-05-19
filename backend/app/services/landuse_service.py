@@ -46,27 +46,35 @@ class LanduseService:
                 index=[0], crs="EPSG:4326", geometry=[plantation_geom]
             ).to_crs(self.target_crs)
 
-            if lu_gdf.crs != self.target_crs:
-                lu_gdf = lu_gdf.to_crs(self.target_crs)
+            target_geom = plantation_gdf.geometry.iloc[0]
+            total_area_m2 = target_geom.area
 
-            intersected = gpd.overlay(plantation_gdf, lu_gdf, how="intersection")
-            rubber_areas = intersected[
-                intersected["LU_CODE"].astype(str).str.contains("A302", na=False)
-            ]
+            # Fast spatial index pre-filter then precise intersection
+            possible_matches_idx = lu_gdf.sindex.query(target_geom, predicate="intersects")
+            lu_candidates = lu_gdf.iloc[possible_matches_idx].copy()
 
-            if rubber_areas.empty:
-                poly_data["a302_geometry"] = None
-                poly_data["status"] = {
-                    "status": "error", "status_code": "E03",
-                    "message": "NO VALID RUBBER CULTIVATION AREA (A302) FOUND WITHIN THE DRAWN POLYGON."
-                }
+            if lu_candidates.empty:
+                poly_data["lu_polygon"] = []
+                poly_data["total_area_m2"] = round(total_area_m2, 4)
                 return poly_data
 
-            poly_data["a302_geometry"] = mapping(unary_union(rubber_areas.geometry.tolist()))
-            poly_data["status"] = {
-                "status": "success", "status_code": "S02",
-                "message": "VALID RUBBER CULTIVATION AREA (A302) FOUND WITHIN THE DRAWN POLYGON."
-            }
+            lu_candidates["geometry"] = lu_candidates.geometry.intersection(target_geom)
+            lu_candidates = lu_candidates[~lu_candidates.geometry.is_empty]
+
+            def determine_group(row):
+                l1 = str(row["LUL1_CODE"]).upper()
+                if l1 in ["U", "F", "M", "W"]:
+                    return l1
+                if l1 == "A":
+                    return str(row["LU_CODE"])
+                return "OTHER"
+
+            lu_candidates["group_key"] = lu_candidates.apply(determine_group, axis=1)
+            selcted_lu_candidates = lu_candidates[lu_candidates["group_key"].isin(poly_data["selected_lu_classes"])]
+            merged_gdf = selcted_lu_candidates.dissolve(by="group_key")
+            
+            poly_data["merged_geometry"] = mapping(unary_union(merged_gdf.geometry)) 
+
             return poly_data
 
         except Exception as e:

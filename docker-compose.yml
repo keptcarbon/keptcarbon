@@ -64,7 +64,7 @@ services:
       DATABASE_NAME: ${POSTGRES_DB:-keptcarbon}
       PYTHONPATH: /app
     ports:
-      - '8080:8000'
+      - '8000:8000'
     volumes:
       - ./backend:/app
     deploy:
