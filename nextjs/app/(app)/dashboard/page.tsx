@@ -115,7 +115,7 @@ export default function DashboardPage() {
   );
 
   return (
-    <div style={{ minHeight: "100vh", background: "linear-gradient(160deg, #d1fae5 0%, #cffafe 30%, #e0e7ff 70%, #fdf4ff 100%)", paddingTop: isMobile ? 104 : 124, paddingBottom: 60, fontFamily: "'Noto Sans Thai','Inter',sans-serif" }}>
+    <div style={{ minHeight: "100vh", background: "#ffffff", paddingTop: isMobile ? 104 : 124, paddingBottom: 60, fontFamily: "'Noto Sans Thai','Inter',sans-serif" }}>
       <div style={{ maxWidth: 1320, margin: "0 auto", padding: "0 20px" }}>
 
         {/* ── HERO ───────────────────────────── */}
@@ -147,8 +147,8 @@ export default function DashboardPage() {
 
         {/* ── KPI CARDS ───────────────────────── */}
         <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(3,1fr)", gap: 12, marginBottom: 22 }}>
-          <KpiCard icon="bi-layers-fill" label="จำนวนแปลงยาง" value={stats.plots} unit="แปลงเพาะปลูก" color="#059669" bgGrad="linear-gradient(135deg,#f0fdf4,#dcfce7)" />
-          <KpiCard icon="bi-map-fill" label="พื้นที่รวม" value={Math.round(stats.areaRai)} unit="ไร่เกษตรกรรม" color="#0d9488" bgGrad="linear-gradient(135deg,#f0fdfa,#ccfbf1)" />
+          <KpiCard icon="bi-layers-fill" label="จำนวนแปลงยาง" value={stats.plots} unit="แปลง" color="#059669" bgGrad="linear-gradient(135deg,#f0fdf4,#dcfce7)" />
+          <KpiCard icon="bi-map-fill" label="พื้นที่รวม" value={Math.round(stats.areaRai)} unit="ไร่" color="#0d9488" bgGrad="linear-gradient(135deg,#f0fdfa,#ccfbf1)" />
           <KpiCard icon="bi-cloud-arrow-up-fill" label="คาร์บอนสะสม" value={Math.round(stats.carbon)} unit="ตัน CO₂ (tCO₂)" color="#0284c7" bgGrad="linear-gradient(135deg,#f0f9ff,#e0f2fe)" />
         </div>
 

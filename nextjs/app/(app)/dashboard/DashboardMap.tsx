@@ -137,7 +137,7 @@ export default function DashboardMap({
         "fill-color": ["interpolate", ["linear"], ["get", "carbon"],
           0,   "#fef08a",   // ต่ำ  — เหลืองอ่อน
           100, "#34d399",   // ปานกลาง — เขียวมรกต
-          250, "#6366f1",   // สูง   — ม่วงคราม
+          250, "#f97316",   // สูง   — ส้ม
         ] as any,
         "fill-opacity": ["interpolate", ["linear"], ["get", "carbon"],
           0, 0.70,
@@ -201,14 +201,14 @@ export default function DashboardMap({
             <i className="bi bi-info-circle-fill" style={{ color: "#34d399" }} /> ระดับคาร์บอนต่อแปลง (tCO₂)
           </div>
           {/* Gradient bar */}
-          <div style={{ height: 7, borderRadius: 4, marginBottom: 6, background: "linear-gradient(90deg,#fef08a,#34d399,#6366f1)", boxShadow: "0 0 8px rgba(99,102,241,0.35)" }} />
+          <div style={{ height: 7, borderRadius: 4, marginBottom: 6, background: "linear-gradient(90deg,#fef08a,#34d399,#f97316)", boxShadow: "0 0 8px rgba(249,115,22,0.35)" }} />
           <div style={{ display: "flex", justifyContent: "space-between", fontSize: 8.5, color: "#94a3b8", fontWeight: 600, marginBottom: 10 }}>
             <span>&lt;100</span><span>100–250</span><span>&gt;250</span>
           </div>
           {([
             { color: "#fef08a", label: "ต่ำ",      range: "< 100" },
             { color: "#34d399", label: "ปานกลาง", range: "100–250" },
-            { color: "#6366f1", label: "สูง",      range: "> 250" },
+            { color: "#f97316", label: "สูง",      range: "> 250" },
           ] as const).map(s => (
             <div key={s.label} style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 5 }}>
               <div style={{ width: 12, height: 12, borderRadius: 3, flexShrink: 0, background: s.color, border: "1px solid rgba(255,255,255,0.2)", boxShadow: `0 0 6px ${s.color}88` }} />
@@ -243,7 +243,7 @@ export default function DashboardMap({
               </div>
 
               {/* Gradient bar for mobile */}
-              <div style={{ height: 7, borderRadius: 4, overflow: "hidden", marginBottom: 5, background: "linear-gradient(90deg,#fef08a,#34d399,#6366f1)", boxShadow: "0 0 6px rgba(99,102,241,0.3)" }} />
+              <div style={{ height: 7, borderRadius: 4, overflow: "hidden", marginBottom: 5, background: "linear-gradient(90deg,#fef08a,#34d399,#f97316)", boxShadow: "0 0 6px rgba(249,115,22,0.3)" }} />
               
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: 8.5, color: "#94a3b8", fontWeight: 600, marginBottom: 10 }}>
                 <span>&lt;100</span>
@@ -266,7 +266,7 @@ export default function DashboardMap({
               cursor: "pointer", boxShadow: "0 4px 12px rgba(0,0,0,0.3)",
               fontFamily: "inherit", transition: "all 0.2s",
             }}>
-            <div style={{ width: 10, height: 10, borderRadius: 2, background: "linear-gradient(135deg,#34d399,#6366f1)", flexShrink: 0 }} />
+            <div style={{ width: 10, height: 10, borderRadius: 2, background: "linear-gradient(135deg,#34d399,#f97316)", flexShrink: 0 }} />
             สัญลักษณ์
             <span style={{ fontSize: 9, opacity: 0.6, marginLeft: 2, transform: legendOpen ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }}>▼</span>
           </button>
