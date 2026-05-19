@@ -212,13 +212,21 @@ function ageDistribution(age: number, conf: number) {
 function profileToBarPoints(profile: YearlyEstimate[], startAge: number): BarPoint[] {
     return profile.map((item, i) => {
         const age = startAge + i;
+        // Step 1: Estimate Standard Error (SE) from 95% Confidence Interval bounds
+        // Formula: SE ≈ (Upper - Lower) / (2 * 1.96) = (Upper - Lower) / 3.92
+        const se = (item.ci_upper_tCO2e - item.ci_lower_tCO2e) / 3.92;
+
+        // Step 2 & 4: Calculate 95% CI of the value
+        // Formula: 95% CI Margin = 1.96 * SE
+        const errorMargin = 1.96 * se;
+
         return {
             age,
             yearBE: item.year + 543,
             co2: item.total_carbon_tCO2e,
             cycle: Math.floor(i / 7),
             cycleAge: age,
-            errorMargin: (item.ci_upper_tCO2e - item.ci_lower_tCO2e) / 2,
+            errorMargin,
         };
     });
 }
@@ -230,15 +238,33 @@ function aggregateProfiles(responses: EstimationResponse[], startAges: number[])
     const pts: BarPoint[] = [];
     for (let j = 0; j < len; j++) {
         const yearBE = profiles[0][j].year + 543;
-        let totalCo2 = 0, sumSqErr = 0, totalAge = 0;
+        let totalCo2 = 0;
+        let sumSqSE = 0; // Sum of squared Standard Errors
+        let totalAge = 0;
+
         for (let i = 0; i < profiles.length; i++) {
             const item = profiles[i][j];
             if (!item) continue;
             totalCo2 += item.total_carbon_tCO2e;
-            const err = (item.ci_upper_tCO2e - item.ci_lower_tCO2e) / 2;
-            sumSqErr += err * err;
+
+            // Step 1: Estimate SE for each plot from 95% CI bounds
+            // SE = (Upper - Lower) / 3.92
+            const se = (item.ci_upper_tCO2e - item.ci_lower_tCO2e) / 3.92;
+
+            // Sum of squared SEs for pooling (RSS)
+            sumSqSE += se * se;
+
             totalAge += startAges[i] + j;
         }
+
+        // Step 3: SE of the sum (Pooled SE)
+        // SE_total = Math.sqrt(sumSqSE)
+        const totalSE = Math.sqrt(sumSqSE);
+
+        // Step 4: 95% CI of the combined total
+        // 95% CI Margin = 1.96 * SE_total
+        const errorMargin = 1.96 * totalSE;
+
         const avgAge = Math.round(totalAge / profiles.length);
         pts.push({
             age: avgAge,
@@ -246,7 +272,7 @@ function aggregateProfiles(responses: EstimationResponse[], startAges: number[])
             co2: totalCo2,
             cycle: Math.floor(j / 7),
             cycleAge: avgAge,
-            errorMargin: Math.sqrt(sumSqErr),
+            errorMargin,
         });
     }
     return pts;
