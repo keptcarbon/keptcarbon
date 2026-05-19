@@ -841,6 +841,7 @@ export function ParcelResultsPanel({
 
         try {
             const responses = await estimateCarbon(polygons);
+            console.log("[KeptCarbon] Backend responses:", JSON.stringify(responses, null, 2));
             setBackendResponses(responses);
 
             const results: CarbonResult[] = [];
@@ -1493,6 +1494,9 @@ export function ParcelResultsPanel({
             } else if (cr) {
                 const plotIdx = selectedMapPlotIndex as number;
                 const backendProfile = backendResponses?.[plotIdx]?.carbon_profile;
+                console.log("[KeptCarbon] Step 3 - cr (carbon result):", cr);
+                console.log("[KeptCarbon] Step 3 - backendProfile:", backendProfile);
+                console.log("[KeptCarbon] Step 3 - backendProfile length:", backendProfile?.length, "/ expected:", 35 - cr.age);
                 pts = backendProfile
                     ? profileToBarPoints(backendProfile, cr.age)
                     : buildBarPoints(cr.age, cr.plantYearBE, cr.trees, cr.spacing);

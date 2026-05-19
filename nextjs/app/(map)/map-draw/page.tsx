@@ -1185,6 +1185,7 @@ function MapDrawContent() {
         project_type: activeProjType,
         output_crs: "EPSG:4326",
       });
+      console.log("[KeptCarbon] plantation-info response:", JSON.stringify(result, null, 2));
 
       // Show ALL lu_polygon features on map with lu_class for colour coding
       const allLU = result.lu_polygon ?? [];
