@@ -130,18 +130,21 @@ export default function DashboardMap({
       }
 
       map.addSource("plots-boundary", { type: "geojson", data: { type: "FeatureCollection", features: boundaryFeatures } });
-      map.addLayer({ id: "plots-boundary-fill", type: "fill", source: "plots-boundary", paint: { "fill-color": "#f97316", "fill-opacity": 0.12 } });
-      map.addLayer({ id: "plots-boundary-line", type: "line", source: "plots-boundary", paint: { "line-color": "#ea580c", "line-width": 2.5 } });
+      map.addLayer({ id: "plots-boundary-fill", type: "fill", source: "plots-boundary", paint: { "fill-color": "#22d3ee", "fill-opacity": 0.10 } });
+      map.addLayer({ id: "plots-boundary-line", type: "line", source: "plots-boundary", paint: { "line-color": "#06b6d4", "line-width": 2, "line-dasharray": [3, 2] } });
       map.addSource("plots-detected", { type: "geojson", data: { type: "FeatureCollection", features: detectedFeatures } });
       map.addLayer({ id: "plots-detected-fill", type: "fill", source: "plots-detected", paint: {
         "fill-color": ["interpolate", ["linear"], ["get", "carbon"],
-          0,   "#fed7aa",   // ต่ำ
-          100, "#f97316",   // ปานกลาง
-          250, "#9a3412",   // สูง
+          0,   "#fef08a",   // ต่ำ  — เหลืองอ่อน
+          100, "#34d399",   // ปานกลาง — เขียวมรกต
+          250, "#6366f1",   // สูง   — ม่วงคราม
         ] as any,
-        "fill-opacity": 0.85,
+        "fill-opacity": ["interpolate", ["linear"], ["get", "carbon"],
+          0, 0.70,
+          250, 0.92,
+        ] as any,
       } } as any); // eslint-disable-line
-      map.addLayer({ id: "plots-detected-line", type: "line", source: "plots-detected", paint: { "line-color": "#431407", "line-width": 0.8, "line-opacity": 0.65 } });
+      map.addLayer({ id: "plots-detected-line", type: "line", source: "plots-detected", paint: { "line-color": "#1e1b4b", "line-width": 0.8, "line-opacity": 0.55 } });
 
 
       // ── District markers ───────────────────────────────────────────────────
@@ -190,20 +193,25 @@ export default function DashboardMap({
           background: "rgba(15,23,42,0.9)", backdropFilter: "blur(16px)",
           borderRadius: 13, padding: "12px 16px",
           border: "1px solid rgba(255,255,255,0.12)",
-          borderTop: "3px solid #ea580c",
+          borderTop: "3px solid #34d399",
           boxShadow: "0 6px 24px rgba(0,0,0,0.4)",
           fontFamily: "'Noto Sans Thai','Inter',sans-serif", minWidth: 168,
         }}>
-          <div style={{ fontSize: 10, fontWeight: 800, color: "#fdba74", marginBottom: 8, letterSpacing: 0.6, display: "flex", alignItems: "center", gap: 5 }}>
-            <i className="bi bi-info-circle-fill" style={{ color: "#ea580c" }} /> ระดับคาร์บอนต่อแปลง (tCO₂)
+          <div style={{ fontSize: 10, fontWeight: 800, color: "#6ee7b7", marginBottom: 10, letterSpacing: 0.6, display: "flex", alignItems: "center", gap: 5 }}>
+            <i className="bi bi-info-circle-fill" style={{ color: "#34d399" }} /> ระดับคาร์บอนต่อแปลง (tCO₂)
+          </div>
+          {/* Gradient bar */}
+          <div style={{ height: 7, borderRadius: 4, marginBottom: 6, background: "linear-gradient(90deg,#fef08a,#34d399,#6366f1)", boxShadow: "0 0 8px rgba(99,102,241,0.35)" }} />
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 8.5, color: "#94a3b8", fontWeight: 600, marginBottom: 10 }}>
+            <span>&lt;100</span><span>100–250</span><span>&gt;250</span>
           </div>
           {([
-            { color: "#fed7aa", label: "ต่ำ",      range: "< 100" },
-            { color: "#f97316", label: "ปานกลาง", range: "100–250" },
-            { color: "#9a3412", label: "สูง",      range: "> 250" },
+            { color: "#fef08a", label: "ต่ำ",      range: "< 100" },
+            { color: "#34d399", label: "ปานกลาง", range: "100–250" },
+            { color: "#6366f1", label: "สูง",      range: "> 250" },
           ] as const).map(s => (
             <div key={s.label} style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 5 }}>
-              <div style={{ width: 12, height: 12, borderRadius: 3, flexShrink: 0, background: s.color, border: "1px solid rgba(255,255,255,0.15)", boxShadow: `0 0 4px ${s.color}66` }} />
+              <div style={{ width: 12, height: 12, borderRadius: 3, flexShrink: 0, background: s.color, border: "1px solid rgba(255,255,255,0.2)", boxShadow: `0 0 6px ${s.color}88` }} />
               <span style={{ fontSize: 10, color: "#cbd5e1", flex: 1 }}>{s.label}</span>
               <span style={{ fontSize: 9, color: "#94a3b8", fontWeight: 600 }}>{s.range}</span>
             </div>
@@ -225,21 +233,17 @@ export default function DashboardMap({
               background: "rgba(15,23,42,0.92)", backdropFilter: "blur(12px)",
               borderRadius: 14, padding: "12px 14px",
               border: "1px solid rgba(255,255,255,0.08)",
-              borderTop: "3px solid #ea580c",
+              borderTop: "3px solid #34d399",
               boxShadow: "0 8px 24px -4px rgba(0,0,0,0.5)",
               minWidth: 180,
               animation: "fadeIn 0.2s ease-out",
             }}>
-              <div style={{ fontSize: 10, fontWeight: 700, color: "#fdba74", marginBottom: 8, letterSpacing: 0.3, display: "flex", alignItems: "center", gap: 4 }}>
-                <i className="bi bi-info-circle-fill" style={{ color: "#ea580c", fontSize: 10 }} /> คาร์บอนต่อแปลง (tCO₂)
+              <div style={{ fontSize: 10, fontWeight: 700, color: "#6ee7b7", marginBottom: 8, letterSpacing: 0.3, display: "flex", alignItems: "center", gap: 4 }}>
+                <i className="bi bi-info-circle-fill" style={{ color: "#34d399", fontSize: 10 }} /> คาร์บอนต่อแปลง (tCO₂)
               </div>
 
-              {/* Segmented bar for mobile */}
-              <div style={{ display: "flex", height: 6, borderRadius: 3, overflow: "hidden", marginBottom: 5 }}>
-                <div style={{ flex: 1, background: "#fed7aa" }} />
-                <div style={{ flex: 1, background: "#f97316" }} />
-                <div style={{ flex: 1, background: "#9a3412" }} />
-              </div>
+              {/* Gradient bar for mobile */}
+              <div style={{ height: 7, borderRadius: 4, overflow: "hidden", marginBottom: 5, background: "linear-gradient(90deg,#fef08a,#34d399,#6366f1)", boxShadow: "0 0 6px rgba(99,102,241,0.3)" }} />
               
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: 8.5, color: "#94a3b8", fontWeight: 600, marginBottom: 10 }}>
                 <span>&lt;100</span>
@@ -258,11 +262,11 @@ export default function DashboardMap({
               backdropFilter: "blur(8px)",
               border: "1px solid rgba(255,255,255,0.12)",
               borderRadius: 20, padding: "6px 14px",
-              color: "#fdba74", fontSize: 11, fontWeight: 600,
+              color: "#6ee7b7", fontSize: 11, fontWeight: 600,
               cursor: "pointer", boxShadow: "0 4px 12px rgba(0,0,0,0.3)",
               fontFamily: "inherit", transition: "all 0.2s",
             }}>
-            <div style={{ width: 10, height: 10, borderRadius: 2, background: "linear-gradient(135deg,#f97316,#ea580c)", flexShrink: 0 }} />
+            <div style={{ width: 10, height: 10, borderRadius: 2, background: "linear-gradient(135deg,#34d399,#6366f1)", flexShrink: 0 }} />
             สัญลักษณ์
             <span style={{ fontSize: 9, opacity: 0.6, marginLeft: 2, transform: legendOpen ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }}>▼</span>
           </button>

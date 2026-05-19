@@ -20,21 +20,28 @@ function useCounter(target: number, ms = 700) {
   return v;
 }
 
-function KpiCard({ icon, label, value, unit, color, suffix = "" }: { icon: string; label: string; value: number; unit: string; color: string; suffix?: string }) {
+function KpiCard({ icon, label, value, unit, color, bgGrad, suffix = "" }: { icon: string; label: string; value: number; unit: string; color: string; bgGrad: string; suffix?: string }) {
   const a = useCounter(value);
   const disp = value >= 1000 ? Math.round(a).toLocaleString("th-TH") : a.toLocaleString("th-TH", { maximumFractionDigits: 1 });
   return (
-    <div style={{ background: "rgba(255,255,255,0.82)", backdropFilter: "blur(14px)", borderRadius: 16, padding: "18px 20px", border: "1px solid rgba(255,255,255,0.7)", boxShadow: "0 2px 16px rgba(16,185,129,0.06)", borderTop: `3px solid ${color}`, transition: "transform .2s,box-shadow .2s" }}
-      onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.transform = "translateY(-3px)"; (e.currentTarget as HTMLDivElement).style.boxShadow = "0 14px 32px rgba(16,185,129,0.13)"; }}
-      onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.transform = ""; (e.currentTarget as HTMLDivElement).style.boxShadow = "0 2px 16px rgba(16,185,129,0.06)"; }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-        <div style={{ width: 32, height: 32, borderRadius: 9, background: `${color}14`, display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <i className={`bi ${icon}`} style={{ color, fontSize: 14 }} />
+    <div style={{ background: bgGrad, backdropFilter: "blur(14px)", borderRadius: 20, padding: "22px 24px", border: `1px solid ${color}30`, boxShadow: `0 4px 24px ${color}18`, transition: "transform .2s,box-shadow .2s", position: "relative", overflow: "hidden" }}
+      onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.transform = "translateY(-4px)"; (e.currentTarget as HTMLDivElement).style.boxShadow = `0 16px 40px ${color}30`; }}
+      onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.transform = ""; (e.currentTarget as HTMLDivElement).style.boxShadow = `0 4px 24px ${color}18`; }}>
+      {/* Decorative circle */}
+      <div style={{ position: "absolute", top: -24, right: -24, width: 80, height: 80, borderRadius: "50%", background: `${color}14` }} />
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+        <div style={{ width: 40, height: 40, borderRadius: 12, background: `linear-gradient(135deg,${color},${color}cc)`, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: `0 4px 12px ${color}40` }}>
+          <i className={`bi ${icon}`} style={{ color: "#fff", fontSize: 16 }} />
         </div>
-        <span style={{ fontSize: 10.5, fontWeight: 800, color: "#64748b", letterSpacing: 0.3 }}>{label}</span>
+        <span style={{ fontSize: 11, fontWeight: 800, color: "#475569", letterSpacing: 0.3 }}>{label}</span>
       </div>
-      <div style={{ fontSize: 28, fontWeight: 900, color: "#0f172a", letterSpacing: -1.2, lineHeight: 1 }}>{disp}{suffix}</div>
-      <div style={{ fontSize: 10.5, color: "#94a3b8", fontWeight: 700, marginTop: 5 }}>{unit}</div>
+      <div style={{ fontSize: 32, fontWeight: 900, color: "#0f172a", letterSpacing: -1.5, lineHeight: 1 }}>{disp}{suffix}</div>
+      <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 6 }}>
+        <div style={{ flex: 1, height: 3, background: `${color}20`, borderRadius: 99 }}>
+          <div style={{ width: "100%", height: "100%", background: `linear-gradient(90deg,${color}60,${color})`, borderRadius: 99 }} />
+        </div>
+        <span style={{ fontSize: 11, color, fontWeight: 700 }}>{unit}</span>
+      </div>
     </div>
   );
 }
@@ -108,7 +115,7 @@ export default function DashboardPage() {
   );
 
   return (
-    <div style={{ minHeight: "100vh", background: "linear-gradient(160deg,#ecfdf5 0%,#f0f9ff 50%,#f8fafc 100%)", paddingTop: isMobile ? 104 : 124, paddingBottom: 60, fontFamily: "'Noto Sans Thai','Inter',sans-serif" }}>
+    <div style={{ minHeight: "100vh", background: "linear-gradient(160deg, #d1fae5 0%, #cffafe 30%, #e0e7ff 70%, #fdf4ff 100%)", paddingTop: isMobile ? 104 : 124, paddingBottom: 60, fontFamily: "'Noto Sans Thai','Inter',sans-serif" }}>
       <div style={{ maxWidth: 1320, margin: "0 auto", padding: "0 20px" }}>
 
         {/* ── HERO ───────────────────────────── */}
@@ -140,9 +147,9 @@ export default function DashboardPage() {
 
         {/* ── KPI CARDS ───────────────────────── */}
         <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(3,1fr)", gap: 12, marginBottom: 22 }}>
-          <KpiCard icon="bi-layers-fill" label="จำนวนแปลงยาง" value={stats.plots} unit="แปลงเพาะปลูก" color="#059669" />
-          <KpiCard icon="bi-map-fill" label="พื้นที่รวม" value={Math.round(stats.areaRai)} unit="ไร่เกษตรกรรม" color="#0d9488" />
-          <KpiCard icon="bi-cloud-arrow-up-fill" label="คาร์บอนสะสม" value={Math.round(stats.carbon)} unit="ตัน CO₂ (tCO₂)" color="#10b981" />
+          <KpiCard icon="bi-layers-fill" label="จำนวนแปลงยาง" value={stats.plots} unit="แปลงเพาะปลูก" color="#059669" bgGrad="linear-gradient(135deg,#f0fdf4,#dcfce7)" />
+          <KpiCard icon="bi-map-fill" label="พื้นที่รวม" value={Math.round(stats.areaRai)} unit="ไร่เกษตรกรรม" color="#0d9488" bgGrad="linear-gradient(135deg,#f0fdfa,#ccfbf1)" />
+          <KpiCard icon="bi-cloud-arrow-up-fill" label="คาร์บอนสะสม" value={Math.round(stats.carbon)} unit="ตัน CO₂ (tCO₂)" color="#0284c7" bgGrad="linear-gradient(135deg,#f0f9ff,#e0f2fe)" />
         </div>
 
         {/* ── MAIN LAYOUT ─────────────────────── */}
