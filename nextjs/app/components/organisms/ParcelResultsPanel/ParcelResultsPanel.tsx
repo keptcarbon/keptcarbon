@@ -240,7 +240,6 @@ function aggregateProfiles(responses: EstimationResponse[], startAges: number[])
             totalAge += startAges[i] + j;
         }
         const avgAge = Math.round(totalAge / profiles.length);
-        if (avgAge > 35) break;
         pts.push({
             age: avgAge,
             yearBE,
@@ -1488,7 +1487,6 @@ export function ParcelResultsPanel({
                             state.continuousAge++;
                         });
                         const avgAge = Math.round(totalContinuousAge / N);
-                        if (avgAge > 35) break;
                         pts.push({ age: avgAge, yearBE, co2: totalCo2, cycle: Math.floor(i / 7), cycleAge: avgAge, errorMargin: Math.sqrt(sumSqMargin) });
                     }
                 }

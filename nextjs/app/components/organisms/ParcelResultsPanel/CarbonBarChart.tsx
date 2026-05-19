@@ -48,8 +48,6 @@ export function buildBarPoints(
   const v0 = carbonCo2(startAge, trees, spacing);
 
   for (let i = 0; i < TOTAL_PROJ_YEARS; i++) {
-    if (continuousAge > 35) break;
-
     const period = Math.floor(i / 7);
     const co2 = carbonCo2(continuousAge, trees, spacing);
 

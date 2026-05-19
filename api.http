@@ -11,7 +11,7 @@
 ###   header value into the @authCookie variable below.
 ### ================================================================
 
-@backendUrl = http://localhost:8080
+@backendUrl = http://localhost:8000
 @nextUrl    = http://localhost:3000
 
 # Paste the cookie value from the login / register response here
@@ -36,6 +36,7 @@ Accept: application/json
 # Fields:
 #   id               (required) unique frontend identifier
 #   geometry         (required) GeoJSON Polygon or MultiPolygon
+#   project_type     (optional) "replanting" | "existing"
 #   year_of_planting (optional) CE year — extracted from raster if null
 #   rubber_clone     (optional) "RRIM 600" | "RRIT 251"
 #   tree_count       (optional) user count — calculated if null
@@ -56,6 +57,7 @@ Content-Type: application/json
       "type": "MultiPolygon",
       "coordinates": [[[[101.438, 12.807], [101.445, 12.809], [101.447, 12.802], [101.439, 12.800], [101.438, 12.807]]]]
     },
+    "project_type": "replanting",
     "year_of_planting": 2010,
     "rubber_clone": "RRIM 600",
     "tree_count": 33300,
@@ -74,6 +76,7 @@ Content-Type: application/json
       "type": "MultiPolygon",
       "coordinates": [[[[101.438, 12.807], [101.445, 12.809], [101.447, 12.802], [101.439, 12.800], [101.438, 12.807]]]]
     },
+    "project_type": "replanting",
     "year_of_planting": 2015,
     "rubber_clone": "RRIM 600",
     "tree_count": null,
@@ -92,6 +95,7 @@ Content-Type: application/json
       "type": "MultiPolygon",
       "coordinates": [[[[101.438, 12.807], [101.445, 12.809], [101.447, 12.802], [101.439, 12.800], [101.438, 12.807]]]]
     },
+    "project_type": null,
     "year_of_planting": null,
     "rubber_clone": null,
     "tree_count": null,
@@ -110,6 +114,7 @@ Content-Type: application/json
       "type": "MultiPolygon",
       "coordinates": [[[[101.438, 12.807], [101.445, 12.809], [101.447, 12.802], [101.439, 12.800], [101.438, 12.807]]]]
     },
+    "project_type": "existing",
     "year_of_planting": 2012,
     "rubber_clone": "RRIT 251",
     "tree_count": null,
@@ -128,6 +133,7 @@ Content-Type: application/json
       "type": "MultiPolygon",
       "coordinates": [[[[101.438, 12.807], [101.445, 12.809], [101.447, 12.802], [101.439, 12.800], [101.438, 12.807]]]]
     },
+    "project_type": "replanting",
     "year_of_planting": 2010,
     "rubber_clone": "RRIM 600",
     "tree_count": 33300,
@@ -139,6 +145,7 @@ Content-Type: application/json
       "type": "MultiPolygon",
       "coordinates": [[[[101.438, 12.807], [101.445, 12.809], [101.447, 12.802], [101.439, 12.800], [101.438, 12.807]]]]
     },
+    "project_type": "existing",
     "year_of_planting": null,
     "rubber_clone": "RRIM 600",
     "tree_count": null,

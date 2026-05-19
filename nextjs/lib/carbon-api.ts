@@ -3,7 +3,7 @@
  * Calls the real backend API instead of using mockup calculations
  */
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_API_URL || "http://localhost:8080/api/v1";
+const API_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_API_URL || "http://localhost:8000/api/v1";
 
 export interface PlantationPolygon {
     id: string;

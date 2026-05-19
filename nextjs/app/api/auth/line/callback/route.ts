@@ -28,19 +28,23 @@ export async function GET(request: NextRequest) {
   const state = searchParams.get("state");
   const error = searchParams.get("error");
 
+  const host = request.headers.get("x-forwarded-host") || request.headers.get("host") || "localhost:3000";
+  const proto = request.headers.get("x-forwarded-proto") || "http";
+  const baseUrl = `${proto}://${host}`;
+
   // Handle user-cancelled or LINE error
   if (error) {
-    return NextResponse.redirect(new URL("/?line_error=cancelled", request.url));
+    return NextResponse.redirect(new URL("/?line_error=cancelled", baseUrl));
   }
 
   if (!code || !state) {
-    return NextResponse.redirect(new URL("/?line_error=missing_params", request.url));
+    return NextResponse.redirect(new URL("/?line_error=missing_params", baseUrl));
   }
 
   // Verify CSRF state
   const savedState = request.cookies.get("line_oauth_state")?.value;
   if (state !== savedState) {
-    return NextResponse.redirect(new URL("/?line_error=state_mismatch", request.url));
+    return NextResponse.redirect(new URL("/?line_error=state_mismatch", baseUrl));
   }
 
   try {
@@ -60,7 +64,7 @@ export async function GET(request: NextRequest) {
     if (!tokenRes.ok) {
       const errBody = await tokenRes.text();
       console.error("LINE token exchange failed:", errBody);
-      return NextResponse.redirect(new URL("/?line_error=token_failed", request.url));
+      return NextResponse.redirect(new URL("/?line_error=token_failed", baseUrl));
     }
 
     const tokenData = await tokenRes.json();
@@ -72,7 +76,7 @@ export async function GET(request: NextRequest) {
     });
 
     if (!profileRes.ok) {
-      return NextResponse.redirect(new URL("/?line_error=profile_failed", request.url));
+      return NextResponse.redirect(new URL("/?line_error=profile_failed", baseUrl));
     }
 
     const profile: LineProfile = await profileRes.json();
@@ -118,7 +122,7 @@ export async function GET(request: NextRequest) {
     });
 
     // Redirect to home page
-    const response = NextResponse.redirect(new URL("/", request.url));
+    const response = NextResponse.redirect(new URL("/", baseUrl));
 
     response.cookies.set(AUTH_COOKIE, token, {
       httpOnly: true,
@@ -134,6 +138,6 @@ export async function GET(request: NextRequest) {
     return response;
   } catch (err) {
     console.error("LINE callback error:", err);
-    return NextResponse.redirect(new URL("/?line_error=server_error", request.url));
+    return NextResponse.redirect(new URL("/?line_error=server_error", baseUrl));
   }
 }
