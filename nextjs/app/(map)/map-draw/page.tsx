@@ -1905,6 +1905,7 @@ function MapDrawContent() {
                 onFinishDraw={() => finishDraw()}
                 onCancelDraw={cancelDrawMode}
                 onLandUseChange={handleLandUseChange}
+                onProjectTypeChange={handleProjectTypeChange}
               />
             </div>
           )}
