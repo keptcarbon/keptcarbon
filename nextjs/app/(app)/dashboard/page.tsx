@@ -121,9 +121,6 @@ export default function DashboardPage() {
         {/* ── HERO ───────────────────────────── */}
         <div style={{ background: "rgba(255,255,255,0.8)", backdropFilter: "blur(20px)", borderRadius: 24, padding: isMobile ? "20px 20px" : "28px 40px", marginBottom: 22, border: "1px solid rgba(16,185,129,0.14)", boxShadow: "0 8px 32px rgba(16,185,129,0.06)", position: "relative", overflow: "hidden" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
-            <div style={{ width: 52, height: 52, borderRadius: 16, background: "linear-gradient(135deg,#10b981,#047857)", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 6px 20px rgba(16,185,129,0.3)", flexShrink: 0 }}>
-              <i className="bi bi-tree-fill" style={{ color: "#fff", fontSize: 22 }} />
-            </div>
             <div style={{ flex: 1 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4, flexWrap: "wrap" }}>
                 <span style={{ background: "rgba(5,150,105,0.08)", border: "1px solid rgba(5,150,105,0.18)", color: "#059669", borderRadius: 6, padding: "2px 10px", fontSize: 11, fontWeight: 700 }}>
