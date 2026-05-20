@@ -211,7 +211,7 @@ function ageDistribution(age: number, conf: number) {
 
 function profileToBarPoints(profile: YearlyEstimate[], startAge: number): BarPoint[] {
     return profile.map((item, i) => {
-        const age = Math.min(35, Math.max(0, startAge + i));
+        const age = startAge + i;
         // Step 1: Estimate Standard Error (SE) from 95% Confidence Interval bounds
         // Formula: SE ≈ (Upper - Lower) / (2 * 1.96) = (Upper - Lower) / 3.92
         const se = (item.ci_upper_tCO2e - item.ci_lower_tCO2e) / 3.92;
@@ -234,20 +234,16 @@ function profileToBarPoints(profile: YearlyEstimate[], startAge: number): BarPoi
 function aggregateProfiles(responses: EstimationResponse[], startAges: number[]): BarPoint[] {
     const profiles = responses.map(r => r.carbon_profile ?? []);
     if (!profiles.length || !profiles[0].length) return [];
-    const len = Math.max(...profiles.map(p => p.length));
+    const len = Math.min(...profiles.map(p => p.length));
     const pts: BarPoint[] = [];
-    const baseYearBE = profiles[0][0]?.year + 543;
-
     for (let j = 0; j < len; j++) {
-        const yearBE = baseYearBE + j;
+        const yearBE = profiles[0][j].year + 543;
         let totalCo2 = 0;
         let sumSqSE = 0; // Sum of squared Standard Errors
         let totalAge = 0;
 
         for (let i = 0; i < profiles.length; i++) {
-            const profile = profiles[i];
-            // If the loop index j exceeds this plot's profile length, carry over its last available point (plateau)
-            const item = j < profile.length ? profile[j] : profile[profile.length - 1];
+            const item = profiles[i][j];
             if (!item) continue;
             totalCo2 += item.total_carbon_tCO2e;
 
@@ -258,7 +254,7 @@ function aggregateProfiles(responses: EstimationResponse[], startAges: number[])
             // Sum of squared SEs for pooling (RSS)
             sumSqSE += se * se;
 
-            totalAge += Math.min(35, Math.max(0, startAges[i] + j));
+            totalAge += startAges[i] + j;
         }
 
         // Step 3: SE of the sum (Pooled SE)
@@ -269,7 +265,7 @@ function aggregateProfiles(responses: EstimationResponse[], startAges: number[])
         // 95% CI Margin = 1.96 * SE_total
         const errorMargin = 1.96 * totalSE;
 
-        const avgAge = Math.min(35, Math.max(0, Math.round(totalAge / profiles.length)));
+        const avgAge = Math.round(totalAge / profiles.length);
         pts.push({
             age: avgAge,
             yearBE,
@@ -920,7 +916,7 @@ export function ParcelResultsPanel({
                     }
                 }
 
-                const startAge = Math.max(0, CURRENT_BE_NOW - finalPlantYearBE);
+                const startAge = CURRENT_BE_NOW - finalPlantYearBE;
                 const userTrees = form.treeCount ? parseInt(form.treeCount) : 0;
                 const finalTrees = userTrees > 0 ? userTrees : Math.round(totalAreaRai * 76);
 
@@ -983,7 +979,7 @@ export function ParcelResultsPanel({
                 const userPlantYear = form?.plantYear ? parseInt(form.plantYear) : 0;
                 const userTrees = form?.treeCount ? parseInt(form.treeCount) : 0;
 
-                const age = Math.max(0, cr?.age ?? (userPlantYear > 0 ? (CURRENT_BE_NOW - userPlantYear) : 0));
+                const age = cr?.age ?? (userPlantYear > 0 ? (CURRENT_BE_NOW - userPlantYear) : 0);
                 const trees = cr?.trees ?? (userTrees > 0 ? userTrees : 0);
                 const spacing = cr?.spacing || form?.spacing || "";
                 const finalPlantYear = cr?.plantYearBE ?? (userPlantYear > 0 ? userPlantYear : 0);
@@ -1138,8 +1134,8 @@ export function ParcelResultsPanel({
                             {!projectName.trim() && hasEmptyStatus
                                 ? 'กรุณากรอก "ชื่อโครงการ" และเลือก "สถานะแปลง" ให้ครบทุกแปลง เพื่อประมวลผลหรือบันทึกข้อมูล'
                                 : !projectName.trim()
-                                ? 'กรุณากรอก "ชื่อโครงการ" เพื่อประมวลผลหรือบันทึกข้อมูล'
-                                : 'กรุณาเลือก "สถานะแปลง" ให้ครบทุกแปลง เพื่อประมวลผลหรือบันทึกข้อมูล'
+                                    ? 'กรุณากรอก "ชื่อโครงการ" เพื่อประมวลผลหรือบันทึกข้อมูล'
+                                    : 'กรุณาเลือก "สถานะแปลง" ให้ครบทุกแปลง เพื่อประมวลผลหรือบันทึกข้อมูล'
                             }
                         </span>
                     </div>
@@ -1364,16 +1360,16 @@ export function ParcelResultsPanel({
 
                                                             aSubtypes.forEach(sub => {
                                                                 const desc = luRealData[sub]?.desc || (sub === "A302" ? "ยางพารา" : sub === "A303" ? "ปาล์มน้ำมัน" : sub === "A304" ? "ไม้ผล" : "หมวดย่อย A");
-                                                                 const isA302 = sub === "A302";
-                                                                 const isA302Detected = !!(luRealData["A302"] && luRealData["A302"].rai > 0);
-                                                                 displayLU.push({
-                                                                     id: sub,
-                                                                     label: `${sub} ${desc}`,
-                                                                     disabled: isA302 ? !isA302Detected : false,
-                                                                     fixed: isA302 ? isA302Detected : false,
-                                                                     indent: true,
-                                                                     color: "#84cc16"
-                                                                 });
+                                                                const isA302 = sub === "A302";
+                                                                const isA302Detected = !!(luRealData["A302"] && luRealData["A302"].rai > 0);
+                                                                displayLU.push({
+                                                                    id: sub,
+                                                                    label: `${sub} ${desc}`,
+                                                                    disabled: isA302 ? !isA302Detected : false,
+                                                                    fixed: isA302 ? isA302Detected : false,
+                                                                    indent: true,
+                                                                    color: "#84cc16"
+                                                                });
                                                             });
                                                         }
                                                     });
@@ -1502,9 +1498,7 @@ export function ParcelResultsPanel({
                     const initialPlotCarbons = carbonResults.map(c => carbonCo2(c.age, c.trees, c.spacing));
                     const plotStates = carbonResults.map(c => ({ continuousAge: c.age }));
                     const N = plotStates.length;
-                    const maxAge = Math.max(...carbonResults.map(c => c.age));
-                    const numYears = Math.max(1, Math.min(35, 36 - maxAge));
-                    for (let i = 0; i < numYears; i++) {
+                    for (let i = 0; i < 35; i++) {
                         const yearBE = CURRENT_BE + i;
                         let totalCo2 = 0, totalContinuousAge = 0, sumSqMargin = 0;
                         plotStates.forEach((state, idx) => {
@@ -1519,7 +1513,7 @@ export function ParcelResultsPanel({
                             totalContinuousAge += state.continuousAge;
                             state.continuousAge++;
                         });
-                        const avgAge = Math.min(35, Math.max(0, Math.round(totalContinuousAge / N)));
+                        const avgAge = Math.round(totalContinuousAge / N);
                         pts.push({ age: avgAge, yearBE, co2: totalCo2, cycle: Math.floor(i / 7), cycleAge: avgAge, errorMargin: Math.sqrt(sumSqMargin) });
                     }
                 }

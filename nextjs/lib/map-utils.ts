@@ -25,9 +25,6 @@ export function polygonAreaM2(coords: LngLat[]): number {
 }
 
 export function carbonForAge(age: number, trees: number) {
-  if (age <= 0) {
-    return { H: 0, D: 0, AGB: 0, BGB: 0, co2: 0 };
-  }
   const H = Math.min(2.0 + 1.8 * age, 28);
   const D = Math.min(3 + 4.5 * age, 60);
   const AGB = 0.1284 * D * D * H * 0.001; // tonnes/tree
@@ -78,16 +75,16 @@ export function utmToWgs84(
   const lat =
     phi1 -
     ((N1 * Math.tan(phi1)) / R1) *
-      (D ** 2 / 2 -
-        ((5 + 3 * T1 + 10 * C1 - 4 * C1 ** 2 - 9 * ePrime2) * D ** 4) / 24 +
-        ((61 + 90 * T1 + 298 * C1 + 45 * T1 ** 2 - 252 * ePrime2 - 3 * C1 ** 2) * D ** 6) / 720);
+    (D ** 2 / 2 -
+      ((5 + 3 * T1 + 10 * C1 - 4 * C1 ** 2 - 9 * ePrime2) * D ** 4) / 24 +
+      ((61 + 90 * T1 + 298 * C1 + 45 * T1 ** 2 - 252 * ePrime2 - 3 * C1 ** 2) * D ** 6) / 720);
 
   const lon =
     lon0 +
     (D -
       ((1 + 2 * T1 + C1) * D ** 3) / 6 +
       ((5 - 2 * C1 + 28 * T1 - 3 * C1 ** 2 + 8 * ePrime2 + 24 * T1 ** 2) * D ** 5) / 120) /
-      Math.cos(phi1);
+    Math.cos(phi1);
 
   return [lon * (180 / Math.PI), lat * (180 / Math.PI)];
 }
