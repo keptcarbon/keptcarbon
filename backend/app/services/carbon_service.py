@@ -89,7 +89,8 @@ class CarbonService:
                 #raw_age = cohort['age'] + year_offset
                 # Apply replanting cycle: trees cut and replanted at CUT_AGE
                 #if raw_age > CUT_AGE:
-                #    future_age = ((raw_age - 1) % CUT_AGE) + 1
+                #    future_age = ((raw_age - 1) % 
+                # ) + 1
                 #else:
                 #    future_age = raw_age
 
@@ -121,6 +122,9 @@ class CarbonService:
 
     async def get_carbon_profile(self, poly_data) -> dict:
         current_calendar_year = datetime.now().year
+
+
+        print(f"Received polygon data for carbon profile generation: {poly_data}")
 
         # Step 1: Determine province code, skip if already set
         print(f"Initial province code in poly_data: {poly_data.get('province_code')}")

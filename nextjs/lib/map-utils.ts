@@ -25,6 +25,9 @@ export function polygonAreaM2(coords: LngLat[]): number {
 }
 
 export function carbonForAge(age: number, trees: number) {
+  if (age <= 0) {
+    return { H: 0, D: 0, AGB: 0, BGB: 0, co2: 0 };
+  }
   const H = Math.min(2.0 + 1.8 * age, 28);
   const D = Math.min(3 + 4.5 * age, 60);
   const AGB = 0.1284 * D * D * H * 0.001; // tonnes/tree

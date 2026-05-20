@@ -13,6 +13,7 @@ const HERO_BG =
   "linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.9) 100%)";
 
 function carbonCo2(age: number, trees: number): number {
+  if (age <= 0) return 0;
   const H = Math.min(2.0 + 1.8 * age, 28);
   const D = Math.min(3 + 4.5 * age, 60);
   const AGB = 0.1284 * D * D * H * 0.001;
@@ -350,7 +351,7 @@ function ForecastSection({
   if (milestones.length === 0) {
     return (
       <div style={{ marginTop: 12, padding: "16px", background: "rgba(148,163,184,0.03)", borderRadius: 14, fontSize: 12, color: "#94a3b8", textAlign: "center", border: "1.5px dashed rgba(148,163,184,0.15)" }}>
-        <i className="bi bi-graph-up-arrow me-2" style={{ opacity: 0.6 }} /> 
+        <i className="bi bi-graph-up-arrow me-2" style={{ opacity: 0.6 }} />
         ยังไม่มีข้อมูลการประมวลผลคาร์บอน
       </div>
     );
@@ -763,44 +764,44 @@ function EditPlotModal({ plot, onClose, onSave, isMobile }: { plot: SavedPlot; o
     <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.5)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
       <div style={{ background: "#fff", borderRadius: 20, width: "100%", maxWidth: 500, maxHeight: "90vh", overflow: "auto", padding: isMobile ? 20 : 30, boxShadow: "0 20px 40px rgba(0,0,0,0.2)" }}>
         <div style={{ fontSize: 20, fontWeight: 800, color: "#064e3b", marginBottom: 20, display: "flex", alignItems: "center", gap: 10 }}>
-          <i className="bi bi-pencil-square" style={{ color: "#10b981" }}/> แก้ไขข้อมูลแปลง
+          <i className="bi bi-pencil-square" style={{ color: "#10b981" }} /> แก้ไขข้อมูลแปลง
         </div>
-        
+
         <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 16 }}>
           <div style={{ gridColumn: "1 / -1" }}>
             <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: "#475569", marginBottom: 6 }}>ชื่อโครงการ</label>
-            <input type="text" value={formData.name} onChange={e => setFormData(f => ({...f, name: e.target.value}))} style={{ width: "100%", padding: "10px 14px", borderRadius: 10, border: "1px solid #cbd5e1", fontSize: 14 }} />
+            <input type="text" value={formData.name} onChange={e => setFormData(f => ({ ...f, name: e.target.value }))} style={{ width: "100%", padding: "10px 14px", borderRadius: 10, border: "1px solid #cbd5e1", fontSize: 14 }} />
           </div>
           <div>
             <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: "#475569", marginBottom: 6 }}>ชื่อเจ้าของ</label>
-            <input type="text" value={formData.ownerName} onChange={e => setFormData(f => ({...f, ownerName: e.target.value}))} style={{ width: "100%", padding: "10px 14px", borderRadius: 10, border: "1px solid #cbd5e1", fontSize: 14 }} />
+            <input type="text" value={formData.ownerName} onChange={e => setFormData(f => ({ ...f, ownerName: e.target.value }))} style={{ width: "100%", padding: "10px 14px", borderRadius: 10, border: "1px solid #cbd5e1", fontSize: 14 }} />
           </div>
           <div>
             <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: "#475569", marginBottom: 6 }}>จังหวัด</label>
-            <input type="text" value={formData.province} onChange={e => setFormData(f => ({...f, province: e.target.value}))} style={{ width: "100%", padding: "10px 14px", borderRadius: 10, border: "1px solid #cbd5e1", fontSize: 14 }} />
+            <input type="text" value={formData.province} onChange={e => setFormData(f => ({ ...f, province: e.target.value }))} style={{ width: "100%", padding: "10px 14px", borderRadius: 10, border: "1px solid #cbd5e1", fontSize: 14 }} />
           </div>
           <div>
             <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: "#475569", marginBottom: 6 }}>พื้นที่ (ไร่)</label>
-            <input type="number" step="0.01" value={formData.areaRai} onChange={e => setFormData(f => ({...f, areaRai: e.target.value}))} style={{ width: "100%", padding: "10px 14px", borderRadius: 10, border: "1px solid #cbd5e1", fontSize: 14 }} />
+            <input type="number" step="0.01" value={formData.areaRai} onChange={e => setFormData(f => ({ ...f, areaRai: e.target.value }))} style={{ width: "100%", padding: "10px 14px", borderRadius: 10, border: "1px solid #cbd5e1", fontSize: 14 }} />
           </div>
           <div>
             <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: "#475569", marginBottom: 6 }}>อายุยาง (ปี)</label>
-            <input type="number" value={formData.rubberAge} onChange={e => setFormData(f => ({...f, rubberAge: e.target.value}))} style={{ width: "100%", padding: "10px 14px", borderRadius: 10, border: "1px solid #cbd5e1", fontSize: 14 }} />
+            <input type="number" value={formData.rubberAge} onChange={e => setFormData(f => ({ ...f, rubberAge: e.target.value }))} style={{ width: "100%", padding: "10px 14px", borderRadius: 10, border: "1px solid #cbd5e1", fontSize: 14 }} />
           </div>
           <div>
             <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: "#475569", marginBottom: 6 }}>จำนวนต้น</label>
-            <input type="number" value={formData.trees} onChange={e => setFormData(f => ({...f, trees: e.target.value}))} style={{ width: "100%", padding: "10px 14px", borderRadius: 10, border: "1px solid #cbd5e1", fontSize: 14 }} />
+            <input type="number" value={formData.trees} onChange={e => setFormData(f => ({ ...f, trees: e.target.value }))} style={{ width: "100%", padding: "10px 14px", borderRadius: 10, border: "1px solid #cbd5e1", fontSize: 14 }} />
           </div>
           <div>
             <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: "#475569", marginBottom: 6 }}>ปีที่ปลูก (พ.ศ.)</label>
-            <input type="number" value={formData.plantYearBE} onChange={e => setFormData(f => ({...f, plantYearBE: e.target.value}))} style={{ width: "100%", padding: "10px 14px", borderRadius: 10, border: "1px solid #cbd5e1", fontSize: 14 }} />
+            <input type="number" value={formData.plantYearBE} onChange={e => setFormData(f => ({ ...f, plantYearBE: e.target.value }))} style={{ width: "100%", padding: "10px 14px", borderRadius: 10, border: "1px solid #cbd5e1", fontSize: 14 }} />
           </div>
         </div>
 
         <div style={{ display: "flex", gap: 12, marginTop: 24, justifyContent: "flex-end" }}>
           <button onClick={onClose} style={{ padding: "10px 20px", borderRadius: 10, border: "none", background: "#f1f5f9", color: "#475569", fontWeight: 700, cursor: "pointer" }}>ยกเลิก</button>
           <button onClick={handleSave} style={{ padding: "10px 20px", borderRadius: 10, border: "none", background: "#10b981", color: "#fff", fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}>
-            <i className="bi bi-floppy-disk"/> บันทึก
+            <i className="bi bi-floppy-disk" /> บันทึก
           </button>
         </div>
       </div>
@@ -985,7 +986,7 @@ function PlotCard({ plot, index, onDelete, onEdit, expanded, onToggle, isMobile 
       {expanded && (
         <div style={{ padding: "0 16px 20px", background: "#fff" }}>
           <div style={{ height: 1, background: "#f1f5f9", marginBottom: 16 }} />
-          
+
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
             <div style={{ width: 28, height: 28, borderRadius: 8, background: "rgba(16,185,129,0.1)", color: "#059669", display: "flex", alignItems: "center", justifyContent: "center" }}>
               <i className="bi bi-bar-chart-line-fill" style={{ fontSize: 12 }} />
@@ -1187,7 +1188,7 @@ export default function MyPlotsPage() {
   }, [filteredPlots]);
 
   const [expandedProjects, setExpandedProjects] = useState<Record<string, boolean>>({});
-  const toggleProject = (pName: string) => setExpandedProjects(prev => ({...prev, [pName]: !prev[pName]}));
+  const toggleProject = (pName: string) => setExpandedProjects(prev => ({ ...prev, [pName]: !prev[pName] }));
 
   const [editingPlot, setEditingPlot] = useState<SavedPlot | null>(null);
 
@@ -1204,7 +1205,7 @@ export default function MyPlotsPage() {
         const saved = ownerPlots.map((p: any) => p.id === updated.id ? updated : p);
         localStorage.setItem(key, JSON.stringify(saved));
       }
-      
+
       const globalKey = 'global_saved_plots';
       const globalRaw = localStorage.getItem(globalKey);
       if (globalRaw) {
@@ -1212,7 +1213,7 @@ export default function MyPlotsPage() {
         const savedGlobal = globalPlots.map((p: any) => p.id === updated.id ? updated : p);
         localStorage.setItem(globalKey, JSON.stringify(savedGlobal));
       }
-    } catch {}
+    } catch { }
     setEditingPlot(null);
   };
 
@@ -1477,9 +1478,9 @@ export default function MyPlotsPage() {
                         <h3 style={{ margin: 0, fontSize: isMobile ? 18 : 20, fontWeight: 800, color: "#064e3b" }}>{group.projectName}</h3>
                       </div>
                       <div style={{ display: "flex", flexWrap: "wrap", gap: 12, color: "#64748b", fontSize: 13, fontWeight: 500 }}>
-                        <span><i className="bi bi-map-fill me-1" style={{color:"#0ea5e9"}}/> {group.plots.length} แปลง</span>
-                        <span><i className="bi bi-grid-fill me-1" style={{color:"#10b981"}}/> {group.totalArea.toFixed(2)} ไร่</span>
-                        <span><i className="bi bi-cloud-arrow-up-fill me-1" style={{color:"#8b5cf6"}}/> {fmtCompact(group.totalCarbon)} tCO₂</span>
+                        <span><i className="bi bi-map-fill me-1" style={{ color: "#0ea5e9" }} /> {group.plots.length} แปลง</span>
+                        <span><i className="bi bi-grid-fill me-1" style={{ color: "#10b981" }} /> {group.totalArea.toFixed(2)} ไร่</span>
+                        <span><i className="bi bi-cloud-arrow-up-fill me-1" style={{ color: "#8b5cf6" }} /> {fmtCompact(group.totalCarbon)} tCO₂</span>
                       </div>
                     </div>
                     <div style={{ display: "flex", flexWrap: "wrap", gap: 10, width: isMobile ? "100%" : "auto" }}>
