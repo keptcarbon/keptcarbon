@@ -13,7 +13,7 @@ const HERO_BG =
   "linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.9) 100%)";
 
 function carbonCo2(age: number, trees: number): number {
-  if (age <= 0) return 0;
+
   const H = Math.min(2.0 + 1.8 * age, 28);
   const D = Math.min(3 + 4.5 * age, 60);
   const AGB = 0.1284 * D * D * H * 0.001;
