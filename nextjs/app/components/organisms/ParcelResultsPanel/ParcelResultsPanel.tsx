@@ -1793,7 +1793,7 @@ export function ParcelResultsPanel({
                             ) : saveState === "done" ? (
                                 <><i className="bi bi-check-circle-fill" /> บันทึกแล้ว</>
                             ) : (
-                                <><i className="bi bi-save" /> บันทึกข้อมูล</>
+                                <><i className="bi bi-save" /> บันทึกข้อมูลประมวลผล</>
                             )}
                         </button>
                         <button
@@ -1829,43 +1829,7 @@ export function ParcelResultsPanel({
                                 e.currentTarget.style.borderColor = "rgba(16, 185, 129, 0.25)";
                             }}
                         >
-                            <i className="bi bi-arrow-left-short" style={{ fontSize: "16px", fontWeight: "bold" }} /> แก้ไขข้อมูล
-                        </button>
-                        <button
-                            className="prp-btn-text"
-                            onClick={onReset}
-                            style={{
-                                flex: 1,
-                                height: "42px",
-                                padding: 0,
-                                margin: 0,
-                                boxSizing: "border-box",
-                                fontSize: "12.5px",
-                                fontWeight: 700,
-                                color: "#dc3545",
-                                cursor: "pointer",
-                                background: "rgba(220, 53, 69, 0.08)",
-                                border: "1.5px solid rgba(220, 53, 69, 0.25)",
-                                borderRadius: "14px",
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                gap: "4px",
-                                transition: "all 0.2s",
-                                outline: "none",
-                                textDecoration: "none",
-                                boxShadow: "0 2px 5px rgba(220, 53, 69, 0.05)"
-                            }}
-                            onMouseOver={(e) => {
-                                e.currentTarget.style.background = "rgba(220, 53, 69, 0.16)";
-                                e.currentTarget.style.borderColor = "rgba(220, 53, 69, 0.45)";
-                            }}
-                            onMouseOut={(e) => {
-                                e.currentTarget.style.background = "rgba(220, 53, 69, 0.08)";
-                                e.currentTarget.style.borderColor = "rgba(220, 53, 69, 0.25)";
-                            }}
-                        >
-                            <i className="bi bi-x-circle" style={{ fontSize: "12px" }} /> ไม่บันทึก
+                            <i className="bi bi-arrow-left-short" style={{ fontSize: "16px", fontWeight: "bold" }} /> ย้อนกลับ
                         </button>
                     </div>
                     {isTotal ? (
