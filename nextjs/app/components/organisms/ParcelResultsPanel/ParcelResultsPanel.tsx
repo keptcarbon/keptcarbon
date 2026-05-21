@@ -1013,10 +1013,6 @@ export function ParcelResultsPanel({
     // Removed: if (!(searchRunning || searchErr || searchCount !== null)) return null;
 
     const handleSave = async (overrideResults?: CarbonResult[]) => {
-        if (hasEmptyStatus) {
-            setCarbonErr("กรุณากรอกสถานะแปลงให้ครบทุกแปลงก่อนทำการบันทึก");
-            return;
-        }
         const resultsToSave = overrideResults || carbonResults;
         const hasCarbonResults = resultsToSave.length > 0;
 
@@ -1071,15 +1067,22 @@ export function ParcelResultsPanel({
                     } : { yr3: 0, yr5: 0, yr7: 0 },
                 };
             });
-            const newPlotIds = new Set(newPlots.map(p => p.id));
+            const newPlotsWithStatus = newPlots.filter(p => p.plantStatus);
+            if (newPlotsWithStatus.length === 0) {
+                setCarbonErr("กรุณาเลือกสถานะแปลงอย่างน้อย 1 แปลงก่อนบันทึก");
+                setSaveState("idle");
+                return;
+            }
+            const newPlotIds = new Set(newPlotsWithStatus.map(p => p.id));
             const filteredExisting = existing.filter((p: any) => !newPlotIds.has(p.id));
-            localStorage.setItem(key, JSON.stringify([...newPlots, ...filteredExisting]));
+            localStorage.setItem(key, JSON.stringify([...newPlotsWithStatus, ...filteredExisting]));
             const globalKey = "global_saved_plots";
             const globalExisting = JSON.parse(localStorage.getItem(globalKey) || "[]");
             const filteredGlobalExisting = globalExisting.filter((p: any) => !newPlotIds.has(p.id));
-            localStorage.setItem(globalKey, JSON.stringify([...newPlots, ...filteredGlobalExisting]));
+            localStorage.setItem(globalKey, JSON.stringify([...newPlotsWithStatus, ...filteredGlobalExisting]));
         } catch (e) { console.error(e); }
         setSaveState("done");
+        setTimeout(() => setSaveState("idle"), 2000);
     };
 
 
@@ -1208,7 +1211,7 @@ export function ParcelResultsPanel({
                     <button
                         className="prp-btn-primary"
                         onClick={() => handleSave([])}
-                        disabled={!projectName.trim() || hasEmptyStatus || saveState !== "idle"}
+                        disabled={!projectName.trim() || saveState === "saving"}
                         style={{
                             flex: 1, padding: isMobile ? "8px 2px" : "10px 4px", fontSize: isMobile ? 11 : 12, display: "flex", flexDirection: "column", alignItems: "center", gap: isMobile ? 4 : 6,
                             background: saveState === "done" ? "#94a3b8" : ((projectName.trim() && !hasEmptyStatus) ? "linear-gradient(135deg,#0ea5e9,#0284c7)" : "#cbd5e1"),
