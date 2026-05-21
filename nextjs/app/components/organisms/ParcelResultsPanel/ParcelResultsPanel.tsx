@@ -1,6 +1,6 @@
 "use client";
 import { useState, useMemo, useEffect, useRef } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { carbonForAge } from "@/lib/map-utils";
 import { useAuth } from "@/lib/auth-context";
 import { CarbonBarChart, buildBarPoints, carbonCo2, CUT_AGE, type BarPoint } from "./CarbonBarChart";
@@ -547,7 +547,6 @@ export function ParcelResultsPanel({
     const [forecastYrs, setForecastYrs] = useState<Record<number, ForecastYr>>({});
     const [summaryFcYrs, setSummaryFcYrs] = useState<ForecastYr>(7);
     const { user } = useAuth();
-    const router = useRouter();
 
     const plots = useMemo(() => parcelFeatures.map(computePlot), [parcelFeatures]);
     const totalArea = useMemo(() => plots.reduce((s, p) => s + p.areaRai, 0), [plots]);
@@ -757,31 +756,7 @@ export function ParcelResultsPanel({
             onLandUseChange?.(allChecked, expandedIdx);
         }
     }, [currentStep, expandedIdx, plotForms, onMapPlotSelected, onLandUseChange]);
-    // Auto-collapse the expanded plot when it first gets a plantStatus (transitions empty → filled)
-    const expandedStatusTrackRef = useRef<{ idx: number | null; status: string }>({ idx: null, status: "" });
-    useEffect(() => {
-        const prev = expandedStatusTrackRef.current;
-
-        // expandedIdx changed — reset tracking to the new plot's current status
-        if (expandedIdx !== prev.idx) {
-            expandedStatusTrackRef.current = {
-                idx: expandedIdx,
-                status: expandedIdx !== null ? (plotForms[expandedIdx]?.plantStatus || "") : "",
-            };
-            return;
-        }
-
-        if (expandedIdx === null) return;
-
-        const currStatus = plotForms[expandedIdx]?.plantStatus || "";
-        if (!prev.status && currStatus) {
-            // Status was just set on the currently expanded plot — collapse after short delay
-            const timer = setTimeout(() => setExpandedIdx(null), 700);
-            expandedStatusTrackRef.current = { idx: expandedIdx, status: currStatus };
-            return () => clearTimeout(timer);
-        }
-        expandedStatusTrackRef.current = { idx: expandedIdx, status: currStatus };
-    }, [expandedIdx, plotForms]);
+    // (removed auto-collapse: expanded content stays visible when selecting status)
 
     const [carbonResults, setCarbonResults] = useState<CarbonResult[]>([]);
     const [backendResponses, setBackendResponses] = useState<EstimationResponse[] | null>(null);
@@ -807,7 +782,10 @@ export function ParcelResultsPanel({
                     for (let i = next.length; i < plots.length; i++) {
                         const feat = parcelFeatures[i];
                         const props = feat?.properties as any || {};
-                        const initialLU = { A: true, A302: true };
+                        const savedLU = props.luChecked;
+                        const initialLU = (savedLU && typeof savedLU === 'object' && !Array.isArray(savedLU))
+                            ? savedLU
+                            : { A: true, A302: true };
 
                         let initialStatus: "new" | "old" | "" = "";
                         if (props.plantYearBE) {
@@ -1078,6 +1056,8 @@ export function ParcelResultsPanel({
                     trees,
                     variety: form?.variety || cr?.variety || "",
                     spacing,
+                    luChecked: form?.luChecked || { A: true, A302: true },
+                    plantStatus: form?.plantStatus || "",
                     confidence: p.confidence,
                     ownerName: ownerName || props.owner_name || "",
                     province: province || dominantProvince,
@@ -1100,7 +1080,6 @@ export function ParcelResultsPanel({
             localStorage.setItem(globalKey, JSON.stringify([...newPlots, ...filteredGlobalExisting]));
         } catch (e) { console.error(e); }
         setSaveState("done");
-        setTimeout(() => router.push("/my-plots"), 1500);
     };
 
 
@@ -1229,19 +1208,23 @@ export function ParcelResultsPanel({
                     <button
                         className="prp-btn-primary"
                         onClick={() => handleSave([])}
-                        disabled={!projectName.trim() || hasEmptyStatus || saveState === "saving"}
+                        disabled={!projectName.trim() || hasEmptyStatus || saveState !== "idle"}
                         style={{
                             flex: 1, padding: isMobile ? "8px 2px" : "10px 4px", fontSize: isMobile ? 11 : 12, display: "flex", flexDirection: "column", alignItems: "center", gap: isMobile ? 4 : 6,
-                            background: (projectName.trim() && !hasEmptyStatus) ? "linear-gradient(135deg,#0ea5e9,#0284c7)" : "#cbd5e1",
+                            background: saveState === "done" ? "#94a3b8" : ((projectName.trim() && !hasEmptyStatus) ? "linear-gradient(135deg,#0ea5e9,#0284c7)" : "#cbd5e1"),
                             color: "#fff", border: "none", borderRadius: isMobile ? 10 : 12,
-                            cursor: (projectName.trim() && !hasEmptyStatus) ? "pointer" : "not-allowed",
-                            boxShadow: (projectName.trim() && !hasEmptyStatus) ? "0 4px 10px rgba(2,132,199,0.2)" : "none"
+                            cursor: saveState !== "idle" ? "not-allowed" : ((projectName.trim() && !hasEmptyStatus) ? "pointer" : "not-allowed"),
+                            boxShadow: saveState === "done" ? "none" : ((projectName.trim() && !hasEmptyStatus) ? "0 4px 10px rgba(2,132,199,0.2)" : "none"),
+                            opacity: saveState === "done" ? 0.6 : 1,
+                            transition: "all 0.3s"
                         }}
                     >
                         {saveState === "saving" ? (
                             <><span className="s1-spin" style={{ width: isMobile ? 16 : 18, height: isMobile ? 16 : 18, border: "2px solid rgba(255,255,255,0.3)", borderTopColor: "#fff" }} /> <span style={{ fontWeight: 600, textAlign: "center", lineHeight: 1.2 }}>กำลังบันทึก</span></>
+                        ) : saveState === "done" ? (
+                            <><i className="bi bi-check-circle-fill" style={{ fontSize: isMobile ? 16 : 18 }} /> <span style={{ fontWeight: 600, textAlign: "center", lineHeight: 1.2 }}>บันทึกแล้ว ✓</span></>
                         ) : (
-                            <><i className="bi bi-save" style={{ fontSize: isMobile ? 16 : 18 }} /> <span style={{ fontWeight: 600, textAlign: "center", lineHeight: 1.2 }}>บันทึกข้อมูล</span></>
+                            <><i className="bi bi-save" style={{ fontSize: isMobile ? 16 : 18 }} /> <span style={{ fontWeight: 600, textAlign: "center", lineHeight: 1.2 }}>บันทึกข้อมูลแปลง</span></>
                         )}
                     </button>
                     <button
@@ -1337,18 +1320,43 @@ export function ParcelResultsPanel({
                                                 <i className="bi bi-info-circle" style={{ color: "#10b981" }} /> สถานะแปลง <span style={{ color: "#ef4444" }}>*</span>
                                             </div>
                                             <div style={{ display: "flex", gap: 16 }}>
-                                                <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, cursor: "pointer" }}>
-                                                    <input type="radio" name={`status-${i}`} value="new" checked={form.plantStatus === "new"} onChange={() => { updateForm(i, "plantStatus", "new"); updateForm(i, "plantYear", String(CURRENT_BE)); onProjectTypeChange?.("replanting"); }} />
+                                                <div onClick={() => { updateForm(i, "plantStatus", "new"); updateForm(i, "plantYear", String(CURRENT_BE)); onProjectTypeChange?.("replanting"); }} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, cursor: "pointer", userSelect: "none" }}>
+                                                    <div style={{ width: 18, height: 18, borderRadius: "50%", border: "2px solid", borderColor: form.plantStatus === "new" ? "#10b981" : "#cbd5e1", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "all 0.2s" }}>
+                                                        {form.plantStatus === "new" && <div style={{ width: 10, height: 10, borderRadius: "50%", background: "#10b981" }} />}
+                                                    </div>
                                                     เริ่มปลูก
-                                                </label>
-                                                <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, cursor: "pointer" }}>
-                                                    <input type="radio" name={`status-${i}`} value="old" checked={form.plantStatus === "old"} onChange={() => { updateForm(i, "plantStatus", "old"); updateForm(i, "plantYear", ""); onProjectTypeChange?.("existing"); }} />
+                                                </div>
+                                                <div onClick={() => { updateForm(i, "plantStatus", "old"); updateForm(i, "plantYear", ""); onProjectTypeChange?.("existing"); }} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, cursor: "pointer", userSelect: "none" }}>
+                                                    <div style={{ width: 18, height: 18, borderRadius: "50%", border: "2px solid", borderColor: form.plantStatus === "old" ? "#10b981" : "#cbd5e1", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "all 0.2s" }}>
+                                                        {form.plantStatus === "old" && <div style={{ width: 10, height: 10, borderRadius: "50%", background: "#10b981" }} />}
+                                                    </div>
                                                     ปลูกมาแล้ว
-                                                </label>
+                                                </div>
                                             </div>
+                                            {!form.plantStatus && (
+                                                <div style={{ fontSize: 11, color: "#f59e0b", marginTop: 8, display: "flex", alignItems: "center", gap: 4 }}>
+                                                    <i className="bi bi-exclamation-circle-fill" /> กรุณาเลือกสถานะแปลงก่อนจึงจะกรอกข้อมูลด้านล่างได้
+                                                </div>
+                                            )}
                                         </div>
 
                                         {/* Fields grid */}
+                                        <div style={{
+                                            position: "relative",
+                                            opacity: form.plantStatus ? 1 : 0.4,
+                                            transition: "opacity 0.3s",
+                                            pointerEvents: form.plantStatus ? "auto" : "none",
+                                        }}>
+                                            {!form.plantStatus && (
+                                                <div style={{
+                                                    position: "absolute", inset: 0, background: "rgba(248,250,252,0.6)",
+                                                    zIndex: 5, borderRadius: 8,
+                                                    display: "flex", alignItems: "center", justifyContent: "center",
+                                                    fontSize: 12, color: "#94a3b8", gap: 6
+                                                }}>
+                                                    <i className="bi bi-lock-fill" /> รอเลือกสถานะแปลงก่อน
+                                                </div>
+                                            )}
                                         <div style={{
                                             display: "grid",
                                             gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr",
@@ -1562,6 +1570,7 @@ export function ParcelResultsPanel({
                                                 ) : null;
                                             })()}
                                         </div>
+                                    </div>
                                     </>
                                 )}
                             </div>
