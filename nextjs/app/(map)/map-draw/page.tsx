@@ -782,7 +782,7 @@ function MapDrawContent() {
 
     console.log("[AUTO-LOAD] Effect triggered", { projName, action, currentDrawnCount: drawnParcels.length });
 
-    if (projName && action === "calc" && drawnParcels.length === 0) {
+    if (projName && drawnParcels.length === 0) {
       try {
         const key = `user_saved_plots_${user.id}`;
         const storedRaw = localStorage.getItem(key);
