@@ -350,18 +350,10 @@ export default function Home() {
                 <div className="contact-divider"></div>
 
                 <div className="contact-info-row">
-                  <i className="bi bi-telephone"></i>
-                  <div>
-                    <strong>เบอร์โทรศัพท์</strong>
-                    (02) 564-4440 – 59 ต่อ 2101 – 3 กด 408
-                  </div>
-                </div>
-
-                <div className="contact-info-row">
                   <i className="bi bi-envelope-at"></i>
                   <div>
                     <strong>อีเมล</strong>
-                    sangdao@mathstat.sci.tu.ac.th
+                    keptcarbon@gmail.com
                   </div>
                 </div>
               </div>

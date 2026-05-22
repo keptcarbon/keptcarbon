@@ -981,6 +981,8 @@ function MapDrawContent() {
     if (!map) return;
     const onClick = (e: maplibregl.MapMouseEvent) => {
       if (!drawingRef.current) return;
+      // skip click if it was the end of a vertex drag
+      if (wasDragging) { wasDragging = false; return; }
       const pts = vertsRef.current;
 
       // Auto-close polygon if clicking near the first point
@@ -1006,57 +1008,82 @@ function MapDrawContent() {
       finishDraw();
     };
 
-    // Custom edit logic
-    const onLineClick = (e: maplibregl.MapMouseEvent) => {
-      // Edit logic is disabled for multi-parcel for now to keep it simple, 
-      // but we could implement it by finding which parcel was clicked.
-      if (drawingRef.current) return;
-    };
-
-    let dragIdx = -1;
-    const onMove = (ev: maplibregl.MapMouseEvent) => {
-      if (dragIdx === -1) return;
-      vertsRef.current[dragIdx] = [ev.lngLat.lng, ev.lngLat.lat];
-      previewDraw();
-    };
-    const onUp = () => {
-      if (dragIdx !== -1) {
-        dragIdx = -1;
-        map.getCanvas().style.cursor = 'grab';
-        map.off('mousemove', onMove);
-        map.off('mouseup', onUp);
-        if (!drawingRef.current && vertsRef.current.length >= 3) {
-          finishDraw(true);
-        }
-      }
-    };
-    const onVertsDown = (e: maplibregl.MapMouseEvent) => {
-      e.preventDefault();
-      const pts = vertsRef.current;
-      let minDist = Infinity;
-      pts.forEach((p, i) => {
-        const d = Math.hypot(p[0] - e.lngLat.lng, p[1] - e.lngLat.lat);
-        if (d < minDist) { minDist = d; dragIdx = i; }
-      });
-      map.getCanvas().style.cursor = 'grabbing';
-      map.on('mousemove', onMove);
-      map.on('mouseup', onUp);
-    };
-
     const onContextMenu = (e: maplibregl.MapMouseEvent) => {
       e.preventDefault();
       if (!drawingRef.current || vertsRef.current.length < 3) return;
       finishDraw();
     };
 
+    // ── Vertex drag during drawing mode ──────────────────────────────────────
+    let dragIdx = -1;
+    let wasDragging = false;
+
+    const SNAP_PX = 16; // pixel radius to hit a vertex
+
+    const onDrawMouseMove = (ev: maplibregl.MapMouseEvent) => {
+      if (!drawingRef.current) return;
+      if (dragIdx !== -1) {
+        // actively dragging
+        wasDragging = true;
+        vertsRef.current[dragIdx] = [ev.lngLat.lng, ev.lngLat.lat];
+        previewDraw();
+        return;
+      }
+      // hover cursor: change to 'move' when near any temp vertex
+      const pts = vertsRef.current;
+      let near = false;
+      for (const p of pts) {
+        const proj = map.project(p as [number, number]);
+        if (Math.hypot(proj.x - ev.point.x, proj.y - ev.point.y) < SNAP_PX) { near = true; break; }
+      }
+      map.getCanvas().style.cursor = near ? 'move' : 'crosshair';
+    };
+
+    const onDrawMouseDown = (e: maplibregl.MapMouseEvent) => {
+      if (!drawingRef.current) return;
+      const pts = vertsRef.current;
+      if (!pts.length) return;
+
+      // find nearest temp vertex in screen space
+      let nearIdx = -1;
+      let minD = Infinity;
+      pts.forEach((p, i) => {
+        const proj = map.project(p as [number, number]);
+        const d = Math.hypot(proj.x - e.point.x, proj.y - e.point.y);
+        if (d < SNAP_PX && d < minD) { minD = d; nearIdx = i; }
+      });
+
+      if (nearIdx !== -1) {
+        dragIdx = nearIdx;
+        wasDragging = false;
+        map.getCanvas().style.cursor = 'grabbing';
+        map.dragPan.disable();
+      }
+    };
+
+    const onDrawMouseUp = () => {
+      if (dragIdx !== -1) {
+        dragIdx = -1;
+        map.getCanvas().style.cursor = 'crosshair';
+        map.dragPan.enable();
+      }
+    };
+
     map.on("click", onClick);
     map.on("dblclick", onDbl);
     map.on("contextmenu", onContextMenu);
+    map.on("mousemove", onDrawMouseMove);
+    map.on("mousedown", onDrawMouseDown);
+    map.on("mouseup", onDrawMouseUp);
 
     return () => {
       map.off("click", onClick);
       map.off("dblclick", onDbl);
       map.off("contextmenu", onContextMenu);
+      map.off("mousemove", onDrawMouseMove);
+      map.off("mousedown", onDrawMouseDown);
+      map.off("mouseup", onDrawMouseUp);
+      map.dragPan.enable();
     };
   }, [previewDraw, finishDraw]);
 
@@ -1841,7 +1868,7 @@ function MapDrawContent() {
                       <>
                         <div className="mds-draw-hint">
                           <div className="mds-dot-pulse" />
-                          คลิกบนแผนที่เพื่อเพิ่มจุด · <strong>Double-click</strong> หรือกดปุ่ม <strong>"เสร็จสิ้น"</strong> เพื่อจบการวาด
+                          คลิกบนแผนที่เพื่อเพิ่มจุด · <strong>คลิกขวา</strong>, <strong>Double-click</strong> หรือกดปุ่ม <strong>"เสร็จสิ้น"</strong> เพื่อจบการวาด
                         </div>
                         <div style={{ display: "flex", gap: "8px", marginTop: "10px", flexWrap: "wrap" }}>
                           <button
@@ -1865,7 +1892,16 @@ function MapDrawContent() {
                           <ol className="mds-instr-list">
                             <li>คลิกปุ่ม <strong>&ldquo;เริ่มวาดแปลง&rdquo;</strong></li>
                             <li>คลิกบนแผนที่เพื่อเพิ่มจุดขอบเขต (อย่างน้อย 3 จุด)</li>
-                            <li>กดปุ่ม <strong>&ldquo;เสร็จสิ้น วาดแปลง&rdquo;</strong> หรือ Double-click เพื่อจบการวาด</li>
+                            <li>
+                              <span>จบการวาดด้วย</span>
+                              <span style={{ display: "inline-flex", flexWrap: "wrap", alignItems: "center", gap: "5px", marginLeft: "5px" }}>
+                                <span style={{ background: "rgba(5,150,105,0.12)", color: "#047857", padding: "2px 9px", borderRadius: "6px", fontWeight: 700, fontSize: "12px", whiteSpace: "nowrap" }}>เสร็จสิ้น</span>
+                                <span style={{ color: "#cbd5e1", fontWeight: 400 }}>·</span>
+                                <span style={{ background: "rgba(5,150,105,0.12)", color: "#047857", padding: "2px 9px", borderRadius: "6px", fontWeight: 700, fontSize: "12px", whiteSpace: "nowrap" }}>คลิกขวา</span>
+                                <span style={{ color: "#cbd5e1", fontWeight: 400 }}>·</span>
+                                <span style={{ background: "rgba(5,150,105,0.12)", color: "#047857", padding: "2px 9px", borderRadius: "6px", fontWeight: 700, fontSize: "12px", whiteSpace: "nowrap" }}>Double-click</span>
+                              </span>
+                            </li>
                           </ol>
                         )}
 

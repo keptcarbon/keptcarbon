@@ -1374,7 +1374,7 @@ export function ParcelResultsPanel({
                                                     <div style={{ width: 18, height: 18, borderRadius: "50%", border: "2px solid", borderColor: form.plantStatus === "replanting" ? "#10b981" : "#cbd5e1", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "all 0.2s" }}>
                                                         {form.plantStatus === "replanting" && <div style={{ width: 10, height: 10, borderRadius: "50%", background: "#10b981" }} />}
                                                     </div>
-                                                    เริ่มปลูก
+                                                    เริ่มปลูกใหม่
                                                 </div>
                                                 <div onClick={() => { updateForm(i, "plantStatus", "existing"); updateForm(i, "plantYear", ""); onProjectTypeChange?.("existing"); }} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, cursor: "pointer", userSelect: "none" }}>
                                                     <div style={{ width: 18, height: 18, borderRadius: "50%", border: "2px solid", borderColor: form.plantStatus === "existing" ? "#10b981" : "#cbd5e1", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "all 0.2s" }}>
