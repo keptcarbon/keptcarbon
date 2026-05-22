@@ -2024,7 +2024,7 @@ export function ParcelResultsPanel({
                                                                 <div style={{ display: "flex", flexDirection: "column", gap: 2, paddingLeft: 8 }}>
                                                                     {Object.entries(crInfo.luBreakdown).map(([cls, info]) => (
                                                                         <div key={cls} style={{ display: "flex", justifyContent: "space-between", color: "#059669", fontWeight: 600 }}>
-                                                                            <span>↳ {info.desc}:</span>
+                                                                            <span>↳ {cls} {info.desc}:</span>
                                                                             <span>{info.rai.toFixed(2)} ไร่ ({info.pct}%)</span>
                                                                         </div>
                                                                     ))}
