@@ -518,30 +518,30 @@ function EstimatedParamsCard({ params }: { params: EstimatedParameters }) {
     const yearNotes = (yearParam.note ?? []).slice(0, 5);
 
     return (
-        <div style={{ marginTop: 8, paddingTop: 8, borderTop: "1px dashed rgba(14,165,233,0.2)", fontSize: 11 }}>
+        <div style={{ marginTop: 8, paddingTop: 8, borderTop: "1px dashed rgba(14,165,233,0.2)", fontSize: 13 }}>
             <div style={{ fontWeight: 700, color: "#0284c7", marginBottom: 6, display: "flex", alignItems: "center", gap: 4 }}>
                 <i className="bi bi-cpu" /> พารามิเตอร์จากระบบ
             </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                 {/* Year used */}
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", color: "#475569" }}>
                     <span>• ปีที่ปลูก (ใช้คำนวณ)</span>
                     <span style={{ display: "flex", alignItems: "center", gap: 4, color: "#0f172a", fontWeight: 700 }}>
                         {usedYearBE ? `พ.ศ. ${usedYearBE}` : "—"}
-                        <span style={{ fontSize: 9, padding: "1px 5px", borderRadius: 4, background: isUserInput ? "rgba(16,185,129,0.1)" : "rgba(14,165,233,0.1)", color: isUserInput ? "#059669" : "#0284c7", fontWeight: 700 }}>
+                        <span style={{ fontSize: 11, padding: "2px 6px", borderRadius: 4, background: isUserInput ? "rgba(16,185,129,0.1)" : "rgba(14,165,233,0.1)", color: isUserInput ? "#059669" : "#0284c7", fontWeight: 700 }}>
                             {isUserInput ? "ระบุเอง" : "จากดาวเทียม"}
                         </span>
                     </span>
                 </div>
                 {/* Year distribution from raster */}
                 {yearNotes.length > 0 && (
-                    <div style={{ marginLeft: 8, marginTop: 2, padding: "5px 8px", background: "rgba(14,165,233,0.04)", borderRadius: 6, border: "1px solid rgba(14,165,233,0.12)" }}>
-                        <div style={{ fontSize: 10, color: "#64748b", fontWeight: 700, marginBottom: 3 }}>
+                    <div style={{ marginLeft: 8, marginTop: 2, padding: "6px 10px", background: "rgba(14,165,233,0.04)", borderRadius: 6, border: "1px solid rgba(14,165,233,0.12)" }}>
+                        <div style={{ fontSize: 12, color: "#64748b", fontWeight: 700, marginBottom: 4 }}>
                             <i className="bi bi-satellite" style={{ marginRight: 4 }} />การกระจายปีที่ตรวจพบ:
                         </div>
-                        <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
                             {yearNotes.map((note, ni) => (
-                                <span key={ni} style={{ fontSize: 10, color: ni === 0 ? "#0369a1" : "#94a3b8", fontWeight: ni === 0 ? 700 : 400 }}>
+                                <span key={ni} style={{ fontSize: 12, color: ni === 0 ? "#0369a1" : "#94a3b8", fontWeight: ni === 0 ? 700 : 400 }}>
                                     {ni === 0 ? "▶ " : "  "}{convertYearNoteToBE(note)}
                                 </span>
                             ))}
@@ -549,7 +549,7 @@ function EstimatedParamsCard({ params }: { params: EstimatedParameters }) {
                     </div>
                 )}
                 {/* Clone, tree count, spacing */}
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "2px 8px", marginTop: 2, color: "#475569" }}>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "4px 8px", marginTop: 2, color: "#475569" }}>
                     <div>• พันธุ์ยาง: <strong style={{ color: "#0f172a" }}>{String(params.rubber_clone.value)}</strong></div>
                     <div>• จำนวนต้น: <strong style={{ color: "#0f172a" }}>{Number(params.tree_count.value).toLocaleString("th-TH")}</strong> ต้น</div>
                     <div style={{ gridColumn: "1 / -1" }}>• ระยะปลูก: <strong style={{ color: "#0f172a" }}>{String(params.spacing_system.value)}</strong></div>
@@ -1898,9 +1898,9 @@ export function ParcelResultsPanel({
                                 {[
                                     { label: "คาร์บอนปัจจุบัน", val: `${Math.round(cr.co2Now).toLocaleString()} tCO₂`, color: "#0d9488" },
                                 ].map(({ label, val, color }) => (
-                                    <div key={label} style={{ background: "#fff", borderRadius: 10, padding: "8px 8px", textAlign: "center", border: "1px solid rgba(0,0,0,0.06)", display: "flex", alignItems: "center", justifyContent: "center", gap: 10 }}>
-                                        <div style={{ fontSize: isMobile ? 16 : 17, fontWeight: 800, color }}>{val}</div>
-                                        <div style={{ fontSize: 11, color: "#94a3b8", fontWeight: 500 }}>{label}</div>
+                                    <div key={label} style={{ background: "#fff", borderRadius: 10, padding: "12px 8px", textAlign: "center", border: "1px solid rgba(0,0,0,0.06)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4 }}>
+                                        <div style={{ fontSize: 12, color: "#64748b", fontWeight: 600 }}>{label}</div>
+                                        <div style={{ fontSize: isMobile ? 18 : 22, fontWeight: 800, color }}>{val}</div>
                                     </div>
                                 ))}
                             </div>
@@ -1995,12 +1995,12 @@ export function ParcelResultsPanel({
                                                         <i className="bi bi-geo-alt-fill" style={{ color: isSel ? "#10b981" : "#64748b" }} />
                                                         แปลงที่ {i + 1} ({p.areaRai.toFixed(2)} ไร่)
                                                     </div>
-                                                    <div style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 11, color: "#64748b" }}>
-                                                        <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                                                    <div style={{ display: "flex", flexDirection: "column", gap: 5, fontSize: 13, color: "#64748b" }}>
+                                                        <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
                                                             <div>• ปีที่ปลูกที่ใช้ประมวลผล: <strong>พ.ศ. {crInfo.plantYearBE}</strong></div>
                                                         </div>
                                                         {(f.variety || f.treeCount || f.spacing) && (
-                                                        <div style={{ display: "flex", flexDirection: "column", gap: 2, marginTop: 2 }}>
+                                                        <div style={{ display: "flex", flexDirection: "column", gap: 3, marginTop: 2 }}>
                                                             {f.variety && <div>• พันธุ์ยาง: {crInfo.variety}</div>}
                                                             {f.treeCount && <div>• จำนวนต้น: {crInfo.trees.toLocaleString("th-TH")} ต้น</div>}
                                                             {f.spacing && <div>• ระยะปลูก: {crInfo.spacing} ม.</div>}
@@ -2015,13 +2015,13 @@ export function ParcelResultsPanel({
                                                             : null;
                                                     })()}
                                                     {crInfo.selectedAreaRai !== undefined && (
-                                                        <div style={{ marginTop: 6, paddingTop: 6, borderTop: "1px dashed rgba(16,185,129,0.15)", fontSize: 11 }}>
-                                                            <div style={{ display: "flex", justifyContent: "space-between", color: "#0284c7", fontWeight: 700, marginBottom: 4 }}>
+                                                        <div style={{ marginTop: 6, paddingTop: 6, borderTop: "1px dashed rgba(16,185,129,0.15)", fontSize: 13 }}>
+                                                            <div style={{ display: "flex", justifyContent: "space-between", color: "#0284c7", fontWeight: 700, marginBottom: 5 }}>
                                                                 <span>• พื้นที่ที่เลือกทั้งหมด:</span>
                                                                 <span>{crInfo.selectedAreaRai.toFixed(2)} ไร่</span>
                                                             </div>
                                                             {crInfo.luBreakdown && Object.keys(crInfo.luBreakdown).length > 0 && (
-                                                                <div style={{ display: "flex", flexDirection: "column", gap: 2, paddingLeft: 8 }}>
+                                                                <div style={{ display: "flex", flexDirection: "column", gap: 4, paddingLeft: 8 }}>
                                                                     {Object.entries(crInfo.luBreakdown).map(([cls, info]) => (
                                                                         <div key={cls} style={{ display: "flex", justifyContent: "space-between", color: "#059669", fontWeight: 600 }}>
                                                                             <span>↳ {cls} {info.desc}:</span>

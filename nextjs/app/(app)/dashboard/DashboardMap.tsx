@@ -130,25 +130,118 @@ export default function DashboardMap({
       }
 
       map.addSource("plots-boundary", { type: "geojson", data: { type: "FeatureCollection", features: boundaryFeatures } });
-      map.addLayer({ id: "plots-boundary-fill", type: "fill", source: "plots-boundary", paint: { "fill-color": "#22d3ee", "fill-opacity": 0.10 } });
-      map.addLayer({ id: "plots-boundary-line", type: "line", source: "plots-boundary", paint: { "line-color": "#06b6d4", "line-width": 2, "line-dasharray": [3, 2] } });
+      map.addLayer({ id: "plots-boundary-fill", type: "fill", source: "plots-boundary", paint: { "fill-color": "#f97316", "fill-opacity": 0.12 } });
+      map.addLayer({ id: "plots-boundary-line", type: "line", source: "plots-boundary", paint: { "line-color": "#ea580c", "line-width": 2.5 } });
       map.addSource("plots-detected", { type: "geojson", data: { type: "FeatureCollection", features: detectedFeatures } });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       map.addLayer({ id: "plots-detected-fill", type: "fill", source: "plots-detected", paint: {
         "fill-color": ["interpolate", ["linear"], ["get", "carbon"],
-          0,   "#fef08a",   // ต่ำ  — เหลืองอ่อน
-          100, "#34d399",   // ปานกลาง — เขียวมรกต
-          250, "#f97316",   // สูง   — ส้ม
+          0,   "#d1fae5",
+          30,  "#6ee7b7",
+          80,  "#34d399",
+          150, "#10b981",
+          280, "#059669",
+          500, "#047857",
         ] as any,
-        "fill-opacity": ["interpolate", ["linear"], ["get", "carbon"],
-          0, 0.70,
-          250, 0.92,
-        ] as any,
+        "fill-opacity": 0.85,
       } } as any); // eslint-disable-line
-      map.addLayer({ id: "plots-detected-line", type: "line", source: "plots-detected", paint: { "line-color": "#1e1b4b", "line-width": 0.8, "line-opacity": 0.55 } });
+      map.addLayer({ id: "plots-detected-line", type: "line", source: "plots-detected", paint: { "line-color": "#065f46", "line-width": 0.6, "line-opacity": 0.45 } });
 
 
       // ── District markers ───────────────────────────────────────────────────
-      // District markers removed based on user request
+      if (districts.length > 0) {
+        const features: GeoJSON.Feature[] = districts.map(d => ({
+          type: "Feature",
+          geometry: { type: "Point", coordinates: [d.lng, d.lat] } as GeoJSON.Point,
+          properties: { id: d.id, name: d.name, carbon: d.carbon, plots: d.plots },
+        }));
+
+        map.addSource("districts", {
+          type: "geojson",
+          data: { type: "FeatureCollection", features },
+        });
+
+        // Soft glow ring (pulse effect)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        map.addLayer({
+          id: "districts-glow",
+          type: "circle",
+          source: "districts",
+          paint: {
+            "circle-radius": ["interpolate", ["linear"], ["get", "carbon"], CARBON_MIN, 26, CARBON_MAX, 50],
+            "circle-color": ["interpolate", ["linear"], ["get", "carbon"], CARBON_MIN, "#4ade80", 75000, "#16a34a", CARBON_MAX, "#14532d"],
+            "circle-opacity": 0.2,
+            "circle-blur": 1.4,
+          },
+        } as any); // eslint-disable-line
+
+        // Main circle — colored by carbon level
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        map.addLayer({
+          id: "districts-circle",
+          type: "circle",
+          source: "districts",
+          paint: {
+            "circle-radius": ["interpolate", ["linear"], ["get", "carbon"],
+              CARBON_MIN, 13,
+              50000, 18,
+              80000, 24,
+              CARBON_MAX, 30,
+            ],
+            "circle-color": ["interpolate", ["linear"], ["get", "carbon"],
+              CARBON_MIN, "#4ade80",
+              40000, "#34d399",
+              60000, "#22c55e",
+              90000, "#16a34a",
+              CARBON_MAX, "#14532d",
+            ],
+            "circle-opacity": 0.92,
+            "circle-stroke-width": 2.5,
+            "circle-stroke-color": "#ffffff",
+            "circle-stroke-opacity": 0.95,
+          },
+        } as any); // eslint-disable-line
+
+        // Selected district highlight ring (amber)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        map.addLayer({
+          id: "districts-selected",
+          type: "circle",
+          source: "districts",
+          filter: ["==", ["get", "id"], ""],
+          paint: {
+            "circle-radius": ["interpolate", ["linear"], ["get", "carbon"],
+              CARBON_MIN, 20, CARBON_MAX, 38,
+            ],
+            "circle-color": "rgba(0,0,0,0)",
+            "circle-stroke-width": 3.5,
+            "circle-stroke-color": "#fbbf24",
+            "circle-stroke-opacity": 0.95,
+          },
+        } as any); // eslint-disable-line
+
+        // Click to select district
+        map.on("click", "districts-circle", (e) => {
+          const props = e.features?.[0]?.properties as { id?: string } | undefined;
+          if (props?.id) onSelectRef.current?.(props.id);
+        });
+        map.on("mouseenter", "districts-circle", () => { map.getCanvas().style.cursor = "pointer"; });
+        map.on("mouseleave", "districts-circle", () => { map.getCanvas().style.cursor = ""; });
+
+        // HTML label markers below each circle
+        for (const d of districts) {
+          const radius = Math.round(13 + 17 * (d.carbon - CARBON_MIN) / (CARBON_MAX - CARBON_MIN));
+          const el = document.createElement("div");
+          el.style.cssText = "text-align:center;pointer-events:none;";
+          el.innerHTML = `
+            <div style="font-size:11px;font-weight:800;color:#fff;text-shadow:0 1px 4px rgba(0,0,0,0.95),0 0 10px rgba(0,0,0,0.6);white-space:nowrap;line-height:1.4">${d.name}</div>
+            <div style="font-size:9.5px;font-weight:700;color:#86efac;text-shadow:0 1px 3px rgba(0,0,0,0.95);white-space:nowrap">${(d.carbon / 1000).toFixed(0)}k tCO₂</div>
+          `;
+          new maplibregl.Marker({ element: el, anchor: "top", offset: [0, radius + 5] })
+            .setLngLat([d.lng, d.lat])
+            .addTo(map);
+        }
+      }
 
       // ── Fit bounds ─────────────────────────────────────────────────────────
       if (bbox) {
@@ -190,32 +283,39 @@ export default function DashboardMap({
       {mounted && !isMobile && (
         <div style={{
           position: "absolute", bottom: 48, left: 12,
-          background: "rgba(15,23,42,0.9)", backdropFilter: "blur(16px)",
+          background: "rgba(10,18,35,0.9)", backdropFilter: "blur(12px)",
           borderRadius: 13, padding: "12px 16px",
-          border: "1px solid rgba(255,255,255,0.12)",
-          borderTop: "3px solid #34d399",
+          border: "1px solid rgba(255,255,255,0.1)",
           boxShadow: "0 6px 24px rgba(0,0,0,0.4)",
           fontFamily: "'Noto Sans Thai','Inter',sans-serif", minWidth: 168,
         }}>
-          <div style={{ fontSize: 10, fontWeight: 800, color: "#6ee7b7", marginBottom: 10, letterSpacing: 0.6, display: "flex", alignItems: "center", gap: 5 }}>
-            <i className="bi bi-info-circle-fill" style={{ color: "#34d399" }} /> ระดับคาร์บอนต่อแปลง (tCO₂)
-          </div>
-          {/* Gradient bar */}
-          <div style={{ height: 7, borderRadius: 4, marginBottom: 6, background: "linear-gradient(90deg,#fef08a,#34d399,#f97316)", boxShadow: "0 0 8px rgba(249,115,22,0.35)" }} />
-          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 8.5, color: "#94a3b8", fontWeight: 600, marginBottom: 10 }}>
-            <span>&lt;100</span><span>100–250</span><span>&gt;250</span>
+          <div style={{ fontSize: 10, fontWeight: 800, color: "#6ee7b7", marginBottom: 8, letterSpacing: 0.6 }}>
+            ระดับคาร์บอนต่อแปลง (tCO₂)
           </div>
           {([
-            { color: "#fef08a", label: "ต่ำ",      range: "< 100" },
-            { color: "#34d399", label: "ปานกลาง", range: "100–250" },
-            { color: "#f97316", label: "สูง",      range: "> 250" },
+            { color: "#d1fae5", label: "ต่ำมาก",  range: "< 30" },
+            { color: "#6ee7b7", label: "ต่ำ",      range: "30–80" },
+            { color: "#34d399", label: "ปานกลาง", range: "80–150" },
+            { color: "#10b981", label: "สูง",      range: "150–280" },
+            { color: "#059669", label: "สูงมาก",  range: "> 280" },
           ] as const).map(s => (
             <div key={s.label} style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 5 }}>
-              <div style={{ width: 12, height: 12, borderRadius: 3, flexShrink: 0, background: s.color, border: "1px solid rgba(255,255,255,0.2)", boxShadow: `0 0 6px ${s.color}88` }} />
-              <span style={{ fontSize: 10, color: "#cbd5e1", flex: 1 }}>{s.label}</span>
-              <span style={{ fontSize: 9, color: "#94a3b8", fontWeight: 600 }}>{s.range}</span>
+              <div style={{ width: 12, height: 12, borderRadius: 3, flexShrink: 0, background: s.color, border: "1px solid rgba(255,255,255,0.15)" }} />
+              <span style={{ fontSize: 10, color: "#94a3b8", flex: 1 }}>{s.label}</span>
+              <span style={{ fontSize: 9, color: "#475569", fontWeight: 600 }}>{s.range}</span>
             </div>
           ))}
+          <div style={{ height: 1, background: "rgba(255,255,255,0.07)", margin: "8px 0" }} />
+          <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+              <div style={{ width: 12, height: 12, borderRadius: "50%", flexShrink: 0, background: "linear-gradient(135deg,#4ade80,#14532d)", border: "1.5px solid rgba(255,255,255,0.6)" }} />
+              <span style={{ fontSize: 10, color: "#94a3b8" }}>สรุปรายอำเภอ</span>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+              <div style={{ width: 12, height: 12, borderRadius: "50%", flexShrink: 0, background: "transparent", border: "2px solid #fbbf24" }} />
+              <span style={{ fontSize: 10, color: "#94a3b8" }}>อำเภอที่เลือก</span>
+            </div>
+          </div>
         </div>
       )}
 
@@ -233,22 +333,41 @@ export default function DashboardMap({
               background: "rgba(15,23,42,0.92)", backdropFilter: "blur(12px)",
               borderRadius: 14, padding: "12px 14px",
               border: "1px solid rgba(255,255,255,0.08)",
-              borderTop: "3px solid #34d399",
               boxShadow: "0 8px 24px -4px rgba(0,0,0,0.5)",
               minWidth: 180,
               animation: "fadeIn 0.2s ease-out",
             }}>
-              <div style={{ fontSize: 10, fontWeight: 700, color: "#6ee7b7", marginBottom: 8, letterSpacing: 0.3, display: "flex", alignItems: "center", gap: 4 }}>
-                <i className="bi bi-info-circle-fill" style={{ color: "#34d399", fontSize: 10 }} /> คาร์บอนต่อแปลง (tCO₂)
+              <div style={{ fontSize: 10, fontWeight: 700, color: "#a7f3d0", marginBottom: 8, letterSpacing: 0.3 }}>
+                คาร์บอนต่อแปลง (tCO₂)
               </div>
 
-              {/* Gradient bar for mobile */}
-              <div style={{ height: 7, borderRadius: 4, overflow: "hidden", marginBottom: 5, background: "linear-gradient(90deg,#fef08a,#34d399,#f97316)", boxShadow: "0 0 6px rgba(249,115,22,0.3)" }} />
+              {/* Segmented bar for mobile */}
+              <div style={{ display: "flex", height: 6, borderRadius: 3, overflow: "hidden", marginBottom: 5 }}>
+                <div style={{ flex: 1, background: "#d1fae5" }} />
+                <div style={{ flex: 1, background: "#6ee7b7" }} />
+                <div style={{ flex: 1, background: "#34d399" }} />
+                <div style={{ flex: 1, background: "#10b981" }} />
+                <div style={{ flex: 1, background: "#059669" }} />
+              </div>
               
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: 8.5, color: "#94a3b8", fontWeight: 600, marginBottom: 10 }}>
-                <span>&lt;100</span>
-                <span>100–250</span>
-                <span>&gt;250</span>
+                <span>&lt;30</span>
+                <span>150</span>
+                <span>&gt;280</span>
+              </div>
+
+              <div style={{ height: 1, background: "rgba(255,255,255,0.08)", marginBottom: 10 }} />
+
+              {/* District markers — horizontal */}
+              <div style={{ display: "flex", gap: 14 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                  <div style={{ width: 10, height: 10, borderRadius: "50%", background: "linear-gradient(135deg,#4ade80,#14532d)", border: "1px solid rgba(255,255,255,0.7)", flexShrink: 0 }} />
+                  <span style={{ fontSize: 9.5, color: "#cbd5e1" }}>สรุปอำเภอ</span>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                  <div style={{ width: 10, height: 10, borderRadius: "50%", background: "transparent", border: "1.5px solid #fbbf24", flexShrink: 0 }} />
+                  <span style={{ fontSize: 9.5, color: "#cbd5e1" }}>เลือกอยู่</span>
+                </div>
               </div>
             </div>
           )}
@@ -262,11 +381,11 @@ export default function DashboardMap({
               backdropFilter: "blur(8px)",
               border: "1px solid rgba(255,255,255,0.12)",
               borderRadius: 20, padding: "6px 14px",
-              color: "#6ee7b7", fontSize: 11, fontWeight: 600,
+              color: "#a7f3d0", fontSize: 11, fontWeight: 600,
               cursor: "pointer", boxShadow: "0 4px 12px rgba(0,0,0,0.3)",
               fontFamily: "inherit", transition: "all 0.2s",
             }}>
-            <div style={{ width: 10, height: 10, borderRadius: 2, background: "linear-gradient(135deg,#34d399,#f97316)", flexShrink: 0 }} />
+            <div style={{ width: 10, height: 10, borderRadius: 2, background: "linear-gradient(135deg,#34d399,#059669)", flexShrink: 0 }} />
             สัญลักษณ์
             <span style={{ fontSize: 9, opacity: 0.6, marginLeft: 2, transform: legendOpen ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }}>▼</span>
           </button>
