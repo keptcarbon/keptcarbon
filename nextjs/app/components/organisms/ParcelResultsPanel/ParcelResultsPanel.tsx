@@ -1021,17 +1021,21 @@ export function ParcelResultsPanel({
                     finalPlantYearBE = userYearBE;
                     yearUsedDetails = `ใช้ตามที่คุณระบุ (พ.ศ. ${userYearBE})`;
                 } else if (resp?.estimated_parameters) {
-                    // 2. ไม่กรอกปี → ใช้ dominant cohort จาก carbon API (แม่นที่สุด)
+                    // 2. ไม่กรอกปี → ใช้ max cohort age (oldest cohort = year น้อยที่สุด) จาก carbon API
                     const yop = resp.estimated_parameters.year_of_planting;
+                    const allYearsCE: number[] = [];
                     if (typeof yop.value === "number" && yop.value > 0) {
-                        finalPlantYearBE = yop.value + 543;
+                        allYearsCE.push(yop.value);
+                    } else if (Array.isArray(yop.value)) {
+                        (yop.value as string[]).forEach(s => {
+                            const m = String(s).match(/^(\d{4})/);
+                            if (m) allYearsCE.push(parseInt(m[1]));
+                        });
+                    }
+                    if (allYearsCE.length > 0) {
+                        const oldestYearCE = Math.min(...allYearsCE);
+                        finalPlantYearBE = oldestYearCE + 543;
                         yearUsedDetails = `ใช้ปีจากระบบประมาณการ (พ.ศ. ${finalPlantYearBE})`;
-                    } else if (Array.isArray(yop.value) && yop.value.length > 0) {
-                        const m = yop.value[0].match(/^(\d{4})/);
-                        if (m) {
-                            finalPlantYearBE = parseInt(m[1]) + 543;
-                            yearUsedDetails = `ใช้ปีจากระบบประมาณการ (พ.ศ. ${finalPlantYearBE})`;
-                        }
                     }
                 }
 
