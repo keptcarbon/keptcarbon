@@ -1,13 +1,14 @@
 # Constants and configuration for the KeptCarbon Platform
 
 # Tree Age Homologous Threshold
-TREE_AGE_HOMOLOGOUS_THRESHOLD = 0.8
+TREE_AGE_HOMOLOGOUS_THRESHOLD = 0.9
 TREE_COUNT_VALIDATION_THRESHOLD = 0.05
 
 # Growth model parameters
 GROWTH_MODEL_YEAR = 35   # Lookup table covers ages 0–35
 MAX_TREE_AGE = 28        # Max age accepted from raster before cohort is filtered out
-CUT_AGE = 27             # Trees are cut and replanted at this age (matches frontend)
+MEAN_CUT_TREE_AGE = 23   # Mean age used for mixed pixels when no reliable year can be determined
+MIX_TREE_PROPORTION = 0.02  # Proportion for removing older age noisy pixels 
 
 # Biometric Constants 
 CARBON_FRACTION = 0.47 

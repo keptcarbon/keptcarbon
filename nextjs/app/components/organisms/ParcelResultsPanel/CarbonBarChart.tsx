@@ -13,11 +13,10 @@ const GREEN_THEME_COLORS = [
 export const CUT_AGE = 27;   // โค่นและปลูกใหม่ที่ 27 ปี
 export const TOTAL_PROJ_YEARS = 35; // จำลองไปข้างหน้า 35 ปี
 
-const getCycleColor = (cycle: number) => GREEN_THEME_COLORS[Math.min(Math.max(0, cycle), GREEN_THEME_COLORS.length - 1)];
+const getCycleColor = (cycle: number) =>
+  GREEN_THEME_COLORS[Math.min(Math.max(0, cycle), GREEN_THEME_COLORS.length - 1)];
 
-function carbonCo2(age: number, trees: number, spacing: string): number {
-
-  // Adjust density based on spacing
+export function carbonCo2(age: number, trees: number, spacing: string): number {
   const spacingMap: Record<string, number> = {
     "2.5*8": 80, "3*7": 76, "2.5*7": 91, "3*6": 89,
   };
@@ -29,13 +28,17 @@ function carbonCo2(age: number, trees: number, spacing: string): number {
   return (AGB + AGB * 0.26) * 0.47 * 3.67 * effectiveTrees;
 }
 
-type BarPoint = {
+export type BarPoint = {
   age: number;
   yearBE: number;
+  year_at: number;
   co2: number;
+  ci: number;
+  gainValue: number;
+  gainCi: number;
   cycle: number;
   cycleAge: number;
-  errorMargin: number; // The ± value
+  errorMargin: number;
 };
 
 export function buildBarPoints(
@@ -48,18 +51,15 @@ export function buildBarPoints(
   let continuousAge = startAge;
   const v0 = carbonCo2(startAge, trees, spacing);
 
-
   for (let i = 0; i < TOTAL_PROJ_YEARS; i++) {
     const period = Math.floor(i / 7);
     const co2 = carbonCo2(continuousAge, trees, spacing);
+    const prevCo2 = i > 0 ? carbonCo2(continuousAge - 1, trees, spacing) : co2;
+    const gainValue = i > 0 ? co2 - prevCo2 : 0;
 
-    // Formula derived from user example:
-    // 1. First year must be ±0
-    // 2. Growth uncertainty follows: (Value_t - Value_0) * (0.5 + 0.015 * years_passed)
     let errorMargin = 0;
     if (i > 0) {
       const growth = co2 - v0;
-      // Further reduced factor for higher precision look: 5% base + 0.2% per year
       const factor = 0.05 + 0.002 * i;
       errorMargin = Math.max(0, growth * factor);
     }
@@ -67,10 +67,14 @@ export function buildBarPoints(
     pts.push({
       age: continuousAge,
       yearBE: startYearBE + i,
-      co2: co2,
+      year_at: i,
+      co2,
+      ci: errorMargin,
+      gainValue,
+      gainCi: 0,
       cycle: period,
       cycleAge: continuousAge,
-      errorMargin: errorMargin,
+      errorMargin,
     });
     continuousAge++;
   }
@@ -91,16 +95,16 @@ export function CarbonBarChart({
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
   if (!pts.length) return null;
 
-  const W = isMobile ? 450 : (narrowMode ? 560 : 850);
-  const H = isMobile ? 300 : (narrowMode ? 380 : 340);
-  const PL = isMobile ? 32 : (narrowMode ? 48 : 55);
-  const PT = isMobile ? 35 : 45;
-  const PB = isMobile ? 75 : (narrowMode ? 75 : 70);
+  const W = isMobile ? 500 : (narrowMode ? 640 : 960);
+  const H = isMobile ? 340 : (narrowMode ? 440 : 400);
+  const PL = isMobile ? 36 : (narrowMode ? 52 : 60);
+  const PT = isMobile ? 40 : 50;
+  const PB = isMobile ? 85 : (narrowMode ? 85 : 80);
   const PR = isMobile ? 25 : (narrowMode ? 24 : 30);
   const iW = W - PL - PR;
   const iH = H - PT - PB;
 
-  const maxValueWithMargin = Math.max(...pts.map((p) => p.co2 + p.errorMargin), 1);
+  const maxValueWithMargin = Math.max(...pts.map((p) => p.co2 + p.ci), 1);
   const maxCo2 = maxValueWithMargin * 1.15;
   const barW = iW / pts.length - (isMobile ? 1.5 : 4);
   const gap = isMobile ? 1.5 : 4;
@@ -113,7 +117,9 @@ export function CarbonBarChart({
     return { x, y };
   });
 
-  const linePath = linePoints.map((p, i) => (i === 0 ? `M ${p.x},${p.y}` : `L ${p.x},${p.y}`)).join(" ");
+  const linePath = linePoints
+    .map((p, i) => (i === 0 ? `M ${p.x},${p.y}` : `L ${p.x},${p.y}`))
+    .join(" ");
 
   return (
     <div style={{ background: "linear-gradient(135deg,#f0fdf4,#dcfce7)", borderRadius: 16, padding: isMobile ? "12px 10px 8px" : "20px 16px 12px", boxShadow: "0 10px 30px -5px rgba(5,150,105,0.12)", maxWidth: (isMobile || narrowMode) ? undefined : 860, margin: (isMobile || narrowMode) ? undefined : "0 auto", border: "1px solid rgba(16,185,129,0.15)" }}>
@@ -168,13 +174,15 @@ export function CarbonBarChart({
             const col = getCycleColor(p.cycle);
             const isHov = hoverIdx === i;
             const cycleClamp = Math.min(Math.max(0, p.cycle), GREEN_THEME_COLORS.length - 1);
-            const errorSize = (p.errorMargin / maxCo2) * iH;
+            const errorSize = (p.ci / maxCo2) * iH;
             const lineX = x + barW / 2;
 
             return (
               <g key={i} onMouseEnter={() => setHoverIdx(i)} onMouseLeave={() => setHoverIdx(null)} style={{ cursor: "pointer" }}>
                 {isHov && <rect x={x - 2} y={PT} width={barW + 4} height={iH} rx={4} fill={col.bar} opacity={0.06} />}
                 <rect x={x} y={y} width={barW} height={bh} rx={isMobile ? 2 : 4} fill={`url(#cycleGradGreen${cycleClamp})`} filter={isHov ? "url(#barShadow)" : undefined} style={{ transition: "all 0.2s" }} />
+
+                {/* Error bars using p.ci from backend */}
                 <line x1={lineX} y1={y - errorSize} x2={lineX} y2={y + errorSize} stroke="#000000" strokeWidth={1} opacity={0.8} />
                 <line x1={lineX - 2} y1={y - errorSize} x2={lineX + 2} y2={y - errorSize} stroke="#000000" strokeWidth={1} opacity={0.8} />
                 <line x1={lineX - 2} y1={y + errorSize} x2={lineX + 2} y2={y + errorSize} stroke="#000000" strokeWidth={1} opacity={0.8} />
@@ -190,27 +198,28 @@ export function CarbonBarChart({
             <circle key={i} cx={p.x} cy={p.y} r={2.5} fill="#fff" stroke={getCycleColor(pts[i].cycle).label} strokeWidth={1.5} opacity={0.9} style={{ pointerEvents: "none" }} />
           ))}
 
-          {/* X-axis labels: ONLY show at every 7th index (0, 7, 14, 21...) */}
+          {/* X-axis labels every 7th bar: year_at above BE year */}
           {pts.map((p, i) => {
             if (i % 7 !== 0) return null;
             const x = PL + i * (barW + gap) + barW / 2;
-            const col = getCycleColor(p.cycle);
             return (
               <g key={i}>
-                {/* Age label removed */}
-                <text x={x} y={PT + iH + (isMobile ? 34 : 44)} textAnchor="middle" fontSize={isMobile ? 10 : 14} fill="#94a3b8" fontWeight={500}>
+                <text x={x} y={PT + iH + (isMobile ? 20 : 26)} textAnchor="middle" fontSize={isMobile ? 9 : 11} fill="#475569" fontWeight={700}>
+                  {p.year_at}
+                </text>
+                <text x={x} y={PT + iH + (isMobile ? 34 : 44)} textAnchor="middle" fontSize={isMobile ? 9 : 12} fill="#94a3b8" fontWeight={500}>
                   {p.yearBE}
                 </text>
               </g>
             );
           })}
 
-          {/* Y-axis labels */}
+          {/* Y-axis label */}
           <text x={isMobile ? 2 : PL - 6} y={PT + 5} textAnchor={isMobile ? "start" : "end"} fontSize={isMobile ? 12 : 16} fill="#94a3b8" fontWeight={600}>tCO₂</text>
 
-          {/* X-axis Row Indicators */}
-          {/* Age indicator removed */}
-          <text x={isMobile ? 4 : PL - 12} y={PT + iH + (isMobile ? 34 : 44)} textAnchor={isMobile ? "start" : "end"} fontSize={isMobile ? 10 : 14} fill="#64748b" fontWeight={600}>พ.ศ.</text>
+          {/* X-axis row labels */}
+          <text x={isMobile ? 4 : PL - 12} y={PT + iH + (isMobile ? 20 : 26)} textAnchor={isMobile ? "start" : "end"} fontSize={isMobile ? 9 : 11} fill="#64748b" fontWeight={600}>ปีที่</text>
+          <text x={isMobile ? 4 : PL - 12} y={PT + iH + (isMobile ? 34 : 44)} textAnchor={isMobile ? "start" : "end"} fontSize={isMobile ? 9 : 12} fill="#64748b" fontWeight={600}>พ.ศ.</text>
 
           {/* Tooltip */}
           {hoverIdx !== null && (() => {
@@ -219,21 +228,29 @@ export function CarbonBarChart({
             const bh = Math.max((p.co2 / maxCo2) * iH, 2);
             const x = PL + hoverIdx * (barW + gap) + barW / 2;
             const y = PT + iH - bh;
-            const ttW = isMobile ? 120 : 160;
-            const ttH = isMobile ? 64 : 76;
+            const ttW = isMobile ? 140 : 180;
+            const ttH = isMobile ? 108 : 124;
             const ttX = Math.min(Math.max(x - ttW / 2, 4), W - ttW - 4);
             const ttY = Math.max(y - ttH - 12, 4);
+            const divY = ttY + (isMobile ? 72 : 84);
             return (
               <g pointerEvents="none">
                 <rect x={ttX} y={ttY} width={ttW} height={ttH} rx={10} fill="#022c22" style={{ filter: "drop-shadow(0 4px 12px rgba(5,150,105,0.35))" }} />
-                <text x={ttX + ttW / 2} y={ttY + (isMobile ? 18 : 20)} textAnchor="middle" fontSize={isMobile ? 11 : 12} fill={col.bar} fontWeight={800}>
-                  อายุยางพารา · {p.age} ปี
+                <text x={ttX + ttW / 2} y={ttY + (isMobile ? 18 : 20)} textAnchor="middle" fontSize={isMobile ? 10 : 11} fill={col.bar} fontWeight={800}>
+                  อายุยางพารา · {p.age} ปี · พ.ศ. {p.yearBE}
                 </text>
-                <text x={ttX + ttW / 2} y={ttY + (isMobile ? 38 : 46)} textAnchor="middle" fontSize={isMobile ? 13 : 16} fill="#fff" fontWeight={900}>
-                  {Math.round(p.co2).toLocaleString("th-TH")} ± {p.errorMargin.toLocaleString("th-TH", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+                <text x={ttX + ttW / 2} y={ttY + (isMobile ? 36 : 44)} textAnchor="middle" fontSize={isMobile ? 14 : 17} fill="#fff" fontWeight={900}>
+                  {Math.round(p.co2).toLocaleString("th-TH")} ±{p.ci.toLocaleString("th-TH", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
                 </text>
-                <text x={ttX + ttW / 2} y={ttY + (isMobile ? 54 : 63)} textAnchor="middle" fontSize={isMobile ? 10 : 11} fill="#94a3b8" fontWeight={600}>
-                  ตันคาร์บอน (tCO₂)
+                <text x={ttX + ttW / 2} y={ttY + (isMobile ? 54 : 64)} textAnchor="middle" fontSize={isMobile ? 10 : 11} fill="#94a3b8" fontWeight={600}>
+                  คาร์บอนสะสม (tCO₂)
+                </text>
+                <line x1={ttX + 10} y1={divY} x2={ttX + ttW - 10} y2={divY} stroke="rgba(255,255,255,0.1)" strokeWidth={1} />
+                <text x={ttX + ttW / 2} y={divY + (isMobile ? 14 : 16)} textAnchor="middle" fontSize={isMobile ? 13 : 15} fill="#7dd3fc" fontWeight={900}>
+                  {p.gainValue.toLocaleString("th-TH", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} ±{p.gainCi.toLocaleString("th-TH", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+                </text>
+                <text x={ttX + ttW / 2} y={divY + (isMobile ? 28 : 32)} textAnchor="middle" fontSize={isMobile ? 9 : 10} fill="#94a3b8" fontWeight={600}>
+                  เกณฑ์คาร์บอน (tCO₂/ปี)
                 </text>
               </g>
             );
@@ -244,5 +261,3 @@ export function CarbonBarChart({
   );
 }
 
-export { carbonCo2 };
-export type { BarPoint };

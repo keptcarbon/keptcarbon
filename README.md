@@ -30,7 +30,7 @@ See [api.http](api.http) for runnable request examples.
 |---|---|---|---|
 | `id` | string | yes | Unique identifier from the frontend map |
 | `geometry` | GeoJSON | yes | Polygon or MultiPolygon (EPSG:4326) |
-| `project_type` | string | no | e.g. `"replanting"`, `"existing"` |
+| `project_type` | string | yes | e.g. `"replanting"`, `"existing"` |
 | `year_of_planting` | int | no | CE year — extracted from raster if null |
 | `rubber_clone` | string | no | `"RRIM 600"` (default) or `"RRIT 251"` |
 | `tree_count` | int | no | User-defined count — calculated from area + spacing if null |
@@ -45,11 +45,68 @@ See [api.http](api.http) for runnable request examples.
     "polygon_id": "string",
     "status": { "status": "success|error", "status_code": "S01|E01…", "message": "string" },
     "carbon_profile": [
-      {"year": 2026, "total_carbon_tCO2e": 604.4726, "ci_lower_tCO2e": 557.7541, "ci_upper_tCO2e": 651.1887},
-      {"year": 2027, "total_carbon_tCO2e": 731.5381, "ci_lower_tCO2e": 672.5556, "ci_upper_tCO2e": 790.5147},
-      {"year": 2028, "total_carbon_tCO2e": 890.7099, "ci_lower_tCO2e": 815.5158, "ci_upper_tCO2e": 965.8999},
-      {"year": 2029, "total_carbon_tCO2e": 1080.5864, "ci_lower_tCO2e": 986.4597, "ci_upper_tCO2e": 1174.707}
-    ]
+      {
+        "year": 2026, 
+        "year_at": 0, 
+        "age": 16, 
+        "stock": {
+          "value": 4027.4685,
+          "ci": 232.0193,
+          "ci_lower": 3795.4493,
+          "ci_upper": 4259.4878
+        },
+        "gain":{
+          "value": 0,
+          "ci": 0,
+          "ci_lower": 0,
+          "ci_upper": 0
+        }
+      },
+      {
+        "year": 2027,
+        "year_at": 1,
+        "age": 17,
+        "stocks": {
+            "value": 4256.2453,
+            "ci": 249.6937,
+            "ci_lower": 4006.5585,
+            "ci_upper": 4505.9459
+        },
+        "gain": {
+            "value": 228.7768,
+            "ci": 17.6745,
+            "ci_lower": 211.1092,
+            "ci_upper": 246.4581
+        }
+      }
+    ],
+    "estimated_parameters": {
+      "year_of_planting": {
+          "value": 2010,
+          "note": [
+              "2026 (30.8%)",
+              "2025 (20.2%)",
+              "2024 (9.7%)",
+              "2019 (9.6%)"
+          ],
+          "source": "user input"
+      },
+      "rubber_clone": {
+          "value": "RRIM 600",
+          "note": "default",
+          "source": "user input"
+      },
+      "tree_count": {
+          "value": 8040,
+          "note": null,
+          "source": "calculated for area and spacing system"
+      },
+      "spacing_system": {
+          "value": "2.5x8 (default)",
+          "note": null,
+          "source": "default value applied"
+      }
+    }
   }
 ]
 ```
@@ -60,7 +117,7 @@ See [api.http](api.http) for runnable request examples.
 |---|---|---|---|
 | `id` | string | yes | Unique identifier |
 | `geometry` | GeoJSON | yes | Polygon or MultiPolygon (EPSG:4326) |
-| `project_type` | string | no | e.g. `"replanting"`, `"existing"` |
+| `project_type` | string | yes | e.g. `"replanting"`, `"existing"` |
 | `output_crs` | string | no | CRS for returned geometry. `"EPSG:4326"` (default) = WGS84, `"EPSG:32647"` = UTM Zone 47N (metres) |
 
 #### `POST /api/v1/plantation-info` — response

@@ -4,7 +4,7 @@ import { useSearchParams } from "next/navigation";
 import { carbonForAge } from "@/lib/map-utils";
 import { useAuth } from "@/lib/auth-context";
 import { CarbonBarChart, buildBarPoints, carbonCo2, CUT_AGE, type BarPoint } from "./CarbonBarChart";
-import { estimateCarbon, type PlantationPolygon, type EstimationResponse, type YearlyEstimate } from "@/lib/carbon-api";
+import { estimateCarbon, type PlantationPolygon, type EstimationResponse, type YearlyEstimate, type EstimatedParameters } from "@/lib/carbon-api";
 
 
 // ── Types ─────────────────────────────────────────────────────────────────
@@ -208,70 +208,61 @@ function ageDistribution(age: number, conf: number) {
         .filter(({ a }) => a > 0);
 }
 
-function profileToBarPoints(profile: YearlyEstimate[], startAge: number): BarPoint[] {
-    return profile.map((item, i) => {
-        const age = startAge + i;
-        // Step 1: Estimate Standard Error (SE) from 95% Confidence Interval bounds
-        // Formula: SE ≈ (Upper - Lower) / (2 * 1.96) = (Upper - Lower) / 3.92
-        const se = (item.ci_upper_tCO2e - item.ci_lower_tCO2e) / 3.92;
-
-        // Step 2 & 4: Calculate 95% CI of the value
-        // Formula: 95% CI Margin = 1.96 * SE
-        const errorMargin = 1.96 * se;
-
-        return {
-            age,
-            yearBE: item.year + 543,
-            co2: item.total_carbon_tCO2e,
-            cycle: Math.floor(i / 7),
-            cycleAge: age,
-            errorMargin,
-        };
-    });
+function profileToBarPoints(profile: YearlyEstimate[]): BarPoint[] {
+    return profile.map((item) => ({
+        age: item.age,
+        yearBE: item.year + 543,
+        year_at: item.year_at,
+        co2: item.stocks.value,
+        ci: item.stocks.ci,
+        gainValue: item.gain.value,
+        gainCi: item.gain.ci,
+        cycle: Math.floor(item.year_at / 7),
+        cycleAge: item.age,
+        errorMargin: item.stocks.ci,
+    }));
 }
 
-function aggregateProfiles(responses: EstimationResponse[], startAges: number[]): BarPoint[] {
+function aggregateProfiles(responses: EstimationResponse[]): BarPoint[] {
     const profiles = responses.map(r => r.carbon_profile ?? []);
     if (!profiles.length || !profiles[0].length) return [];
     const len = Math.min(...profiles.map(p => p.length));
     const pts: BarPoint[] = [];
     for (let j = 0; j < len; j++) {
-        const yearBE = profiles[0][j].year + 543;
+        const first = profiles[0][j];
+        const yearBE = first.year + 543;
+        const year_at = first.year_at;
         let totalCo2 = 0;
-        let sumSqSE = 0; // Sum of squared Standard Errors
+        let sumSqCI = 0;
         let totalAge = 0;
+        let totalGain = 0;
+        let sumSqGainCI = 0;
 
         for (let i = 0; i < profiles.length; i++) {
             const item = profiles[i][j];
             if (!item) continue;
-            totalCo2 += item.total_carbon_tCO2e;
-
-            // Step 1: Estimate SE for each plot from 95% CI bounds
-            // SE = (Upper - Lower) / 3.92
-            const se = (item.ci_upper_tCO2e - item.ci_lower_tCO2e) / 3.92;
-
-            // Sum of squared SEs for pooling (RSS)
-            sumSqSE += se * se;
-
-            totalAge += startAges[i] + j;
+            totalCo2 += item.stocks.value;
+            sumSqCI += item.stocks.ci * item.stocks.ci;
+            totalAge += item.age;
+            totalGain += item.gain.value;
+            sumSqGainCI += item.gain.ci * item.gain.ci;
         }
 
-        // Step 3: SE of the sum (Pooled SE)
-        // SE_total = Math.sqrt(sumSqSE)
-        const totalSE = Math.sqrt(sumSqSE);
-
-        // Step 4: 95% CI of the combined total
-        // 95% CI Margin = 1.96 * SE_total
-        const errorMargin = 1.96 * totalSE;
-
         const avgAge = Math.round(totalAge / profiles.length);
+        const totalCI = Math.sqrt(sumSqCI);
+        const totalGainCI = Math.sqrt(sumSqGainCI);
+
         pts.push({
             age: avgAge,
             yearBE,
+            year_at,
             co2: totalCo2,
-            cycle: Math.floor(j / 7),
+            ci: totalCI,
+            gainValue: totalGain,
+            gainCi: totalGainCI,
+            cycle: Math.floor(year_at / 7),
             cycleAge: avgAge,
-            errorMargin,
+            errorMargin: totalCI,
         });
     }
     return pts;
@@ -513,6 +504,58 @@ function ForecastChart({ pts, isMobile }: { pts: Array<{ yearBE: number; co2: nu
                 );
             })()}
         </svg>
+    );
+}
+
+function convertYearNoteToBE(note: string): string {
+    return note.replace(/^(\d{4})/, (_, y) => String(parseInt(y) + 543));
+}
+
+function EstimatedParamsCard({ params }: { params: EstimatedParameters }) {
+    const yearParam = params.year_of_planting;
+    const isUserInput = yearParam.source === "user input";
+    const usedYearBE = typeof yearParam.value === "number" ? yearParam.value + 543 : null;
+    const yearNotes = (yearParam.note ?? []).slice(0, 5);
+
+    return (
+        <div style={{ marginTop: 8, paddingTop: 8, borderTop: "1px dashed rgba(14,165,233,0.2)", fontSize: 11 }}>
+            <div style={{ fontWeight: 700, color: "#0284c7", marginBottom: 6, display: "flex", alignItems: "center", gap: 4 }}>
+                <i className="bi bi-cpu" /> พารามิเตอร์จากระบบ
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                {/* Year used */}
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", color: "#475569" }}>
+                    <span>• ปีที่ปลูก (ใช้คำนวณ)</span>
+                    <span style={{ display: "flex", alignItems: "center", gap: 4, color: "#0f172a", fontWeight: 700 }}>
+                        {usedYearBE ? `พ.ศ. ${usedYearBE}` : "—"}
+                        <span style={{ fontSize: 9, padding: "1px 5px", borderRadius: 4, background: isUserInput ? "rgba(16,185,129,0.1)" : "rgba(14,165,233,0.1)", color: isUserInput ? "#059669" : "#0284c7", fontWeight: 700 }}>
+                            {isUserInput ? "ระบุเอง" : "จากดาวเทียม"}
+                        </span>
+                    </span>
+                </div>
+                {/* Year distribution from raster */}
+                {yearNotes.length > 0 && (
+                    <div style={{ marginLeft: 8, marginTop: 2, padding: "5px 8px", background: "rgba(14,165,233,0.04)", borderRadius: 6, border: "1px solid rgba(14,165,233,0.12)" }}>
+                        <div style={{ fontSize: 10, color: "#64748b", fontWeight: 700, marginBottom: 3 }}>
+                            <i className="bi bi-satellite" style={{ marginRight: 4 }} />การกระจายปีที่ตรวจพบ:
+                        </div>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
+                            {yearNotes.map((note, ni) => (
+                                <span key={ni} style={{ fontSize: 10, color: ni === 0 ? "#0369a1" : "#94a3b8", fontWeight: ni === 0 ? 700 : 400 }}>
+                                    {ni === 0 ? "▶ " : "  "}{convertYearNoteToBE(note)}
+                                </span>
+                            ))}
+                        </div>
+                    </div>
+                )}
+                {/* Clone, tree count, spacing */}
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "2px 8px", marginTop: 2, color: "#475569" }}>
+                    <div>• พันธุ์ยาง: <strong style={{ color: "#0f172a" }}>{String(params.rubber_clone.value)}</strong></div>
+                    <div>• จำนวนต้น: <strong style={{ color: "#0f172a" }}>{Number(params.tree_count.value).toLocaleString("th-TH")}</strong> ต้น</div>
+                    <div style={{ gridColumn: "1 / -1" }}>• ระยะปลูก: <strong style={{ color: "#0f172a" }}>{String(params.spacing_system.value)}</strong></div>
+                </div>
+            </div>
+        </div>
     );
 }
 
@@ -985,7 +1028,7 @@ export function ParcelResultsPanel({
                 // Find corresponding response by matching polygon ID
                 const resp = responses.find(r => r.polygon_id === `plot-${idx}`);
                 const profile = resp?.carbon_profile ?? [];
-                const co2Now = profile[0]?.total_carbon_tCO2e ?? 0;
+                const co2Now = profile[0]?.stocks?.value ?? 0;
 
                 results.push({
                     plotIdx: idx,
@@ -1666,7 +1709,7 @@ export function ParcelResultsPanel({
                 summaryTotalCo2 = carbonResults.reduce((sum, c) => sum + c.co2Now, 0);
 
                 if (backendResponses && backendResponses.length > 0) {
-                    pts = aggregateProfiles(backendResponses, carbonResults.map(c => c.age));
+                    pts = aggregateProfiles(backendResponses);
                 } else {
                     const CURRENT_BE = new Date().getFullYear() + 543;
                     const initialPlotCarbons = carbonResults.map(c => carbonCo2(c.age, c.trees, c.spacing));
@@ -1688,7 +1731,8 @@ export function ParcelResultsPanel({
                             state.continuousAge++;
                         });
                         const avgAge = Math.round(totalContinuousAge / N);
-                        pts.push({ age: avgAge, yearBE, co2: totalCo2, cycle: Math.floor(i / 7), cycleAge: avgAge, errorMargin: Math.sqrt(sumSqMargin) });
+                        const errorMargin = Math.sqrt(sumSqMargin);
+                        pts.push({ age: avgAge, yearBE, year_at: i, co2: totalCo2, ci: errorMargin, gainValue: 0, gainCi: 0, cycle: Math.floor(i / 7), cycleAge: avgAge, errorMargin });
                     }
                 }
             } else if (cr) {
@@ -1698,7 +1742,7 @@ export function ParcelResultsPanel({
                 console.log("[KeptCarbon] Step 3 - backendProfile:", backendProfile);
                 console.log("[KeptCarbon] Step 3 - backendProfile length:", backendProfile?.length, "/ expected:", 35 - cr.age);
                 pts = backendProfile
-                    ? profileToBarPoints(backendProfile, cr.age)
+                    ? profileToBarPoints(backendProfile)
                     : buildBarPoints(cr.age, cr.plantYearBE, cr.trees, cr.spacing);
             }
 
@@ -1846,9 +1890,6 @@ export function ParcelResultsPanel({
                                 ))}
                             </div>
                             <CarbonBarChart pts={pts} isMobile={isMobile} narrowMode={!isMobile} />
-                            <div style={{ fontSize: 10, color: "#94a3b8", textAlign: "center", marginTop: 4 }}>
-                                hover บนแท่งเพื่อดูรายละเอียด
-                            </div>
                         </>
                     ) : cr ? (
                         <>
@@ -1864,13 +1905,7 @@ export function ParcelResultsPanel({
                                 ))}
                             </div>
 
-
-                            {/* Bar chart */}
                             <CarbonBarChart pts={pts} isMobile={isMobile} narrowMode={!isMobile} />
-
-                            <div style={{ fontSize: 10, color: "#94a3b8", textAlign: "center", marginTop: 4 }}>
-                                hover บนแท่งเพื่อดูรายละเอียด · แนวโน้มคาร์บอนรายแปลง
-                            </div>
                         </>
                     ) : null}
 
@@ -1970,6 +2005,13 @@ export function ParcelResultsPanel({
                                                             <div>• ระยะปลูก: {crInfo.spacing} ม.</div>
                                                         </div>
                                                     </div>
+                                                    {/* Estimated Parameters from backend */}
+                                                    {(() => {
+                                                        const backendResp = backendResponses?.find(r => r.polygon_id === `plot-${i}`);
+                                                        return backendResp?.estimated_parameters
+                                                            ? <EstimatedParamsCard params={backendResp.estimated_parameters} />
+                                                            : null;
+                                                    })()}
                                                     {crInfo.selectedAreaRai !== undefined && (
                                                         <div style={{ marginTop: 6, paddingTop: 6, borderTop: "1px dashed rgba(16,185,129,0.15)", fontSize: 11 }}>
                                                             <div style={{ display: "flex", justifyContent: "space-between", color: "#0284c7", fontWeight: 700, marginBottom: 4 }}>

@@ -22,17 +22,46 @@ export interface StatusMessage {
     message: string;
 }
 
+export interface CarbonValue {
+    value: number;
+    ci: number;
+    ci_lower: number;
+    ci_upper: number;
+}
+
 export interface YearlyEstimate {
     year: number;
-    total_carbon_tCO2e: number;
-    ci_lower_tCO2e: number;
-    ci_upper_tCO2e: number;
+    year_at: number;
+    age: number;
+    stocks: CarbonValue;
+    gain: CarbonValue;
+}
+
+export interface EstimatedParamYear {
+    value: number | string[];
+    note: string[] | null;
+    source: string;
+}
+
+export interface EstimatedParamSimple {
+    value: string | number;
+    note: string | null;
+    source: string;
+}
+
+export interface EstimatedParameters {
+    year_of_planting: EstimatedParamYear;
+    rubber_clone: EstimatedParamSimple;
+    tree_count: EstimatedParamSimple;
+    spacing_system: EstimatedParamSimple;
 }
 
 export interface EstimationResponse {
     polygon_id: string;
     status: StatusMessage;
+    ci?: number | null;
     carbon_profile?: YearlyEstimate[] | null;
+    estimated_parameters?: EstimatedParameters | null;
 }
 
 export interface LUPolygon {

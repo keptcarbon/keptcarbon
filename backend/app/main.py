@@ -21,7 +21,7 @@ def create_application() -> FastAPI:
         CORSMiddleware,
         # In production, replace with specific frontend domains
         allow_origins=["*"],
-        allow_credentials=True,
+        allow_credentials=False,
         allow_methods=["*"],
         allow_headers=["*"],
     )

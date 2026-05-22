@@ -30,11 +30,11 @@ class LanduseService:
         lu_gdf = self._lu_registry.get(p_code)
 
         if lu_gdf is None:
-            poly_data["a302_geometry"] = None
+            poly_data["A302_geometry"] = None
             poly_data["status"] = {
                 "status": "error", "status_code": "E02",
                 "message": (
-                    "RUBBER PLANTATION DATA NOT AVAILABLE FOR THE SPECIFIED "
+                    "LAND USE DATA NOT AVAILABLE FOR THE SPECIFIED "
                     f"PROVINCE. (P_CODE: {p_code})"
                 )
             }
@@ -73,7 +73,7 @@ class LanduseService:
             selcted_lu_candidates = lu_candidates[lu_candidates["group_key"].isin(poly_data["selected_lu_classes"])]
             merged_gdf = selcted_lu_candidates.dissolve(by="group_key")
             
-            poly_data["merged_geometry"] = mapping(unary_union(merged_gdf.geometry)) 
+            poly_data["A302_geometry"] = mapping(unary_union(merged_gdf.geometry)) 
 
             return poly_data
 

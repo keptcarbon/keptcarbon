@@ -14,7 +14,7 @@ class TreeService:
         self.spatial_utils = SpatialUtils()
 
     def get_tree_count_user_input(self, poly_data: dict) -> dict:
-        geom = poly_data.get("merged_geometry") or poly_data.get("a302_geometry")
+        geom = poly_data.get("A302_geometry")
         area_ha = self.spatial_utils.calculate_area_ha(geom)
         print(f"Calculated area (ha) for polygon {poly_data['id']}: {area_ha}")
 
@@ -28,14 +28,14 @@ class TreeService:
         if user_tree_count is None:
             return {
                 "tree_count": calculated_count,
-                "is_reliable": True,
+                "is_calculated": True,
                 "note": "CALCULATED FROM AREA AND SPACING."
             }
 
         if calculated_count == 0:
             return {
                 "tree_count": user_tree_count,
-                "is_reliable": False,
+                "is_calculated": False,
                 "note": "CALCULATED TREE COUNT IS ZERO; USED USER INPUT."
             }
 
@@ -44,13 +44,13 @@ class TreeService:
         if diff_percent <= TREE_COUNT_VALIDATION_THRESHOLD:
             return {
                 "tree_count": user_tree_count,
-                "is_reliable": True,
+                "is_calculated": False,
                 "note": "USER INPUT VALIDATED AGAINST AREA."
             }
 
         return {
             "tree_count": calculated_count,
-            "is_reliable": False,
+            "is_calculated": True,
             "note": (
                 f"USER INPUT ({user_tree_count}) DEVIATED >{TREE_COUNT_VALIDATION_THRESHOLD*100}% "
                 f"FROM CALCULATED ({calculated_count}). USED CALCULATED VALUE."
@@ -58,7 +58,7 @@ class TreeService:
         }
 
     def get_tree_count_raster_pixel(self, poly_data: dict, num_pixel: int, total_pixels: int) -> dict:
-        geom = poly_data.get("merged_geometry") or poly_data.get("a302_geometry")
+        geom = poly_data.get("A302_geometry")
         area_ha = self.spatial_utils.calculate_area_ha(geom)
         
         if (num_pixel / total_pixels) > TREE_AGE_HOMOLOGOUS_THRESHOLD:
@@ -84,11 +84,3 @@ class TreeService:
                 "THUS, USED CALCULATED TREE COUNT."
             )
         }
-
-
-
-
-
-
-
-
