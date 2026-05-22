@@ -820,8 +820,10 @@ function PlotCard({ plot, index, onDelete, onEdit, expanded, onToggle, isMobile 
     ? plot.plantYearBE
     : (currentYearBE - (plot.rubberAge || 0));
 
-  const barPts = (plot.carbonTotal > 0 && plot.rubberAge > 0 && (plot.trees ?? 0) > 0)
-    ? buildBarPoints(plot.rubberAge, plantYearBE, plot.trees ?? 0, plot.spacing || "2.5*8")
+  const effectiveAge = plot.rubberAge > 0 ? plot.rubberAge : (plantYearBE > 0 ? currentYearBE - plantYearBE : 0);
+  const chartStartYearBE = plantYearBE > 0 ? plantYearBE + effectiveAge : currentYearBE;
+  const barPts = (plot.carbonTotal > 0 && effectiveAge > 0 && (plot.trees ?? 0) > 0)
+    ? buildBarPoints(effectiveAge, chartStartYearBE, plot.trees ?? 0, plot.spacing || "2.5*8")
     : [];
 
   // 4 key metrics — same fields as the map-draw input panel
@@ -829,8 +831,8 @@ function PlotCard({ plot, index, onDelete, onEdit, expanded, onToggle, isMobile 
     { label: "พื้นที่", val: plot.areaRai > 0 ? plot.areaRai.toFixed(2) : "—", unit: "ไร่", icon: "bi-grid-3x3", color: "#0d9488", grd: "linear-gradient(135deg,rgba(13,148,136,0.14),rgba(13,148,136,0.05))", border: "rgba(13,148,136,0.22)" },
     { label: "ปีที่ปลูก", val: plot.plantYearBE && plot.plantYearBE > 0 ? String(plot.plantYearBE) : "—", unit: "พ.ศ.", icon: "bi-calendar2-check", color: "#0369a1", grd: "linear-gradient(135deg,rgba(3,105,161,0.14),rgba(3,105,161,0.05))", border: "rgba(3,105,161,0.22)" },
     { label: "พันธุ์ยาง", val: plot.variety || "—", unit: "", icon: "bi-patch-check", color: "#7c3aed", grd: "linear-gradient(135deg,rgba(124,58,237,0.14),rgba(124,58,237,0.05))", border: "rgba(124,58,237,0.22)" },
-    { label: "จำนวนต้น", val: plot.trees && plot.trees > 0 ? plot.trees.toLocaleString("th-TH") : "—", unit: "ต้น", icon: "bi-tree-fill", color: "#16a34a", grd: "linear-gradient(135deg,rgba(22,163,74,0.14),rgba(22,163,74,0.05))", border: "rgba(22,163,74,0.22)" },
     { label: "ระยะปลูก", val: plot.spacing || "—", unit: "ม.", icon: "bi-arrows-expand", color: "#ea580c", grd: "linear-gradient(135deg,rgba(234,88,12,0.14),rgba(234,88,12,0.05))", border: "rgba(234,88,12,0.22)" },
+    { label: "จำนวนต้น", val: plot.trees && plot.trees > 0 ? plot.trees.toLocaleString("th-TH") : "—", unit: "ต้น", icon: "bi-tree-fill", color: "#16a34a", grd: "linear-gradient(135deg,rgba(22,163,74,0.14),rgba(22,163,74,0.05))", border: "rgba(22,163,74,0.22)" },
     { label: "คาร์บอน/ต้น", val: carbonPerTree !== null ? (carbonPerTree < 0.01 ? carbonPerTree.toFixed(4) : carbonPerTree.toFixed(3)) : "—", unit: "tCO₂", icon: "bi-droplet-fill", color: "#059669", grd: "linear-gradient(135deg,rgba(5,150,105,0.14),rgba(5,150,105,0.05))", border: "rgba(5,150,105,0.22)" },
   ];
 
@@ -929,8 +931,8 @@ function PlotCard({ plot, index, onDelete, onEdit, expanded, onToggle, isMobile 
           { label: "พื้นที่", val: plot.areaRai > 0 ? plot.areaRai.toFixed(2) : "—", unit: "ไร่", icon: "bi-grid-3x3" },
           { label: "ปีที่ปลูก", val: plot.plantYearBE && plot.plantYearBE > 0 ? String(plot.plantYearBE) : "—", unit: "พ.ศ.", icon: "bi-calendar2-check" },
           { label: "พันธุ์ยาง", val: plot.variety || "—", unit: "", icon: "bi-patch-check" },
-          { label: "จำนวนต้น", val: plot.trees && plot.trees > 0 ? plot.trees.toLocaleString("th-TH") : "—", unit: "ต้น", icon: "bi-tree-fill" },
           { label: "ระยะปลูก", val: plot.spacing || "—", unit: "ม.", icon: "bi-arrows-expand" },
+          { label: "จำนวนต้น", val: plot.trees && plot.trees > 0 ? plot.trees.toLocaleString("th-TH") : "—", unit: "ต้น", icon: "bi-tree-fill" },
           { label: "คาร์บอน/ต้น", val: carbonPerTree !== null ? (carbonPerTree < 0.01 ? carbonPerTree.toFixed(4) : carbonPerTree.toFixed(3)) : "—", unit: "tCO₂", icon: "bi-droplet-fill" },
         ].map(({ label, val, unit, icon }) => (
           <div key={label} style={{ background: "#fff", padding: "10px 12px", display: "flex", flexDirection: "column", gap: 1 }}>

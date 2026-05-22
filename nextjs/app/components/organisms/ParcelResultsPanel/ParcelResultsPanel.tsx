@@ -62,13 +62,10 @@ const OLD_YEAR_OPTIONS = Array.from({ length: CURRENT_BE - 2534 + 1 }, (_, i) =>
 
 const LU_DESC_MAP: Record<string, string> = {
     "A": "พื้นที่เกษตรกรรม",
-    "A302": "ยางพารา",
-    "A303": "ปาล์มน้ำมัน",
-    "A304": "พืชสวนอื่นๆ",
     "U": "พื้นที่ชุมชนและสิ่งปลูกสร้าง",
     "F": "พื้นที่ป่าไม้",
-    "W": "พื้นที่แหล่งน้ำ",
-    "M": "พื้นที่อื่นๆ"
+    "W": "แหล่งน้ำ",
+    "M": "พื้นที่เบ็ดเตล็ด"
 };
 
 interface CarbonResult {
@@ -208,22 +205,26 @@ function ageDistribution(age: number, conf: number) {
         .filter(({ a }) => a > 0);
 }
 
-function profileToBarPoints(profile: YearlyEstimate[]): BarPoint[] {
-    return profile.map((item) => ({
-        age: item.age,
-        yearBE: item.year + 543,
-        year_at: item.year_at,
-        co2: item.stocks.value,
-        ci: item.stocks.ci,
-        gainValue: item.gain.value,
-        gainCi: item.gain.ci,
-        cycle: Math.floor(item.year_at / 7),
-        cycleAge: item.age,
-        errorMargin: item.stocks.ci,
-    }));
+function profileToBarPoints(profile: YearlyEstimate[], baseAge: number = 0): BarPoint[] {
+    return profile.map((item, i) => {
+        const yearAt = item.year_at ?? i;
+        const age = (item.age != null && !isNaN(item.age)) ? item.age : baseAge + yearAt;
+        return {
+            age,
+            yearBE: item.year + 543,
+            year_at: yearAt,
+            co2: item.stocks.value,
+            ci: item.stocks.ci,
+            gainValue: item.gain.value,
+            gainCi: item.gain.ci,
+            cycle: Math.floor(yearAt / 7),
+            cycleAge: age,
+            errorMargin: item.stocks.ci,
+        };
+    });
 }
 
-function aggregateProfiles(responses: EstimationResponse[]): BarPoint[] {
+function aggregateProfiles(responses: EstimationResponse[], fallbackBaseAge: number = 0): BarPoint[] {
     const profiles = responses.map(r => r.carbon_profile ?? []);
     if (!profiles.length || !profiles[0].length) return [];
     const len = Math.min(...profiles.map(p => p.length));
@@ -235,6 +236,7 @@ function aggregateProfiles(responses: EstimationResponse[]): BarPoint[] {
         let totalCo2 = 0;
         let sumSqCI = 0;
         let totalAge = 0;
+        let validAgeCount = 0;
         let totalGain = 0;
         let sumSqGainCI = 0;
 
@@ -243,12 +245,15 @@ function aggregateProfiles(responses: EstimationResponse[]): BarPoint[] {
             if (!item) continue;
             totalCo2 += item.stocks.value;
             sumSqCI += item.stocks.ci * item.stocks.ci;
-            totalAge += item.age;
+            if (item.age != null && !isNaN(item.age)) {
+                totalAge += item.age;
+                validAgeCount++;
+            }
             totalGain += item.gain.value;
             sumSqGainCI += item.gain.ci * item.gain.ci;
         }
 
-        const avgAge = Math.round(totalAge / profiles.length);
+        const avgAge = validAgeCount > 0 ? Math.round(totalAge / validAgeCount) : fallbackBaseAge + j;
         const totalCI = Math.sqrt(sumSqCI);
         const totalGainCI = Math.sqrt(sumSqGainCI);
 
@@ -552,9 +557,10 @@ function EstimatedParamsCard({ params }: { params: EstimatedParameters }) {
                     </div>
                 )}
                 {/* Clone, tree count, spacing */}
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "4px 8px", marginTop: 2, color: "#475569" }}>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: "4px 8px", marginTop: 2, color: "#475569" }}>
                     <div>• พันธุ์ยาง: <strong style={{ color: "#0f172a" }}>{String(params.rubber_clone.value)}</strong></div>
-                    <div style={{ gridColumn: "1 / -1" }}>• ระยะปลูก: <strong style={{ color: "#0f172a" }}>{String(params.spacing_system.value)}</strong> (จำนวนต้น: <strong style={{ color: "#0f172a" }}>{Number(params.tree_count.value).toLocaleString("th-TH")}</strong> ต้น)</div>
+                    <div>• ระยะปลูก: <strong style={{ color: "#0f172a" }}>{String(params.spacing_system.value)}</strong></div>
+                    <div>• จำนวนต้น: <strong style={{ color: "#0f172a" }}>{Number(params.tree_count.value).toLocaleString("th-TH")}</strong> ต้น</div>
                 </div>
             </div>
         </div>
@@ -978,9 +984,13 @@ export function ParcelResultsPanel({
                 const totalPlotSelectedRai = totalPlotSelectedM2 / 1600;
 
                 const classM2s: Record<string, number> = {};
+                const classDescs: Record<string, string> = {};
                 plotFeats.forEach(feat => {
-                    const luClass = ((feat.properties ?? {}) as Record<string, unknown>).lu_class as string || "M";
-                    classM2s[luClass] = (classM2s[luClass] || 0) + (((feat.properties ?? {}) as Record<string, unknown>).area_m2 as number || 0);
+                    const props = (feat.properties ?? {}) as Record<string, unknown>;
+                    const luClass = props.lu_class as string || "M";
+                    const luDesc = props.lu_class_desc_th as string | undefined;
+                    classM2s[luClass] = (classM2s[luClass] || 0) + (props.area_m2 as number || 0);
+                    if (luDesc && !classDescs[luClass]) classDescs[luClass] = luDesc;
                 });
 
                 const luBreakdown: Record<string, { rai: number; pct: number; desc: string }> = {};
@@ -990,34 +1000,66 @@ export function ParcelResultsPanel({
                     luBreakdown[cls] = {
                         rai: Math.round(rai * 100) / 100,
                         pct: Math.round(pct * 10) / 10,
-                        desc: LU_DESC_MAP[cls] || cls
+                        desc: cls.startsWith("A") && cls !== "A"
+                            ? (classDescs[cls] || "")
+                            : (LU_DESC_MAP[cls] || cls)
                     };
                 });
 
                 const backendYearBE = plots[idx]?.plantYearBE || 0;
                 const userYearBE = form.plantYear ? parseInt(form.plantYear) : 0;
 
+                // Find corresponding response by matching polygon ID
+                const resp = responses.find(r => r.polygon_id === `plot-${idx}`);
+                const profile = resp?.carbon_profile ?? [];
+
                 let finalPlantYearBE = 0;
                 let yearUsedDetails = "";
 
                 if (userYearBE > 0) {
+                    // 1. ผู้ใช้กรอกปีเอง — ใช้ก่อนเสมอ
                     finalPlantYearBE = userYearBE;
                     yearUsedDetails = `ใช้ตามที่คุณระบุ (พ.ศ. ${userYearBE})`;
-                } else if (backendYearBE > 0) {
-                    finalPlantYearBE = backendYearBE;
-                    yearUsedDetails = `ใช้ปีจากดาวเทียมที่ตรวจพบ (พ.ศ. ${backendYearBE})`;
-                } else {
-                    finalPlantYearBE = 0;
-                    yearUsedDetails = "";
+                } else if (resp?.estimated_parameters) {
+                    // 2. ไม่กรอกปี → ใช้ dominant cohort จาก carbon API (แม่นที่สุด)
+                    const yop = resp.estimated_parameters.year_of_planting;
+                    if (typeof yop.value === "number" && yop.value > 0) {
+                        finalPlantYearBE = yop.value + 543;
+                        yearUsedDetails = `ใช้ปีจากระบบประมาณการ (พ.ศ. ${finalPlantYearBE})`;
+                    } else if (Array.isArray(yop.value) && yop.value.length > 0) {
+                        const m = yop.value[0].match(/^(\d{4})/);
+                        if (m) {
+                            finalPlantYearBE = parseInt(m[1]) + 543;
+                            yearUsedDetails = `ใช้ปีจากระบบประมาณการ (พ.ศ. ${finalPlantYearBE})`;
+                        }
+                    }
                 }
 
-                const startAge = finalPlantYearBE > 0 ? CURRENT_BE_NOW - finalPlantYearBE : 0;
+                // 3. Fallback: ปีจาก parcel API ถ้า estimated_parameters ไม่มี
+                if (finalPlantYearBE === 0 && backendYearBE > 0) {
+                    finalPlantYearBE = backendYearBE;
+                    yearUsedDetails = `ใช้ปีจากดาวเทียมที่ตรวจพบ (พ.ศ. ${backendYearBE})`;
+                }
+
+                let startAge = finalPlantYearBE > 0 ? CURRENT_BE_NOW - finalPlantYearBE : 0;
+
+                // 4. Fallback: อายุจาก profile โดยตรง ถ้ายังเป็น 0
+                if (startAge === 0 && profile.length > 0) {
+                    const profileAge = profile[0].age;
+                    if (profileAge != null && !isNaN(profileAge)) {
+                        startAge = profileAge;
+                        if (finalPlantYearBE === 0) {
+                            finalPlantYearBE = CURRENT_BE_NOW - startAge;
+                            yearUsedDetails = `ใช้ปีจากข้อมูลหลังบ้าน (พ.ศ. ${finalPlantYearBE})`;
+                        }
+                    }
+                }
+
+                if (startAge === 0 && finalPlantYearBE === 0) {
+                    startAge = 1;
+                }
                 const userTrees = form.treeCount ? parseInt(form.treeCount) : 0;
                 const finalTrees = userTrees > 0 ? userTrees : Math.round(totalAreaRai * 76);
-
-                // Find corresponding response by matching polygon ID
-                const resp = responses.find(r => r.polygon_id === `plot-${idx}`);
-                const profile = resp?.carbon_profile ?? [];
                 const co2Now = profile[0]?.stocks?.value ?? 0;
 
                 results.push({
@@ -1507,11 +1549,11 @@ export function ParcelResultsPanel({
                                                             aSubtypes.forEach(sub => {
                                                                 const realSubData = plotLUData[sub];
                                                                 if (realSubData && realSubData.rai > 0) {
-                                                                    const desc = realSubData.desc || (sub === "A302" ? "ยางพารา" : sub === "A303" ? "ปาล์มน้ำมัน" : sub === "A304" ? "ไม้ผล" : "หมวดย่อย A");
+                                                                    const desc = realSubData.desc || "";
                                                                     const isA302 = sub === "A302";
                                                                     displayLU.push({
                                                                         id: sub,
-                                                                        label: `${sub} ${desc}`,
+                                                                        label: desc ? `${sub} ${desc}` : sub,
                                                                         fixed: isA302,
                                                                         indent: true,
                                                                         color: "#84cc16"
@@ -1692,14 +1734,15 @@ export function ParcelResultsPanel({
 
             let pts: BarPoint[] = [];
             let summaryTotalCo2 = 0;
-            let summaryTotalTrees = 0;
 
             if (isTotal && carbonResults.length > 0) {
-                summaryTotalTrees = carbonResults.reduce((sum, c) => sum + c.trees, 0);
                 summaryTotalCo2 = carbonResults.reduce((sum, c) => sum + c.co2Now, 0);
 
                 if (backendResponses && backendResponses.length > 0) {
-                    pts = aggregateProfiles(backendResponses);
+                    const avgStartAge = carbonResults.length > 0
+                        ? Math.round(carbonResults.reduce((s, c) => s + c.age, 0) / carbonResults.length)
+                        : 0;
+                    pts = aggregateProfiles(backendResponses, avgStartAge);
                 } else {
                     const CURRENT_BE = new Date().getFullYear() + 543;
                     const initialPlotCarbons = carbonResults.map(c => carbonCo2(c.age, c.trees, c.spacing));
@@ -1727,13 +1770,11 @@ export function ParcelResultsPanel({
                 }
             } else if (cr) {
                 const plotIdx = selectedMapPlotIndex as number;
-                const backendProfile = backendResponses?.[plotIdx]?.carbon_profile;
-                console.log("[KeptCarbon] Step 3 - cr (carbon result):", cr);
-                console.log("[KeptCarbon] Step 3 - backendProfile:", backendProfile);
-                console.log("[KeptCarbon] Step 3 - backendProfile length:", backendProfile?.length, "/ expected:", 35 - cr.age);
-                pts = backendProfile
-                    ? profileToBarPoints(backendProfile)
-                    : buildBarPoints(cr.age, cr.plantYearBE, cr.trees, cr.spacing || "2.5x8");
+                const backendProfile = backendResponses?.find(r => r.polygon_id === `plot-${plotIdx}`)?.carbon_profile;
+                const startYearBE = cr.plantYearBE > 0 ? cr.plantYearBE + cr.age : CURRENT_BE;
+                pts = backendProfile && backendProfile.length > 0
+                    ? profileToBarPoints(backendProfile, cr.age)
+                    : buildBarPoints(cr.age, startYearBE, cr.trees, cr.spacing || "2.5x8");
             }
 
             return (
@@ -2016,7 +2057,7 @@ export function ParcelResultsPanel({
                                                                 <div style={{ display: "flex", flexDirection: "column", gap: 4, paddingLeft: 8 }}>
                                                                     {Object.entries(crInfo.luBreakdown).map(([cls, info]) => (
                                                                         <div key={cls} style={{ display: "flex", justifyContent: "space-between", color: "#059669", fontWeight: 600 }}>
-                                                                            <span>↳ {cls} {info.desc}:</span>
+                                                                            <span>↳ {cls}{info.desc ? ` ${info.desc}` : ""}:</span>
                                                                             <span>{info.rai.toFixed(2)} ไร่ ({info.pct}%)</span>
                                                                         </div>
                                                                     ))}
