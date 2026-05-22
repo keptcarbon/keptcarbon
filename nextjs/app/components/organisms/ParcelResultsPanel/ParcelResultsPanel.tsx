@@ -1035,8 +1035,8 @@ export function ParcelResultsPanel({
                     age: startAge,
                     plantYearBE: finalPlantYearBE,
                     trees: finalTrees,
-                    spacing: form.spacing || "2.5x8",
-                    variety: form.variety || "RRIM 600",
+                    spacing: form.spacing,
+                    variety: form.variety,
                     co2Now,
                     source: "backend" as const,
                     yearUsedDetails,
@@ -1743,7 +1743,7 @@ export function ParcelResultsPanel({
                 console.log("[KeptCarbon] Step 3 - backendProfile length:", backendProfile?.length, "/ expected:", 35 - cr.age);
                 pts = backendProfile
                     ? profileToBarPoints(backendProfile)
-                    : buildBarPoints(cr.age, cr.plantYearBE, cr.trees, cr.spacing);
+                    : buildBarPoints(cr.age, cr.plantYearBE, cr.trees, cr.spacing || "2.5x8");
             }
 
             return (
@@ -1999,11 +1999,13 @@ export function ParcelResultsPanel({
                                                         <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
                                                             <div>• ปีที่ปลูกที่ใช้ประมวลผล: <strong>พ.ศ. {crInfo.plantYearBE}</strong></div>
                                                         </div>
-                                                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4, marginTop: 2 }}>
-                                                            <div>• พันธุ์ยาง: {crInfo.variety}</div>
-                                                            <div>• จำนวนต้น: {crInfo.trees} ต้น</div>
-                                                            <div>• ระยะปลูก: {crInfo.spacing} ม.</div>
+                                                        {(f.variety || f.treeCount || f.spacing) && (
+                                                        <div style={{ display: "flex", flexDirection: "column", gap: 2, marginTop: 2 }}>
+                                                            {f.variety && <div>• พันธุ์ยาง: {crInfo.variety}</div>}
+                                                            {f.treeCount && <div>• จำนวนต้น: {crInfo.trees.toLocaleString("th-TH")} ต้น</div>}
+                                                            {f.spacing && <div>• ระยะปลูก: {crInfo.spacing} ม.</div>}
                                                         </div>
+                                                        )}
                                                     </div>
                                                     {/* Estimated Parameters from backend */}
                                                     {(() => {
