@@ -286,7 +286,7 @@ function EstimatedParamsCard({ params }: { params: EstimatedParameters }) {
     return (
         <div style={{ marginTop: 8, paddingTop: 8, borderTop: "1px dashed rgba(14,165,233,0.2)", fontSize: 14 }}>
             <div style={{ fontWeight: 700, color: "#0284c7", marginBottom: 6, display: "flex", alignItems: "center", gap: 4 }}>
-                <i className="bi bi-cpu" /> พารามิเตอร์จากระบบ
+                <i className="bi bi-cpu" /> ข้อมูลอ้างอิงจากระบบ
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                 {/* Year used */}
@@ -1965,7 +1965,7 @@ export function ParcelResultsPanel({
                                                     <div style={{ display: "flex", flexDirection: "column", gap: 5, fontSize: 13, color: "#64748b" }}>
                                                         {(f.plantYear || f.variety || f.treeCount || f.spacing) && (
                                                         <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-                                                            {f.plantYear && <div>• กรอกข้อมูลเอง: <strong>พ.ศ. {crInfo.plantYearBE}</strong></div>}
+                                                            {f.plantYear && <div>• ข้อมูลที่ผู้ใช้งานระบุ: <strong>พ.ศ. {crInfo.plantYearBE}</strong></div>}
                                                         </div>
                                                         )}
                                                         {(f.variety || f.treeCount || f.spacing) && (
