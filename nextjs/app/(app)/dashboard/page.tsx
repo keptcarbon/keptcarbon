@@ -781,7 +781,7 @@ export default function DashboardPage() {
                           <span style={{ fontSize: 11, color: "#94a3b8", fontStyle: "italic" }}>{cfg.stage}</span>
                         </div>
                         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                          <span style={{ fontSize: 13, fontWeight: 800, color: cfg.dark }}>{fmt(a.areaRai)}</span>
+                          <span style={{ fontSize: 13, fontWeight: 800, color: cfg.dark }}>{fmt(a.areaRai)}<span style={{ fontSize: 10, fontWeight: 600, marginLeft: 3, opacity: 0.7 }}>ไร่</span></span>
                           <span style={{ fontSize: 11, fontWeight: 700, background: cfg.bg, color: cfg.dark, borderRadius: 5, padding: "2px 7px" }}>{totalPct}%</span>
                         </div>
                       </div>
