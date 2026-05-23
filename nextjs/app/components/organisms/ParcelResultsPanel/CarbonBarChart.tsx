@@ -84,7 +84,7 @@ export function buildBarPoints(
 export function CarbonBarChart({
   pts,
   isMobile,
-  title = "ปริมาณการกักเก็บคาร์บอนสะสม tCO₂)",
+  title = "ปริมาณการกักเก็บคาร์บอนสะสม (tCO₂)",
   narrowMode = false,
 }: {
   pts: BarPoint[];
