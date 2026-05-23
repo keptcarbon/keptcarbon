@@ -2,29 +2,22 @@
 
 import { useAuth } from "@/lib/auth-context";
 import Link from "next/link";
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
-import { CarbonBarChart, buildBarPoints } from "@/app/components/organisms/ParcelResultsPanel/CarbonBarChart";
+import { CarbonBarChart, buildBarPoints, carbonCo2, type BarPoint } from "@/app/components/organisms/ParcelResultsPanel/CarbonBarChart";
 
 const HERO_BG =
   "radial-gradient(1000px 400px at -5% -5%, rgba(16,185,129,0.12) 0%, rgba(16,185,129,0) 60%)," +
   "radial-gradient(800px 400px at 105% 0%, rgba(59,130,246,0.1) 0%, rgba(59,130,246,0) 58%)," +
   "linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.9) 100%)";
 
-function carbonCo2(age: number, trees: number): number {
-
-  const H = Math.min(2.0 + 1.8 * age, 28);
-  const D = Math.min(3 + 4.5 * age, 60);
-  const AGB = 0.1284 * D * D * H * 0.001;
-  return (AGB + AGB * 0.26) * 0.47 * 3.67 * trees;
-}
+const VARIETY_OPTIONS = ["RRIM 600", "RRIT 251"];
+const SPACING_OPTIONS = ["2.5x8", "3x7", "2.5x7", "2x6", "3x8"];
 
 function fmtCompact(v: number): string {
   return v.toLocaleString("th-TH", { maximumFractionDigits: 0 });
 }
-
-type Forecast = { yr3: number; yr5: number; yr7: number };
 
 type SavedPlot = {
   id: string;
@@ -36,358 +29,15 @@ type SavedPlot = {
   trees?: number;
   variety?: string;
   spacing?: string;
-  confidence?: number;
   userId?: string;
   ownerName?: string;
   province?: string;
   date: string;
   geojson?: unknown;
   boundaryGeojson?: unknown;
-  forecast?: Forecast;
+  forecast?: { yr3: number; yr5: number; yr7: number };
+  carbonProfile?: BarPoint[];
 };
-
-// Smooth cubic bezier path builder (module-level, not inside component)
-function buildSmoothPath(pts: { x: number; y: number }[]): string {
-  if (pts.length === 0) return "";
-  if (pts.length < 2) return `M${pts[0].x.toFixed(2)},${pts[0].y.toFixed(2)}`;
-  let d = `M${pts[0].x.toFixed(2)},${pts[0].y.toFixed(2)}`;
-  for (let i = 1; i < pts.length; i++) {
-    const prev = pts[i - 1], cur = pts[i];
-    const cp1x = prev.x + (cur.x - prev.x) * 0.45;
-    const cp2x = cur.x - (cur.x - prev.x) * 0.45;
-    d += ` C${cp1x.toFixed(2)},${prev.y.toFixed(2)} ${cp2x.toFixed(2)},${cur.y.toFixed(2)} ${cur.x.toFixed(2)},${cur.y.toFixed(2)}`;
-  }
-  return d;
-}
-
-function ForecastBody({
-  milestones,
-  chartPts,
-  base,
-  maxCo2,
-  isMobile,
-}: {
-  milestones: any[];
-  chartPts: any[];
-  base: number;
-  maxCo2: number;
-  isMobile?: boolean;
-}) {
-  const [view, setView] = useState<"timeline" | "chart">("timeline");
-  const [hoveredPt, setHoveredPt] = useState<number | null>(null);
-
-  // Stable IDs for SVG gradients (safe for SSR hydration)
-  const rawId = useId();
-  const uid = rawId.replace(/:/g, "-");
-
-  // SVG dimensions - Compacted for better density
-  const W = isMobile ? 400 : 800, H = isMobile ? 180 : 220, PL = 12, PT = 20, PB = 30;
-  const iW = W - PL * 2, iH = H - PT - PB;
-  const n = chartPts.length;
-
-  const vals = chartPts.length > 0 ? chartPts.map(p => p.co2) : [0];
-  const minV = Math.min(...vals);
-  const maxV = Math.max(...vals, 1);
-  const rng = maxV - minV || maxV * 0.1 || 1;
-
-  const xi = (i: number) => PL + (n > 1 ? i / (n - 1) : 0.5) * iW;
-  const yi = (v: number) => PT + (1 - (v - minV) / rng) * iH;
-
-  const svgPts = chartPts.map((p, i) => ({ x: xi(i), y: yi(p.co2), ...p }));
-  const linePath = buildSmoothPath(svgPts);
-  const areaPath = svgPts.length > 0
-    ? `${linePath} L${xi(n - 1).toFixed(2)},${(PT + iH).toFixed(2)} L${PL.toFixed(2)},${(PT + iH).toFixed(2)} Z`
-    : "";
-
-  const hp = hoveredPt !== null ? svgPts[hoveredPt] ?? null : null;
-
-  return (
-    <>
-      {/* Toggle button */}
-      <div style={{ padding: "8px 16px 0", display: "flex", justifyContent: "flex-end" }}>
-        <button
-          onClick={() => setView(v => v === "timeline" ? "chart" : "timeline")}
-          title={view === "timeline" ? "ดูกราฟรายปี" : "ดู Timeline"}
-          style={{
-            display: "flex", alignItems: "center", gap: 4, padding: "4px 10px",
-            borderRadius: 8, cursor: "pointer", fontSize: 10, fontWeight: 700,
-            border: "1.5px solid rgba(16,185,129,0.35)",
-            background: view === "chart" ? "rgba(16,185,129,0.12)" : "transparent",
-            color: "#059669", transition: "background 0.15s",
-          }}
-        >
-          <i className={`bi ${view === "timeline" ? "bi-graph-up" : "bi-calendar3"}`} style={{ fontSize: 11 }} />
-          {view === "timeline" ? "กราฟเส้น" : "Timeline"}
-        </button>
-      </div>
-
-      {/* Timeline view */}
-      {view === "timeline" && (
-        <div style={{ padding: isMobile ? "14px 10px" : "12px 16px 12px", display: "flex", gap: 0, alignItems: "stretch" }}>
-          {milestones.map((m, i) => {
-            const isFirst = i === 0;
-            const isLast = i === milestones.length - 1;
-            const changeFromBase = isFirst ? 0 : m.co2 - base;
-            const changePct = base > 0 ? (changeFromBase / base) * 100 : 0;
-            const barFill = maxCo2 > 0 ? Math.round((m.co2 / maxCo2) * 100) : 0;
-            const dotColor = isFirst ? "#059669" : isLast ? "#16a34a" : "#10b981";
-            return (
-              <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", position: "relative" }}>
-                {!isLast && (
-                  <div style={{ position: "absolute", top: isMobile ? 12 : 10, left: "50%", right: "-50%", height: 2, background: "linear-gradient(90deg,rgba(16,185,129,0.35),rgba(16,185,129,0.1))", zIndex: 0 }} />
-                )}
-                <div style={{ width: isMobile ? 20 : 16, height: isMobile ? 20 : 16, borderRadius: "50%", flexShrink: 0, background: isFirst ? dotColor : "#fff", border: `2px solid ${dotColor}`, boxShadow: isFirst ? "0 0 0 3px rgba(5,150,105,0.1)" : "none", zIndex: 1, marginBottom: 6, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  {isFirst && <div style={{ width: 5, height: 5, borderRadius: "50%", background: "#fff" }} />}
-                </div>
-                <div style={{ fontSize: isMobile ? 10 : 10.5, fontWeight: isFirst ? 700 : 500, color: isFirst ? "#059669" : "#64748b", marginBottom: 2, textAlign: "center" }}>{m.label}</div>
-                <div style={{ fontSize: isMobile ? 14 : 13, fontWeight: 800, color: isFirst ? "#059669" : isLast ? "#15803d" : "#0f172a", textAlign: "center" }}>{fmtCompact(m.co2)}</div>
-                <div style={{ fontSize: 9.5, color: "#94a3b8", marginTop: 1, textAlign: "center" }}>tCO₂</div>
-                {!isFirst && changeFromBase !== 0 && (
-                  <div style={{ marginTop: 5, fontSize: isMobile ? 10.5 : 10, fontWeight: 700, color: changeFromBase > 0 ? "#16a34a" : "#dc2626", background: changeFromBase > 0 ? "rgba(22,163,74,0.08)" : "rgba(220,38,38,0.08)", padding: isMobile ? "2px 6px" : "1px 5px", borderRadius: 6, textAlign: "center" }}>
-                    {changeFromBase > 0 ? "+" : ""}{changePct.toFixed(1)}%
-                  </div>
-                )}
-                <div style={{ marginTop: 8, width: "80%", height: 3.5, borderRadius: 3, background: "rgba(16,185,129,0.1)", overflow: "hidden" }}>
-                  <div style={{ height: "100%", borderRadius: 3, width: `${barFill}%`, background: isFirst ? "linear-gradient(90deg,#059669,#10b981)" : isLast ? "linear-gradient(90deg,#10b981,#34d399)" : "rgba(16,185,129,0.5)", transition: "width 0.4s ease" }} />
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {/* Line chart view */}
-      {view === "chart" && (
-        <div style={{ padding: "10px 16px 12px" }}>
-          <svg
-            viewBox={`0 0 ${W} ${H}`}
-            style={{ width: "100%", height: H, display: "block", overflow: "visible" }}
-          >
-            <defs>
-              <linearGradient id={`areaGrad-${uid}`} x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#10b981" stopOpacity="0.30" />
-                <stop offset="60%" stopColor="#10b981" stopOpacity="0.08" />
-                <stop offset="100%" stopColor="#10b981" stopOpacity="0" />
-              </linearGradient>
-              <linearGradient id={`lineGrad-${uid}`} x1="0" y1="0" x2="1" y2="0">
-                <stop offset="0%" stopColor="#059669" />
-                <stop offset="100%" stopColor="#34d399" />
-              </linearGradient>
-              <filter id={`glow-${uid}`} x="-20%" y="-20%" width="140%" height="140%">
-                <feDropShadow dx="0" dy="0" stdDeviation="2.5" floodColor="#10b981" floodOpacity="0.45" />
-              </filter>
-              <filter id={`dotGlow-${uid}`} x="-60%" y="-60%" width="220%" height="220%">
-                <feDropShadow dx="0" dy="0" stdDeviation="3" floodColor="#34d399" floodOpacity="0.6" />
-              </filter>
-            </defs>
-
-            {/* Subtle horizontal grid lines */}
-            {[0, 0.5, 1].map(t => (
-              <line key={t}
-                x1={PL} y1={PT + t * iH} x2={PL + iW} y2={PT + t * iH}
-                stroke="rgba(16,185,129,0.12)"
-                strokeWidth={t === 0 || t === 1 ? 1 : 0.6}
-                strokeDasharray={t === 0.5 ? "4 3" : undefined}
-              />
-            ))}
-
-            {/* Hover vertical guide */}
-            {hp && (
-              <line
-                x1={hp.x} y1={PT} x2={hp.x} y2={PT + iH}
-                stroke="rgba(16,185,129,0.25)" strokeWidth={1.5} strokeDasharray="4 3"
-              />
-            )}
-
-            {/* Area fill */}
-            <path d={areaPath} fill={`url(#areaGrad-${uid})`} />
-
-            {/* Line with gradient stroke */}
-            <path
-              d={linePath}
-              fill="none"
-              stroke={`url(#lineGrad-${uid})`}
-              strokeWidth={2.5}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              filter={`url(#glow-${uid})`}
-            />
-
-            {/* Invisible wide hit targets */}
-            {svgPts.map((p, i) => (
-              <rect key={i}
-                x={i === 0 ? PL : (svgPts[i - 1].x + p.x) / 2}
-                y={PT}
-                width={
-                  i === 0
-                    ? (svgPts[1] ? (svgPts[1].x + p.x) / 2 - PL : iW)
-                    : i === n - 1
-                      ? PL + iW - (svgPts[i - 1].x + p.x) / 2
-                      : p.x - svgPts[i - 1].x
-                }
-                height={iH}
-                fill="transparent"
-                style={{ cursor: "crosshair" }}
-                onMouseEnter={() => setHoveredPt(i)}
-                onMouseLeave={() => setHoveredPt(null)}
-              />
-            ))}
-
-            {/* Dots */}
-            {svgPts.map((p, i) => {
-              const isHov = hoveredPt === i;
-              const isFirst = i === 0;
-              const isLast = i === n - 1;
-              return (
-                <g key={i}>
-                  {isHov && (
-                    <circle cx={p.x} cy={p.y} r={10}
-                      fill="rgba(16,185,129,0.15)"
-                    />
-                  )}
-                  <circle
-                    cx={p.x} cy={p.y}
-                    r={isHov ? 5.5 : isFirst || isLast ? 4 : 3}
-                    fill={isHov ? "#34d399" : isFirst ? "#059669" : "#fff"}
-                    stroke={isFirst ? "#059669" : "#10b981"}
-                    strokeWidth={isHov ? 2.5 : 2}
-                    filter={isHov ? `url(#dotGlow-${uid})` : undefined}
-                    style={{ transition: "r 0.15s ease" }}
-                  />
-                </g>
-              );
-            })}
-
-            {/* Year labels along x-axis */}
-            {svgPts.map((p, i) => (
-              <text key={i} x={p.x} y={H - 10}
-                textAnchor="middle" fontSize={isMobile ? 12 : 13}
-                fontWeight={i === 0 ? 700 : 400}
-                fill={i === 0 ? "#059669" : "#94a3b8"}
-              >
-                {p.label}
-              </text>
-            ))}
-
-            {/* Tooltip */}
-            {hp && (() => {
-              const isFirst = hoveredPt === 0;
-              const changeAbs = hp.co2 - base;
-              const changePct = base > 0 ? (changeAbs / base) * 100 : 0;
-              const ttW = isMobile ? 112 : 130, ttH = isFirst ? (isMobile ? 38 : 42) : (isMobile ? 52 : 60);
-              const ttX = Math.min(Math.max(hp.x - ttW / 2, PL), PL + iW - ttW);
-              const ttY = hp.y - ttH - 12;
-              return (
-                <g pointerEvents="none">
-                  {/* Backdrop blur effect via rect */}
-                  <rect x={ttX} y={ttY} width={ttW + 10} height={ttH + 10} rx={9}
-                    fill="#064e3b" opacity={0.95}
-                  />
-                  <text x={ttX + (ttW + 10) / 2} y={ttY + (isMobile ? 16 : 18)}
-                    textAnchor="middle" fontSize={isMobile ? 11 : 12} fill="#6ee7b7" fontWeight={600}
-                  >
-                    {isFirst ? "ณ ปัจจุบัน" : `อีก ${hp.yr} ปีข้างหน้า`}
-                  </text>
-                  <text x={ttX + (ttW + 10) / 2} y={ttY + (isMobile ? 34 : 38)}
-                    textAnchor="middle" fontSize={isMobile ? 13 : 15} fill="#ffffff" fontWeight={800}
-                  >
-                    {hp.co2.toLocaleString("th-TH", { maximumFractionDigits: 1 })} tCO₂
-                  </text>
-                  {!isFirst && (
-                    <text x={ttX + (ttW + 10) / 2} y={ttY + (isMobile ? 50 : 54)}
-                      textAnchor="middle" fontSize={isMobile ? 11 : 11.5}
-                      fill={changePct >= 0 ? "#34d399" : "#f87171"} fontWeight={700}
-                    >
-                      {changePct >= 0 ? "▲" : "▼"} {Math.abs(changePct).toFixed(1)}% จากปัจจุบัน
-                    </text>
-                  )}
-                  {/* Arrow */}
-                  <polygon
-                    points={`${hp.x - 5},${ttY + ttH} ${hp.x + 5},${ttY + ttH} ${hp.x},${ttY + ttH + 6}`}
-                    fill="#064e3b" opacity={0.95}
-                  />
-                </g>
-              );
-            })()}
-          </svg>
-          <div style={{ textAlign: "center", fontSize: 9, color: "#94a3b8", marginTop: 2 }}>
-            hover บนเส้นเพื่อดูรายละเอียด · หน่วย tCO₂
-          </div>
-        </div>
-      )}
-    </>
-  );
-}
-
-function ForecastSection({
-  rubberAge,
-  trees,
-  carbonTotal,
-  forecast,
-  isMobile,
-}: {
-  rubberAge: number;
-  trees: number;
-  carbonTotal: number;
-  forecast?: Forecast;
-  isMobile?: boolean;
-}) {
-  const canCompute = trees > 0 && rubberAge > 0;
-
-  const milestones: { label: string; co2: number; yr: number }[] = [];
-  if (canCompute) {
-    milestones.push({ label: "ปัจจุบัน", co2: carbonTotal, yr: 0 });
-    milestones.push({ label: "+1 ปี", co2: carbonCo2(rubberAge + 1, trees), yr: 1 });
-    milestones.push({ label: "+3 ปี", co2: carbonCo2(rubberAge + 3, trees), yr: 3 });
-    milestones.push({ label: "+5 ปี", co2: carbonCo2(rubberAge + 5, trees), yr: 5 });
-    milestones.push({ label: "+7 ปี", co2: carbonCo2(rubberAge + 7, trees), yr: 7 });
-  } else if (forecast && (forecast.yr3 > 0 || forecast.yr5 > 0 || forecast.yr7 > 0)) {
-    milestones.push({ label: "ปัจจุบัน", co2: carbonTotal, yr: 0 });
-    if (forecast.yr3 > 0) milestones.push({ label: "+3 ปี", co2: forecast.yr3, yr: 3 });
-    if (forecast.yr5 > 0) milestones.push({ label: "+5 ปี", co2: forecast.yr5, yr: 5 });
-    if (forecast.yr7 > 0) milestones.push({ label: "+7 ปี", co2: forecast.yr7, yr: 7 });
-  }
-
-  if (milestones.length === 0) {
-    return (
-      <div style={{ marginTop: 12, padding: "16px", background: "rgba(148,163,184,0.03)", borderRadius: 14, fontSize: 12, color: "#94a3b8", textAlign: "center", border: "1.5px dashed rgba(148,163,184,0.15)" }}>
-        <i className="bi bi-graph-up-arrow me-2" style={{ opacity: 0.6 }} />
-        ยังไม่มีข้อมูลการประมวลผลคาร์บอน
-      </div>
-    );
-  }
-
-  const base = milestones[0].co2;
-  const last = milestones[milestones.length - 1].co2;
-  const growthPct = base > 0 ? ((last - base) / base) * 100 : 0;
-  const maxCo2 = Math.max(...milestones.map(m => m.co2), 1);
-
-  const chartPts = canCompute
-    ? Array.from({ length: 8 }, (_, i) => ({
-      yr: i,
-      label: i === 0 ? "ปัจจุบัน" : `+${i}`,
-      co2: i === 0 ? carbonTotal : carbonCo2(rubberAge + i, trees),
-    }))
-    : milestones.map(m => ({ yr: m.yr, label: m.label, co2: m.co2 }));
-
-  return (
-    <div style={{ marginTop: 14, borderRadius: 14, border: "1px solid rgba(16,185,129,0.18)", overflow: "hidden", background: "#fff" }}>
-      {/* Header */}
-      <div style={{ padding: "10px 16px", background: "linear-gradient(135deg,rgba(16,185,129,0.07) 0%,rgba(5,150,105,0.04) 100%)", borderBottom: "1px solid rgba(16,185,129,0.1)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <span style={{ fontSize: isMobile ? 12 : 13, fontWeight: 700, color: "#059669", display: "flex", alignItems: "center", gap: 6 }}>
-          <i className="bi bi-graph-up-arrow" style={{ fontSize: isMobile ? 13 : 14 }} />
-          พยากรณ์การกักเก็บคาร์บอน (tCO₂)
-        </span>
-        {growthPct > 0 && (
-          <span style={{ fontSize: isMobile ? 10 : 11, fontWeight: 700, color: "#16a34a", background: "rgba(22,163,74,0.1)", padding: "3px 10px", borderRadius: 20, border: "1px solid rgba(22,163,74,0.25)", display: "flex", alignItems: "center", gap: 3 }}>
-            <span style={{ fontSize: isMobile ? 9 : 10 }}>▲</span> {growthPct.toFixed(1)}% ใน {milestones[milestones.length - 1].yr} ปี
-          </span>
-        )}
-      </div>
-      <ForecastBody milestones={milestones} chartPts={chartPts} base={base} maxCo2={maxCo2} isMobile={isMobile} />
-    </div>
-  );
-}
 
 function PlotsMapView({ plots, isMobile }: { plots: SavedPlot[], isMobile: boolean }) {
   const mapContainerRef = useRef<HTMLDivElement>(null);
@@ -725,6 +375,9 @@ function PlotsMapView({ plots, isMobile }: { plots: SavedPlot[], isMobile: boole
   );
 }
 
+const inputStyle: React.CSSProperties = { width: "100%", padding: "10px 14px", borderRadius: 10, border: "1px solid #cbd5e1", fontSize: 14, background: "#fff" };
+const labelStyle: React.CSSProperties = { display: "block", fontSize: 13, fontWeight: 700, color: "#475569", marginBottom: 6 };
+
 function EditPlotModal({ plot, onClose, onSave, isMobile }: { plot: SavedPlot; onClose: () => void; onSave: (p: SavedPlot) => void; isMobile: boolean }) {
   const [formData, setFormData] = useState({
     name: plot.name || "",
@@ -734,18 +387,20 @@ function EditPlotModal({ plot, onClose, onSave, isMobile }: { plot: SavedPlot; o
     rubberAge: plot.rubberAge?.toString() || "",
     trees: plot.trees?.toString() || "",
     plantYearBE: plot.plantYearBE?.toString() || "",
+    variety: plot.variety || "",
+    spacing: plot.spacing || "",
   });
 
   const handleSave = () => {
     const ageNum = parseInt(formData.rubberAge) || 0;
     const treesNum = parseInt(formData.trees) || 0;
-    const newCarbon = (ageNum > 0 && treesNum > 0) ? carbonCo2(ageNum, treesNum) : plot.carbonTotal;
+    const sp = formData.spacing || "2.5x8";
+    const newCarbon = (ageNum > 0 && treesNum > 0) ? carbonCo2(ageNum, treesNum, sp) : plot.carbonTotal;
     const forecast = {
-      yr3: carbonCo2(ageNum + 3, treesNum),
-      yr5: carbonCo2(ageNum + 5, treesNum),
-      yr7: carbonCo2(ageNum + 7, treesNum)
+      yr3: carbonCo2(ageNum + 3, treesNum, sp),
+      yr5: carbonCo2(ageNum + 5, treesNum, sp),
+      yr7: carbonCo2(ageNum + 7, treesNum, sp),
     };
-
     onSave({
       ...plot,
       name: formData.name,
@@ -755,46 +410,62 @@ function EditPlotModal({ plot, onClose, onSave, isMobile }: { plot: SavedPlot; o
       rubberAge: ageNum,
       trees: treesNum,
       plantYearBE: parseInt(formData.plantYearBE) || undefined,
+      variety: formData.variety,
+      spacing: formData.spacing,
       carbonTotal: newCarbon,
-      forecast
+      forecast,
     });
   };
 
   return (
     <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.5)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
-      <div style={{ background: "#fff", borderRadius: 20, width: "100%", maxWidth: 500, maxHeight: "90vh", overflow: "auto", padding: isMobile ? 20 : 30, boxShadow: "0 20px 40px rgba(0,0,0,0.2)" }}>
+      <div style={{ background: "#fff", borderRadius: 20, width: "100%", maxWidth: 520, maxHeight: "90vh", overflow: "auto", padding: isMobile ? 20 : 30, boxShadow: "0 20px 40px rgba(0,0,0,0.2)" }}>
         <div style={{ fontSize: 20, fontWeight: 800, color: "#064e3b", marginBottom: 20, display: "flex", alignItems: "center", gap: 10 }}>
           <i className="bi bi-pencil-square" style={{ color: "#10b981" }} /> แก้ไขข้อมูลแปลง
         </div>
 
         <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 16 }}>
           <div style={{ gridColumn: "1 / -1" }}>
-            <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: "#475569", marginBottom: 6 }}>ชื่อโครงการ</label>
-            <input type="text" value={formData.name} onChange={e => setFormData(f => ({ ...f, name: e.target.value }))} style={{ width: "100%", padding: "10px 14px", borderRadius: 10, border: "1px solid #cbd5e1", fontSize: 14 }} />
+            <label style={labelStyle}>ชื่อโครงการ</label>
+            <input type="text" value={formData.name} onChange={e => setFormData(f => ({ ...f, name: e.target.value }))} style={inputStyle} />
           </div>
           <div>
-            <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: "#475569", marginBottom: 6 }}>ชื่อเจ้าของ</label>
-            <input type="text" value={formData.ownerName} onChange={e => setFormData(f => ({ ...f, ownerName: e.target.value }))} style={{ width: "100%", padding: "10px 14px", borderRadius: 10, border: "1px solid #cbd5e1", fontSize: 14 }} />
+            <label style={labelStyle}>ชื่อเจ้าของ</label>
+            <input type="text" value={formData.ownerName} onChange={e => setFormData(f => ({ ...f, ownerName: e.target.value }))} style={inputStyle} />
           </div>
           <div>
-            <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: "#475569", marginBottom: 6 }}>จังหวัด</label>
-            <input type="text" value={formData.province} onChange={e => setFormData(f => ({ ...f, province: e.target.value }))} style={{ width: "100%", padding: "10px 14px", borderRadius: 10, border: "1px solid #cbd5e1", fontSize: 14 }} />
+            <label style={labelStyle}>จังหวัด</label>
+            <input type="text" value={formData.province} onChange={e => setFormData(f => ({ ...f, province: e.target.value }))} style={inputStyle} />
           </div>
           <div>
-            <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: "#475569", marginBottom: 6 }}>พื้นที่ (ไร่)</label>
-            <input type="number" step="0.01" value={formData.areaRai} onChange={e => setFormData(f => ({ ...f, areaRai: e.target.value }))} style={{ width: "100%", padding: "10px 14px", borderRadius: 10, border: "1px solid #cbd5e1", fontSize: 14 }} />
+            <label style={labelStyle}>พื้นที่ (ไร่)</label>
+            <input type="number" step="0.01" value={formData.areaRai} onChange={e => setFormData(f => ({ ...f, areaRai: e.target.value }))} style={inputStyle} />
           </div>
           <div>
-            <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: "#475569", marginBottom: 6 }}>อายุยาง (ปี)</label>
-            <input type="number" value={formData.rubberAge} onChange={e => setFormData(f => ({ ...f, rubberAge: e.target.value }))} style={{ width: "100%", padding: "10px 14px", borderRadius: 10, border: "1px solid #cbd5e1", fontSize: 14 }} />
+            <label style={labelStyle}>ปีที่ปลูก (พ.ศ.)</label>
+            <input type="number" value={formData.plantYearBE} onChange={e => setFormData(f => ({ ...f, plantYearBE: e.target.value }))} style={inputStyle} />
           </div>
           <div>
-            <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: "#475569", marginBottom: 6 }}>จำนวนต้น</label>
-            <input type="number" value={formData.trees} onChange={e => setFormData(f => ({ ...f, trees: e.target.value }))} style={{ width: "100%", padding: "10px 14px", borderRadius: 10, border: "1px solid #cbd5e1", fontSize: 14 }} />
+            <label style={labelStyle}>อายุยาง (ปี)</label>
+            <input type="number" value={formData.rubberAge} onChange={e => setFormData(f => ({ ...f, rubberAge: e.target.value }))} style={inputStyle} />
           </div>
           <div>
-            <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: "#475569", marginBottom: 6 }}>ปีที่ปลูก (พ.ศ.)</label>
-            <input type="number" value={formData.plantYearBE} onChange={e => setFormData(f => ({ ...f, plantYearBE: e.target.value }))} style={{ width: "100%", padding: "10px 14px", borderRadius: 10, border: "1px solid #cbd5e1", fontSize: 14 }} />
+            <label style={labelStyle}>จำนวนต้น</label>
+            <input type="number" value={formData.trees} onChange={e => setFormData(f => ({ ...f, trees: e.target.value }))} style={inputStyle} />
+          </div>
+          <div>
+            <label style={labelStyle}>พันธุ์ยาง</label>
+            <select value={formData.variety} onChange={e => setFormData(f => ({ ...f, variety: e.target.value }))} style={inputStyle}>
+              <option value="">— ไม่ระบุ —</option>
+              {VARIETY_OPTIONS.map(v => <option key={v} value={v}>{v}</option>)}
+            </select>
+          </div>
+          <div>
+            <label style={labelStyle}>ระยะปลูก</label>
+            <select value={formData.spacing} onChange={e => setFormData(f => ({ ...f, spacing: e.target.value }))} style={inputStyle}>
+              <option value="">— ไม่ระบุ —</option>
+              {SPACING_OPTIONS.map(s => <option key={s} value={s}>{s} ม.</option>)}
+            </select>
           </div>
         </div>
 
@@ -812,28 +483,25 @@ function EditPlotModal({ plot, onClose, onSave, isMobile }: { plot: SavedPlot; o
 function PlotCard({ plot, index, onDelete, onEdit, expanded, onToggle, isMobile }: { plot: SavedPlot; index: number; onDelete: () => void; onEdit?: (p: SavedPlot) => void; expanded: boolean; onToggle: () => void; isMobile: boolean }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
 
-  const carbonPerTree = plot.trees && plot.trees > 0 ? (plot.carbonTotal / plot.trees) : null;
-
-  // Build CarbonBarChart data points
   const currentYearBE = new Date().getFullYear() + 543;
   const plantYearBE = plot.plantYearBE && plot.plantYearBE > 0
     ? plot.plantYearBE
     : (currentYearBE - (plot.rubberAge || 0));
-
   const effectiveAge = plot.rubberAge > 0 ? plot.rubberAge : (plantYearBE > 0 ? currentYearBE - plantYearBE : 0);
   const chartStartYearBE = plantYearBE > 0 ? plantYearBE + effectiveAge : currentYearBE;
-  const barPts = (plot.carbonTotal > 0 && effectiveAge > 0 && (plot.trees ?? 0) > 0)
-    ? buildBarPoints(effectiveAge, chartStartYearBE, plot.trees ?? 0, plot.spacing || "2.5*8")
-    : [];
+  // Use backend profile if available (matches step 3 exactly), else fallback to local calculation
+  const barPts: BarPoint[] = (plot.carbonProfile && plot.carbonProfile.length > 0)
+    ? plot.carbonProfile
+    : (effectiveAge > 0 && (plot.trees ?? 0) > 0)
+      ? buildBarPoints(effectiveAge, chartStartYearBE, plot.trees ?? 0, plot.spacing || "2.5x8")
+      : [];
 
-  // 4 key metrics — same fields as the map-draw input panel
-  const mainMetrics = [
-    { label: "พื้นที่", val: plot.areaRai > 0 ? plot.areaRai.toFixed(2) : "—", unit: "ไร่", icon: "bi-grid-3x3", color: "#0d9488", grd: "linear-gradient(135deg,rgba(13,148,136,0.14),rgba(13,148,136,0.05))", border: "rgba(13,148,136,0.22)" },
-    { label: "ปีที่ปลูก", val: plot.plantYearBE && plot.plantYearBE > 0 ? String(plot.plantYearBE) : "—", unit: "พ.ศ.", icon: "bi-calendar2-check", color: "#0369a1", grd: "linear-gradient(135deg,rgba(3,105,161,0.14),rgba(3,105,161,0.05))", border: "rgba(3,105,161,0.22)" },
-    { label: "พันธุ์ยาง", val: plot.variety || "—", unit: "", icon: "bi-patch-check", color: "#7c3aed", grd: "linear-gradient(135deg,rgba(124,58,237,0.14),rgba(124,58,237,0.05))", border: "rgba(124,58,237,0.22)" },
-    { label: "ระยะปลูก", val: plot.spacing || "—", unit: "ม.", icon: "bi-arrows-expand", color: "#ea580c", grd: "linear-gradient(135deg,rgba(234,88,12,0.14),rgba(234,88,12,0.05))", border: "rgba(234,88,12,0.22)" },
-    { label: "จำนวนต้น", val: plot.trees && plot.trees > 0 ? plot.trees.toLocaleString("th-TH") : "—", unit: "ต้น", icon: "bi-tree-fill", color: "#16a34a", grd: "linear-gradient(135deg,rgba(22,163,74,0.14),rgba(22,163,74,0.05))", border: "rgba(22,163,74,0.22)" },
-    { label: "คาร์บอน/ต้น", val: carbonPerTree !== null ? (carbonPerTree < 0.01 ? carbonPerTree.toFixed(4) : carbonPerTree.toFixed(3)) : "—", unit: "tCO₂", icon: "bi-droplet-fill", color: "#059669", grd: "linear-gradient(135deg,rgba(5,150,105,0.14),rgba(5,150,105,0.05))", border: "rgba(5,150,105,0.22)" },
+  const infoItems = [
+    { label: "พื้นที่", val: plot.areaRai > 0 ? plot.areaRai.toFixed(2) : "—", unit: "ไร่", icon: "bi-grid-3x3", color: "#0d9488", bg: "rgba(13,148,136,0.12)" },
+    { label: "ปีที่ปลูก", val: plot.plantYearBE && plot.plantYearBE > 0 ? String(plot.plantYearBE) : "—", unit: "พ.ศ.", icon: "bi-calendar2-check", color: "#3b82f6", bg: "rgba(59,130,246,0.12)" },
+    { label: "พันธุ์ยาง", val: plot.variety || "—", unit: "", icon: "bi-patch-check-fill", color: "#8b5cf6", bg: "rgba(139,92,246,0.12)" },
+    { label: "ระยะปลูก", val: plot.spacing || "—", unit: "ม.", icon: "bi-arrows-fullscreen", color: "#f59e0b", bg: "rgba(245,158,11,0.12)" },
+    { label: "จำนวนต้น", val: plot.trees && plot.trees > 0 ? plot.trees.toLocaleString("th-TH") : "—", unit: "ต้น", icon: "bi-tree-fill", color: "#10b981", bg: "rgba(16,185,129,0.12)" },
   ];
 
   return (
@@ -841,172 +509,153 @@ function PlotCard({ plot, index, onDelete, onEdit, expanded, onToggle, isMobile 
       style={{
         background: "#fff",
         borderRadius: 20,
-        border: "1px solid rgba(16,185,129,0.12)",
-        boxShadow: "0 4px 20px rgba(0,0,0,0.05)",
+        border: "1px solid rgba(16,185,129,0.13)",
+        boxShadow: "0 2px 16px rgba(0,0,0,0.05)",
         overflow: "hidden",
-        transition: "all 0.25s ease",
-        position: "relative"
+        transition: "box-shadow 0.25s, transform 0.25s",
+        position: "relative",
       }}
-      onMouseEnter={e => {
-        e.currentTarget.style.boxShadow = "0 12px 30px rgba(16,185,129,0.12)";
-        e.currentTarget.style.transform = "translateY(-1px)";
-      }}
-      onMouseLeave={e => {
-        e.currentTarget.style.boxShadow = "0 4px 20px rgba(0,0,0,0.05)";
-        e.currentTarget.style.transform = "";
-      }}
+      onMouseEnter={e => { e.currentTarget.style.boxShadow = "0 10px 32px rgba(16,185,129,0.13)"; e.currentTarget.style.transform = "translateY(-2px)"; }}
+      onMouseLeave={e => { e.currentTarget.style.boxShadow = "0 2px 16px rgba(0,0,0,0.05)"; e.currentTarget.style.transform = ""; }}
     >
-      {/* ── Top Header Area ── */}
+      {/* Left accent bar */}
       <div style={{
-        display: "flex",
-        flexDirection: isMobile ? "column" : "row",
-        alignItems: isMobile ? "flex-start" : "center",
-        justifyContent: "space-between",
-        padding: isMobile ? "16px 18px 12px" : "16px 20px 14px",
-        gap: isMobile ? 12 : 16,
-        background: "linear-gradient(to bottom, #fff, #f9fafb)"
+        position: "absolute", left: 0, top: 0, bottom: 0, width: 4,
+        background: "linear-gradient(to bottom, #10b981, #059669, #047857)"
+      }} />
+
+      {/* Header */}
+      <div style={{
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+        padding: isMobile ? "14px 16px 12px 20px" : "15px 20px 13px 22px",
+        gap: 12,
+        background: "linear-gradient(to bottom, #fafffe 0%, #fff 100%)"
       }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 14, minWidth: 0, flex: 1 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0, flex: 1 }}>
           <div style={{
-            width: 38, height: 38, borderRadius: 10, flexShrink: 0,
-            background: "linear-gradient(135deg,#10b981,#059669)",
+            width: 42, height: 42, borderRadius: 13, flexShrink: 0,
+            background: "linear-gradient(135deg, #10b981 0%, #047857 100%)",
             display: "flex", alignItems: "center", justifyContent: "center",
-            boxShadow: "0 4px 12px rgba(16,185,129,0.25)",
-            fontSize: 18, fontWeight: 900, color: "#fff"
-          }}>
-            {index}
-          </div>
+            boxShadow: "0 4px 14px rgba(16,185,129,0.35)",
+            fontSize: 19, fontWeight: 900, color: "#fff", letterSpacing: -0.5
+          }}>{index}</div>
           <div style={{ minWidth: 0 }}>
-            <div style={{ fontSize: 16, fontWeight: 800, color: "#0f172a", marginBottom: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            <div style={{ fontSize: 15, fontWeight: 800, color: "#0f172a", lineHeight: 1.3 }}>
               แปลงที่ {index}
             </div>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
+            <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 3 }}>
               {plot.province && (
                 <span style={{ fontSize: 11, color: "#64748b", display: "flex", alignItems: "center", gap: 3 }}>
-                  <i className="bi bi-geo-alt-fill" style={{ color: "#10b981", fontSize: 10 }} />{plot.province}
+                  <i className="bi bi-geo-alt-fill" style={{ color: "#10b981", fontSize: 9 }} />{plot.province}
                 </span>
               )}
-              <span style={{ fontSize: 11, color: "#94a3b8" }}>•</span>
-              <span style={{ fontSize: 10.5, color: "#94a3b8" }}>
+              {plot.province && <span style={{ fontSize: 10, color: "#e2e8f0" }}>|</span>}
+              <span style={{ fontSize: 10.5, color: "#cbd5e1" }}>
                 {new Date(plot.date).toLocaleDateString("th-TH", { year: "numeric", month: "short", day: "numeric" })}
               </span>
             </div>
           </div>
         </div>
 
-        {/* Total Carbon Badge - Always visible, prominent but compact */}
-        <div style={{
-          display: "flex", alignItems: "center", gap: 12,
-          padding: "8px 14px", background: "rgba(16,185,129,0.06)",
-          borderRadius: 14, border: "1px solid rgba(16,185,129,0.15)",
-          alignSelf: isMobile ? "stretch" : "center",
-          justifyContent: "space-between"
-        }}>
-          <div>
-            <div style={{ fontSize: 9, color: plot.carbonTotal > 0 ? "#059669" : "#64748b", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5 }}>
-              {plot.carbonTotal > 0 ? "คาร์บอนรวม" : "สถานะ"}
+        {/* Action buttons */}
+        <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+          {!confirmDelete ? (
+            <>
+              <button
+                onClick={() => onEdit?.(plot)}
+                title="แก้ไข"
+                style={{ width: 34, height: 34, borderRadius: 9, background: "#f1f5f9", color: "#475569", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", transition: "background 0.15s" }}
+                onMouseEnter={e => { e.currentTarget.style.background = "#e2e8f0"; }}
+                onMouseLeave={e => { e.currentTarget.style.background = "#f1f5f9"; }}
+              >
+                <i className="bi bi-pencil-square" style={{ fontSize: 13 }} />
+              </button>
+              <button
+                onClick={() => setConfirmDelete(true)}
+                title="ลบ"
+                style={{ width: 34, height: 34, borderRadius: 9, background: "rgba(239,68,68,0.07)", color: "#ef4444", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", transition: "background 0.15s" }}
+                onMouseEnter={e => { e.currentTarget.style.background = "rgba(239,68,68,0.14)"; }}
+                onMouseLeave={e => { e.currentTarget.style.background = "rgba(239,68,68,0.07)"; }}
+              >
+                <i className="bi bi-trash3" style={{ fontSize: 13 }} />
+              </button>
+            </>
+          ) : (
+            <div style={{ display: "flex", gap: 5, alignItems: "center" }}>
+              <span style={{ fontSize: 11.5, color: "#ef4444", fontWeight: 700, whiteSpace: "nowrap" }}>ยืนยันลบ?</span>
+              <button onClick={onDelete} style={{ padding: "5px 12px", background: "#ef4444", color: "#fff", border: "none", borderRadius: 8, cursor: "pointer", fontWeight: 700, fontSize: 11 }}>ลบ</button>
+              <button onClick={() => setConfirmDelete(false)} style={{ padding: "5px 10px", background: "#f1f5f9", color: "#64748b", border: "none", borderRadius: 8, cursor: "pointer", fontSize: 11 }}>ยกเลิก</button>
             </div>
-            <div style={{ fontSize: plot.carbonTotal > 0 ? 20 : 16, fontWeight: 900, color: plot.carbonTotal > 0 ? "#064e3b" : "#94a3b8", lineHeight: 1 }}>
-              {plot.carbonTotal > 0 ? (
-                <>{fmtCompact(plot.carbonTotal)} <span style={{ fontSize: 11, fontWeight: 700 }}>tCO₂</span></>
-              ) : "รอการประมวลผล"}
-            </div>
-          </div>
-          <div style={{ width: 32, height: 32, borderRadius: "50%", background: "#10b981", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-            <i className="bi bi-cloud-check-fill" style={{ color: "#fff", fontSize: 14 }} />
-          </div>
+          )}
         </div>
       </div>
 
-      {/* ── Condensed Metrics Grid ── */}
+      {/* Info strip */}
       <div style={{
         display: "grid",
-        gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(3, 1fr)",
-        gap: 1,
-        background: "rgba(16,185,129,0.1)",
-        borderTop: "1px solid rgba(16,185,129,0.1)",
-        borderBottom: "1px solid rgba(16,185,129,0.1)"
+        gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(5, 1fr)",
+        borderTop: "1px solid #f1f5f9",
+        borderBottom: "1px solid #f1f5f9",
+        background: "#fafbfc"
       }}>
-        {[
-          { label: "พื้นที่", val: plot.areaRai > 0 ? plot.areaRai.toFixed(2) : "—", unit: "ไร่", icon: "bi-grid-3x3" },
-          { label: "ปีที่ปลูก", val: plot.plantYearBE && plot.plantYearBE > 0 ? String(plot.plantYearBE) : "—", unit: "พ.ศ.", icon: "bi-calendar2-check" },
-          { label: "พันธุ์ยาง", val: plot.variety || "—", unit: "", icon: "bi-patch-check" },
-          { label: "ระยะปลูก", val: plot.spacing || "—", unit: "ม.", icon: "bi-arrows-expand" },
-          { label: "จำนวนต้น", val: plot.trees && plot.trees > 0 ? plot.trees.toLocaleString("th-TH") : "—", unit: "ต้น", icon: "bi-tree-fill" },
-          { label: "คาร์บอน/ต้น", val: carbonPerTree !== null ? (carbonPerTree < 0.01 ? carbonPerTree.toFixed(4) : carbonPerTree.toFixed(3)) : "—", unit: "tCO₂", icon: "bi-droplet-fill" },
-        ].map(({ label, val, unit, icon }) => (
-          <div key={label} style={{ background: "#fff", padding: "10px 12px", display: "flex", flexDirection: "column", gap: 1 }}>
-            <div style={{ fontSize: 9.5, color: "#94a3b8", fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
-              <i className={`bi ${icon}`} style={{ fontSize: 10, color: "#10b981" }} /> {label}
+        {infoItems.map(({ label, val, unit, icon, color, bg }, i) => (
+          <div
+            key={label}
+            style={{
+              padding: isMobile ? "11px 14px" : "13px 16px",
+              borderRight: isMobile
+                ? (i % 2 === 0 ? "1px solid #f1f5f9" : "none")
+                : (i < 4 ? "1px solid #f1f5f9" : "none"),
+              borderBottom: isMobile && i < 4 ? "1px solid #f1f5f9" : "none",
+              gridColumn: (isMobile && i === 4) ? "1 / -1" : "auto",
+              display: "flex", flexDirection: "column", gap: 7
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+              <div style={{ width: 20, height: 20, borderRadius: 6, background: bg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                <i className={`bi ${icon}`} style={{ fontSize: 10, color }} />
+              </div>
+              <span style={{ fontSize: 10, color: "#94a3b8", fontWeight: 600, letterSpacing: 0.2 }}>{label}</span>
             </div>
-            <div style={{ display: "flex", alignItems: "baseline", gap: 4 }}>
-              <span style={{ fontSize: 16, fontWeight: 800, color: "#334155" }}>{val}</span>
-              <span style={{ fontSize: 9.5, color: "#94a3b8", fontWeight: 500 }}>{unit}</span>
+            <div style={{ display: "flex", alignItems: "baseline", gap: 3 }}>
+              <span style={{ fontSize: isMobile ? 15 : 16, fontWeight: 800, color: val === "—" ? "#cbd5e1" : "#1e293b", lineHeight: 1 }}>{val}</span>
+              {unit && <span style={{ fontSize: 9.5, color: "#94a3b8", fontWeight: 500 }}>{unit}</span>}
             </div>
           </div>
         ))}
       </div>
 
-      {/* ── Simple Action Footer ── */}
-      <div style={{
-        display: "flex", alignItems: "center", justifyContent: "space-between",
-        padding: "10px 16px", background: "#fff"
-      }}>
-        <button
-          onClick={onToggle}
-          style={{
-            display: "flex", alignItems: "center", gap: 6, padding: "6px 12px",
-            background: expanded ? "rgba(16,185,129,0.08)" : "transparent",
-            border: "none", borderRadius: 8, cursor: "pointer",
-            fontSize: 12, fontWeight: 700, color: "#059669", transition: "all 0.15s"
-          }}
-        >
-          <i className={`bi bi-bar-chart-line${expanded ? "-fill" : ""}`} />
-          {expanded ? "ซ่อนรายละเอียด" : "ดูพยากรณ์และกราฟ"}
-          <i className={`bi bi-chevron-${expanded ? "up" : "down"}`} style={{ fontSize: 10, opacity: 0.7 }} />
-        </button>
+      {/* Chart toggle */}
+      <button
+        onClick={onToggle}
+        style={{
+          width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between",
+          padding: isMobile ? "10px 16px 10px 20px" : "11px 20px 11px 22px",
+          background: expanded ? "rgba(16,185,129,0.04)" : "#fff",
+          border: "none", cursor: "pointer",
+          fontSize: 12, fontWeight: 700, color: "#059669",
+          transition: "background 0.15s",
+          borderTop: expanded ? "1px solid rgba(16,185,129,0.08)" : "none",
+        }}
+      >
+        <span style={{ display: "flex", alignItems: "center", gap: 7 }}>
+          <i className={`bi bi-bar-chart-line${expanded ? "-fill" : ""}`} style={{ fontSize: 13 }} />
+          กราฟการกักเก็บคาร์บอนรายปี (tCO₂)
+        </span>
+        <i className={`bi bi-chevron-${expanded ? "up" : "down"}`} style={{ fontSize: 11, opacity: 0.5 }} />
+      </button>
 
-        <div style={{ display: "flex", gap: 6 }}>
-          {!confirmDelete ? (
-            <>
-              <button onClick={() => onEdit?.(plot)} style={{ width: 32, height: 32, borderRadius: 8, background: "#f1f5f9", color: "#475569", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.15s" }} title="แก้ไข">
-                <i className="bi bi-pencil-square" style={{ fontSize: 14 }} />
-              </button>
-              <button onClick={() => setConfirmDelete(true)} style={{ width: 32, height: 32, borderRadius: 8, background: "rgba(239,68,68,0.06)", color: "#ef4444", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.15s" }} title="ลบ">
-                <i className="bi bi-trash3" style={{ fontSize: 14 }} />
-              </button>
-            </>
-          ) : (
-            <div style={{ display: "flex", gap: 4 }}>
-              <button onClick={onDelete} style={{ padding: "4px 10px", background: "#ef4444", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontWeight: 700, fontSize: 11 }}>ลบ</button>
-              <button onClick={() => setConfirmDelete(false)} style={{ padding: "4px 10px", background: "#f1f5f9", color: "#64748b", border: "none", borderRadius: 6, cursor: "pointer", fontSize: 11 }}>ยกเลิก</button>
-            </div>
-          )}
-        </div>
-      </div>
-
+      {/* Chart section */}
       {expanded && (
-        <div style={{ padding: "0 16px 20px", background: "#fff" }}>
-          <div style={{ height: 1, background: "#f1f5f9", marginBottom: 16 }} />
-
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
-            <div style={{ width: 28, height: 28, borderRadius: 8, background: "rgba(16,185,129,0.1)", color: "#059669", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <i className="bi bi-bar-chart-line-fill" style={{ fontSize: 12 }} />
-            </div>
-            <div style={{ fontSize: 13, fontWeight: 800, color: "#064e3b" }}>กราฟการกักเก็บคาร์บอนรายปี (tCO₂)</div>
-          </div>
-
+        <div style={{ padding: isMobile ? "4px 16px 20px 20px" : "4px 20px 24px 22px", background: "#fff", borderTop: "1px solid #f8fafc" }}>
           {barPts.length > 0 ? (
-            <div style={{ marginBottom: 20 }}>
-              <CarbonBarChart pts={barPts} isMobile={isMobile} />
-            </div>
+            <CarbonBarChart pts={barPts} isMobile={isMobile} />
           ) : (
-            <div style={{ textAlign: "center", padding: "30px 20px", background: "#f8fafc", borderRadius: 16, border: "1.5px dashed #e2e8f0", color: "#94a3b8", fontSize: 13, marginBottom: 20 }}>
-              <i className="bi bi-bar-chart-line" style={{ fontSize: 24, display: "block", marginBottom: 10, opacity: 0.5 }} />
+            <div style={{ textAlign: "center", padding: "28px 20px", background: "#f8fafc", borderRadius: 14, border: "1.5px dashed #e2e8f0", color: "#94a3b8", fontSize: 13 }}>
+              <i className="bi bi-bar-chart-line" style={{ fontSize: 22, display: "block", marginBottom: 8, opacity: 0.5 }} />
               {plot.carbonTotal > 0 ? "ข้อมูลไม่เพียงพอในการสร้างกราฟ" : "ยังไม่ได้ประมวลผลคาร์บอนสำหรับแปลงนี้"}
             </div>
           )}
-
         </div>
       )}
     </div>
@@ -1156,12 +805,6 @@ export default function MyPlotsPage() {
 
 
   const totalArea = plots.reduce((s, p) => s + (p.areaRai || 0), 0);
-  const totalCarbon = plots.reduce((s, p) => s + (p.carbonTotal || 0), 0);
-  const totalForecast7 = plots.reduce((s, p) => {
-    if (p.forecast?.yr7) return s + p.forecast.yr7;
-    if ((p.trees ?? 0) > 0 && p.rubberAge > 0) return s + carbonCo2(p.rubberAge + 7, p.trees!);
-    return s;
-  }, 0);
 
   const filteredPlots = useMemo(() => {
     const term = searchTerm.toLowerCase().trim();
@@ -1482,7 +1125,6 @@ export default function MyPlotsPage() {
                       <div style={{ display: "flex", flexWrap: "wrap", gap: 12, color: "#64748b", fontSize: 13, fontWeight: 500 }}>
                         <span><i className="bi bi-map-fill me-1" style={{ color: "#0ea5e9" }} /> {group.plots.length} แปลง</span>
                         <span><i className="bi bi-grid-fill me-1" style={{ color: "#10b981" }} /> {group.totalArea.toFixed(2)} ไร่</span>
-                        <span><i className="bi bi-cloud-arrow-up-fill me-1" style={{ color: "#8b5cf6" }} /> {fmtCompact(group.totalCarbon)} tCO₂</span>
                       </div>
                     </div>
                     <div style={{ display: "flex", flexWrap: "wrap", gap: 10, width: isMobile ? "100%" : "auto" }}>

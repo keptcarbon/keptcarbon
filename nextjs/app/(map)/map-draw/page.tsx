@@ -799,6 +799,7 @@ function MapDrawContent() {
               ...p,
               plot_index: String(i + 1),
               grow_area: p.areaRai,
+              grow_year: p.plantYearBE,   // computePlot reads grow_year for plantYearBE
               province: p.province
             }
           }));

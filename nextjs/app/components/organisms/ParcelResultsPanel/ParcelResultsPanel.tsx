@@ -871,8 +871,12 @@ export function ParcelResultsPanel({
                             ? savedLU
                             : { A: true, A302: true };
 
-                        let initialStatus: "replanting" | "existing" | "" = "";
-                        if (props.plantYearBE) {
+                        // Restore plantStatus from saved data first, then infer from year as fallback
+                        let initialStatus: "replanting" | "existing" | "" =
+                            (props.plantStatus === "replanting" || props.plantStatus === "existing")
+                                ? props.plantStatus
+                                : "";
+                        if (!initialStatus && props.plantYearBE) {
                             const yStr = String(props.plantYearBE);
                             if (NEW_YEAR_OPTIONS.includes(yStr)) {
                                 initialStatus = "replanting";
@@ -1083,8 +1087,8 @@ export function ParcelResultsPanel({
                         });
                     }
                     if (allYearsCE.length > 0) {
-                        const oldestYearCE = Math.min(...allYearsCE);
-                        finalPlantYearBE = oldestYearCE + 543;
+                        const modeYearCE = allYearsCE[0]; // first element = highest probability (mode)
+                        finalPlantYearBE = modeYearCE + 543;
                         yearUsedDetails = `ใช้ปีจากระบบประมาณการ (พ.ศ. ${finalPlantYearBE})`;
                     }
                 }
@@ -1113,7 +1117,8 @@ export function ParcelResultsPanel({
                     startAge = 1;
                 }
                 const userTrees = form.treeCount ? parseInt(form.treeCount) : 0;
-                const finalTrees = userTrees > 0 ? userTrees : Math.round(totalAreaRai * 76);
+                const epTrees = typeof resp?.estimated_parameters?.tree_count?.value === "number" ? resp.estimated_parameters.tree_count.value : 0;
+                const finalTrees = userTrees > 0 ? userTrees : (epTrees > 0 ? epTrees : Math.round(totalAreaRai * 76));
                 const co2Now = profile[0]?.stocks?.value ?? 0;
 
                 results.push({
@@ -1166,13 +1171,31 @@ export function ParcelResultsPanel({
                 const userPlantYear = form?.plantYear ? parseInt(form.plantYear) : 0;
                 const userTrees = form?.treeCount ? parseInt(form.treeCount) : 0;
 
-                const age = cr?.age ?? (userPlantYear > 0 ? (CURRENT_BE_NOW - userPlantYear) : 0);
-                const trees = cr?.trees ?? (userTrees > 0 ? userTrees : 0);
-                const spacing = cr?.spacing || form?.spacing || "";
-                const finalPlantYear = cr?.plantYearBE ?? (userPlantYear > 0 ? userPlantYear : 0);
+                const backendResp = backendResponses?.find(r => r.polygon_id === `plot-${i}`);
+                const ep = backendResp?.estimated_parameters;
+
+                const epPlantYearCE = typeof ep?.year_of_planting?.value === "number" ? ep.year_of_planting.value : 0;
+                const epPlantYearBE = epPlantYearCE > 0 ? epPlantYearCE + 543 : 0;
+                const epTrees = typeof ep?.tree_count?.value === "number" ? ep.tree_count.value : 0;
+
+                const age = cr?.age ?? (userPlantYear > 0 ? (CURRENT_BE_NOW - userPlantYear) : (epPlantYearBE > 0 ? (CURRENT_BE_NOW - epPlantYearBE) : 0));
+                const trees = cr?.trees ?? (userTrees > 0 ? userTrees : (epTrees > 0 ? epTrees : 0));
+                const finalPlantYear = cr?.plantYearBE ?? (userPlantYear > 0 ? userPlantYear : epPlantYearBE);
 
                 // If saved directly without processing, set carbon to 0
                 const co2 = hasCarbonResults ? (cr?.co2Now ?? 0) : 0;
+
+                // Use backend estimated_parameters to fill missing variety/spacing when user didn't fill form
+                const epVariety = typeof ep?.rubber_clone?.value === "string" ? ep.rubber_clone.value : "";
+                const epSpacingRaw = typeof ep?.spacing_system?.value === "string" ? ep.spacing_system.value : "";
+                const epSpacing = epSpacingRaw.replace(/\s*\([^)]*\)/, "").trim(); // "2.5x8 (default)" → "2.5x8"
+
+                const variety = form?.variety || cr?.variety || epVariety;
+                const spacing = cr?.spacing || form?.spacing || epSpacing;
+
+                // Save backend profile as BarPoint[] so my-plots can render the exact same chart
+                const rawProfile = backendResp?.carbon_profile ?? [];
+                const carbonProfile = rawProfile.length > 0 ? profileToBarPoints(rawProfile, age) : null;
 
                 return {
                     id: props.id || Math.random().toString(36).substring(7),
@@ -1183,7 +1206,7 @@ export function ParcelResultsPanel({
                     rubberAge: age,
                     plantYearBE: finalPlantYear,
                     trees,
-                    variety: form?.variety || cr?.variety || "",
+                    variety,
                     spacing,
                     luChecked: form?.luChecked || { A: true, A302: true },
                     plantStatus: form?.plantStatus || "",
@@ -1193,6 +1216,7 @@ export function ParcelResultsPanel({
                     date: new Date().toISOString(),
                     geojson: feat?.geometry || null,
                     boundaryGeojson: drawnGeometry || null,
+                    carbonProfile,
                     forecast: hasCarbonResults ? {
                         yr3: carbonCo2(age + 3, trees, spacing),
                         yr5: carbonCo2(age + 5, trees, spacing),
