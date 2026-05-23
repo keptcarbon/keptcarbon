@@ -143,3 +143,44 @@ export async function getPlantationInfo(polygon: {
 export function getCurrentYearBE(): number {
     return new Date().getFullYear() + 543;
 }
+
+export interface DashboardRayongPerYear {
+    age: number;
+    plantYearBE: number;
+    areaRai: number;
+    carbonTco2: number;
+}
+
+export interface DashboardRayongAgeGroup {
+    key: string;
+    areaRai: number;
+    carbonTco2: number;
+    pct: number;
+}
+
+export interface DashboardRayongResponse {
+    status: string;
+    totalAreaRai: number;
+    totalCarbonTco2: number;
+    perYearRai: DashboardRayongPerYear[];
+    ageGroups: DashboardRayongAgeGroup[];
+}
+
+export interface DashboardDistrict {
+    name: string;
+    areaRai: number;
+    carbonTco2: number;
+    ageDist: Array<{ group: string; areaRai: number; carbonTco2: number }>;
+}
+
+export async function getDashboardRayong(): Promise<DashboardRayongResponse> {
+    const response = await fetch(`${API_BASE_URL}/dashboard/rayong-summary`);
+    if (!response.ok) throw new Error(`Dashboard API error: ${response.status}`);
+    return response.json();
+}
+
+export async function getDashboardDistricts(): Promise<{ districts: DashboardDistrict[] }> {
+    const response = await fetch(`${API_BASE_URL}/dashboard/districts-summary`);
+    if (!response.ok) throw new Error(`Dashboard API error: ${response.status}`);
+    return response.json();
+}

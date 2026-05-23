@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import DashboardMap, { type MapPlot } from "./DashboardMap";
+import { getDashboardRayong, getDashboardDistricts, type DashboardRayongResponse, type DashboardDistrict } from "@/lib/carbon-api";
 
 // ── Rayong province system database ──────────────────────────────────────────
 const AGE_CONFIG = [
@@ -11,7 +12,7 @@ const AGE_CONFIG = [
   { key: "19+", label: "19+ ปี", stage: "ระยะคงที่", color: "#166534", dark: "#052e16", bg: "rgba(22,101,52,0.13)" },
 ];
 
-type AgeDist = { key: string; plots: number; carbon: number };
+type AgeDist = { key: string; areaRai: number; carbon: number };
 type District = {
   id: string; name: string;
   plots: number; areaRai: number; carbon: number;
@@ -22,50 +23,48 @@ type District = {
 const DISTRICTS: District[] = [
   {
     id: "mueang", name: "เมืองระยอง", plots: 312, areaRai: 14250, carbon: 52340, lat: 12.6818, lng: 101.2587,
-    ageDist: [{ key: "1-5", plots: 42, carbon: 6200 }, { key: "6-12", plots: 89, carbon: 18400 }, { key: "13-18", plots: 121, carbon: 19800 }, { key: "19+", plots: 60, carbon: 7940 }],
+    ageDist: [{ key: "1-5", areaRai: 1918, carbon: 6200 }, { key: "6-12", areaRai: 4065, carbon: 18400 }, { key: "13-18", areaRai: 5526, carbon: 19800 }, { key: "19+", areaRai: 2740, carbon: 7940 }],
   },
   {
     id: "ban-chang", name: "บ้านฉาง", plots: 198, areaRai: 9120, carbon: 33840, lat: 12.7243, lng: 101.0594,
-    ageDist: [{ key: "1-5", plots: 22, carbon: 3600 }, { key: "6-12", plots: 65, carbon: 12800 }, { key: "13-18", plots: 81, carbon: 13900 }, { key: "19+", plots: 30, carbon: 3540 }],
+    ageDist: [{ key: "1-5", areaRai: 1013, carbon: 3600 }, { key: "6-12", areaRai: 2994, carbon: 12800 }, { key: "13-18", areaRai: 3731, carbon: 13900 }, { key: "19+", areaRai: 1382, carbon: 3540 }],
   },
   {
     id: "klaeng", name: "แกลง", plots: 687, areaRai: 31280, carbon: 118420, lat: 12.7781, lng: 101.6504,
-    ageDist: [{ key: "1-5", plots: 98, carbon: 14200 }, { key: "6-12", plots: 201, carbon: 41800 }, { key: "13-18", plots: 256, carbon: 48700 }, { key: "19+", plots: 132, carbon: 13720 }],
+    ageDist: [{ key: "1-5", areaRai: 4462, carbon: 14200 }, { key: "6-12", areaRai: 9152, carbon: 41800 }, { key: "13-18", areaRai: 11656, carbon: 48700 }, { key: "19+", areaRai: 6010, carbon: 13720 }],
   },
   {
     id: "wang-chan", name: "วังจันทร์", plots: 423, areaRai: 19640, carbon: 74130, lat: 12.9236, lng: 101.5678,
-    ageDist: [{ key: "1-5", plots: 58, carbon: 8900 }, { key: "6-12", plots: 127, carbon: 26200 }, { key: "13-18", plots: 165, carbon: 30100 }, { key: "19+", plots: 73, carbon: 8930 }],
+    ageDist: [{ key: "1-5", areaRai: 2693, carbon: 8900 }, { key: "6-12", areaRai: 5897, carbon: 26200 }, { key: "13-18", areaRai: 7661, carbon: 30100 }, { key: "19+", areaRai: 3389, carbon: 8930 }],
   },
   {
     id: "ban-khai", name: "บ้านค่าย", plots: 356, areaRai: 16420, carbon: 62180, lat: 12.7578, lng: 101.3856,
-    ageDist: [{ key: "1-5", plots: 48, carbon: 7200 }, { key: "6-12", plots: 104, carbon: 21800 }, { key: "13-18", plots: 138, carbon: 25600 }, { key: "19+", plots: 66, carbon: 7580 }],
+    ageDist: [{ key: "1-5", areaRai: 2214, carbon: 7200 }, { key: "6-12", areaRai: 4797, carbon: 21800 }, { key: "13-18", areaRai: 6365, carbon: 25600 }, { key: "19+", areaRai: 3044, carbon: 7580 }],
   },
   {
     id: "pluak-daeng", name: "ปลวกแดง", plots: 287, areaRai: 13140, carbon: 49810, lat: 12.9856, lng: 101.1923,
-    ageDist: [{ key: "1-5", plots: 38, carbon: 5800 }, { key: "6-12", plots: 84, carbon: 17600 }, { key: "13-18", plots: 112, carbon: 20600 }, { key: "19+", plots: 53, carbon: 5810 }],
+    ageDist: [{ key: "1-5", areaRai: 1740, carbon: 5800 }, { key: "6-12", areaRai: 3846, carbon: 17600 }, { key: "13-18", areaRai: 5127, carbon: 20600 }, { key: "19+", areaRai: 2426, carbon: 5810 }],
   },
   {
     id: "khao-chamao", name: "เขาชะเมา", plots: 384, areaRai: 17820, carbon: 67520, lat: 12.9418, lng: 101.7256,
-    ageDist: [{ key: "1-5", plots: 52, carbon: 7800 }, { key: "6-12", plots: 115, carbon: 23800 }, { key: "13-18", plots: 149, carbon: 27600 }, { key: "19+", plots: 68, carbon: 8320 }],
+    ageDist: [{ key: "1-5", areaRai: 2413, carbon: 7800 }, { key: "6-12", areaRai: 5337, carbon: 23800 }, { key: "13-18", areaRai: 6915, carbon: 27600 }, { key: "19+", areaRai: 3156, carbon: 8320 }],
   },
   {
     id: "nikhom", name: "นิคมพัฒนา", plots: 200, areaRai: 4820, carbon: 27010, lat: 12.8234, lng: 101.2345,
-    ageDist: [{ key: "1-5", plots: 28, carbon: 4100 }, { key: "6-12", plots: 60, carbon: 9800 }, { key: "13-18", plots: 78, carbon: 10200 }, { key: "19+", plots: 34, carbon: 2910 }],
+    ageDist: [{ key: "1-5", areaRai: 675, carbon: 4100 }, { key: "6-12", areaRai: 1446, carbon: 9800 }, { key: "13-18", areaRai: 1880, carbon: 10200 }, { key: "19+", areaRai: 819, carbon: 2910 }],
   },
 ];
 
 const PROVINCE_TOTAL: District = {
   id: "all", name: "ทุกอำเภอ", lat: 12.6819, lng: 101.2587,
   plots: 2847, areaRai: 126490, carbon: 485250,
-  ageDist: [
-    { key: "1-5", plots: 388, carbon: 57800 },
-    { key: "6-12", plots: 845, carbon: 172200 },
-    { key: "13-18", plots: 1100, carbon: 196500 },
-    { key: "19+", plots: 516, carbon: 58750 },
-  ],
+    ageDist: [
+        { key: "1-5", areaRai: 17238, carbon: 57800 },
+        { key: "6-12", areaRai: 37544, carbon: 172200 },
+        { key: "13-18", areaRai: 48874, carbon: 196500 },
+        { key: "19+", areaRai: 22925, carbon: 58750 },
+    ],
 };
-
-const ALL_ROWS = [PROVINCE_TOTAL, ...DISTRICTS];
 
 const fmt = (n: number) => n.toLocaleString("th-TH");
 const fmtC = (n: number) => n.toLocaleString("th-TH", { maximumFractionDigits: 0 });
@@ -83,10 +82,12 @@ function DistrictCarbonChart({
   selectedId,
   onSelect,
   isMobile,
+  districts,
 }: {
   selectedId: string;
   onSelect: (id: string) => void;
   isMobile: boolean;
+  districts: District[];
 }) {
   const [hoverId, setHoverId] = useState<string | null>(null);
 
@@ -98,10 +99,10 @@ function DistrictCarbonChart({
   const PT = isMobile ? 44 : 48;
   const PB = 10;
 
-  const maxCarbon = Math.max(...DISTRICTS.map(d => d.carbon));
+  const maxCarbon = Math.max(...districts.map(d => d.carbon));
   const iW = W - PL - PR;
 
-  const rows = DISTRICTS.map((d, i) => {
+  const rows = districts.map((d, i) => {
     const y = PT + i * (barH + gap);
     const bw = Math.max((d.carbon / maxCarbon) * iW, 4);
     let xOff = 0;
@@ -115,7 +116,7 @@ function DistrictCarbonChart({
     return { d, y, bw, segs };
   });
 
-  const totalH = PT + DISTRICTS.length * (barH + gap) - gap + PB;
+  const totalH = PT + districts.length * (barH + gap) - gap + PB;
 
   return (
     <div>
@@ -153,7 +154,7 @@ function DistrictCarbonChart({
         {[0.25, 0.5, 0.75, 1].map(t => (
           <line key={t}
             x1={PL + t * iW} y1={PT - 6}
-            x2={PL + t * iW} y2={PT + DISTRICTS.length * (barH + gap) - gap}
+            x2={PL + t * iW} y2={PT + districts.length * (barH + gap) - gap}
             stroke="rgba(0,0,0,0.05)" strokeWidth={1}
             strokeDasharray={t < 1 ? "3,3" : undefined} />
         ))}
@@ -291,20 +292,20 @@ const AGE_GROUPS_35 = [
   { key: "29-35", label: "29–35 ปี", range: [29, 35] as [number, number], color: "#052e16", dark: "#052e16", bg: "rgba(5,46,22,0.15)" },
 ];
 
-// index 0 = age 1, index 34 = age 35
-const PER_YEAR_PLOTS = [
-  47, 50, 53, 67, 69,           // 1–5
-  55, 54, 58, 62, 70, 47, 51,   // 6–12
-  53, 46, 56, 53, 72, 64, 73, 55, // 13–20
-  45, 52, 47, 57, 68, 62, 47, 50, // 21–28
-  57, 49, 66, 69, 47, 61, 68,   // 29–35
+// index 0 = age 1, index 34 = age 35 (converted from plot counts × ~45 Rai/plot)
+const PER_YEAR_RAI = [
+  2115, 2250, 2385, 3015, 3105,       // 1–5
+  2475, 2430, 2610, 2790, 3150, 2115, 2295,  // 6–12
+  2385, 2070, 2520, 2385, 3240, 2880, 3285, 2475, // 13–20
+  2025, 2340, 2115, 2565, 3060, 2790, 2115, 2250, // 21–28
+  3015, 2565, 2205, 2970, 3105, 2115, 2745,   // 29–35
 ];
 
 function getAgeGroup(age: number) {
   return AGE_GROUPS_35.find(g => age >= g.range[0] && age <= g.range[1])!;
 }
 
-function AgeDistributionChart({ isMobile }: { isMobile: boolean }) {
+function AgeDistributionChart({ isMobile, perYearRai }: { isMobile: boolean; perYearRai?: number[] | null }) {
   const [hoveredAge, setHoveredAge] = useState<number | null>(null);
 
   const W = isMobile ? 480 : 1060;
@@ -318,12 +319,13 @@ function AgeDistributionChart({ isMobile }: { isMobile: boolean }) {
   const nBars = 35;
   const gap = isMobile ? 2 : 3;
   const barW = (iW - gap * (nBars - 1)) / nBars;
-  const maxVal = Math.max(...PER_YEAR_PLOTS);
-  const totalPlots = PER_YEAR_PLOTS.reduce((a, b) => a + b, 0);
+  const yearData = perYearRai ?? PER_YEAR_RAI;
+  const maxVal = Math.max(...yearData);
+  const totalRai = yearData.reduce((a, b) => a + b, 0);
 
   const groupSummary = AGE_GROUPS_35.map(g => {
-    const plots = PER_YEAR_PLOTS.slice(g.range[0] - 1, g.range[1]).reduce((a, b) => a + b, 0);
-    return { ...g, plots, pct: Math.round((plots / totalPlots) * 100) };
+    const rai = yearData.slice(g.range[0] - 1, g.range[1]).reduce((a, b) => a + b, 0);
+    return { ...g, rai, pct: Math.round((rai / totalRai) * 100) };
   });
 
   return (
@@ -334,8 +336,8 @@ function AgeDistributionChart({ isMobile }: { isMobile: boolean }) {
           <i className="bi bi-bar-chart-fill" style={{ color: "#059669", fontSize: 18 }} />
         </div>
         <div>
-          <div style={{ fontSize: isMobile ? 15 : 18, fontWeight: 900, color: "#064e3b" }}>การกระจายอายุแปลงยาง (1–35 ปี)</div>
-          <div style={{ fontSize: isMobile ? 11 : 13, color: "#94a3b8", fontWeight: 500, marginTop: 2 }}>จำนวนแปลงต่อแต่ละกลุ่มอายุต้นยาง · ทุกอำเภอ</div>
+          <div style={{ fontSize: isMobile ? 15 : 18, fontWeight: 900, color: "#064e3b" }}>การกระจายพื้นที่ยางตามอายุ (1–35 ปี)</div>
+          <div style={{ fontSize: isMobile ? 11 : 13, color: "#94a3b8", fontWeight: 500, marginTop: 2 }}>พื้นที่ (ไร่) ต่อแต่ละกลุ่มอายุต้นยาง · ทุกอำเภอ</div>
         </div>
       </div>
 
@@ -348,7 +350,7 @@ function AgeDistributionChart({ isMobile }: { isMobile: boolean }) {
         ))}
 
         {/* Bars */}
-        {PER_YEAR_PLOTS.map((val, idx) => {
+        {yearData.map((val, idx) => {
           const age = idx + 1;
           const g = getAgeGroup(age);
           const bh = Math.max((val / maxVal) * iH, 4);
@@ -362,9 +364,9 @@ function AgeDistributionChart({ isMobile }: { isMobile: boolean }) {
               <rect x={x} y={y} width={barW} height={bh} rx={isMobile ? 2 : 3}
                 fill={g.color} opacity={isHov ? 1 : 0.88} style={{ transition: "opacity 0.12s" }} />
               <text x={cx} y={y - (isMobile ? 3 : 5)} textAnchor="middle"
-                fontSize={isMobile ? 8 : 10} fontWeight={isHov ? 800 : 600}
+                fontSize={isMobile ? 7 : 9} fontWeight={isHov ? 800 : 600}
                 fill={isHov ? g.dark : "#374151"}>
-                {val}
+                {val >= 1000 ? Math.round(val / 100) / 10 + "k" : val}
               </text>
             </g>
           );
@@ -389,7 +391,7 @@ function AgeDistributionChart({ isMobile }: { isMobile: boolean }) {
         {/* Hover tooltip */}
         {hoveredAge !== null && (() => {
           const idx = hoveredAge - 1;
-          const val = PER_YEAR_PLOTS[idx];
+          const val = yearData[idx];
           const g = getAgeGroup(hoveredAge);
           const bh = Math.max((val / maxVal) * iH, 4);
           const cx = PL + idx * (barW + gap) + barW / 2;
@@ -406,7 +408,7 @@ function AgeDistributionChart({ isMobile }: { isMobile: boolean }) {
                 อายุ {hoveredAge} ปี · {g.label}
               </text>
               <text x={ttX + ttW / 2} y={ttY + 42} textAnchor="middle" fontSize={isMobile ? 17 : 20} fill="#fff" fontWeight={900}>
-                {val} แปลง
+                {val.toLocaleString("th-TH")} ไร่
               </text>
             </g>
           );
@@ -433,11 +435,11 @@ function AgeDistributionChart({ isMobile }: { isMobile: boolean }) {
         </span>
         <span style={{ display: "flex", alignItems: "center", gap: 6, fontSize: isMobile ? 11 : 13, color: "#64748b" }}>
           <span style={{ display: "inline-block", width: 22, height: 4, background: "linear-gradient(90deg,#4ade80,#059669)", borderRadius: 2 }} />
-          ตัวเลขบนกราฟ: จำนวนแปลงของแต่ละอายุ (เช่น อายุ 15 ปี มีกี่แปลง)
+          ตัวเลขบนกราฟ: พื้นที่ (ไร่) ของแต่ละอายุ
         </span>
         <span style={{ display: "flex", alignItems: "center", gap: 6, fontSize: isMobile ? 11 : 13, color: "#64748b" }}>
           <i className="bi bi-check2-square" style={{ color: "#059669" }} />
-          ตัวเลขในการ์ดด้านล่าง: จำนวนแปลงรวม และสัดส่วนแปลง (%) ของกลุ่มอายุนั้น
+          ตัวเลขในการ์ดด้านล่าง: พื้นที่รวม (ไร่) และสัดส่วนพื้นที่ (%) ของกลุ่มอายุนั้น
         </span>
       </div>
 
@@ -447,8 +449,8 @@ function AgeDistributionChart({ isMobile }: { isMobile: boolean }) {
           <div key={g.key} style={{ background: g.bg, borderRadius: 14, padding: isMobile ? "14px 14px" : "18px 20px", border: `1.5px solid ${g.color}60`, position: "relative", overflow: "hidden" }}>
             <div style={{ position: "absolute", top: -16, right: -16, width: 70, height: 70, borderRadius: "50%", background: g.color, opacity: 0.15 }} />
             <div style={{ fontSize: isMobile ? 12 : 14, fontWeight: 800, color: g.dark, marginBottom: 6 }}>{g.label}</div>
-            <div style={{ fontSize: isMobile ? 30 : 38, fontWeight: 900, color: g.dark, lineHeight: 1, marginBottom: 3 }}>{g.plots.toLocaleString("th-TH")}</div>
-            <div style={{ fontSize: isMobile ? 12 : 13, color: "#64748b", fontWeight: 600 }}>แปลง</div>
+            <div style={{ fontSize: isMobile ? 30 : 38, fontWeight: 900, color: g.dark, lineHeight: 1, marginBottom: 3 }}>{g.rai.toLocaleString("th-TH")}</div>
+            <div style={{ fontSize: isMobile ? 12 : 13, color: "#64748b", fontWeight: 600 }}>ไร่</div>
             <div style={{ marginTop: 12, height: 5, background: "rgba(0,0,0,0.08)", borderRadius: 3, overflow: "hidden" }}>
               <div style={{ height: "100%", width: `${g.pct}%`, background: g.color, borderRadius: 3, minWidth: 6 }} />
             </div>
@@ -504,6 +506,8 @@ export default function DashboardPage() {
   const [isMobile, setIsMobile] = useState(false);
   const [mapPlots, setMapPlots] = useState<MapPlot[]>([]);
   const [mapBbox, setMapBbox] = useState<{ minLng: number; minLat: number; maxLng: number; maxLat: number } | null>(null);
+  const [dashData, setDashData] = useState<DashboardRayongResponse | null>(null);
+  const [dashDistricts, setDashDistricts] = useState<DashboardDistrict[] | null>(null);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -524,11 +528,71 @@ export default function DashboardPage() {
       .catch(console.error);
   }, []);
 
-  const selected = useMemo(() => ALL_ROWS.find(d => d.id === selectedId) ?? PROVINCE_TOTAL, [selectedId]);
-  const flyTo = useMemo<[number, number]>(() => [selected.lng, selected.lat], [selected]);
-  const flyZoom = selectedId === "all" ? 9 : 12;
+  // Fetch real dashboard data from backend raster
+  useEffect(() => {
+    getDashboardRayong()
+      .then(setDashData)
+      .catch(() => { /* fall back to hardcoded data */ });
+  }, []);
 
-const maxAgeDist = useMemo(() => Math.max(...selected.ageDist.map(a => a.plots), 1), [selected]);
+  // Fetch real per-district data from backend raster
+  useEffect(() => {
+    getDashboardDistricts()
+      .then(r => setDashDistricts(r.districts))
+      .catch(() => { /* fall back to hardcoded district data */ });
+  }, []);
+
+  // Compute PER_YEAR_RAI from real API data, or fall back to hardcoded
+  const realPerYearRai = useMemo(() => {
+    if (!dashData?.perYearRai) return null;
+    const arr = new Array(35).fill(0);
+    for (const item of dashData.perYearRai) {
+      if (item.age >= 1 && item.age <= 35) {
+        arr[item.age - 1] = Math.round(item.areaRai);
+      }
+    }
+    return arr;
+  }, [dashData]);
+
+  // Merge real data into PROVINCE_TOTAL for display
+  const effectiveProvinceTotal = useMemo(() => {
+    if (!dashData) return PROVINCE_TOTAL;
+    return {
+      ...PROVINCE_TOTAL,
+      areaRai: Math.round(dashData.totalAreaRai),
+      carbon: Math.round(dashData.totalCarbonTco2),
+      ageDist: (dashData.ageGroups || []).map(g => ({
+        key: g.key,
+        areaRai: Math.round(g.areaRai),
+        carbon: Math.round(g.carbonTco2),
+      })),
+    };
+  }, [dashData]);
+
+  // Merge real district data into DISTRICTS format (fall back to hardcoded)
+  const effectiveDistricts = useMemo(() => {
+    if (!dashDistricts) return DISTRICTS;
+    return DISTRICTS.map(d => {
+      const real = dashDistricts.find(r => r.name === d.name);
+      if (!real) return d;
+      return {
+        ...d,
+        areaRai: Math.round(real.areaRai),
+        carbon: Math.round(real.carbonTco2),
+        ageDist: real.ageDist.map(a => ({
+          key: a.group,
+          areaRai: Math.round(a.areaRai),
+          carbon: Math.round(a.carbonTco2),
+        })),
+      };
+    });
+  }, [dashDistricts]);
+
+  const selected = useMemo(() => {
+    if (selectedId === "all") return effectiveProvinceTotal;
+    return effectiveDistricts.find(d => d.id === selectedId) ?? effectiveProvinceTotal;
+  }, [selectedId, effectiveProvinceTotal, effectiveDistricts]);
+  const maxAgeDist = useMemo(() => Math.max(...selected.ageDist.map(a => a.areaRai), 1), [selected]);
 
   return (
     <div className="db2-page" style={{ minHeight: "100vh", background: "linear-gradient(180deg,#ecfdf5 0%,#f8fafc 60%)", paddingTop: 110, paddingBottom: 60, fontFamily: "'Noto Sans Thai','Inter',sans-serif" }}>
@@ -566,10 +630,8 @@ const maxAgeDist = useMemo(() => Math.max(...selected.ageDist.map(a => a.plots),
 
         {/* ── Stat cards ───────────────────────────────────────────────────── */}
         <div className="db2-stat-row">
-          <StatCard icon="bi-layers-fill" label="แปลงทั้งหมด" value={PROVINCE_TOTAL.plots} unit="แปลง" color="#059669" />
-          <StatCard icon="bi-map-fill" label="พื้นที่รวม" value={PROVINCE_TOTAL.areaRai} unit="ไร่" color="#0d9488" />
-          <StatCard icon="bi-cloud-arrow-up-fill" label="คาร์บอนรวม" value={PROVINCE_TOTAL.carbon} unit="tCO₂" color="#065f46" />
-          <StatCard icon="bi-building" label="จำนวนอำเภอ" value={8} unit="อำเภอ" color="#0369a1" />
+          <StatCard icon="bi-map-fill" label="พื้นที่รวม" value={effectiveProvinceTotal.areaRai} unit="ไร่" color="#0d9488" />
+          <StatCard icon="bi-cloud-arrow-up-fill" label="คาร์บอนรวม" value={effectiveProvinceTotal.carbon} unit="tCO₂" color="#065f46" />
         </div>
 
         {/* ── District dropdown ────────────────────────────────────────────── */}
@@ -600,9 +662,12 @@ const maxAgeDist = useMemo(() => Math.max(...selected.ageDist.map(a => a.plots),
                   fontFamily: "'Noto Sans Thai','Inter',sans-serif",
                 }}
               >
-                {ALL_ROWS.map(d => (
+                <option key="all" value="all">
+                  {effectiveProvinceTotal.name}{dashData ? ` — ${fmt(effectiveProvinceTotal.areaRai)} ไร่` : ""}
+                </option>
+                {effectiveDistricts.map(d => (
                   <option key={d.id} value={d.id}>
-                    {d.name}{d.id !== "all" ? ` — ${fmt(d.plots)} แปลง` : ""}
+                    {d.name} — {fmt(d.areaRai)} ไร่
                   </option>
                 ))}
               </select>
@@ -635,16 +700,14 @@ const maxAgeDist = useMemo(() => Math.max(...selected.ageDist.map(a => a.plots),
               <i className="bi bi-map-fill" style={{ color: "#059669" }} />
               <span>แผนที่แปลงยางพารา จังหวัดระยอง</span>
               <span style={{ marginLeft: "auto", fontSize: 11, fontWeight: 700, color: "#059669", background: "rgba(5,150,105,0.1)", padding: "3px 10px", borderRadius: 50, border: "1px solid rgba(5,150,105,0.18)" }}>
-                {fmt(PROVINCE_TOTAL.plots)} แปลง
+                {fmt(effectiveProvinceTotal.areaRai)} ไร่
               </span>
             </div>
             <div className="db2-map-body">
               <DashboardMap
                 plots={mapPlots}
                 bbox={mapBbox}
-                flyToCenter={flyTo}
-                flyZoom={flyZoom}
-                districts={DISTRICTS}
+                districts={effectiveDistricts}
                 selectedDistrictId={selectedId}
                 onSelectDistrict={setSelectedId}
               />
@@ -668,8 +731,8 @@ const maxAgeDist = useMemo(() => Math.max(...selected.ageDist.map(a => a.plots),
 
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
                 {[
-                  { label: "จำนวนแปลง", value: fmt(selected.plots), unit: "แปลง", color: "#059669" },
                   { label: "พื้นที่รวม", value: fmt(selected.areaRai), unit: "ไร่", color: "#0d9488" },
+                  { label: "คาร์บอนรวม", value: fmtC(selected.carbon), unit: "tCO₂", color: "#065f46" },
                 ].map(m => (
                   <div key={m.label} style={{ background: "#fff", borderRadius: 11, padding: "12px 14px", border: "1px solid rgba(16,185,129,0.12)" }}>
                     <div style={{ fontSize: 11, color: "#64748b", fontWeight: 600, marginBottom: 4 }}>{m.label}</div>
@@ -700,8 +763,8 @@ const maxAgeDist = useMemo(() => Math.max(...selected.ageDist.map(a => a.plots),
               <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                 {selected.ageDist.map(a => {
                   const cfg = AGE_CONFIG.find(c => c.key === a.key)!;
-                  const plotPct = maxAgeDist > 0 ? Math.round((a.plots / maxAgeDist) * 100) : 0;
-                  const totalPct = selected.plots > 0 ? ((a.plots / selected.plots) * 100).toFixed(1) : "0";
+                  const barPct = maxAgeDist > 0 ? Math.round((a.areaRai / maxAgeDist) * 100) : 0;
+                  const totalPct = selected.areaRai > 0 ? ((a.areaRai / selected.areaRai) * 100).toFixed(1) : "0";
                   return (
                     <div key={a.key}>
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
@@ -711,12 +774,12 @@ const maxAgeDist = useMemo(() => Math.max(...selected.ageDist.map(a => a.plots),
                           <span style={{ fontSize: 11, color: "#94a3b8", fontStyle: "italic" }}>{cfg.stage}</span>
                         </div>
                         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                          <span style={{ fontSize: 13, fontWeight: 800, color: cfg.dark }}>{fmt(a.plots)}</span>
+                          <span style={{ fontSize: 13, fontWeight: 800, color: cfg.dark }}>{fmt(a.areaRai)}</span>
                           <span style={{ fontSize: 11, fontWeight: 700, background: cfg.bg, color: cfg.dark, borderRadius: 5, padding: "2px 7px" }}>{totalPct}%</span>
                         </div>
                       </div>
                       <div style={{ height: 7, background: "#f1f5f9", borderRadius: 4, overflow: "hidden", marginBottom: 4 }}>
-                        <div style={{ height: "100%", width: `${plotPct}%`, background: `linear-gradient(90deg,${cfg.color}88,${cfg.color})`, borderRadius: 4, transition: "width 0.7s cubic-bezier(.16,1,.3,1)", minWidth: 4 }} />
+                        <div style={{ height: "100%", width: `${barPct}%`, background: `linear-gradient(90deg,${cfg.color}88,${cfg.color})`, borderRadius: 4, transition: "width 0.7s cubic-bezier(.16,1,.3,1)", minWidth: 4 }} />
                       </div>
                       <div style={{ textAlign: "right", fontSize: 11, color: "#94a3b8", fontWeight: 500 }}>
                         {fmtC(a.carbon)} tCO₂
@@ -737,13 +800,13 @@ const maxAgeDist = useMemo(() => Math.max(...selected.ageDist.map(a => a.plots),
             <span style={{ marginLeft: 6, fontWeight: 500, color: "#94a3b8", fontSize: 12 }}>จังหวัดระยอง · คลิกเพื่อเลือกอำเภอ</span>
           </div>
           <div style={{ padding: "16px 20px 12px" }}>
-            <DistrictCarbonChart selectedId={selectedId} onSelect={setSelectedId} isMobile={isMobile} />
+            <DistrictCarbonChart selectedId={selectedId} onSelect={setSelectedId} isMobile={isMobile} districts={effectiveDistricts} />
           </div>
         </div>
 
         {/* ── Age distribution chart ───────────────────────────────────────── */}
         <div className="db2-card" style={{ padding: isMobile ? "16px 14px 20px" : "24px 28px 28px" }}>
-          <AgeDistributionChart isMobile={isMobile} />
+          <AgeDistributionChart isMobile={isMobile} perYearRai={realPerYearRai} />
         </div>
 
       </div>
@@ -751,7 +814,7 @@ const maxAgeDist = useMemo(() => Math.max(...selected.ageDist.map(a => a.plots),
       <style>{`
         .db2-wrap { max-width: 1300px; margin: 0 auto; padding: 0 28px; }
         .db2-hero { position: relative; border-radius: 20px; padding: 36px 44px; margin-bottom: 22px; overflow: hidden; background: #fff; }
-        .db2-stat-row { display: grid; grid-template-columns: repeat(4,1fr); gap: 14px; margin-bottom: 18px; }
+        .db2-stat-row { display: grid; grid-template-columns: repeat(2,1fr); gap: 14px; margin-bottom: 18px; }
         .db2-stat-card { background: #fff; border-radius: 14px; padding: 20px; border: 1px solid rgba(16,185,129,0.1); box-shadow: 0 2px 10px rgba(16,185,129,0.06); }
         .db2-main-row { display: grid; grid-template-columns: 1.65fr 1fr; gap: 16px; margin-bottom: 18px; }
         .db2-map-card { display: flex; flex-direction: column; }

@@ -19,7 +19,7 @@ export type DistrictMarker = {
   id: string;
   name: string;
   carbon: number;
-  plots: number;
+  areaRai: number;
   lat: number;
   lng: number;
 };
@@ -153,7 +153,7 @@ export default function DashboardMap({
         const features: GeoJSON.Feature[] = districts.map(d => ({
           type: "Feature",
           geometry: { type: "Point", coordinates: [d.lng, d.lat] } as GeoJSON.Point,
-          properties: { id: d.id, name: d.name, carbon: d.carbon, plots: d.plots },
+          properties: { id: d.id, name: d.name, carbon: d.carbon, areaRai: d.areaRai },
         }));
 
         map.addSource("districts", {
