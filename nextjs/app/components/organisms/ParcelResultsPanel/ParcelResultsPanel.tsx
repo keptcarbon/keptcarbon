@@ -284,7 +284,7 @@ function EstimatedParamsCard({ params }: { params: EstimatedParameters }) {
     }
 
     return (
-        <div style={{ marginTop: 8, paddingTop: 8, borderTop: "1px dashed rgba(14,165,233,0.2)", fontSize: 13 }}>
+        <div style={{ marginTop: 8, paddingTop: 8, borderTop: "1px dashed rgba(14,165,233,0.2)", fontSize: 14 }}>
             <div style={{ fontWeight: 700, color: "#0284c7", marginBottom: 6, display: "flex", alignItems: "center", gap: 4 }}>
                 <i className="bi bi-cpu" /> พารามิเตอร์จากระบบ
             </div>
@@ -299,12 +299,12 @@ function EstimatedParamsCard({ params }: { params: EstimatedParameters }) {
                 {/* Year distribution from raster — top 5 */}
                 {yearNotes.length > 0 && (
                     <div style={{ marginLeft: 8, marginTop: 2, padding: "6px 10px", background: "rgba(14,165,233,0.04)", borderRadius: 6, border: "1px solid rgba(14,165,233,0.12)" }}>
-                        <div style={{ fontSize: 12, color: "#64748b", fontWeight: 700, marginBottom: 4 }}>
+                        <div style={{ fontSize: 13, color: "#64748b", fontWeight: 700, marginBottom: 4 }}>
                             <i className="bi bi-satellite" style={{ marginRight: 4 }} />การกระจายปีที่ตรวจพบ:
                         </div>
                         <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
                             {yearNotes.map((note, ni) => (
-                                <span key={ni} style={{ fontSize: 12, color: ni === 0 ? "#0369a1" : "#94a3b8", fontWeight: ni === 0 ? 700 : 400 }}>
+                                <span key={ni} style={{ fontSize: 13, color: ni === 0 ? "#0369a1" : "#94a3b8", fontWeight: ni === 0 ? 700 : 400 }}>
                                     {ni === 0 ? "▶ " : "  "}{convertYearNoteToBE(note)}
                                 </span>
                             ))}
@@ -1138,7 +1138,7 @@ export function ParcelResultsPanel({
                 )}
                 <div style={{ display: "flex", gap: isMobile ? 6 : 8, marginBottom: 16, flexWrap: "nowrap" }}>
                     {onDrawMore && !isDrawing && (
-                        <button className="prp-btn-ghost" style={{ flex: 1, padding: isMobile ? "8px 2px" : "10px 4px", fontSize: isMobile ? 11 : 12, display: "flex", flexDirection: "column", alignItems: "center", gap: isMobile ? 4 : 6, background: "rgba(16,185,129,0.1)", color: "#059669", border: "1px solid rgba(16,185,129,0.2)", borderRadius: isMobile ? 10 : 12 }} onClick={onDrawMore}>
+                        <button className="prp-btn-ghost" style={{ flex: 1, padding: isMobile ? "8px 2px" : "10px 4px", fontSize: isMobile ? 13 : 14, display: "flex", flexDirection: "column", alignItems: "center", gap: isMobile ? 4 : 6, background: "rgba(16,185,129,0.1)", color: "#059669", border: "1px solid rgba(16,185,129,0.2)", borderRadius: isMobile ? 10 : 12 }} onClick={onDrawMore}>
                             <i className="bi bi-pencil-square" style={{ fontSize: isMobile ? 16 : 18 }} /> <span style={{ fontWeight: 600, textAlign: "center", lineHeight: 1.2 }}>วาดแปลงเพิ่ม</span>
                         </button>
                     )}
@@ -1147,7 +1147,7 @@ export function ParcelResultsPanel({
                         onClick={() => handleSave([])}
                         disabled={!projectName.trim() || saveState === "saving"}
                         style={{
-                            flex: 1, padding: isMobile ? "8px 2px" : "10px 4px", fontSize: isMobile ? 11 : 12, display: "flex", flexDirection: "column", alignItems: "center", gap: isMobile ? 4 : 6,
+                            flex: 1, padding: isMobile ? "8px 2px" : "10px 4px", fontSize: isMobile ? 13 : 14, display: "flex", flexDirection: "column", alignItems: "center", gap: isMobile ? 4 : 6,
                             background: saveState === "done" ? "#94a3b8" : ((projectName.trim() && !hasEmptyStatus) ? "linear-gradient(135deg,#0ea5e9,#0284c7)" : "#cbd5e1"),
                             color: "#fff", border: "none", borderRadius: isMobile ? 10 : 12,
                             cursor: saveState !== "idle" ? "not-allowed" : ((projectName.trim() && !hasEmptyStatus) ? "pointer" : "not-allowed"),
@@ -1169,7 +1169,7 @@ export function ParcelResultsPanel({
                         onClick={() => { void handleProcessCarbon(); }}
                         disabled={!projectName.trim() || hasEmptyStatus || processingCarbon}
                         style={{
-                            flex: 1, padding: isMobile ? "8px 2px" : "10px 4px", fontSize: isMobile ? 11 : 12, display: "flex", flexDirection: "column", alignItems: "center", gap: isMobile ? 4 : 6,
+                            flex: 1, padding: isMobile ? "8px 2px" : "10px 4px", fontSize: isMobile ? 13 : 14, display: "flex", flexDirection: "column", alignItems: "center", gap: isMobile ? 4 : 6,
                             background: (projectName.trim() && !hasEmptyStatus && !processingCarbon) ? "linear-gradient(135deg,#10b981,#059669)" : "#cbd5e1",
                             color: "#fff", border: "none", borderRadius: isMobile ? 10 : 12,
                             cursor: (projectName.trim() && !hasEmptyStatus && !processingCarbon) ? "pointer" : "not-allowed",
@@ -1207,7 +1207,7 @@ export function ParcelResultsPanel({
 
                 {/* Project name — shared */}
                 <div style={{ background: "linear-gradient(135deg,#f0fdf4,#ecfdf5)", borderRadius: 14, padding: isMobile ? "14px 14px" : "16px 20px", marginBottom: 16, border: "1px solid rgba(16,185,129,0.18)" }}>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: "#059669", marginBottom: 6, display: "flex", alignItems: "center", gap: 6 }}>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: "#059669", marginBottom: 6, display: "flex", alignItems: "center", gap: 6 }}>
                         <i className="bi bi-folder2-open" /> ชื่อโครงการ  <span style={{ color: "#ef4444" }}>*</span>
                     </div>
                     <input className="prp-input" style={{ marginBottom: 0 }} placeholder="เช่น โครงการที่1" value={projectName} onChange={e => setProjectName(e.target.value)} />
@@ -1215,10 +1215,10 @@ export function ParcelResultsPanel({
 
                 {/* Summary of drawn parcels */}
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, padding: "0 4px" }}>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: "#475569" }}>
+                    <div style={{ fontSize: 15, fontWeight: 700, color: "#475569" }}>
                         แปลงที่วาดแล้ว ({plots.length})
                     </div>
-                    <div style={{ fontSize: 14, fontWeight: 800, color: "#10b981" }}>
+                    <div style={{ fontSize: 16, fontWeight: 800, color: "#10b981" }}>
                         {totalArea.toFixed(2)} ไร่
                     </div>
                 </div>
@@ -1255,9 +1255,9 @@ export function ParcelResultsPanel({
                                 >
                                     <div style={{ pointerEvents: 'none', width: 28, height: 28, borderRadius: 8, background: "#10b981", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 13 }}>{i + 1}</div>
                                     <div style={{ pointerEvents: 'none', flex: 1 }}>
-                                        <div style={{ fontWeight: 700, fontSize: 13, color: "#0f172a" }}>แปลงที่ {i + 1}</div>
+                                        <div style={{ fontWeight: 700, fontSize: 15, color: "#0f172a" }}>แปลงที่ {i + 1}</div>
                                         {p.areaRai > 0 && (
-                                            <div style={{ fontSize: 11, color: "#64748b" }}>{p.areaRai.toFixed(2)} ไร่</div>
+                                            <div style={{ fontSize: 13, color: "#64748b" }}>{p.areaRai.toFixed(2)} ไร่</div>
                                         )}
                                     </div>
                                     <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
@@ -1274,7 +1274,7 @@ export function ParcelResultsPanel({
                                     <>
                                         {/* Status Selection */}
                                         <div style={{ padding: isMobile ? "16px 16px 0" : "20px 24px 0", background: "#fff" }}>
-                                            <div style={{ fontSize: 13, fontWeight: 700, color: "#1e293b", marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
+                                            <div style={{ fontSize: 15, fontWeight: 700, color: "#1e293b", marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
                                                 <i className="bi bi-info-circle" style={{ color: "#10b981" }} /> สถานะแปลง <span style={{ color: "#ef4444" }}>*</span>
                                             </div>
                                             <div style={{ display: "flex", gap: 16 }}>
@@ -1286,7 +1286,7 @@ export function ParcelResultsPanel({
                                                         luChecked: { A: true, A302: true },
                                                     } : f));
                                                     onProjectTypeChange?.("replanting");
-                                                }} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, cursor: "pointer", userSelect: "none" }}>
+                                                }} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 15, cursor: "pointer", userSelect: "none" }}>
                                                     <div style={{ width: 18, height: 18, borderRadius: "50%", border: "2px solid", borderColor: form.plantStatus === "replanting" ? "#10b981" : "#cbd5e1", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "all 0.2s" }}>
                                                         {form.plantStatus === "replanting" && <div style={{ width: 10, height: 10, borderRadius: "50%", background: "#10b981" }} />}
                                                     </div>
@@ -1301,7 +1301,7 @@ export function ParcelResultsPanel({
                                                         luChecked: { A: true, A302: true },
                                                     } : f));
                                                     onProjectTypeChange?.("existing");
-                                                }} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, cursor: "pointer", userSelect: "none" }}>
+                                                }} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 15, cursor: "pointer", userSelect: "none" }}>
                                                     <div style={{ width: 18, height: 18, borderRadius: "50%", border: "2px solid", borderColor: form.plantStatus === "existing" ? "#10b981" : "#cbd5e1", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "all 0.2s" }}>
                                                         {form.plantStatus === "existing" && <div style={{ width: 10, height: 10, borderRadius: "50%", background: "#10b981" }} />}
                                                     </div>
@@ -1340,7 +1340,7 @@ export function ParcelResultsPanel({
                                             background: "#fff"
                                         }}>
                                             <div className="prp-field-group">
-                                                <div style={{ fontSize: 13, fontWeight: 700, color: "#1e293b", marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
+                                                <div style={{ fontSize: 15, fontWeight: 700, color: "#1e293b", marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
                                                     <i className="bi bi-calendar-event" style={{ color: "#10b981" }} /> ปีที่ปลูก (พ.ศ.)
                                                 </div>
                                                 <select
@@ -1355,7 +1355,7 @@ export function ParcelResultsPanel({
                                                 </select>
                                             </div>
                                             <div className="prp-field-group">
-                                                <div style={{ fontSize: 13, fontWeight: 700, color: "#1e293b", marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
+                                                <div style={{ fontSize: 15, fontWeight: 700, color: "#1e293b", marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
                                                     <i className="bi bi-tags" style={{ color: "#10b981" }} /> พันธุ์ยาง
                                                 </div>
                                                 <select
@@ -1370,7 +1370,7 @@ export function ParcelResultsPanel({
                                                 </select>
                                             </div>
                                             <div className="prp-field-group">
-                                                <div style={{ fontSize: 13, fontWeight: 700, color: "#1e293b", marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
+                                                <div style={{ fontSize: 15, fontWeight: 700, color: "#1e293b", marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
                                                     <i className="bi bi-tree" style={{ color: "#10b981" }} /> จำนวนต้นยาง
                                                 </div>
                                                 <input
@@ -1384,7 +1384,7 @@ export function ParcelResultsPanel({
                                                 />
                                             </div>
                                             <div className="prp-field-group">
-                                                <div style={{ fontSize: 13, fontWeight: 700, color: "#1e293b", marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
+                                                <div style={{ fontSize: 15, fontWeight: 700, color: "#1e293b", marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
                                                     <i className="bi bi-arrows-expand" style={{ color: "#10b981" }} /> ระยะปลูก (ม.)
                                                 </div>
                                                 <select
@@ -1402,10 +1402,10 @@ export function ParcelResultsPanel({
 
                                         {/* Land Use Checkboxes */}
                                         <div style={{ padding: isMobile ? "0 16px 16px" : "0 24px 20px", background: "#fff" }}>
-                                            <div style={{ fontSize: 13, fontWeight: 700, color: "#1e293b", marginBottom: 12, display: "flex", alignItems: "center", gap: 6 }}>
+                                            <div style={{ fontSize: 15, fontWeight: 700, color: "#1e293b", marginBottom: 12, display: "flex", alignItems: "center", gap: 6 }}>
                                                 <i className="bi bi-layers" style={{ color: "#10b981" }} /> ชั้นข้อมูลการใช้ประโยชน์ที่ดิน (กรมพัฒนาที่ดิน)
                                             </div>
-                                            <div style={{ display: "flex", flexDirection: "column", gap: 10, fontSize: 13 }}>
+                                            <div style={{ display: "flex", flexDirection: "column", gap: 10, fontSize: 14 }}>
                                                 {(() => {
                                                     const plotLUData = plotsLuRealData[i] || {};
                                                     const isNew = form.plantStatus === "replanting";
@@ -1486,10 +1486,10 @@ export function ParcelResultsPanel({
                                                                 />
                                                                 <div style={{ width: 12, height: 12, borderRadius: 2, backgroundColor: lu.color, flexShrink: 0 }} />
                                                                 <span style={{ flex: 1, color: "#0f172a", fontWeight: isChecked ? 600 : 400 }}>{lu.label}</span>
-                                                                <span style={{ color: isChecked ? lu.color : "#64748b", fontSize: 12, fontWeight: 700 }}>
+                                                                <span style={{ color: isChecked ? lu.color : "#64748b", fontSize: 14, fontWeight: 700 }}>
                                                                     {hasArea ? `${realData.rai.toFixed(2)} ไร่` : "0.00 ไร่"}
                                                                     {hasArea && (
-                                                                        <span style={{ opacity: 0.7, fontSize: 11 }}> ({realData.pct}%)</span>
+                                                                        <span style={{ opacity: 0.7, fontSize: 13 }}> ({realData.pct}%)</span>
                                                                     )}
                                                                 </span>
                                                             </label>
@@ -1538,10 +1538,10 @@ export function ParcelResultsPanel({
 
                                                 return selectedRai > 0 ? (
                                                     <div style={{ marginTop: 12, padding: "8px 12px", background: "rgba(249,115,22,0.08)", borderRadius: 8, border: "1px solid rgba(249,115,22,0.2)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                                                        <span style={{ fontSize: 12, color: "#92400e", fontWeight: 600 }}>
+                                                        <span style={{ fontSize: 14, color: "#92400e", fontWeight: 600 }}>
                                                             <i className="bi bi-check2-square me-1" /> พื้นที่ที่เลือก
                                                         </span>
-                                                        <span style={{ fontSize: 13, color: "#c2410c", fontWeight: 700 }}>
+                                                        <span style={{ fontSize: 15, color: "#c2410c", fontWeight: 700 }}>
                                                             {selectedRai.toFixed(2)} ไร่
                                                         </span>
                                                     </div>

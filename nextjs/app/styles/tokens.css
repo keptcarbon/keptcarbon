@@ -47,14 +47,14 @@
 
   /* ── Typography ───────────────────────────────── */
   --kc-font-family: var(--font-noto-sans-thai), 'Noto Sans Thai', 'Noto Sans', system-ui, sans-serif;
-  --kc-font-size-xs: 11px;
-  --kc-font-size-sm: 13px;
-  --kc-font-size-base: 14px;
-  --kc-font-size-md: 15px;
-  --kc-font-size-lg: 16px;
-  --kc-font-size-xl: 24px;
-  --kc-font-size-2xl: 32px;
-  --kc-font-size-3xl: 44px;
+  --kc-font-size-xs: 14px;
+  --kc-font-size-sm: 15px;
+  --kc-font-size-base: 17px;
+  --kc-font-size-md: 19px;
+  --kc-font-size-lg: 21px;
+  --kc-font-size-xl: 28px;
+  --kc-font-size-2xl: 38px;
+  --kc-font-size-3xl: 52px;
   --kc-font-weight-light: 300;
   --kc-font-weight-normal: 400;
   --kc-font-weight-medium: 500;

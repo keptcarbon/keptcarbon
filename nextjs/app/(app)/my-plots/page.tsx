@@ -203,18 +203,18 @@ function PlotsMapView({ plots, isMobile }: { plots: SavedPlot[], isMobile: boole
               <!-- Type + Index -->
               <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">
                 <span style="
-                  font-size: 9.5px; font-weight: 700; letter-spacing: 0.5px;
+                  font-size: 11px; font-weight: 700; letter-spacing: 0.5px;
                   color: ${dot}; text-transform: uppercase;
                 ">${isBoundary ? 'ขอบเขตที่วาด' : 'แปลงที่ตรวจพบ'}</span>
-                <span style="font-size: 10px; color: #cbd5e1; font-weight: 600;">#${p.index}</span>
+                <span style="font-size: 12px; color: #cbd5e1; font-weight: 600;">#${p.index}</span>
               </div>
 
               <!-- Name -->
-              <div style="font-size: 16px; font-weight: 800; color: #0f172a; margin-bottom: 6px; line-height: 1.2;">${p.name}</div>
+              <div style="font-size: 17px; font-weight: 800; color: #0f172a; margin-bottom: 6px; line-height: 1.2;">${p.name}</div>
 
               <!-- Province -->
-              <div style="display:flex; align-items:center; gap:5px; color:#94a3b8; font-size:11.5px; margin-bottom:14px;">
-                <i class="bi bi-geo-alt-fill" style="font-size:10px; color:${dot};"></i>
+              <div style="display:flex; align-items:center; gap:5px; color:#94a3b8; font-size:13px; margin-bottom:14px;">
+                <i class="bi bi-geo-alt-fill" style="font-size:12px; color:${dot};"></i>
                 <span>${p.province}</span>
               </div>
 
@@ -224,19 +224,19 @@ function PlotsMapView({ plots, isMobile }: { plots: SavedPlot[], isMobile: boole
               <!-- Stats row -->
               <div style="display:flex; gap:12px; align-items:flex-start;">
                 <div>
-                  <div style="font-size:15px; font-weight:800; color:#0f172a;">${p.area}</div>
-                  <div style="font-size:9.5px; color:#94a3b8; margin-top:1px;">ไร่</div>
+                  <div style="font-size:16px; font-weight:800; color:#0f172a;">${p.area}</div>
+                  <div style="font-size:11px; color:#94a3b8; margin-top:1px;">ไร่</div>
                 </div>
                 <div style="width:1px; background:#f1f5f9; align-self:stretch;"></div>
                 <div>
-                  <div style="font-size:15px; font-weight:800; color:#059669;">${p.carbon}</div>
-                  <div style="font-size:9.5px; color:#94a3b8; margin-top:1px;">tCO₂</div>
+                  <div style="font-size:16px; font-weight:800; color:#059669;">${p.carbon}</div>
+                  <div style="font-size:11px; color:#94a3b8; margin-top:1px;">tCO₂</div>
                 </div>
                 ${p.carbonPerTree !== '—' ? `
                 <div style="width:1px; background:#f1f5f9; align-self:stretch;"></div>
                 <div>
-                  <div style="font-size:13px; font-weight:800; color:#0891b2;">${p.carbonPerTree}</div>
-                  <div style="font-size:9px; color:#94a3b8; margin-top:1px; line-height:1.3;">tCO₂<br>/ต้น</div>
+                  <div style="font-size:14px; font-weight:800; color:#0891b2;">${p.carbonPerTree}</div>
+                  <div style="font-size:11px; color:#94a3b8; margin-top:1px; line-height:1.3;">tCO₂<br>/ต้น</div>
                 </div>
                 ` : ''}
               </div>
@@ -361,7 +361,7 @@ function PlotsMapView({ plots, isMobile }: { plots: SavedPlot[], isMobile: boole
             mapRef.current.setLayoutProperty("sat", "visibility", "visible");
             mapRef.current.setLayoutProperty("street", "visibility", "none");
           }}
-          style={{ padding: "6px 12px", borderRadius: 8, border: "none", fontSize: 11, fontWeight: 700, cursor: "pointer", background: "transparent" }}
+          style={{ padding: "6px 12px", borderRadius: 8, border: "none", fontSize: 13, fontWeight: 700, cursor: "pointer", background: "transparent" }}
         >ดาวเทียม</button>
         <button
           onClick={() => {
@@ -369,15 +369,15 @@ function PlotsMapView({ plots, isMobile }: { plots: SavedPlot[], isMobile: boole
             mapRef.current.setLayoutProperty("sat", "visibility", "none");
             mapRef.current.setLayoutProperty("street", "visibility", "visible");
           }}
-          style={{ padding: "6px 12px", borderRadius: 8, border: "none", fontSize: 11, fontWeight: 700, cursor: "pointer", background: "transparent" }}
+          style={{ padding: "6px 12px", borderRadius: 8, border: "none", fontSize: 13, fontWeight: 700, cursor: "pointer", background: "transparent" }}
         >ลายเส้น</button>
       </div>
     </div>
   );
 }
 
-const inputStyle: React.CSSProperties = { width: "100%", padding: "10px 14px", borderRadius: 10, border: "1px solid #cbd5e1", fontSize: 14, background: "#fff" };
-const labelStyle: React.CSSProperties = { display: "block", fontSize: 13, fontWeight: 700, color: "#475569", marginBottom: 6 };
+const inputStyle: React.CSSProperties = { width: "100%", padding: "10px 14px", borderRadius: 10, border: "1px solid #cbd5e1", fontSize: 16, background: "#fff" };
+const labelStyle: React.CSSProperties = { display: "block", fontSize: 15, fontWeight: 700, color: "#475569", marginBottom: 6 };
 
 function EditPlotModal({ plot, onClose, onSave, isMobile }: { plot: SavedPlot; onClose: () => void; onSave: (p: SavedPlot) => void; isMobile: boolean }) {
   const [formData, setFormData] = useState({
@@ -421,7 +421,7 @@ function EditPlotModal({ plot, onClose, onSave, isMobile }: { plot: SavedPlot; o
   return (
     <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.5)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
       <div style={{ background: "#fff", borderRadius: 20, width: "100%", maxWidth: 520, maxHeight: "90vh", overflow: "auto", padding: isMobile ? 20 : 30, boxShadow: "0 20px 40px rgba(0,0,0,0.2)" }}>
-        <div style={{ fontSize: 20, fontWeight: 800, color: "#064e3b", marginBottom: 20, display: "flex", alignItems: "center", gap: 10 }}>
+        <div style={{ fontSize: 24, fontWeight: 800, color: "#064e3b", marginBottom: 20, display: "flex", alignItems: "center", gap: 10 }}>
           <i className="bi bi-pencil-square" style={{ color: "#10b981" }} /> แก้ไขข้อมูลแปลง
         </div>
 
@@ -541,20 +541,20 @@ function PlotCard({ plot, index, onDelete, onEdit, expanded, onToggle, isMobile 
             background: "linear-gradient(135deg, #10b981 0%, #047857 100%)",
             display: "flex", alignItems: "center", justifyContent: "center",
             boxShadow: "0 4px 14px rgba(16,185,129,0.35)",
-            fontSize: 19, fontWeight: 900, color: "#fff", letterSpacing: -0.5
+            fontSize: 21, fontWeight: 900, color: "#fff", letterSpacing: -0.5
           }}>{index}</div>
           <div style={{ minWidth: 0 }}>
-            <div style={{ fontSize: 15, fontWeight: 800, color: "#0f172a", lineHeight: 1.3 }}>
+            <div style={{ fontSize: 18, fontWeight: 800, color: "#0f172a", lineHeight: 1.3 }}>
               แปลงที่ {index}
             </div>
             <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 3 }}>
               {plot.province && (
-                <span style={{ fontSize: 11, color: "#64748b", display: "flex", alignItems: "center", gap: 3 }}>
-                  <i className="bi bi-geo-alt-fill" style={{ color: "#10b981", fontSize: 9 }} />{plot.province}
+                <span style={{ fontSize: 14, color: "#64748b", display: "flex", alignItems: "center", gap: 3 }}>
+                  <i className="bi bi-geo-alt-fill" style={{ color: "#10b981", fontSize: 12 }} />{plot.province}
                 </span>
               )}
-              {plot.province && <span style={{ fontSize: 10, color: "#e2e8f0" }}>|</span>}
-              <span style={{ fontSize: 10.5, color: "#cbd5e1" }}>
+              {plot.province && <span style={{ fontSize: 12, color: "#e2e8f0" }}>|</span>}
+              <span style={{ fontSize: 12, color: "#cbd5e1" }}>
                 {new Date(plot.date).toLocaleDateString("th-TH", { year: "numeric", month: "short", day: "numeric" })}
               </span>
             </div>
@@ -572,7 +572,7 @@ function PlotCard({ plot, index, onDelete, onEdit, expanded, onToggle, isMobile 
                 onMouseEnter={e => { e.currentTarget.style.background = "#e2e8f0"; }}
                 onMouseLeave={e => { e.currentTarget.style.background = "#f1f5f9"; }}
               >
-                <i className="bi bi-pencil-square" style={{ fontSize: 13 }} />
+                <i className="bi bi-pencil-square" style={{ fontSize: 14 }} />
               </button>
               <button
                 onClick={() => setConfirmDelete(true)}
@@ -581,14 +581,14 @@ function PlotCard({ plot, index, onDelete, onEdit, expanded, onToggle, isMobile 
                 onMouseEnter={e => { e.currentTarget.style.background = "rgba(239,68,68,0.14)"; }}
                 onMouseLeave={e => { e.currentTarget.style.background = "rgba(239,68,68,0.07)"; }}
               >
-                <i className="bi bi-trash3" style={{ fontSize: 13 }} />
+                <i className="bi bi-trash3" style={{ fontSize: 14 }} />
               </button>
             </>
           ) : (
             <div style={{ display: "flex", gap: 5, alignItems: "center" }}>
-              <span style={{ fontSize: 11.5, color: "#ef4444", fontWeight: 700, whiteSpace: "nowrap" }}>ยืนยันลบ?</span>
-              <button onClick={onDelete} style={{ padding: "5px 12px", background: "#ef4444", color: "#fff", border: "none", borderRadius: 8, cursor: "pointer", fontWeight: 700, fontSize: 11 }}>ลบ</button>
-              <button onClick={() => setConfirmDelete(false)} style={{ padding: "5px 10px", background: "#f1f5f9", color: "#64748b", border: "none", borderRadius: 8, cursor: "pointer", fontSize: 11 }}>ยกเลิก</button>
+              <span style={{ fontSize: 14, color: "#ef4444", fontWeight: 700, whiteSpace: "nowrap" }}>ยืนยันลบ?</span>
+              <button onClick={onDelete} style={{ padding: "5px 12px", background: "#ef4444", color: "#fff", border: "none", borderRadius: 8, cursor: "pointer", fontWeight: 700, fontSize: 14 }}>ลบ</button>
+              <button onClick={() => setConfirmDelete(false)} style={{ padding: "5px 10px", background: "#f1f5f9", color: "#64748b", border: "none", borderRadius: 8, cursor: "pointer", fontSize: 14 }}>ยกเลิก</button>
             </div>
           )}
         </div>
@@ -617,13 +617,13 @@ function PlotCard({ plot, index, onDelete, onEdit, expanded, onToggle, isMobile 
           >
             <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
               <div style={{ width: 20, height: 20, borderRadius: 6, background: bg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                <i className={`bi ${icon}`} style={{ fontSize: 10, color }} />
+                <i className={`bi ${icon}`} style={{ fontSize: 12, color }} />
               </div>
-              <span style={{ fontSize: 10, color: "#94a3b8", fontWeight: 600, letterSpacing: 0.2 }}>{label}</span>
+              <span style={{ fontSize: 13, color: "#94a3b8", fontWeight: 600, letterSpacing: 0.2 }}>{label}</span>
             </div>
             <div style={{ display: "flex", alignItems: "baseline", gap: 3 }}>
-              <span style={{ fontSize: isMobile ? 15 : 16, fontWeight: 800, color: val === "—" ? "#cbd5e1" : "#1e293b", lineHeight: 1 }}>{val}</span>
-              {unit && <span style={{ fontSize: 9.5, color: "#94a3b8", fontWeight: 500 }}>{unit}</span>}
+              <span style={{ fontSize: isMobile ? 17 : 18, fontWeight: 800, color: val === "—" ? "#cbd5e1" : "#1e293b", lineHeight: 1 }}>{val}</span>
+              {unit && <span style={{ fontSize: 12, color: "#94a3b8", fontWeight: 500 }}>{unit}</span>}
             </div>
           </div>
         ))}
@@ -637,16 +637,16 @@ function PlotCard({ plot, index, onDelete, onEdit, expanded, onToggle, isMobile 
           padding: isMobile ? "10px 16px 10px 20px" : "11px 20px 11px 22px",
           background: expanded ? "rgba(16,185,129,0.04)" : "#fff",
           border: "none", cursor: "pointer",
-          fontSize: 12, fontWeight: 700, color: "#059669",
+          fontSize: 15, fontWeight: 700, color: "#059669",
           transition: "background 0.15s",
           borderTop: expanded ? "1px solid rgba(16,185,129,0.08)" : "none",
         }}
       >
         <span style={{ display: "flex", alignItems: "center", gap: 7 }}>
-          <i className={`bi bi-bar-chart-line${expanded ? "-fill" : ""}`} style={{ fontSize: 13 }} />
+          <i className={`bi bi-bar-chart-line${expanded ? "-fill" : ""}`} style={{ fontSize: 14 }} />
           กราฟการกักเก็บคาร์บอนรายปี (tCO₂)
         </span>
-        <i className={`bi bi-chevron-${expanded ? "up" : "down"}`} style={{ fontSize: 11, opacity: 0.5 }} />
+        <i className={`bi bi-chevron-${expanded ? "up" : "down"}`} style={{ fontSize: 13, opacity: 0.5 }} />
       </button>
 
       {/* Chart section */}
@@ -655,8 +655,8 @@ function PlotCard({ plot, index, onDelete, onEdit, expanded, onToggle, isMobile 
           {barPts.length > 0 ? (
             <CarbonBarChart pts={barPts} isMobile={isMobile} />
           ) : (
-            <div style={{ textAlign: "center", padding: "28px 20px", background: "#f8fafc", borderRadius: 14, border: "1.5px dashed #e2e8f0", color: "#94a3b8", fontSize: 13 }}>
-              <i className="bi bi-bar-chart-line" style={{ fontSize: 22, display: "block", marginBottom: 8, opacity: 0.5 }} />
+            <div style={{ textAlign: "center", padding: "28px 20px", background: "#f8fafc", borderRadius: 14, border: "1.5px dashed #e2e8f0", color: "#94a3b8", fontSize: 14 }}>
+              <i className="bi bi-bar-chart-line" style={{ fontSize: 24, display: "block", marginBottom: 8, opacity: 0.5 }} />
               {plot.carbonTotal > 0 ? "ข้อมูลไม่เพียงพอในการสร้างกราฟ" : "ยังไม่ได้ประมวลผลคาร์บอนสำหรับแปลงนี้"}
             </div>
           )}
@@ -891,21 +891,21 @@ export default function MyPlotsPage() {
           <div style={{ position: "relative", zIndex: 1, display: "flex", flexDirection: isMobile ? "column" : "row", justifyContent: "space-between", alignItems: isMobile ? "flex-start" : "center", gap: 20 }}>
             <div style={{ width: "100%" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
-                <div style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "4px 12px", background: "rgba(16,185,129,0.1)", color: "#059669", borderRadius: 50, fontSize: 11, fontWeight: 700, border: "1px solid rgba(16,185,129,0.2)" }}>
+                <div style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "4px 12px", background: "rgba(16,185,129,0.1)", color: "#059669", borderRadius: 50, fontSize: 13, fontWeight: 700, border: "1px solid rgba(16,185,129,0.2)" }}>
                   <i className="bi bi-folder-fill" /> {viewMode === "all" ? "ข้อมูลทั้งหมดในระบบ" : "ข้อมูลของฉัน"}
                 </div>
               </div>
-              <h1 style={{ fontSize: isMobile ? 24 : 30, fontWeight: 800, color: "#064e3b", marginBottom: 8, lineHeight: 1.2 }}>
+              <h1 style={{ fontSize: isMobile ? 28 : 36, fontWeight: 800, color: "#064e3b", marginBottom: 8, lineHeight: 1.2 }}>
                 {viewMode === "all" ? "การจัดการแปลงยางพาราทั้งหมด" : "แปลงยางพาราของฉัน"}
               </h1>
-              <p style={{ fontSize: isMobile ? 13 : 14, color: "#475569", margin: "0 0 18px", lineHeight: 1.6 }}>
+              <p style={{ fontSize: isMobile ? 15 : 17, color: "#475569", margin: "0 0 18px", lineHeight: 1.6 }}>
                 {viewMode === "all"
                   ? "ตรวจสอบและจัดการข้อมูลแปลงยางพาราของผู้ใช้งานทุกคนในระบบ"
                   : "จัดการและติดตามข้อมูลแปลงยาง พร้อมพยากรณ์คาร์บอนรายปี"}
               </p>
               {/* Search */}
               <div style={{ position: "relative", maxWidth: isMobile ? "100%" : 440 }}>
-                <i className="bi bi-search" style={{ position: "absolute", left: 13, top: "50%", transform: "translateY(-50%)", color: searchFocused ? "#059669" : "#94a3b8", fontSize: 14, pointerEvents: "none" }} />
+                <i className="bi bi-search" style={{ position: "absolute", left: 13, top: "50%", transform: "translateY(-50%)", color: searchFocused ? "#059669" : "#94a3b8", fontSize: 15, pointerEvents: "none" }} />
                 <input
                   type="text"
                   placeholder="ค้นหาแปลง ชื่อเจ้าของ หรือจังหวัด..."
@@ -915,7 +915,7 @@ export default function MyPlotsPage() {
                   onBlur={() => setSearchFocused(false)}
                   style={{
                     width: "100%", padding: "11px 38px 11px 40px",
-                    borderRadius: 13, fontSize: 13, color: "#0f172a",
+                    borderRadius: 13, fontSize: 15, color: "#0f172a",
                     border: `2px solid ${searchFocused ? "#10b981" : "rgba(16,185,129,0.25)"}`,
                     background: "rgba(255,255,255,0.95)", outline: "none",
                     boxShadow: searchFocused ? "0 0 0 4px rgba(16,185,129,0.1)" : "0 2px 10px rgba(0,0,0,0.04)",
@@ -923,7 +923,7 @@ export default function MyPlotsPage() {
                   }}
                 />
                 {searchTerm && (
-                  <button onClick={() => setSearchTerm("")} style={{ position: "absolute", right: 11, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: 16, padding: 2, lineHeight: 1 }}>
+                  <button onClick={() => setSearchTerm("")} style={{ position: "absolute", right: 11, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: 17, padding: 2, lineHeight: 1 }}>
                     <i className="bi bi-x-circle-fill" />
                   </button>
                 )}
@@ -949,7 +949,7 @@ export default function MyPlotsPage() {
                       padding: isMobile ? "7px 12px" : "8px 16px",
                       borderRadius: isMobile ? 9 : 10,
                       border: "none",
-                      fontSize: isMobile ? 12 : 13,
+                      fontSize: 15,
                       fontWeight: 700,
                       cursor: "pointer",
                       transition: "all 0.2s",
@@ -968,7 +968,7 @@ export default function MyPlotsPage() {
                       padding: isMobile ? "7px 12px" : "8px 16px",
                       borderRadius: isMobile ? 9 : 10,
                       border: "none",
-                      fontSize: isMobile ? 12 : 13,
+                      fontSize: 15,
                       fontWeight: 700,
                       cursor: "pointer",
                       transition: "all 0.2s",
@@ -985,13 +985,13 @@ export default function MyPlotsPage() {
               <Link
                 href="/map-draw"
                 style={{
-                  display: "inline-flex", alignItems: "center", justifyContent: "center", gap: isMobile ? 8 : 10, background: "linear-gradient(135deg,#10b981 0%,#059669 100%)", color: "#fff", padding: isMobile ? "12px 24px" : "14px 28px", borderRadius: isMobile ? 12 : 14, fontWeight: 700, fontSize: isMobile ? 13 : 15, textDecoration: "none", boxShadow: isMobile ? "0 6px 15px rgba(16,185,129,0.25)" : "0 10px 25px rgba(16,185,129,0.3)",
+                  display: "inline-flex", alignItems: "center", justifyContent: "center", gap: isMobile ? 8 : 10, background: "linear-gradient(135deg,#10b981 0%,#059669 100%)", color: "#fff", padding: isMobile ? "12px 24px" : "14px 28px", borderRadius: isMobile ? 12 : 14, fontWeight: 700, fontSize: isMobile ? 15 : 17, textDecoration: "none", boxShadow: isMobile ? "0 6px 15px rgba(16,185,129,0.25)" : "0 10px 25px rgba(16,185,129,0.3)",
                   width: isMobile ? "100%" : "auto",
                   whiteSpace: "nowrap",
                   transition: "all 0.2s ease"
                 }}
               >
-                <i className="bi bi-plus-circle" style={{ fontSize: isMobile ? 15 : 17 }} /> วาดแปลงใหม่
+                <i className="bi bi-plus-circle" style={{ fontSize: isMobile ? 16 : 18 }} /> วาดแปลงใหม่
               </Link>
             </div>
           </div>
@@ -1006,12 +1006,12 @@ export default function MyPlotsPage() {
             ] as { label: string; val: string; unit: string; icon: string; color: string; bg: string }[]).map(({ label, val, unit, icon, color, bg }) => (
               <div key={label} style={{ background: "#fff", borderRadius: 14, padding: isMobile ? "10px 12px" : "12px 14px", border: "1px solid rgba(0,0,0,0.05)", boxShadow: "0 2px 8px rgba(0,0,0,0.02)" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 4 }}>
-                  <span style={{ fontSize: 10, color: "#64748b" }}>{label}</span>
+                  <span style={{ fontSize: 13, color: "#64748b" }}>{label}</span>
                   <div style={{ width: 22, height: 22, borderRadius: 6, background: bg, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    <i className={`bi ${icon}`} style={{ color, fontSize: 10 }} />
+                    <i className={`bi ${icon}`} style={{ color, fontSize: 12 }} />
                   </div>
                 </div>
-                <div style={{ fontSize: isMobile ? 16 : 18, fontWeight: 800, color }}>{val} <span style={{ fontSize: 9, color: "#94a3b8", fontWeight: 400 }}>{unit}</span></div>
+                <div style={{ fontSize: isMobile ? 19 : 22, fontWeight: 800, color }}>{val} <span style={{ fontSize: 12, color: "#94a3b8", fontWeight: 400 }}>{unit}</span></div>
               </div>
             ))}
           </div>
@@ -1020,9 +1020,9 @@ export default function MyPlotsPage() {
         {/* Content */}
         <div>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14, padding: "0 2px", gap: 10 }}>
-            <h2 style={{ fontSize: isMobile ? 14 : 17, fontWeight: 800, color: "#064e3b", margin: 0, whiteSpace: "nowrap", flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>
+            <h2 style={{ fontSize: isMobile ? 17 : 20, fontWeight: 800, color: "#064e3b", margin: 0, whiteSpace: "nowrap", flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>
               {viewMode === "all" ? (isMobile ? "แปลงทั้งหมด" : "รายการแปลงทั้งหมด") : (isMobile ? "แปลงที่บันทึก" : "รายการแปลงที่บันทึกแล้ว")}
-              <span style={{ fontSize: isMobile ? 10 : 12, fontWeight: 400, color: "#64748b", marginLeft: isMobile ? 4 : 8 }}>
+              <span style={{ fontSize: isMobile ? 13 : 15, fontWeight: 400, color: "#64748b", marginLeft: isMobile ? 4 : 8 }}>
                 {searchTerm ? `พบ ${filteredPlots.length}` : `(${plots.length})`}
               </span>
             </h2>
@@ -1042,7 +1042,7 @@ export default function MyPlotsPage() {
                       padding: isMobile ? "5px 8px" : "6px 12px",
                       borderRadius: 8,
                       border: "none",
-                      fontSize: isMobile ? 10.5 : 12,
+                      fontSize: isMobile ? 13 : 15,
                       fontWeight: 700,
                       cursor: "pointer",
                       background: displayMode === "list" ? "#10b981" : "transparent",
@@ -1058,7 +1058,7 @@ export default function MyPlotsPage() {
                       padding: isMobile ? "5px 8px" : "6px 12px",
                       borderRadius: 8,
                       border: "none",
-                      fontSize: isMobile ? 10.5 : 12,
+                      fontSize: isMobile ? 13 : 15,
                       fontWeight: 700,
                       cursor: "pointer",
                       background: displayMode === "map" ? "#10b981" : "transparent",
@@ -1074,16 +1074,16 @@ export default function MyPlotsPage() {
                 <div>
                   {confirmDeleteAll ? (
                     <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                      <span style={{ fontSize: 13, color: "#ef4444", fontWeight: 700 }}>ลบทั้งหมด?</span>
+                      <span style={{ fontSize: 15, color: "#ef4444", fontWeight: 700 }}>ลบทั้งหมด?</span>
                       <button
                         onClick={handleDeleteAll}
-                        style={{ padding: "6px 14px", background: "#ef4444", color: "#fff", border: "none", borderRadius: 8, cursor: "pointer", fontWeight: 700, fontSize: 12 }}
+                        style={{ padding: "6px 14px", background: "#ef4444", color: "#fff", border: "none", borderRadius: 8, cursor: "pointer", fontWeight: 700, fontSize: 15 }}
                       >
                         ยืนยัน
                       </button>
                       <button
                         onClick={() => setConfirmDeleteAll(false)}
-                        style={{ padding: "6px 14px", background: "rgba(0,0,0,0.06)", color: "#64748b", border: "none", borderRadius: 8, cursor: "pointer", fontSize: 12, fontWeight: 600 }}
+                        style={{ padding: "6px 14px", background: "rgba(0,0,0,0.06)", color: "#64748b", border: "none", borderRadius: 8, cursor: "pointer", fontSize: 15, fontWeight: 600 }}
                       >
                         ยกเลิก
                       </button>
@@ -1091,9 +1091,9 @@ export default function MyPlotsPage() {
                   ) : (
                     <button
                       onClick={() => setConfirmDeleteAll(true)}
-                      style={{ padding: isMobile ? "6px 10px" : "8px 12px", background: "rgba(239,68,68,0.1)", color: "#ef4444", border: "1px solid rgba(239,68,68,0.2)", borderRadius: 10, cursor: "pointer", fontSize: isMobile ? 13 : 12, fontWeight: 700, display: "flex", alignItems: "center", gap: 6, transition: "all 0.2s" }}
+                      style={{ padding: isMobile ? "6px 10px" : "8px 12px", background: "rgba(239,68,68,0.1)", color: "#ef4444", border: "1px solid rgba(239,68,68,0.2)", borderRadius: 10, cursor: "pointer", fontSize: 15, fontWeight: 700, display: "flex", alignItems: "center", gap: 6, transition: "all 0.2s" }}
                     >
-                      <i className="bi bi-trash3-fill" style={{ fontSize: isMobile ? 14 : 12 }} /> {isMobile ? "" : "ลบทั้งหมด"}
+                      <i className="bi bi-trash3-fill" style={{ fontSize: isMobile ? 15 : 14 }} /> {isMobile ? "" : "ลบทั้งหมด"}
                     </button>
                   )}
                 </div>
@@ -1104,11 +1104,11 @@ export default function MyPlotsPage() {
           {displayMode === "map" && filteredPlots.length > 0 ? (
             <PlotsMapView plots={filteredPlots} isMobile={isMobile} />
           ) : filteredPlots.length === 0 ? (
-            <div style={{ textAlign: "center", padding: "44px 24px", background: "#fff", borderRadius: 20, color: "#94a3b8", fontSize: 13 }}>
-              <i className="bi bi-search" style={{ fontSize: 30, display: "block", marginBottom: 8 }} />
+            <div style={{ textAlign: "center", padding: "44px 24px", background: "#fff", borderRadius: 20, color: "#94a3b8", fontSize: 14 }}>
+              <i className="bi bi-search" style={{ fontSize: 32, display: "block", marginBottom: 8 }} />
               ไม่พบแปลงที่ตรงกับ &ldquo;<strong style={{ color: "#64748b" }}>{searchTerm}</strong>&rdquo;
               <br />
-              <button onClick={() => setSearchTerm("")} style={{ marginTop: 12, padding: "5px 16px", background: "rgba(16,185,129,0.08)", color: "#059669", border: "1px solid rgba(16,185,129,0.3)", borderRadius: 8, cursor: "pointer", fontSize: 11, fontWeight: 700 }}>
+              <button onClick={() => setSearchTerm("")} style={{ marginTop: 12, padding: "5px 16px", background: "rgba(16,185,129,0.08)", color: "#059669", border: "1px solid rgba(16,185,129,0.3)", borderRadius: 8, cursor: "pointer", fontSize: 13, fontWeight: 700 }}>
                 ล้างการค้นหา
               </button>
             </div>
@@ -1121,24 +1121,24 @@ export default function MyPlotsPage() {
                   <div style={{ padding: isMobile ? "14px 16px" : "16px 24px", background: "linear-gradient(135deg,rgba(16,185,129,0.04),rgba(5,150,105,0.01))", display: "flex", flexDirection: isMobile ? "column" : "row", justifyContent: "space-between", alignItems: isMobile ? "flex-start" : "center", gap: 12 }}>
                     <div>
                       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-                        <div style={{ width: 32, height: 32, borderRadius: 10, background: "#10b981", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16 }}>
+                        <div style={{ width: 32, height: 32, borderRadius: 10, background: "#10b981", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17 }}>
                           <i className="bi bi-folder-fill" />
                         </div>
-                        <h3 style={{ margin: 0, fontSize: isMobile ? 18 : 20, fontWeight: 800, color: "#064e3b" }}>{group.projectName}</h3>
+                        <h3 style={{ margin: 0, fontSize: isMobile ? 20 : 22, fontWeight: 800, color: "#064e3b" }}>{group.projectName}</h3>
                       </div>
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: 12, color: "#64748b", fontSize: 13, fontWeight: 500 }}>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 12, color: "#64748b", fontSize: 15, fontWeight: 500 }}>
                         <span><i className="bi bi-map-fill me-1" style={{ color: "#0ea5e9" }} /> {group.plots.length} แปลง</span>
                         <span><i className="bi bi-grid-fill me-1" style={{ color: "#10b981" }} /> {group.totalArea.toFixed(2)} ไร่</span>
                       </div>
                     </div>
                     <div style={{ display: "flex", flexWrap: "wrap", gap: 10, width: isMobile ? "100%" : "auto" }}>
-                      <Link href={`/map-draw?project=${encodeURIComponent(group.projectName)}&action=calc`} style={{ flex: isMobile ? "1 1 100%" : "auto", textAlign: "center", padding: "8px 16px", borderRadius: 12, background: "linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%)", color: "#fff", fontWeight: 700, fontSize: 13, textDecoration: "none", border: "none", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, boxShadow: "0 4px 15px rgba(14,165,233,0.3)" }}>
+                      <Link href={`/map-draw?project=${encodeURIComponent(group.projectName)}&action=calc`} style={{ flex: isMobile ? "1 1 100%" : "auto", textAlign: "center", padding: "8px 16px", borderRadius: 12, background: "linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%)", color: "#fff", fontWeight: 700, fontSize: 15, textDecoration: "none", border: "none", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, boxShadow: "0 4px 15px rgba(14,165,233,0.3)" }}>
                         <i className="bi bi-magic" /> ประมวลผลคาร์บอน
                       </Link>
-                      <Link href={`/map-draw?project=${encodeURIComponent(group.projectName)}`} style={{ flex: isMobile ? 1 : "auto", textAlign: "center", padding: "8px 16px", borderRadius: 12, background: "rgba(16,185,129,0.1)", color: "#059669", fontWeight: 700, fontSize: 13, textDecoration: "none", border: "1px solid rgba(16,185,129,0.2)", display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }}>
+                      <Link href={`/map-draw?project=${encodeURIComponent(group.projectName)}`} style={{ flex: isMobile ? 1 : "auto", textAlign: "center", padding: "8px 16px", borderRadius: 12, background: "rgba(16,185,129,0.1)", color: "#059669", fontWeight: 700, fontSize: 15, textDecoration: "none", border: "1px solid rgba(16,185,129,0.2)", display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }}>
                         <i className="bi bi-plus-lg" /> เพิ่มแปลง
                       </Link>
-                      <button onClick={() => toggleProject(group.projectName)} style={{ flex: isMobile ? 1 : "auto", padding: "8px 16px", borderRadius: 12, background: expandedProjects[group.projectName] ? "rgba(0,0,0,0.05)" : "#0f172a", color: expandedProjects[group.projectName] ? "#475569" : "#fff", fontWeight: 700, fontSize: 13, border: "none", cursor: "pointer", transition: "all 0.2s", display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }}>
+                      <button onClick={() => toggleProject(group.projectName)} style={{ flex: isMobile ? 1 : "auto", padding: "8px 16px", borderRadius: 12, background: expandedProjects[group.projectName] ? "rgba(0,0,0,0.05)" : "#0f172a", color: expandedProjects[group.projectName] ? "#475569" : "#fff", fontWeight: 700, fontSize: 15, border: "none", cursor: "pointer", transition: "all 0.2s", display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }}>
                         {expandedProjects[group.projectName] ? "ซ่อนแปลง" : "ดูแปลงทั้งหมด"} <i className={`bi bi-chevron-${expandedProjects[group.projectName] ? "up" : "down"}`} />
                       </button>
                     </div>

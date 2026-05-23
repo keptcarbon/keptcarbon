@@ -99,7 +99,7 @@ body.map-draw-active {
   border: none;
   background: transparent;
   padding: 11px 16px;
-  font-size: 13px;
+  font-size: 15px;
   font-family: 'Noto Sans Thai', 'Noto Sans', sans-serif;
   color: #1a3d2b;
   outline: none;
@@ -115,7 +115,7 @@ body.map-draw-active {
   background: linear-gradient(135deg, #2d9e5f, #0d9488);
   border: none;
   color: #fff;
-  font-size: 14px;
+  font-size: 15px;
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -143,7 +143,7 @@ body.map-draw-active {
 
 .mds-search-item {
   padding: 12px 16px;
-  font-size: 13px;
+  font-size: 15px;
   color: #1a3d2b;
   cursor: pointer;
   border-bottom: 1px solid rgba(45, 158, 95, 0.06);
@@ -182,7 +182,7 @@ body.map-draw-active {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 15px;
+  font-size: 16px;
   color: #555;
   cursor: pointer;
   transition: all 0.2s;
@@ -225,7 +225,7 @@ body.map-draw-active {
   align-items: center;
   justify-content: space-between;
   margin-bottom: 10px;
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 800;
   color: #1a3d2b;
   text-transform: uppercase;
@@ -241,7 +241,7 @@ body.map-draw-active {
   border-radius: 10px;
   margin-bottom: 5px;
   cursor: pointer;
-  font-size: 12.5px;
+  font-size: 14px;
   color: #5a8a6a;
   font-weight: 600;
   transition: all 0.2s;
@@ -263,7 +263,7 @@ body.map-draw-active {
 }
 
 .mds-basemap-option i {
-  font-size: 14px;
+  font-size: 15px;
 }
 
 /* ── Status bar ── */
@@ -279,7 +279,7 @@ body.map-draw-active {
   align-items: center;
   gap: 8px;
   padding: 0 14px;
-  font-size: 11.5px;
+  font-size: 13px;
   color: #5a8a6a;
   border-top: 1px solid rgba(45, 158, 95, 0.08);
   z-index: 40;
@@ -385,7 +385,7 @@ body.map-draw-active {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 20px;
+  font-size: 22px;
   cursor: pointer;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
@@ -417,7 +417,7 @@ body.map-draw-active {
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
-  font-size: 13px !important;
+  font-size: 14px !important;
   cursor: pointer !important;
   transition: all 0.22s ease !important;
   position: static !important;
@@ -477,7 +477,7 @@ body.map-draw-active {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 19px;
+  font-size: 20px;
   color: #16a34a;
   flex-shrink: 0;
 }
@@ -487,7 +487,7 @@ body.map-draw-active {
 }
 
 .mds-brand-name {
-  font-size: 16px;
+  font-size: 21px;
   font-weight: 800;
   color: #0f2d1c;
   letter-spacing: -0.4px;
@@ -498,7 +498,7 @@ body.map-draw-active {
 }
 
 .mds-brand-sub {
-  font-size: 10.5px;
+  font-size: 14px;
   color: #6b9e7e;
   margin-top: 1px;
 }
@@ -523,14 +523,14 @@ body.map-draw-active {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 800;
   color: #ffffff;
   flex-shrink: 0;
 }
 
 .mds-user-name {
-  font-size: 11.5px;
+  font-size: 15px;
   font-weight: 600;
   color: #15803d;
   max-width: 88px;
@@ -584,7 +584,7 @@ body.map-draw-active {
   border: 2px solid rgba(45, 158, 95, 0.18);
   background: #fff;
   color: #b0bec5;
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 800;
   display: flex;
   align-items: center;
@@ -610,7 +610,7 @@ body.map-draw-active {
 }
 
 .mds-step-label {
-  font-size: 9.5px;
+  font-size: 13px;
   font-weight: 700;
   color: #b0bec5;
   text-align: center;
@@ -658,7 +658,7 @@ body.map-draw-active {
   background: rgba(45, 158, 95, 0.09);
   border: 1px solid rgba(45, 158, 95, 0.2);
   color: #1e7a47;
-  font-size: 10.5px;
+  font-size: 12px;
   font-weight: 800;
   padding: 4px 12px;
   border-radius: 50px;
@@ -668,7 +668,7 @@ body.map-draw-active {
 }
 
 .mds-s1-title {
-  font-size: 21px;
+  font-size: 26px;
   font-weight: 800;
   color: #0f2d1c;
   letter-spacing: -0.5px;
@@ -677,7 +677,7 @@ body.map-draw-active {
 }
 
 .mds-s1-sub {
-  font-size: 13px;
+  font-size: 15px;
   color: #7aaa8a;
   margin: 0 0 20px;
   line-height: 1.55;
@@ -701,7 +701,7 @@ body.map-draw-active {
   border: 2px solid rgba(45, 158, 95, 0.11);
   border-radius: 15px;
   color: #5a8a6a;
-  font-size: 12.5px;
+  font-size: 15px;
   font-weight: 700;
   cursor: pointer;
   transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
@@ -710,7 +710,7 @@ body.map-draw-active {
 }
 
 .mds-method-card i {
-  font-size: 22px;
+  font-size: 24px;
   color: #2d9e5f;
   opacity: 0.6;
   transition: all 0.2s;
@@ -750,7 +750,7 @@ body.map-draw-active {
   border: 1px solid rgba(22, 163, 74, 0.25);
   border-radius: 12px;
   color: #15803d;
-  font-size: 12px;
+  font-size: 15px;
   font-weight: 600;
   margin-top: 10px;
   animation: mdsHintFade 0.3s ease;
@@ -823,7 +823,7 @@ body.map-draw-active {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 19px;
+  font-size: 20px;
   color: #fff;
   flex-shrink: 0;
   box-shadow: 0 6px 18px rgba(45, 158, 95, 0.32);
@@ -831,14 +831,14 @@ body.map-draw-active {
 
 .mds-success-text strong {
   display: block;
-  font-size: 13.5px;
+  font-size: 17px;
   font-weight: 800;
   color: #0f2d1c;
   margin-bottom: 3px;
 }
 
 .mds-success-text span {
-  font-size: 11.5px;
+  font-size: 15px;
   color: #5a8a6a;
   line-height: 1.45;
 }
@@ -857,7 +857,7 @@ body.map-draw-active {
 }
 
 .mds-dropzone i {
-  font-size: 30px;
+  font-size: 32px;
   color: rgba(45, 158, 95, 0.5);
   display: block;
   margin-bottom: 10px;
@@ -865,14 +865,14 @@ body.map-draw-active {
 }
 
 .mds-dropzone p {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
   color: #1a3d2b;
   margin: 0 0 5px;
 }
 
 .mds-dropzone span {
-  font-size: 10.5px;
+  font-size: 12px;
   color: #7aaa8a;
   letter-spacing: 0.2px;
 }
@@ -905,7 +905,7 @@ body.map-draw-active {
 }
 
 .mds-shp-msg {
-  font-size: 12px;
+  font-size: 14px;
   color: #e53e3e;
   padding: 8px 12px;
   border-radius: 8px;
@@ -955,7 +955,7 @@ body.map-draw-active {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 800;
   color: #b0bec5;
   flex-shrink: 0;
@@ -979,7 +979,7 @@ body.map-draw-active {
 
 .mds-v-label {
   padding-top: 6px;
-  font-size: 12.5px;
+  font-size: 14px;
   font-weight: 600;
   color: #b0bec5;
   line-height: 1.4;
@@ -1017,7 +1017,7 @@ body.map-draw-active {
   width: 100%;
   padding: 12px 20px;
   border-radius: 13px;
-  font-size: 13.5px;
+  font-size: 17px;
   font-weight: 700;
   font-family: 'Noto Sans Thai', 'Noto Sans', sans-serif;
   border: none;
@@ -1099,7 +1099,7 @@ body.map-draw-active {
   color: #fff;
   padding: 10px 24px;
   border-radius: 50px;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 700;
   font-family: 'Noto Sans Thai', 'Noto Sans', sans-serif;
   box-shadow: 0 8px 28px rgba(0, 0, 0, 0.2);
@@ -1263,7 +1263,7 @@ body.map-draw-active {
   }
 
   .mds-s1-title {
-    font-size: 18px;
+    font-size: 20px;
   }
 }
 
@@ -1278,7 +1278,7 @@ body.map-draw-active {
   border: 1px solid rgba(251, 191, 36, 0.3);
   border-radius: 11px;
   padding: 9px 13px;
-  font-size: 11.5px;
+  font-size: 13px;
   color: #6d4c00;
   font-weight: 600;
   margin-bottom: 14px;
@@ -1287,7 +1287,7 @@ body.map-draw-active {
 
 .mds-instr-note i {
   color: #d97706;
-  font-size: 14px;
+  font-size: 15px;
   flex-shrink: 0;
 }
 
@@ -1306,7 +1306,7 @@ body.map-draw-active {
   display: flex;
   align-items: flex-start;
   gap: 10px;
-  font-size: 12.5px;
+  font-size: 14px;
   color: #3a5a4a;
   line-height: 1.5;
 }
@@ -1320,7 +1320,7 @@ body.map-draw-active {
   background: rgba(45, 158, 95, 0.12);
   border: 1.5px solid rgba(45, 158, 95, 0.28);
   color: #1e7a47;
-  font-size: 10.5px;
+  font-size: 12px;
   font-weight: 800;
   display: flex;
   align-items: center;
@@ -1340,7 +1340,7 @@ body.map-draw-active {
   border: 1.5px solid rgba(200, 60, 60, 0.22);
   background: rgba(254, 226, 226, 0.7);
   color: #dc2626;
-  font-size: 16px;
+  font-size: 18px;
   line-height: 1;
   display: flex;
   align-items: center;
@@ -1370,7 +1370,7 @@ body.map-draw-active {
   background: none;
   border: none;
   color: rgba(200, 53, 53, 0.7);
-  font-size: 11.5px;
+  font-size: 13px;
   font-weight: 600;
   font-family: 'Noto Sans Thai', 'Noto Sans', sans-serif;
   cursor: pointer;
@@ -1392,7 +1392,7 @@ body.map-draw-active {
   background: none;
   border: none;
   color: #7aaa8a;
-  font-size: 11.5px;
+  font-size: 13px;
   font-weight: 600;
   font-family: inherit;
   cursor: pointer;
@@ -1504,7 +1504,7 @@ body.map-draw-active {
   border: 2px solid #e2e8f0 !important;
   background: #ffffff !important;
   color: #94a3b8 !important;
-  font-size: 16px !important;
+  font-size: 18px !important;
   font-weight: 800 !important;
   display: flex !important;
   align-items: center !important;
@@ -1533,7 +1533,7 @@ body.map-draw-active {
 
 /* ─ Labels ─ */
 .mds-step-label {
-  font-size: 12px !important;
+  font-size: 15px !important;
   font-weight: 700 !important;
   color: #94a3b8 !important;
   white-space: nowrap !important;
@@ -1559,7 +1559,7 @@ body.map-draw-active {
   background: #ffffff !important;
   border: 1.5px solid rgba(239, 68, 68, 0.25) !important;
   color: #ef4444 !important;
-  font-size: 14px !important;
+  font-size: 15px !important;
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
@@ -1646,7 +1646,7 @@ body.map-draw-active {
   background: linear-gradient(135deg, rgba(22, 163, 74, 0.1), rgba(34, 197, 94, 0.06)) !important;
   border: 1px solid rgba(22, 163, 74, 0.2) !important;
   color: #15803d !important;
-  font-size: 10.5px !important;
+  font-size: 13px !important;
   font-weight: 800 !important;
   padding: 4px 12px !important;
   border-radius: 50px !important;
@@ -1656,7 +1656,7 @@ body.map-draw-active {
 }
 
 .mds-s1-title {
-  font-size: 22px !important;
+  font-size: 28px !important;
   font-weight: 900 !important;
   color: #0f2d1c !important;
   letter-spacing: -0.6px !important;
@@ -1667,7 +1667,7 @@ body.map-draw-active {
 }
 
 .mds-s1-sub {
-  font-size: 12.5px !important;
+  font-size: 16px !important;
   color: #6b8f78 !important;
   margin: 0 !important;
   line-height: 1.55 !important;
@@ -1695,7 +1695,7 @@ body.map-draw-active {
   border-radius: 11px;
   background: transparent;
   font-family: 'Noto Sans Thai', 'Noto Sans', sans-serif;
-  font-size: 13px;
+  font-size: 16px;
   font-weight: 600;
   color: #64748b;
   cursor: pointer;
@@ -1720,7 +1720,7 @@ body.map-draw-active {
 }
 
 .mds-mtab i {
-  font-size: 14px;
+  font-size: 15px;
 }
 
 /* ── Action content ─────────────────────────────────────────────────────── */
@@ -1737,7 +1737,7 @@ body.map-draw-active {
   border: 1px solid rgba(22, 163, 74, 0.18) !important;
   border-radius: 12px !important;
   padding: 10px 14px !important;
-  font-size: 12px !important;
+  font-size: 15px !important;
   font-weight: 600 !important;
   color: #15803d !important;
   margin-bottom: 14px !important;
@@ -1746,7 +1746,7 @@ body.map-draw-active {
 
 .mds-instr-note i {
   color: #22c55e !important;
-  font-size: 15px !important;
+  font-size: 16px !important;
   flex-shrink: 0 !important;
 }
 
@@ -1778,7 +1778,7 @@ body.map-draw-active {
   display: flex !important;
   align-items: flex-start !important;
   gap: 12px !important;
-  font-size: 13px !important;
+  font-size: 15px !important;
   color: #3a5a4a !important;
   line-height: 1.55 !important;
   padding: 10px 0 !important;
@@ -1801,7 +1801,7 @@ body.map-draw-active {
   background: #ffffff !important;
   border: 2px solid rgba(22, 163, 74, 0.3) !important;
   color: #16a34a !important;
-  font-size: 11px !important;
+  font-size: 13px !important;
   font-weight: 800 !important;
   display: flex !important;
   align-items: center !important;
@@ -1838,7 +1838,7 @@ body.map-draw-active {
   border: 1px solid rgba(22, 163, 74, 0.25) !important;
   border-radius: 14px !important;
   color: #15803d !important;
-  font-size: 12.5px !important;
+  font-size: 15px !important;
   font-weight: 600 !important;
   margin-top: 0 !important;
   animation: s1CardIn 0.3s ease !important;
@@ -1874,7 +1874,7 @@ body.map-draw-active {
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
-  font-size: 20px !important;
+  font-size: 22px !important;
   color: #fff !important;
   flex-shrink: 0 !important;
   box-shadow: 0 8px 20px rgba(22, 163, 74, 0.35) !important;
@@ -1882,14 +1882,14 @@ body.map-draw-active {
 
 .mds-success-text strong {
   display: block !important;
-  font-size: 14px !important;
+  font-size: 17px !important;
   font-weight: 800 !important;
   color: #0f2d1c !important;
   margin-bottom: 3px !important;
 }
 
 .mds-success-text span {
-  font-size: 12px !important;
+  font-size: 15px !important;
   color: #6b8f78 !important;
 }
 
@@ -1898,7 +1898,7 @@ body.map-draw-active {
   width: 100% !important;
   padding: 13px 20px !important;
   border-radius: 50px !important;
-  font-size: 13.5px !important;
+  font-size: 17px !important;
   font-weight: 700 !important;
   font-family: 'Noto Sans Thai', 'Noto Sans', sans-serif !important;
   border: none !important;
@@ -1962,7 +1962,7 @@ body.map-draw-active {
   background: none !important;
   border: none !important;
   color: rgba(200, 53, 53, 0.65) !important;
-  font-size: 12px !important;
+  font-size: 15px !important;
   font-weight: 600 !important;
   font-family: inherit !important;
   cursor: pointer !important;
@@ -2084,7 +2084,7 @@ body.map-draw-active {
   .mds-step-circle {
     width: 32px !important;
     height: 32px !important;
-    font-size: 11px !important;
+    font-size: 13px !important;
   }
 
   .mds-step.active .mds-step-circle {
@@ -2097,14 +2097,14 @@ body.map-draw-active {
   }
 
   .mds-step-label {
-    font-size: 9.5px !important;
+    font-size: 13px !important;
   }
 
   /* Inline close button on mobile */
   .mds-panel-close-inline {
     width: 30px !important;
     height: 30px !important;
-    font-size: 12px !important;
+    font-size: 14px !important;
     z-index: 103 !important;
     position: relative !important;
     flex-shrink: 0 !important;
@@ -2126,7 +2126,7 @@ body.map-draw-active {
   }
 
   .mds-s1-title {
-    font-size: 19px !important;
+    font-size: 23px !important;
   }
 
   .mds-s1-num {
@@ -2134,12 +2134,12 @@ body.map-draw-active {
   }
 
   .mds-mtab {
-    font-size: 12px;
+    font-size: 14px;
     padding: 9px 8px;
   }
 
   .mds-instr-list li {
-    font-size: 12.5px !important;
+    font-size: 15px !important;
   }
 
   .mds-results-container {
@@ -2166,7 +2166,7 @@ body.map-draw-active {
     height: 48px !important;
     border-radius: 50% !important;
     padding: 0 !important;
-    font-size: 20px !important;
+    font-size: 22px !important;
     white-space: normal !important;
     display: flex !important;
     align-items: center !important;
@@ -2202,11 +2202,11 @@ body.map-draw-active {
 
 @media (max-width: 480px) {
   .mds-s1-title {
-    font-size: 17px !important;
+    font-size: 19px !important;
   }
 
   .mds-s1-sub {
-    font-size: 12px !important;
+    font-size: 14px !important;
   }
 
   .mds-s1-num {
@@ -2215,7 +2215,7 @@ body.map-draw-active {
 
   .mds-btn {
     padding: 12px 16px !important;
-    font-size: 13px !important;
+    font-size: 14px !important;
   }
 
 }
@@ -2396,7 +2396,7 @@ nextjs-portal,
 .mds-stepper-track {
   display: block !important;
   position: absolute !important;
-  top: 18px !important;
+  top: 22px !important;
   left: calc(100% / 6) !important;
   right: calc(100% / 6) !important;
   height: 2px !important;
@@ -2451,13 +2451,13 @@ nextjs-portal,
 
 /* Circle */
 .mds-step-circle {
-  width: 36px !important;
-  height: 36px !important;
+  width: 44px !important;
+  height: 44px !important;
   border-radius: 50% !important;
   border: 2px solid #dde8e2 !important;
   background: #f8fdf9 !important;
   color: #aac4b4 !important;
-  font-size: 14px !important;
+  font-size: 20px !important;
   font-weight: 800 !important;
   display: flex !important;
   align-items: center !important;
@@ -2486,7 +2486,7 @@ nextjs-portal,
 
 /* Labels */
 .mds-step-label {
-  font-size: 11px !important;
+  font-size: 15px !important;
   font-weight: 600 !important;
   color: #aac4b4 !important;
   white-space: nowrap !important;
@@ -2514,7 +2514,7 @@ nextjs-portal,
   background: #f8f8f8 !important;
   border: 1.5px solid #e5e7eb !important;
   color: #9ca3af !important;
-  font-size: 14px !important;
+  font-size: 15px !important;
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
@@ -2589,7 +2589,7 @@ nextjs-portal,
   background: rgba(22,163,74,0.08) !important;
   border: 1px solid rgba(22,163,74,0.18) !important;
   color: #15803d !important;
-  font-size: 10px !important;
+  font-size: 12px !important;
   font-weight: 800 !important;
   padding: 3px 10px !important;
   border-radius: 50px !important;
@@ -2599,7 +2599,7 @@ nextjs-portal,
 }
 
 .mds-s1-title {
-  font-size: 20px !important;
+  font-size: 24px !important;
   font-weight: 900 !important;
   color: #0d2318 !important;
   letter-spacing: -0.5px !important;
@@ -2610,7 +2610,7 @@ nextjs-portal,
 }
 
 .mds-s1-sub {
-  font-size: 12.5px !important;
+  font-size: 15px !important;
   color: #7aaa8a !important;
   margin: 0 !important;
   line-height: 1.6 !important;
@@ -2633,7 +2633,7 @@ nextjs-portal,
   border-radius: 11px !important;
   background: transparent !important;
   font-family: 'Noto Sans Thai','Noto Sans',sans-serif !important;
-  font-size: 13px !important;
+  font-size: 15px !important;
   font-weight: 600 !important;
   color: #6b8f78 !important;
   cursor: pointer !important;
@@ -2656,7 +2656,7 @@ nextjs-portal,
   box-shadow: 0 2px 10px rgba(0,0,0,0.08) !important;
 }
 
-.mds-mtab i { font-size: 14px !important; }
+.mds-mtab i { font-size: 15px !important; }
 
 /* ── Info note ─────────────────────────────────────────────────────────── */
 .mds-instr-note {
@@ -2667,7 +2667,7 @@ nextjs-portal,
   border: 1px solid rgba(22,163,74,0.15) !important;
   border-radius: 12px !important;
   padding: 10px 14px !important;
-  font-size: 12px !important;
+  font-size: 15px !important;
   font-weight: 600 !important;
   color: #15803d !important;
   margin-bottom: 16px !important;
@@ -2676,7 +2676,7 @@ nextjs-portal,
 
 .mds-instr-note i {
   color: #22c55e !important;
-  font-size: 15px !important;
+  font-size: 16px !important;
   flex-shrink: 0 !important;
 }
 
@@ -2709,7 +2709,7 @@ nextjs-portal,
   display: flex !important;
   align-items: flex-start !important;
   gap: 12px !important;
-  font-size: 13px !important;
+  font-size: 15px !important;
   color: #3d5c4a !important;
   line-height: 1.55 !important;
   padding: 9px 0 !important;
@@ -2731,7 +2731,7 @@ nextjs-portal,
   background: #ffffff !important;
   border: 2px solid rgba(22,163,74,0.22) !important;
   color: #16a34a !important;
-  font-size: 11px !important;
+  font-size: 13px !important;
   font-weight: 800 !important;
   display: flex !important;
   align-items: center !important;
@@ -2764,7 +2764,7 @@ nextjs-portal,
   border: 1px solid rgba(22,163,74,0.22) !important;
   border-radius: 14px !important;
   color: #15803d !important;
-  font-size: 12.5px !important;
+  font-size: 14px !important;
   font-weight: 600 !important;
   margin-top: 0 !important;
   animation: v3CardIn 0.3s ease !important;
@@ -2792,7 +2792,7 @@ nextjs-portal,
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
-  font-size: 20px !important;
+  font-size: 22px !important;
   color: #fff !important;
   flex-shrink: 0 !important;
   box-shadow: 0 6px 18px rgba(22,163,74,0.32) !important;
@@ -2800,14 +2800,14 @@ nextjs-portal,
 
 .mds-success-text strong {
   display: block !important;
-  font-size: 14px !important;
+  font-size: 15px !important;
   font-weight: 800 !important;
   color: #0d2318 !important;
   margin-bottom: 3px !important;
 }
 
 .mds-success-text span {
-  font-size: 12px !important;
+  font-size: 14px !important;
   color: #6b8f78 !important;
 }
 
@@ -2816,7 +2816,7 @@ nextjs-portal,
   width: 100% !important;
   padding: 13px 20px !important;
   border-radius: 14px !important;
-  font-size: 13.5px !important;
+  font-size: 15px !important;
   font-weight: 700 !important;
   font-family: 'Noto Sans Thai','Noto Sans',sans-serif !important;
   border: none !important;
@@ -2874,7 +2874,7 @@ nextjs-portal,
   background: none !important;
   border: none !important;
   color: rgba(200,53,53,0.65) !important;
-  font-size: 12px !important;
+  font-size: 14px !important;
   font-weight: 600 !important;
   font-family: inherit !important;
   cursor: pointer !important;
@@ -2935,13 +2935,18 @@ nextjs-portal,
     border-radius: 24px 24px 0 0 !important;
   }
   .mds-step-circle {
-    width: 30px !important;
-    height: 30px !important;
-    font-size: 12px !important;
+    width: 36px !important;
+    height: 36px !important;
+    font-size: 16px !important;
   }
-  .mds-stepper-track { top: 15px !important; }
-  .mds-step-label { font-size: 10px !important; }
+  .mds-stepper-track { top: 18px !important; }
+  .mds-step-label { font-size: 13px !important; }
   .mds-stepper { padding: 44px 14px 12px !important; }
+  .mds-s1-title { font-size: 20px !important; }
+  .mds-s1-sub { font-size: 14px !important; }
+  .mds-instr-list li { font-size: 15px !important; }
+  .mds-instr-note { font-size: 14px !important; }
+  .mds-mtab { font-size: 14px !important; }
 }
 
 /* ── Desktop center constraint ─────────────────────────────────────────── */
@@ -2983,13 +2988,13 @@ nextjs-portal,
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 16px;
+  font-size: 18px;
   color: #16a34a;
   flex-shrink: 0;
 }
 
 .mds-panel-topbar-title {
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 800;
   color: #0d2318;
   letter-spacing: -0.3px;
@@ -2997,7 +3002,7 @@ nextjs-portal,
 }
 
 .mds-panel-topbar-sub {
-  font-size: 10.5px;
+  font-size: 12px;
   color: #7aaa8a;
   margin-top: 2px;
   line-height: 1;
@@ -3010,7 +3015,7 @@ nextjs-portal,
   background: #f3f4f6;
   border: 1.5px solid #e5e7eb;
   color: #9ca3af;
-  font-size: 13px;
+  font-size: 14px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -3037,8 +3042,8 @@ nextjs-portal,
     padding-top: 44px; /* room for drag handle */
     border-radius: 24px 24px 0 0;
   }
-  .mds-panel-topbar-title { font-size: 13px; }
-  .mds-panel-topbar-sub { font-size: 10px; }
+  .mds-panel-topbar-title { font-size: 14px; }
+  .mds-panel-topbar-sub { font-size: 12px; }
 }
 
 /* Desktop: hide the "finish draw" button — users can double-click or click first point */
@@ -3079,7 +3084,7 @@ nextjs-portal,
   height: 64px;
   background: #fff5f5;
   color: #ef4444;
-  font-size: 28px;
+  font-size: 30px;
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -3090,7 +3095,7 @@ nextjs-portal,
 }
 
 .mds-area-popup-content h3 {
-  font-size: 20px;
+  font-size: 22px;
   font-weight: 800;
   color: #1a1a1a;
   margin-bottom: 12px;
@@ -3098,7 +3103,7 @@ nextjs-portal,
 }
 
 .mds-area-popup-content p {
-  font-size: 14.5px;
+  font-size: 15px;
   color: #555;
   line-height: 1.6;
   margin-bottom: 16px;
@@ -3106,7 +3111,7 @@ nextjs-portal,
 }
 
 .mds-area-popup-hint {
-  font-size: 12.5px;
+  font-size: 14px;
   color: #ef4444;
   background: #fff5f5;
   padding: 8px 12px;
@@ -3125,7 +3130,7 @@ nextjs-portal,
   padding: 12px;
   border-radius: 14px;
   font-weight: 700;
-  font-size: 15px;
+  font-size: 16px;
   cursor: pointer;
   transition: all 0.2s;
   font-family: inherit;
@@ -3149,13 +3154,13 @@ nextjs-portal,
   .mds-area-popup-icon {
     width: 52px;
     height: 52px;
-    font-size: 22px;
+    font-size: 24px;
   }
   .mds-area-popup-content h3 {
-    font-size: 18px;
+    font-size: 20px;
   }
   .mds-area-popup-content p {
-    font-size: 13.5px;
+    font-size: 15px;
   }
 }
 

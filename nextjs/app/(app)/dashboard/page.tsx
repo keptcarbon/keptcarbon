@@ -137,15 +137,15 @@ function DistrictCarbonChart({
         </defs>
 
         {/* Legend */}
-        <text x={PL} y={isMobile ? 10 : 11} fontSize={isMobile ? 9 : 9.5} fill="#059669" fontWeight={700}>
+        <text x={PL} y={isMobile ? 10 : 11} fontSize={isMobile ? 10 : 11} fill="#059669" fontWeight={700}>
           อายุยางพารา (ปี)
         </text>
         <g>
           {DIST_STACKS.map((s, i) => (
             <g key={s.key} transform={`translate(${PL + i * (isMobile ? 90 : 108)}, ${isMobile ? 16 : 17})`}>
               <rect width={10} height={10} rx={2.5} fill={s.color} />
-              <text x={14} y={9} fontSize={isMobile ? 10 : 10} fill="#334155" fontWeight={700}>{s.label}</text>
-              <text x={14} y={isMobile ? 22 : 21} fontSize={isMobile ? 9 : 9} fill="#94a3b8" fontWeight={500}>{s.stage}</text>
+              <text x={14} y={9} fontSize={isMobile ? 12 : 12} fill="#334155" fontWeight={700}>{s.label}</text>
+              <text x={14} y={isMobile ? 22 : 21} fontSize={isMobile ? 10 : 10} fill="#94a3b8" fontWeight={500}>{s.stage}</text>
             </g>
           ))}
         </g>
@@ -187,7 +187,7 @@ function DistrictCarbonChart({
               {/* District name */}
               <text x={PL - 10} y={y + barH / 2 + 5}
                 textAnchor="end"
-                fontSize={isMobile ? 11 : 12}
+                fontSize={isMobile ? 13 : 14}
                 fontWeight={isActive ? 800 : 600}
                 fill={isActive ? "#059669" : isHov ? "#334155" : "#475569"}>
                 {d.name}
@@ -212,11 +212,11 @@ function DistrictCarbonChart({
               {/* Value label */}
               <text x={PL + bw + 8} y={y + barH / 2 + 5}
                 textAnchor="start"
-                fontSize={isMobile ? 11 : 11}
+                fontSize={isMobile ? 13 : 13}
                 fontWeight={isActive ? 800 : 700}
                 fill={isActive ? "#059669" : "#64748b"}>
                 {fmtC(d.carbon)}
-                <tspan fontSize={8.5} fill="#94a3b8" fontWeight={500} dx={3}>tCO₂</tspan>
+                <tspan fontSize={10} fill="#94a3b8" fontWeight={500} dx={3}>tCO₂</tspan>
               </text>
             </g>
           );
@@ -243,11 +243,11 @@ function DistrictCarbonChart({
 
               {/* Header */}
               <text x={ttX + pad} y={ttY + 22}
-                fontSize={isMobile ? 12 : 13} fontWeight={800} fill="#fff">{d.name}</text>
+                fontSize={isMobile ? 14 : 15} fontWeight={800} fill="#fff">{d.name}</text>
               <text x={ttX + ttW - pad} y={ttY + 22}
-                textAnchor="end" fontSize={isMobile ? 12 : 13} fontWeight={800} fill="#4ade80">
+                textAnchor="end" fontSize={isMobile ? 14 : 15} fontWeight={800} fill="#4ade80">
                 {fmtC(d.carbon)}
-                <tspan fontSize={9} fill="#64748b" dx={3}>tCO₂</tspan>
+                <tspan fontSize={10} fill="#64748b" dx={3}>tCO₂</tspan>
               </text>
 
               {/* Divider */}
@@ -263,14 +263,14 @@ function DistrictCarbonChart({
                   <g key={s.key}>
                     <rect x={ttX + pad} y={rowY} width={8} height={8} rx={2} fill={s.color} />
                     <text x={ttX + pad + 12} y={rowY + 8}
-                      fontSize={isMobile ? 9.5 : 10.5} fill="#94a3b8" fontWeight={600}>
+                      fontSize={isMobile ? 11 : 12} fill="#94a3b8" fontWeight={600}>
                       {s.label}
-                      <tspan fill="#64748b" fontSize={isMobile ? 8.5 : 9.5} dx={4}>{s.stage}</tspan>
+                      <tspan fill="#64748b" fontSize={isMobile ? 10 : 11} dx={4}>{s.stage}</tspan>
                     </text>
                     <text x={ttX + ttW - pad} y={rowY + 8}
-                      textAnchor="end" fontSize={isMobile ? 10 : 11} fill="#e2e8f0" fontWeight={700}>
+                      textAnchor="end" fontSize={isMobile ? 12 : 13} fill="#e2e8f0" fontWeight={700}>
                       {fmtC(carbon)}
-                      <tspan fontSize={8.5} fill="#475569" dx={2}>tCO₂</tspan>
+                      <tspan fontSize={10} fill="#475569" dx={2}>tCO₂</tspan>
                     </text>
                   </g>
                 );
@@ -333,11 +333,11 @@ function AgeDistributionChart({ isMobile, perYearRai }: { isMobile: boolean; per
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14 }}>
         <div style={{ width: 40, height: 40, borderRadius: 11, background: "rgba(16,185,129,0.12)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-          <i className="bi bi-bar-chart-fill" style={{ color: "#059669", fontSize: 18 }} />
+          <i className="bi bi-bar-chart-fill" style={{ color: "#059669", fontSize: 20 }} />
         </div>
         <div>
-          <div style={{ fontSize: isMobile ? 15 : 18, fontWeight: 900, color: "#064e3b" }}>การกระจายพื้นที่ยางตามอายุ (1–35 ปี)</div>
-          <div style={{ fontSize: isMobile ? 11 : 13, color: "#94a3b8", fontWeight: 500, marginTop: 2 }}>พื้นที่ (ไร่) ต่อแต่ละกลุ่มอายุต้นยาง · ทุกอำเภอ</div>
+          <div style={{ fontSize: isMobile ? 16 : 20, fontWeight: 900, color: "#064e3b" }}>การกระจายพื้นที่ยางตามอายุ (1–35 ปี)</div>
+          <div style={{ fontSize: isMobile ? 13 : 14, color: "#94a3b8", fontWeight: 500, marginTop: 2 }}>พื้นที่ (ไร่) ต่อแต่ละกลุ่มอายุต้นยาง · ทุกอำเภอ</div>
         </div>
       </div>
 
@@ -364,7 +364,7 @@ function AgeDistributionChart({ isMobile, perYearRai }: { isMobile: boolean; per
               <rect x={x} y={y} width={barW} height={bh} rx={isMobile ? 2 : 3}
                 fill={g.color} opacity={isHov ? 1 : 0.88} style={{ transition: "opacity 0.12s" }} />
               <text x={cx} y={y - (isMobile ? 3 : 5)} textAnchor="middle"
-                fontSize={isMobile ? 7 : 9} fontWeight={isHov ? 800 : 600}
+                fontSize={isMobile ? 8 : 10} fontWeight={isHov ? 800 : 600}
                 fill={isHov ? g.dark : "#374151"}>
                 {val >= 1000 ? Math.round(val / 100) / 10 + "k" : val}
               </text>
@@ -380,13 +380,13 @@ function AgeDistributionChart({ isMobile, perYearRai }: { isMobile: boolean; per
           const x = PL + (age - 1) * (barW + gap) + barW / 2;
           return (
             <text key={age} x={x} y={PT + iH + (isMobile ? 15 : 20)} textAnchor="middle"
-              fontSize={isMobile ? 10 : 13} fill="#64748b" fontWeight={700}>{age}</text>
+              fontSize={isMobile ? 12 : 15} fill="#64748b" fontWeight={700}>{age}</text>
           );
         })}
 
         {/* X-axis title */}
         <text x={PL + iW / 2} y={H - (isMobile ? 4 : 5)} textAnchor="middle"
-          fontSize={isMobile ? 10 : 13} fill="#94a3b8" fontWeight={600}>อายุต้นยาง (ปี)</text>
+          fontSize={isMobile ? 12 : 15} fill="#94a3b8" fontWeight={600}>อายุต้นยาง (ปี)</text>
 
         {/* Hover tooltip */}
         {hoveredAge !== null && (() => {
@@ -404,10 +404,10 @@ function AgeDistributionChart({ isMobile, perYearRai }: { isMobile: boolean; per
               <rect x={ttX} y={ttY} width={ttW} height={ttH} rx={9} fill="#064e3b" opacity={0.96}
                 style={{ filter: "drop-shadow(0 4px 10px rgba(5,150,105,0.3))" }} />
               <rect x={ttX} y={ttY} width={ttW} height={3} rx={1.5} fill={g.color} />
-              <text x={ttX + ttW / 2} y={ttY + 20} textAnchor="middle" fontSize={isMobile ? 11 : 12} fill="#6ee7b7" fontWeight={700}>
+              <text x={ttX + ttW / 2} y={ttY + 20} textAnchor="middle" fontSize={isMobile ? 13 : 14} fill="#6ee7b7" fontWeight={700}>
                 อายุ {hoveredAge} ปี · {g.label}
               </text>
-              <text x={ttX + ttW / 2} y={ttY + 42} textAnchor="middle" fontSize={isMobile ? 17 : 20} fill="#fff" fontWeight={900}>
+              <text x={ttX + ttW / 2} y={ttY + 42} textAnchor="middle" fontSize={isMobile ? 18 : 22} fill="#fff" fontWeight={900}>
                 {val.toLocaleString("th-TH")} ไร่
               </text>
             </g>
@@ -417,27 +417,27 @@ function AgeDistributionChart({ isMobile, perYearRai }: { isMobile: boolean; per
 
       {/* Legend row */}
       <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: isMobile ? 8 : 14, padding: "12px 0 10px", borderTop: "1px solid rgba(16,185,129,0.1)", marginTop: 4 }}>
-        <span style={{ fontSize: isMobile ? 11 : 13, color: "#64748b", fontWeight: 700, display: "flex", alignItems: "center", gap: 5 }}>
+        <span style={{ fontSize: isMobile ? 13 : 14, color: "#64748b", fontWeight: 700, display: "flex", alignItems: "center", gap: 5 }}>
           <i className="bi bi-palette2" style={{ color: "#059669" }} /> คำอธิบายสีช่วงอายุต้นยาง (ปี):
         </span>
         {AGE_GROUPS_35.map(g => (
           <span key={g.key} style={{ display: "flex", alignItems: "center", gap: 5 }}>
             <span style={{ width: 13, height: 13, borderRadius: "50%", background: g.color, flexShrink: 0, border: "1.5px solid rgba(0,0,0,0.1)", display: "inline-block" }} />
-            <span style={{ fontSize: isMobile ? 11 : 13, fontWeight: 700, color: "#374151" }}>{g.label}</span>
+            <span style={{ fontSize: isMobile ? 13 : 14, fontWeight: 700, color: "#374151" }}>{g.label}</span>
           </span>
         ))}
       </div>
 
       {/* Legend: meaning of numbers */}
       <div style={{ display: "flex", flexWrap: "wrap", gap: isMobile ? 8 : 18, padding: "9px 14px", background: "rgba(5,150,105,0.04)", borderRadius: 10, marginBottom: 18, border: "1px solid rgba(16,185,129,0.1)" }}>
-        <span style={{ fontSize: isMobile ? 11 : 13, color: "#374151", fontWeight: 700, display: "flex", alignItems: "center", gap: 5 }}>
+        <span style={{ fontSize: isMobile ? 13 : 14, color: "#374151", fontWeight: 700, display: "flex", alignItems: "center", gap: 5 }}>
           <i className="bi bi-info-circle" style={{ color: "#059669" }} /> ความหมายของตัวเลข:
         </span>
-        <span style={{ display: "flex", alignItems: "center", gap: 6, fontSize: isMobile ? 11 : 13, color: "#64748b" }}>
+        <span style={{ display: "flex", alignItems: "center", gap: 6, fontSize: isMobile ? 13 : 14, color: "#64748b" }}>
           <span style={{ display: "inline-block", width: 22, height: 4, background: "linear-gradient(90deg,#4ade80,#059669)", borderRadius: 2 }} />
           ตัวเลขบนกราฟ: พื้นที่ (ไร่) ของแต่ละอายุ
         </span>
-        <span style={{ display: "flex", alignItems: "center", gap: 6, fontSize: isMobile ? 11 : 13, color: "#64748b" }}>
+        <span style={{ display: "flex", alignItems: "center", gap: 6, fontSize: isMobile ? 13 : 14, color: "#64748b" }}>
           <i className="bi bi-check2-square" style={{ color: "#059669" }} />
           ตัวเลขในการ์ดด้านล่าง: พื้นที่รวม (ไร่) และสัดส่วนพื้นที่ (%) ของกลุ่มอายุนั้น
         </span>
@@ -448,13 +448,13 @@ function AgeDistributionChart({ isMobile, perYearRai }: { isMobile: boolean; per
         {groupSummary.map(g => (
           <div key={g.key} style={{ background: g.bg, borderRadius: 14, padding: isMobile ? "14px 14px" : "18px 20px", border: `1.5px solid ${g.color}60`, position: "relative", overflow: "hidden" }}>
             <div style={{ position: "absolute", top: -16, right: -16, width: 70, height: 70, borderRadius: "50%", background: g.color, opacity: 0.15 }} />
-            <div style={{ fontSize: isMobile ? 12 : 14, fontWeight: 800, color: g.dark, marginBottom: 6 }}>{g.label}</div>
-            <div style={{ fontSize: isMobile ? 30 : 38, fontWeight: 900, color: g.dark, lineHeight: 1, marginBottom: 3 }}>{g.rai.toLocaleString("th-TH")}</div>
-            <div style={{ fontSize: isMobile ? 12 : 13, color: "#64748b", fontWeight: 600 }}>ไร่</div>
+            <div style={{ fontSize: isMobile ? 14 : 15, fontWeight: 800, color: g.dark, marginBottom: 6 }}>{g.label}</div>
+            <div style={{ fontSize: isMobile ? 32 : 40, fontWeight: 900, color: g.dark, lineHeight: 1, marginBottom: 3 }}>{g.rai.toLocaleString("th-TH")}</div>
+            <div style={{ fontSize: isMobile ? 14 : 14, color: "#64748b", fontWeight: 600 }}>ไร่</div>
             <div style={{ marginTop: 12, height: 5, background: "rgba(0,0,0,0.08)", borderRadius: 3, overflow: "hidden" }}>
               <div style={{ height: "100%", width: `${g.pct}%`, background: g.color, borderRadius: 3, minWidth: 6 }} />
             </div>
-            <div style={{ marginTop: 5, fontSize: isMobile ? 13 : 15, fontWeight: 900, color: g.dark }}>{g.pct}%</div>
+            <div style={{ marginTop: 5, fontSize: isMobile ? 14 : 16, fontWeight: 900, color: g.dark }}>{g.pct}%</div>
           </div>
         ))}
       </div>
@@ -490,12 +490,12 @@ function StatCard({ icon, label, value, unit, color }: {
     <div className="db2-stat-card" style={{ borderTop: `3px solid ${color}` }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
         <div style={{ width: 34, height: 34, borderRadius: 9, background: `${color}18`, display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <i className={`bi ${icon}`} style={{ color, fontSize: 15 }} />
+          <i className={`bi ${icon}`} style={{ color, fontSize: 16 }} />
         </div>
-        <span style={{ fontSize: 12, fontWeight: 700, color: "#64748b" }}>{label}</span>
+        <span style={{ fontSize: 16, fontWeight: 700, color: "#64748b" }}>{label}</span>
       </div>
-      <div style={{ fontSize: 30, fontWeight: 900, color: "#0f172a", letterSpacing: -1.5, lineHeight: 1 }}>{disp}</div>
-      <div style={{ fontSize: 12, color: "#94a3b8", fontWeight: 600, marginTop: 5 }}>{unit}</div>
+      <div style={{ fontSize: 34, fontWeight: 900, color: "#0f172a", letterSpacing: -1.5, lineHeight: 1 }}>{disp}</div>
+      <div style={{ fontSize: 15, color: "#94a3b8", fontWeight: 600, marginTop: 5 }}>{unit}</div>
     </div>
   );
 }
@@ -613,20 +613,20 @@ export default function DashboardPage() {
           <div style={{ position: "relative", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 16 }}>
             <div>
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
-                <span style={{ background: "rgba(5,150,105,0.1)", border: "1px solid rgba(5,150,105,0.2)", borderRadius: 8, padding: "5px 14px", fontSize: 12, fontWeight: 700, color: "#059669" }}>
+                <span style={{ background: "rgba(5,150,105,0.1)", border: "1px solid rgba(5,150,105,0.2)", borderRadius: 8, padding: "5px 14px", fontSize: 15, fontWeight: 700, color: "#059669" }}>
                   <i className="bi bi-geo-alt-fill" style={{ marginRight: 5 }} />จังหวัดระยอง
                 </span>
-                <span style={{ background: "rgba(5,150,105,0.08)", border: "1px solid rgba(5,150,105,0.18)", borderRadius: 8, padding: "5px 14px", fontSize: 12, fontWeight: 700, color: "#047857" }}>
+                <span style={{ background: "rgba(5,150,105,0.08)", border: "1px solid rgba(5,150,105,0.18)", borderRadius: 8, padding: "5px 14px", fontSize: 15, fontWeight: 700, color: "#047857" }}>
                   ฐานข้อมูลระบบ
                 </span>
               </div>
-              <h1 style={{ fontSize: isMobile ? 20 : 30, fontWeight: 900, color: "#064e3b", margin: "0 0 8px", letterSpacing: -0.8, lineHeight: 1.15 }}>
+              <h1 style={{ fontSize: isMobile ? 24 : 34, fontWeight: 900, color: "#064e3b", margin: "0 0 8px", letterSpacing: -0.8, lineHeight: 1.15 }}>
                 ฐานข้อมูลยางพาราจังหวัดระยอง
               </h1>
-              <p style={{ fontSize: isMobile ? 13 : 15, color: "#64748b", margin: 0, fontWeight: 500 }}>
+              <p style={{ fontSize: isMobile ? 15 : 17, color: "#64748b", margin: 0, fontWeight: 500 }}>
                 ข้อมูลการใช้ประโยชน์ที่ดิน (LU) กรมพัฒนาที่ดิน
                 {luDataYear ? (
-                  <span style={{ marginLeft: 6, background: "rgba(5,150,105,0.1)", border: "1px solid rgba(5,150,105,0.2)", borderRadius: 6, padding: "2px 8px", fontSize: isMobile ? 11 : 12, fontWeight: 700, color: "#059669" }}>
+                    <span style={{ marginLeft: 6, background: "rgba(5,150,105,0.1)", border: "1px solid rgba(5,150,105,0.2)", borderRadius: 6, padding: "2px 8px", fontSize: isMobile ? 13 : 14, fontWeight: 700, color: "#059669" }}>
                     ปี พ.ศ. {luDataYear}
                   </span>
                 ) : null}
@@ -645,8 +645,8 @@ export default function DashboardPage() {
         <div className="db2-card" style={{ padding: "14px 20px", marginBottom: 18 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 7, flexShrink: 0 }}>
-              <i className="bi bi-geo-alt-fill" style={{ color: "#059669", fontSize: 14 }} />
-              <span style={{ fontSize: 13, fontWeight: 700, color: "#374151" }}>เลือกอำเภอ</span>
+              <i className="bi bi-geo-alt-fill" style={{ color: "#059669", fontSize: 16 }} />
+              <span style={{ fontSize: 16, fontWeight: 700, color: "#374151" }}>เลือกอำเภอ</span>
             </div>
             <div style={{ position: "relative", flex: 1, minWidth: 200, maxWidth: 320 }}>
               <select
@@ -660,7 +660,7 @@ export default function DashboardPage() {
                   border: "1.5px solid rgba(5,150,105,0.35)",
                   borderRadius: 10,
                   padding: "10px 40px 10px 14px",
-                  fontSize: 14,
+                  fontSize: 15,
                   fontWeight: 700,
                   color: "#0f172a",
                   cursor: "pointer",
@@ -680,7 +680,7 @@ export default function DashboardPage() {
               </select>
               <i className="bi bi-chevron-down" style={{
                 position: "absolute", right: 13, top: "50%", transform: "translateY(-50%)",
-                color: "#059669", fontSize: 13, pointerEvents: "none", fontWeight: 700,
+                color: "#059669", fontSize: 14, pointerEvents: "none", fontWeight: 700,
               }} />
             </div>
             {selectedId !== "all" && (
@@ -688,7 +688,7 @@ export default function DashboardPage() {
                 onClick={() => setSelectedId("all")}
                 style={{
                   padding: "8px 14px", borderRadius: 8, border: "1px solid rgba(5,150,105,0.2)",
-                  background: "rgba(5,150,105,0.06)", color: "#059669", fontSize: 12,
+                  background: "rgba(5,150,105,0.06)", color: "#059669", fontSize: 14,
                   fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 5,
                   flexShrink: 0,
                 }}>
@@ -706,7 +706,7 @@ export default function DashboardPage() {
             <div className="db2-card-header">
               <i className="bi bi-map-fill" style={{ color: "#059669" }} />
               <span>แผนที่แปลงยางพารา จังหวัดระยอง</span>
-              <span style={{ marginLeft: "auto", fontSize: 11, fontWeight: 700, color: "#059669", background: "rgba(5,150,105,0.1)", padding: "3px 10px", borderRadius: 50, border: "1px solid rgba(5,150,105,0.18)" }}>
+              <span style={{ marginLeft: "auto", fontSize: 13, fontWeight: 700, color: "#059669", background: "rgba(5,150,105,0.1)", padding: "3px 10px", borderRadius: 50, border: "1px solid rgba(5,150,105,0.18)" }}>
                 {fmt(effectiveProvinceTotal.areaRai)} ไร่
               </span>
             </div>
@@ -728,11 +728,11 @@ export default function DashboardPage() {
             <div style={{ background: "linear-gradient(135deg,#f0fdf4,#ecfdf5)", borderRadius: 16, padding: 20, border: "1px solid rgba(16,185,129,0.18)", boxShadow: "0 2px 10px rgba(16,185,129,0.08)" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
                 <div style={{ width: 44, height: 44, borderRadius: 13, background: "linear-gradient(135deg,#059669,#047857)", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 4px 12px rgba(5,150,105,0.3)", flexShrink: 0 }}>
-                  <i className="bi bi-geo-alt-fill" style={{ color: "#fff", fontSize: 20 }} />
+                  <i className="bi bi-geo-alt-fill" style={{ color: "#fff", fontSize: 22 }} />
                 </div>
                 <div>
-                  <div style={{ fontSize: 20, fontWeight: 900, color: "#064e3b", lineHeight: 1 }}>{selected.name}</div>
-                  <div style={{ fontSize: 12, color: "#64748b", fontWeight: 500, marginTop: 3 }}>จังหวัดระยอง · ข้อมูลระบบ</div>
+                  <div style={{ fontSize: 24, fontWeight: 900, color: "#064e3b", lineHeight: 1 }}>{selected.name}</div>
+                  <div style={{ fontSize: 16, color: "#64748b", fontWeight: 500, marginTop: 3 }}>จังหวัดระยอง · ข้อมูลระบบ</div>
                 </div>
               </div>
 
@@ -742,21 +742,21 @@ export default function DashboardPage() {
                   { label: "คาร์บอนรวม", value: fmtC(selected.carbon), unit: "tCO₂", color: "#065f46" },
                 ].map(m => (
                   <div key={m.label} style={{ background: "#fff", borderRadius: 11, padding: "12px 14px", border: "1px solid rgba(16,185,129,0.12)" }}>
-                    <div style={{ fontSize: 11, color: "#64748b", fontWeight: 600, marginBottom: 4 }}>{m.label}</div>
-                    <div style={{ fontSize: 22, fontWeight: 900, color: m.color, letterSpacing: -0.8, lineHeight: 1 }}>{m.value}</div>
-                    <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 3 }}>{m.unit}</div>
+                    <div style={{ fontSize: 14, color: "#64748b", fontWeight: 600, marginBottom: 4 }}>{m.label}</div>
+                    <div style={{ fontSize: 26, fontWeight: 900, color: m.color, letterSpacing: -0.8, lineHeight: 1 }}>{m.value}</div>
+                    <div style={{ fontSize: 14, color: "#94a3b8", marginTop: 3 }}>{m.unit}</div>
                   </div>
                 ))}
               </div>
 
               {/* Carbon total highlight */}
               <div style={{ background: "linear-gradient(135deg,#064e3b,#047857)", borderRadius: 13, padding: "16px 18px", display: "flex", alignItems: "center", gap: 14 }}>
-                <i className="bi bi-cloud-arrow-up-fill" style={{ color: "#4ade80", fontSize: 28, flexShrink: 0 }} />
+                <i className="bi bi-cloud-arrow-up-fill" style={{ color: "#4ade80", fontSize: 30, flexShrink: 0 }} />
                 <div>
-                  <div style={{ fontSize: 11, color: "rgba(255,255,255,0.65)", fontWeight: 600, marginBottom: 2 }}>คาร์บอนสะสมทั้งหมด</div>
-                  <div style={{ fontSize: 28, fontWeight: 900, color: "#fff", letterSpacing: -1.5, lineHeight: 1 }}>
+                  <div style={{ fontSize: 15, color: "rgba(255,255,255,0.65)", fontWeight: 600, marginBottom: 2 }}>คาร์บอนสะสมทั้งหมด</div>
+                  <div style={{ fontSize: 32, fontWeight: 900, color: "#fff", letterSpacing: -1.5, lineHeight: 1 }}>
                     {fmtC(selected.carbon)}
-                    <span style={{ fontSize: 15, fontWeight: 600, color: "rgba(255,255,255,0.65)", marginLeft: 8 }}>tCO₂</span>
+                    <span style={{ fontSize: 17, fontWeight: 600, color: "rgba(255,255,255,0.65)", marginLeft: 8 }}>tCO₂</span>
                   </div>
                 </div>
               </div>
@@ -764,7 +764,7 @@ export default function DashboardPage() {
 
             {/* Age distribution */}
             <div className="db2-card" style={{ padding: "16px 18px", flex: 1 }}>
-              <div style={{ fontSize: 13, fontWeight: 800, color: "#0f172a", marginBottom: 16 }}>
+              <div style={{ fontSize: 16, fontWeight: 800, color: "#0f172a", marginBottom: 16 }}>
                 <i className="bi bi-bar-chart-steps" style={{ marginRight: 7, color: "#059669" }} />การกระจายตามอายุยาง
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -777,18 +777,18 @@ export default function DashboardPage() {
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
                           <span style={{ width: 11, height: 11, borderRadius: 3, background: cfg.color, flexShrink: 0 }} />
-                          <span style={{ fontSize: 13, fontWeight: 700, color: "#374151" }}>{cfg.label}</span>
-                          <span style={{ fontSize: 11, color: "#94a3b8", fontStyle: "italic" }}>{cfg.stage}</span>
+                          <span style={{ fontSize: 15, fontWeight: 700, color: "#374151" }}>{cfg.label}</span>
+                          <span style={{ fontSize: 14, color: "#94a3b8", fontStyle: "italic" }}>{cfg.stage}</span>
                         </div>
                         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                          <span style={{ fontSize: 13, fontWeight: 800, color: cfg.dark }}>{fmt(a.areaRai)}<span style={{ fontSize: 10, fontWeight: 600, marginLeft: 3, opacity: 0.7 }}>ไร่</span></span>
-                          <span style={{ fontSize: 11, fontWeight: 700, background: cfg.bg, color: cfg.dark, borderRadius: 5, padding: "2px 7px" }}>{totalPct}%</span>
+                          <span style={{ fontSize: 15, fontWeight: 800, color: cfg.dark }}>{fmt(a.areaRai)}<span style={{ fontSize: 13, fontWeight: 600, marginLeft: 3, opacity: 0.7 }}>ไร่</span></span>
+                          <span style={{ fontSize: 14, fontWeight: 700, background: cfg.bg, color: cfg.dark, borderRadius: 5, padding: "2px 7px" }}>{totalPct}%</span>
                         </div>
                       </div>
                       <div style={{ height: 7, background: "#f1f5f9", borderRadius: 4, overflow: "hidden", marginBottom: 4 }}>
                         <div style={{ height: "100%", width: `${barPct}%`, background: `linear-gradient(90deg,${cfg.color}88,${cfg.color})`, borderRadius: 4, transition: "width 0.7s cubic-bezier(.16,1,.3,1)", minWidth: 4 }} />
                       </div>
-                      <div style={{ textAlign: "right", fontSize: 11, color: "#94a3b8", fontWeight: 500 }}>
+                      <div style={{ textAlign: "right", fontSize: 14, color: "#94a3b8", fontWeight: 500 }}>
                         {fmtC(a.carbon)} tCO₂
                       </div>
                     </div>
@@ -804,7 +804,7 @@ export default function DashboardPage() {
           <div className="db2-card-header">
             <i className="bi bi-bar-chart-steps" style={{ color: "#059669" }} />
             <span>เปรียบเทียบคาร์บอนสะสมรายอำเภอ</span>
-            <span style={{ marginLeft: 6, fontWeight: 500, color: "#94a3b8", fontSize: 12 }}>จังหวัดระยอง · คลิกเพื่อเลือกอำเภอ</span>
+            <span style={{ marginLeft: 6, fontWeight: 500, color: "#94a3b8", fontSize: 15 }}>จังหวัดระยอง · คลิกเพื่อเลือกอำเภอ</span>
           </div>
           <div style={{ padding: "16px 20px 12px" }}>
             <DistrictCarbonChart selectedId={selectedId} onSelect={setSelectedId} isMobile={isMobile} districts={effectiveDistricts} />
@@ -827,7 +827,7 @@ export default function DashboardPage() {
         .db2-map-card { display: flex; flex-direction: column; }
         .db2-map-body { height: 520px; }
         .db2-card { background: #fff; border-radius: 16px; border: 1px solid rgba(16,185,129,0.1); box-shadow: 0 2px 12px rgba(16,185,129,0.06); margin-bottom: 18px; }
-        .db2-card-header { display: flex; align-items: center; gap: 9px; padding: 13px 18px; border-bottom: 1px solid rgba(16,185,129,0.08); font-size: 14px; font-weight: 800; color: #0f172a; }
+        .db2-card-header { display: flex; align-items: center; gap: 9px; padding: 13px 18px; border-bottom: 1px solid rgba(16,185,129,0.08); font-size: 15px; font-weight: 800; color: #0f172a; }
         select:focus { border-color: #059669 !important; box-shadow: 0 0 0 3px rgba(5,150,105,0.15) !important; }
 
         @media (max-width: 1024px) {
@@ -841,14 +841,14 @@ export default function DashboardPage() {
           .db2-page { padding-top: 100px !important; padding-bottom: 36px !important; }
           .db2-wrap { padding: 0 12px; }
           .db2-hero { padding: 18px 16px; border-radius: 14px; margin-bottom: 14px; }
-          .db2-hero h1 { font-size: 17px !important; }
-          .db2-hero p  { font-size: 12px !important; }
+          .db2-hero h1 { font-size: 18px !important; }
+          .db2-hero p  { font-size: 14px !important; }
           .db2-stat-row { grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
           .db2-stat-card { padding: 14px 12px; border-radius: 11px; }
           .db2-main-row { gap: 12px; margin-bottom: 12px; }
           .db2-map-body { height: 260px; }
           .db2-card { border-radius: 12px; margin-bottom: 12px; }
-          .db2-card-header { padding: 10px 14px; font-size: 12px; gap: 7px; }
+          .db2-card-header { padding: 10px 14px; font-size: 14px; gap: 7px; }
         }
 
         @media (max-width: 400px) {

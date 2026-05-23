@@ -56,7 +56,7 @@
         border-radius: 50px;
         background: rgba(0, 0, 0, 0.5);
         color: #4ade80;
-        font-size: 13.5px;
+        font-size: 17px;
         font-weight: 700;
         letter-spacing: 0.5px;
         margin-bottom: 24px;
@@ -65,7 +65,7 @@
       }
 
       .hero-beautiful h1 {
-        font-size: 84px;
+        font-size: 98px;
         font-weight: 900;
         line-height: 1.1;
         color: #ffffff;
@@ -84,10 +84,10 @@
       }
 
       .hero-subtitle-th {
-        font-size: 24px;
+        font-size: 30px;
         font-weight: 600;
         color: #ffffff;
-        max-width: 750px;
+        max-width: 780px;
         margin: 0 auto 12px auto;
         line-height: 1.7;
         position: relative;
@@ -96,10 +96,10 @@
       }
 
       .hero-subtitle-en {
-        font-size: 14px;
+        font-size: 17px;
         font-weight: 700;
         color: #f1f5f9;
-        max-width: 800px;
+        max-width: 820px;
         margin: 0 auto;
         line-height: 1.6;
         text-transform: uppercase;
@@ -124,7 +124,7 @@
         padding: 14px 36px;
         border-radius: 16px;
         font-weight: 700;
-        font-size: 16px;
+        font-size: 19px;
         box-shadow: 0 10px 24px rgba(45, 158, 95, 0.3);
         transition: all 0.3s;
         border: none;
@@ -145,7 +145,7 @@
         padding: 14px 36px;
         border-radius: 16px;
         font-weight: 700;
-        font-size: 16px;
+        font-size: 18px;
         box-shadow: 0 8px 20px rgba(0, 0, 0, 0.04);
         transition: all 0.3s;
         border: 1px solid rgba(45, 158, 95, 0.15);
@@ -166,7 +166,7 @@
         }
 
         .hero-beautiful h1 {
-          font-size: 40px;
+          font-size: 52px;
         }
 
         .hero-actions {
@@ -190,7 +190,7 @@
       }
 
       .beautiful-section-header h2 {
-        font-size: 40px;
+        font-size: 48px;
         font-weight: 800;
         color: #1a3d2b;
         margin-bottom: 15px;
@@ -226,7 +226,7 @@
       }
 
       .beautiful-section-header p {
-        font-size: 16px;
+        font-size: 20px;
         color: #5a7a65;
         max-width: 600px;
         margin: 0 auto;
@@ -235,7 +235,7 @@
 
       @media (max-width: 768px) {
         .beautiful-section-header h2 {
-          font-size: 32px;
+          font-size: 40px;
         }
 
         .title-divider .line {
@@ -275,7 +275,7 @@
         border-radius: 50px;
         background: rgba(45, 158, 95, 0.1);
         color: #2d9e5f;
-        font-size: 13px;
+        font-size: 15px;
         font-weight: 700;
         letter-spacing: 0.5px;
         border: 1px solid rgba(45, 158, 95, 0.2);
@@ -285,7 +285,7 @@
 
       .project-about-body {
         color: #5a7a65;
-        font-size: 16px;
+        font-size: 19px;
         line-height: 1.9;
         margin-bottom: 20px;
         font-weight: 400;
@@ -319,7 +319,7 @@
       }
 
       .keptcarbon-meaning-card .kc-title {
-        font-size: 20px;
+        font-size: 25px;
         font-weight: 800;
         color: #1a3d2b;
         margin-bottom: 15px;
@@ -333,12 +333,12 @@
         -webkit-background-clip: text;
         background-clip: text;
         -webkit-text-fill-color: transparent;
-        font-size: 24px;
+        font-size: 26px;
       }
 
       .keptcarbon-meaning-card p {
         color: #4a6d58;
-        font-size: 15px;
+        font-size: 18px;
         line-height: 1.8;
         margin: 0;
       }
@@ -390,7 +390,7 @@
         align-items: center;
         justify-content: center;
         color: #2d9e5f;
-        font-size: 24px;
+        font-size: 26px;
         box-shadow: 0 4px 10px rgba(45, 158, 95, 0.1);
         border: 1px solid rgba(45, 158, 95, 0.05);
         transition: all 0.3s;
@@ -406,7 +406,7 @@
       }
 
       .stats-number {
-        font-size: 26px;
+        font-size: 32px;
         font-weight: 800;
         color: #1a3d2b;
         margin-bottom: 4px;
@@ -417,7 +417,7 @@
       }
 
       .stats-label {
-        font-size: 13px;
+        font-size: 16px;
         color: #5a7a65;
         font-weight: 600;
         text-transform: uppercase;
@@ -429,11 +429,11 @@
 
       @media (max-width: 991px) and (min-width: 768px) {
         .stats-number {
-          font-size: 22px;
+          font-size: 28px;
         }
 
         .stats-label {
-          font-size: 11px;
+          font-size: 15px;
         }
       }
 
@@ -449,17 +449,17 @@
         }
 
         .stats-number {
-          font-size: 20px;
+          font-size: 26px;
         }
 
         .stats-label {
-          font-size: 11px;
+          font-size: 15px;
         }
       }
 
       /* Objectives Redesign */
       .objectives-title {
-        font-size: 28px;
+        font-size: 34px;
         font-weight: 800;
         color: #1a3d2b;
         margin-bottom: 30px;
@@ -534,7 +534,7 @@
       }
 
       .obj-label {
-        font-size: 11px;
+        font-size: 13px;
         font-weight: 800;
         letter-spacing: 1.5px;
         text-transform: uppercase;
@@ -547,7 +547,7 @@
       }
 
       .obj-heading {
-        font-size: 18px;
+        font-size: 23px;
         font-weight: 800;
         color: #1a3d2b;
         margin-bottom: 12px;
@@ -555,7 +555,7 @@
       }
 
       .obj-body {
-        font-size: 15px;
+        font-size: 18px;
         color: #5a7a65;
         line-height: 1.7;
         margin: 0;
@@ -570,7 +570,7 @@
       }
 
       .partners-label {
-        font-size: 16px;
+        font-size: 19px;
         font-weight: 800;
         color: #1a3d2b;
         margin-bottom: 30px;
@@ -748,7 +748,7 @@
       }
 
       .team-role {
-        font-size: 13px;
+        font-size: 16px;
         font-weight: 600;
         color: #0d9488;
         margin-bottom: 8px;
@@ -757,14 +757,14 @@
       }
 
       .team-name {
-        font-size: 20px;
+        font-size: 24px;
         font-weight: 700;
         color: #1a3d2b;
         margin-bottom: 15px;
       }
 
       .team-desc {
-        font-size: 14px;
+        font-size: 17px;
         color: #5a7a65;
         line-height: 1.6;
         position: relative;
@@ -841,7 +841,7 @@
         align-items: center;
         justify-content: center;
         color: #2d9e5f;
-        font-size: 20px;
+        font-size: 22px;
         margin-bottom: 10px;
         transition: all 0.35s ease;
       }
@@ -854,7 +854,7 @@
       }
 
       .contact-card h3 {
-        font-size: 18px;
+        font-size: 23px;
         font-weight: 800;
         color: #1a3d2b;
         margin-bottom: 16px;
@@ -866,7 +866,7 @@
         gap: 12px;
         margin-bottom: 14px;
         color: #5a7a65;
-        font-size: 14px;
+        font-size: 17px;
         line-height: 1.6;
       }
 
@@ -876,7 +876,7 @@
 
       .contact-info-row i {
         color: #0d9488;
-        font-size: 18px;
+        font-size: 19px;
         margin-top: 2px;
         min-width: 20px;
         flex-shrink: 0;
@@ -886,7 +886,7 @@
         display: block;
         color: #1a3d2b;
         font-weight: 700;
-        font-size: 14px;
+        font-size: 17px;
         margin-bottom: 3px;
       }
 
@@ -906,7 +906,7 @@
 
       .contact-form-field label {
         display: block;
-        font-size: 11px;
+        font-size: 14px;
         font-weight: 700;
         color: #2d9e5f;
         letter-spacing: 0.6px;
@@ -920,7 +920,7 @@
         border: 1.5px solid #ddeee6;
         border-radius: 10px;
         padding: 9px 13px;
-        font-size: 14px;
+        font-size: 16px;
         color: #1a3d2b;
         background: #f8fdfb;
         transition: all 0.25s ease;
@@ -933,7 +933,7 @@
       .contact-form-field input::placeholder,
       .contact-form-field textarea::placeholder {
         color: #b0ccbc;
-        font-size: 13px;
+        font-size: 14px;
       }
 
       .contact-form-field input:focus,
@@ -950,7 +950,7 @@
         color: #fff;
         border-radius: 50px;
         font-weight: 700;
-        font-size: 14px;
+        font-size: 17px;
         box-shadow: 0 6px 16px rgba(45, 158, 95, 0.3);
         transition: all 0.3s ease;
         cursor: pointer;

@@ -15,6 +15,7 @@
 
 body {
   font-family: var(--kc-font-family);
+  font-size: var(--kc-font-size-base);
   color: var(--kc-ink);
   line-height: var(--kc-line-height-normal);
   -webkit-font-smoothing: antialiased;
