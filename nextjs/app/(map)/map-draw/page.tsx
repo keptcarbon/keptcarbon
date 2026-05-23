@@ -127,6 +127,15 @@ function MapDrawContent() {
     }
   }, [drawnParcels]);
 
+  // Hide vertex nodes when not on step 1 (not editable at step 2/3)
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapLoadedRef.current) return;
+    const vis = currentStep >= 3 ? "none" : "visible";
+    if (map.getLayer("plot-verts-l")) map.setLayoutProperty("plot-verts-l", "visibility", vis);
+    if (map.getLayer("draw-verts-l")) map.setLayoutProperty("draw-verts-l", "visibility", vis);
+  }, [currentStep]);
+
   const totalDrawnArea = useMemo(() => {
     return drawnParcels.reduce((acc, p) => {
       if (p.geometry.type === "Polygon") {
