@@ -161,6 +161,31 @@ function parseRai(v: unknown): number {
     return parseFloat(s) || 0;
 }
 
+function getFriendlyErrorMessage(err: unknown, plots: PlotInfo[], plotForms: PlotFormData[]): string {
+    const msg = err instanceof Error ? err.message : String(err);
+
+    // Backend 500 errors
+    if (msg.includes("Backend API error: 500")) {
+        // Check if any plot is "existing" with no planting data — likely cause
+        const hasExistingNoData = plots.some((p, i) => {
+            const form = plotForms[i];
+            return form?.plantStatus === "existing" && !form.plantYear && !p.plantYearBE;
+        });
+        if (hasExistingNoData) {
+            return "ไม่สามารถประมวลผลคาร์บอนได้ เนื่องจากไม่พบข้อมูลปีปลูกสำหรับแปลงที่ปลูกมาแล้ว กรุณากรอกปีที่ปลูก (พ.ศ.) ในขั้นตอนกรอกข้อมูล หรือตรวจสอบว่าพื้นที่อยู่ในเขตที่ระบบรองรับ";
+        }
+        return "ระบบไม่สามารถประมวลผลคาร์บอนได้ในขณะนี้ กรุณาตรวจสอบข้อมูลแปลงอีกครั้ง หรือลองใหม่ภายหลัง";
+    }
+
+    // Network / connection errors
+    if (msg.includes("fetch") || msg.includes("NetworkError") || msg.includes("Failed to fetch")) {
+        return "ไม่สามารถเชื่อมต่อกับระบบประมวลผลได้ กรุณาตรวจสอบการเชื่อมต่ออินเทอร์เน็ตและลองอีกครั้ง";
+    }
+
+    // Other errors
+    return "เกิดข้อผิดพลาดในการประมวลผลคาร์บอน กรุณาตรวจสอบข้อมูลแปลงและลองอีกครั้ง";
+}
+
 function computePlot(feat: GeoJSON.Feature): PlotInfo {
     const p = (feat.properties ?? {}) as Record<string, unknown>;
     const areaRai = parseRai(p.grow_area || p.rai);
@@ -1003,6 +1028,12 @@ export function ParcelResultsPanel({
             return;
         }
 
+        // Warn and proceed if "existing" plots have no planting year — backend may still process
+        const existingMissingYear = polygons.some(p => p.project_type === "existing" && !p.year_of_planting);
+        if (existingMissingYear) {
+            console.warn("[Carbon] Some existing plots have no planting year — backend may fail");
+        }
+
         try {
             const responses = await estimateCarbon(polygons);
             console.log("[KeptCarbon] Backend responses:", JSON.stringify(responses, null, 2));
@@ -1121,7 +1152,7 @@ export function ParcelResultsPanel({
             setSubStep("carbon");
             onStepChange(3);
         } catch (err) {
-            setCarbonErr(err instanceof Error ? err.message : String(err));
+            setCarbonErr(getFriendlyErrorMessage(err, plots, plotForms));
         } finally {
             setProcessingCarbon(false);
         }
@@ -1290,9 +1321,48 @@ export function ParcelResultsPanel({
 
                 {/* Action buttons (Moved to top) */}
                 {carbonErr && (
-                    <div style={{ marginBottom: 16, padding: "10px 14px", background: "rgba(220,38,38,0.08)", border: "1px solid rgba(220,38,38,0.25)", borderRadius: 10, fontSize: 12, color: "#dc2626", display: "flex", alignItems: "flex-start", gap: 8 }}>
-                        <i className="bi bi-exclamation-triangle-fill" style={{ flexShrink: 0, marginTop: 1 }} />
-                        <span>{carbonErr}</span>
+                    <div style={{
+                        marginBottom: 16,
+                        padding: "14px 16px",
+                        background: "linear-gradient(135deg, #fef2f2, #fff5f5)",
+                        border: "1px solid #fecaca",
+                        borderRadius: 14,
+                        fontSize: 13,
+                        color: "#991b1b",
+                        display: "flex",
+                        alignItems: "flex-start",
+                        gap: 10,
+                        boxShadow: "0 2px 8px rgba(220,38,38,0.06)",
+                        animation: "slideInUp 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards"
+                    }}>
+                        <div style={{
+                            width: 28, height: 28, borderRadius: 8,
+                            background: "rgba(220,38,38,0.1)",
+                            display: "flex", alignItems: "center", justifyContent: "center",
+                            flexShrink: 0, marginTop: 1
+                        }}>
+                            <i className="bi bi-exclamation-triangle-fill" style={{ fontSize: 14, color: "#dc2626" }} />
+                        </div>
+                        <div style={{ flex: 1, lineHeight: 1.6 }}>
+                            <div style={{ fontWeight: 700, marginBottom: 2 }}>ไม่สามารถประมวลผลคาร์บอนได้</div>
+                            <span style={{ color: "#b91c1c", opacity: 0.9 }}>{carbonErr}</span>
+                        </div>
+                        <button
+                            onClick={() => setCarbonErr(null)}
+                            style={{
+                                background: "rgba(220,38,38,0.06)",
+                                border: "none",
+                                borderRadius: 6,
+                                width: 24, height: 24,
+                                display: "flex", alignItems: "center", justifyContent: "center",
+                                cursor: "pointer", flexShrink: 0, marginTop: 1,
+                                color: "#991b1b", fontSize: 13,
+                                padding: 0, lineHeight: 1
+                            }}
+                            title="ปิด"
+                        >
+                            <i className="bi bi-x" />
+                        </button>
                     </div>
                 )}
                 {(!projectName.trim() || hasEmptyStatus) && (
