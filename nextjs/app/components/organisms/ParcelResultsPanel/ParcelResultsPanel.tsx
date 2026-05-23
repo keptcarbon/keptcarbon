@@ -2102,7 +2102,7 @@ export function ParcelResultsPanel({
                                 e.currentTarget.style.borderColor = "rgba(100, 116, 139, 0.22)";
                             }}
                         >
-                            <i className="bi bi-map" style={{ fontSize: "13px" }} /> กำหนดพื้นที่
+                            <i className="bi bi-house-door" style={{ fontSize: "13px" }} /> ขั้นตอนที่ 1
                         </button>
                     </div>
                     {isTotal ? (
