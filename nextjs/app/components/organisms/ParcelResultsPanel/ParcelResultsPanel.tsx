@@ -2001,6 +2001,41 @@ export function ParcelResultsPanel({
 
                     <div style={{ display: "flex", gap: 8, width: "100%", marginBottom: 16, alignItems: "center" }}>
                         <button
+                            className="prp-btn-ghost"
+                            onClick={() => onStepChange(2)}
+                            style={{
+                                flex: 1,
+                                height: "42px",
+                                padding: 0,
+                                margin: 0,
+                                boxSizing: "border-box",
+                                fontSize: "12.5px",
+                                fontWeight: 700,
+                                color: "#047857",
+                                cursor: "pointer",
+                                background: "rgba(16, 185, 129, 0.08)",
+                                border: "1.5px solid rgba(16, 185, 129, 0.25)",
+                                borderRadius: "14px",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                gap: "4px",
+                                transition: "all 0.2s",
+                                outline: "none",
+                                boxShadow: "0 2px 5px rgba(16, 185, 129, 0.05)"
+                            }}
+                            onMouseOver={(e) => {
+                                e.currentTarget.style.background = "rgba(16, 185, 129, 0.16)";
+                                e.currentTarget.style.borderColor = "rgba(16, 185, 129, 0.45)";
+                            }}
+                            onMouseOut={(e) => {
+                                e.currentTarget.style.background = "rgba(16, 185, 129, 0.08)";
+                                e.currentTarget.style.borderColor = "rgba(16, 185, 129, 0.25)";
+                            }}
+                        >
+                            <i className="bi bi-arrow-left-short" style={{ fontSize: "16px", fontWeight: "bold" }} /> ย้อนกลับ
+                        </button>
+                        <button
                             className="prp-btn-primary"
                             onClick={() => handleSave()}
                             disabled={!projectName.trim() || saveState === "saving"}
@@ -2036,7 +2071,7 @@ export function ParcelResultsPanel({
                         </button>
                         <button
                             className="prp-btn-ghost"
-                            onClick={() => onStepChange(2)}
+                            onClick={() => onStepChange(1)}
                             style={{
                                 flex: 1,
                                 height: "42px",
@@ -2045,10 +2080,10 @@ export function ParcelResultsPanel({
                                 boxSizing: "border-box",
                                 fontSize: "12.5px",
                                 fontWeight: 700,
-                                color: "#047857",
+                                color: "#64748b",
                                 cursor: "pointer",
-                                background: "rgba(16, 185, 129, 0.08)",
-                                border: "1.5px solid rgba(16, 185, 129, 0.25)",
+                                background: "rgba(100, 116, 139, 0.07)",
+                                border: "1.5px solid rgba(100, 116, 139, 0.22)",
                                 borderRadius: "14px",
                                 display: "flex",
                                 alignItems: "center",
@@ -2056,18 +2091,18 @@ export function ParcelResultsPanel({
                                 gap: "4px",
                                 transition: "all 0.2s",
                                 outline: "none",
-                                boxShadow: "0 2px 5px rgba(16, 185, 129, 0.05)"
+                                boxShadow: "none"
                             }}
                             onMouseOver={(e) => {
-                                e.currentTarget.style.background = "rgba(16, 185, 129, 0.16)";
-                                e.currentTarget.style.borderColor = "rgba(16, 185, 129, 0.45)";
+                                e.currentTarget.style.background = "rgba(100, 116, 139, 0.14)";
+                                e.currentTarget.style.borderColor = "rgba(100, 116, 139, 0.4)";
                             }}
                             onMouseOut={(e) => {
-                                e.currentTarget.style.background = "rgba(16, 185, 129, 0.08)";
-                                e.currentTarget.style.borderColor = "rgba(16, 185, 129, 0.25)";
+                                e.currentTarget.style.background = "rgba(100, 116, 139, 0.07)";
+                                e.currentTarget.style.borderColor = "rgba(100, 116, 139, 0.22)";
                             }}
                         >
-                            <i className="bi bi-arrow-left-short" style={{ fontSize: "16px", fontWeight: "bold" }} /> ย้อนกลับ
+                            <i className="bi bi-map" style={{ fontSize: "13px" }} /> กำหนดพื้นที่
                         </button>
                     </div>
                     {isTotal ? (
