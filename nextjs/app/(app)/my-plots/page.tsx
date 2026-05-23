@@ -38,6 +38,7 @@ type SavedPlot = {
   forecast?: { yr3: number; yr5: number; yr7: number };
   carbonProfile?: BarPoint[];
   plantStatus?: string;
+  processed?: boolean;
 };
 
 function PlotsMapView({ plots, isMobile }: { plots: SavedPlot[], isMobile: boolean }) {
@@ -543,18 +544,24 @@ function PlotCard({ plot, index, onDelete, onEdit, expanded, onToggle, isMobile 
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [activeTab, setActiveTab] = useState<"map"|"chart">("map");
 
+  // Determine if this plot has been carbon-processed
+  // Compatible with old data: if `processed` flag is missing, infer from carbonProfile or carbonTotal
+  const isProcessed = plot.processed === true || (plot.carbonProfile && plot.carbonProfile.length > 0) || (plot.carbonTotal > 0);
+
   const currentYearBE = new Date().getFullYear() + 543;
   const plantYearBE = plot.plantYearBE && plot.plantYearBE > 0
     ? plot.plantYearBE
     : (currentYearBE - (plot.rubberAge || 0));
   const effectiveAge = plot.rubberAge > 0 ? plot.rubberAge : (plantYearBE > 0 ? currentYearBE - plantYearBE : 0);
   const chartStartYearBE = plantYearBE > 0 ? plantYearBE + effectiveAge : currentYearBE;
-  // Use backend profile if available (matches step 3 exactly), else fallback to local calculation
-  const barPts: BarPoint[] = (plot.carbonProfile && plot.carbonProfile.length > 0)
-    ? plot.carbonProfile
-    : (effectiveAge > 0 && (plot.trees ?? 0) > 0)
-      ? buildBarPoints(effectiveAge, chartStartYearBE, plot.trees ?? 0, plot.spacing || "2.5x8")
-      : [];
+  // Only compute chart data when the plot has been processed through carbon calculation
+  const barPts: BarPoint[] = isProcessed
+    ? ((plot.carbonProfile && plot.carbonProfile.length > 0)
+      ? plot.carbonProfile
+      : (effectiveAge > 0 && (plot.trees ?? 0) > 0)
+        ? buildBarPoints(effectiveAge, chartStartYearBE, plot.trees ?? 0, plot.spacing || "2.5x8")
+        : [])
+    : [];
 
   const plantStatusLabel = plot.plantStatus === "replanting" ? "เริ่มปลูกใหม่" : plot.plantStatus === "existing" ? "ปลูกมาแล้ว" : "—";
 
@@ -565,6 +572,7 @@ function PlotCard({ plot, index, onDelete, onEdit, expanded, onToggle, isMobile 
     { label: "พันธุ์ยาง", val: plot.variety || "—", unit: "", icon: "bi-patch-check-fill", color: "#8b5cf6", bg: "rgba(139,92,246,0.12)" },
     { label: "ระยะปลูก", val: plot.spacing || "—", unit: "ม.", icon: "bi-arrows-fullscreen", color: "#f59e0b", bg: "rgba(245,158,11,0.12)" },
     { label: "จำนวนต้น", val: plot.trees && plot.trees > 0 ? plot.trees.toLocaleString("th-TH") : "—", unit: "ต้น", icon: "bi-tree-fill", color: "#10b981", bg: "rgba(16,185,129,0.12)" },
+    ...(isProcessed ? [{ label: "คาร์บอนรวม", val: plot.carbonTotal > 0 ? Math.floor(plot.carbonTotal).toLocaleString("th-TH") : "—", unit: "tCO₂", icon: "bi-graph-up-arrow", color: "#059669", bg: "rgba(5,150,105,0.12)" }] : []),
   ];
 
   return (
@@ -603,8 +611,19 @@ function PlotCard({ plot, index, onDelete, onEdit, expanded, onToggle, isMobile 
             fontSize: 21, fontWeight: 900, color: "#fff", letterSpacing: -0.5
           }}>{index}</div>
           <div style={{ minWidth: 0 }}>
-            <div style={{ fontSize: 18, fontWeight: 800, color: "#0f172a", lineHeight: 1.3 }}>
-              แปลงที่ {index}
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <div style={{ fontSize: 18, fontWeight: 800, color: "#0f172a", lineHeight: 1.3 }}>
+                แปลงที่ {index}
+              </div>
+              {isProcessed ? (
+                <span style={{ fontSize: 10, fontWeight: 700, color: "#059669", background: "rgba(5,150,105,0.1)", border: "1px solid rgba(5,150,105,0.25)", padding: "2px 8px", borderRadius: 20, display: "inline-flex", alignItems: "center", gap: 3 }}>
+                  <i className="bi bi-check-circle-fill" style={{ fontSize: 9 }} />ประมวลผลแล้ว
+                </span>
+              ) : (
+                <span style={{ fontSize: 10, fontWeight: 700, color: "#f59e0b", background: "rgba(245,158,11,0.1)", border: "1px solid rgba(245,158,11,0.25)", padding: "2px 8px", borderRadius: 20, display: "inline-flex", alignItems: "center", gap: 3 }}>
+                  <i className="bi bi-clock" style={{ fontSize: 9 }} />ยังไม่ประมวลผล
+                </span>
+              )}
             </div>
             <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 3 }}>
               {plot.province && (
@@ -713,13 +732,17 @@ function PlotCard({ plot, index, onDelete, onEdit, expanded, onToggle, isMobile 
           }}
           style={{
             flex: 1, padding: "12px", background: expanded && activeTab === "chart" ? "rgba(16,185,129,0.06)" : "#fff",
-            border: "none", cursor: "pointer",
-            fontSize: 14, fontWeight: 700, color: expanded && activeTab === "chart" ? "#059669" : "#64748b",
-            display: "flex", alignItems: "center", justifyContent: "center", gap: 8, transition: "background 0.15s"
+            border: "none",
+            fontSize: 14, fontWeight: 700,
+            color: !isProcessed ? "#cbd5e1" : (expanded && activeTab === "chart" ? "#059669" : "#64748b"),
+            display: "flex", alignItems: "center", justifyContent: "center", gap: 8, transition: "background 0.15s",
+            cursor: isProcessed ? "pointer" : "default",
+            opacity: isProcessed ? 1 : 0.6,
           }}
         >
           <i className={`bi bi-bar-chart-line${expanded && activeTab === "chart" ? "-fill" : ""}`} style={{ fontSize: 15 }} />
-           กราฟการกักเก็บคาร์บอนรายปี (tCO₂)
+           กราฟคาร์บอน (tCO₂)
+          {!isProcessed && <span style={{ fontSize: 10, color: "#f59e0b", marginLeft: 2 }}>ยังไม่ประมวลผล</span>}
         </button>
       </div>
 
@@ -730,12 +753,15 @@ function PlotCard({ plot, index, onDelete, onEdit, expanded, onToggle, isMobile 
             <PlotMiniMap plot={plot} isMobile={isMobile} />
           )}
           {activeTab === "chart" && (
-            barPts.length > 0 ? (
+            isProcessed && barPts.length > 0 ? (
               <CarbonBarChart pts={barPts} isMobile={isMobile} />
             ) : (
-              <div style={{ textAlign: "center", padding: "28px 20px", background: "#f8fafc", borderRadius: 14, border: "1.5px dashed #e2e8f0", color: "#94a3b8", fontSize: 14 }}>
-                <i className="bi bi-bar-chart-line" style={{ fontSize: 24, display: "block", marginBottom: 8, opacity: 0.5 }} />
-                {plot.carbonTotal > 0 ? "ข้อมูลไม่เพียงพอในการสร้างกราฟ" : "ยังไม่ได้ประมวลผลคาร์บอนสำหรับแปลงนี้"}
+              <div style={{ textAlign: "center", padding: "32px 20px", background: "linear-gradient(135deg, #fffbeb, #fef3c7)", borderRadius: 14, border: "1.5px dashed rgba(245,158,11,0.3)", color: "#92400e", fontSize: 14 }}>
+                <div style={{ width: 48, height: 48, borderRadius: 12, background: "rgba(245,158,11,0.15)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 12px" }}>
+                  <i className="bi bi-clock-history" style={{ fontSize: 22, color: "#f59e0b" }} />
+                </div>
+                <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 4 }}>ยังไม่ได้ประมวลผลคาร์บอน</div>
+                <div style={{ fontSize: 12, color: "#b45309", lineHeight: 1.5 }}>กรุณาไปที่หน้าวาดแปลงและกด "ประมวลผล" เพื่อดูกราฟการกักเก็บคาร์บอน</div>
               </div>
             )
           )}

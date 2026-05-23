@@ -932,8 +932,9 @@ export function ParcelResultsPanel({
                 const spacing = cr?.spacing || form?.spacing || epSpacing;
 
                 // Save backend profile as BarPoint[] so my-plots can render the exact same chart
+                // Only include carbonProfile when we actually have carbon results (Step 3 processing)
                 const rawProfile = backendResp?.carbon_profile ?? [];
-                const carbonProfile = rawProfile.length > 0 ? profileToBarPoints(rawProfile, age) : null;
+                const carbonProfile = hasCarbonResults && rawProfile.length > 0 ? profileToBarPoints(rawProfile, age) : null;
 
                 return {
                     id: props.id || Math.random().toString(36).substring(7),
@@ -955,6 +956,7 @@ export function ParcelResultsPanel({
                     geojson: feat?.geometry || null,
                     boundaryGeojson: drawnGeometry || null,
                     carbonProfile,
+                    processed: hasCarbonResults,
                     forecast: hasCarbonResults ? {
                         yr3: carbonCo2(age + 3, trees, spacing),
                         yr5: carbonCo2(age + 5, trees, spacing),
