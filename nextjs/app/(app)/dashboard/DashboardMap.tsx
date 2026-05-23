@@ -242,8 +242,13 @@ export default function DashboardMap({
             const centroidMap: Record<string, [number, number]> = {};
             for (const f of gj.features) {
               const pcode = f.properties?.ADM2_PCODE as string;
-              if (!pcode || f.geometry.type !== "MultiPolygon") continue;
-              centroidMap[pcode] = multiPolygonCentroid(f.geometry as GeoJSON.MultiPolygon);
+              if (!pcode) continue;
+              if (f.geometry.type === "MultiPolygon") {
+                centroidMap[pcode] = multiPolygonCentroid(f.geometry as GeoJSON.MultiPolygon);
+              } else if (f.geometry.type === "Polygon") {
+                const geom = f.geometry as GeoJSON.Polygon;
+                centroidMap[pcode] = ringCentroid(geom.coordinates[0] as number[][]);
+              }
             }
 
             const enriched = districts.map(d => {
