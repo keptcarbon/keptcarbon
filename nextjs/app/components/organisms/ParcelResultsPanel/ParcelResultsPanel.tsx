@@ -988,7 +988,9 @@ export function ParcelResultsPanel({
                 rubber_clone: (form.variety && SUPPORTED_CLONES.includes(form.variety)) ? form.variety : null,
                 tree_count: form.treeCount ? (parseInt(form.treeCount) || null) : null,
                 spacing_system: form.spacing || null,
-                selected_lu_classes: Object.entries(form?.luChecked || {}).filter(([, on]) => on).map(([cls]) => cls),
+                selected_lu_classes: Object.entries(form?.luChecked || {})
+                    .filter(([cls, on]) => on && (plotsLuRealData[idx]?.[cls]?.rai ?? 0) > 0)
+                    .map(([cls]) => cls),
                 project_type: form?.plantStatus || undefined,
             });
         }
