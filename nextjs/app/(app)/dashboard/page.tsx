@@ -838,7 +838,7 @@ export default function DashboardPage() {
 
         /* ── Mobile (≤ 640px) ── */
         @media (max-width: 640px) {
-          .db2-page { padding-top: 76px !important; padding-bottom: 36px !important; }
+          .db2-page { padding-top: 100px !important; padding-bottom: 36px !important; }
           .db2-wrap { padding: 0 12px; }
           .db2-hero { padding: 18px 16px; border-radius: 14px; margin-bottom: 14px; }
           .db2-hero h1 { font-size: 17px !important; }
