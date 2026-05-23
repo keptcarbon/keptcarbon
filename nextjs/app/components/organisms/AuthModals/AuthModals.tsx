@@ -135,6 +135,20 @@ export function LoginModal() {
         เข้าสู่ระบบด้วย LINE
       </a>
 
+      <a href="/api/auth/google" className="modal-btn-google" style={{ marginTop: 10 }}>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M21.35 11.1h-9.2v2.9h5.6c-.2 1.5-1.5 4.2-5.6 4.2-3.4 0-6.2-2.8-6.2-6.2s2.8-6.2 6.2-6.2c1.5 0 2.5.5 3.1.9l2.1-2c-1.5-1.4-3.5-2.3-5.2-2.3-4.9 0-9 4-9 9s4 9 9 9c5 0 8.3-3.5 8.3-8.5 0-.6-.1-1.1-.2-1.7z" />
+        </svg>
+        เข้าสู่ระบบด้วย Google
+      </a>
+
+      <a href="/api/auth/facebook" className="modal-btn-facebook" style={{ marginTop: 10 }}>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M22 12c0-5.5-4.5-10-10-10S2 6.5 2 12c0 5 3.7 9.2 8.5 9.9v-7h-2.5v-2.9h2.5V9.5c0-2.5 1.5-3.9 3.8-3.9 1.1 0 2 .1 2.2.1v2.5h-1.5c-1.2 0-1.5.6-1.5 1.5v2h3l-.4 2.9h-2.5V22c4.8-.7 8.5-4.9 8.5-9.9z" />
+        </svg>
+        เข้าสู่ระบบด้วย Facebook
+      </a>
+
       <div className="modal-auth-links" style={{ marginTop: 16 }}>
         ยังไม่มีบัญชี?{" "}
         <a

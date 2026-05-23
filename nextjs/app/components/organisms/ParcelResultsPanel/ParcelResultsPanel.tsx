@@ -825,8 +825,8 @@ export function ParcelResultsPanel({
                         });
                     }
                     if (allYearsCE.length > 0) {
-                        const modeYearCE = allYearsCE[0]; // first element = highest probability (mode)
-                        finalPlantYearBE = modeYearCE + 543;
+                        const oldestYearCE = Math.min(...allYearsCE); // oldest cohort = max age
+                        finalPlantYearBE = oldestYearCE + 543;
                         yearUsedDetails = `ใช้ปีจากระบบประมาณการ (พ.ศ. ${finalPlantYearBE})`;
                     }
                 }
