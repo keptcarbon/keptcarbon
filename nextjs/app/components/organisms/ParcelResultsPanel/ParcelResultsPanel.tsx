@@ -1,9 +1,8 @@
 "use client";
 import { useState, useMemo, useEffect, useRef } from "react";
 import { useSearchParams } from "next/navigation";
-import { carbonForAge } from "@/lib/map-utils";
 import { useAuth } from "@/lib/auth-context";
-import { CarbonBarChart, buildBarPoints, carbonCo2, CUT_AGE, type BarPoint } from "./CarbonBarChart";
+import { CarbonBarChart, buildBarPoints, carbonCo2, type BarPoint } from "./CarbonBarChart";
 import { estimateCarbon, type PlantationPolygon, type EstimationResponse, type YearlyEstimate, type EstimatedParameters } from "@/lib/carbon-api";
 
 
@@ -28,15 +27,12 @@ type Props = {
     onDeleteParcel?: (idx: number) => void;
     onDrawMore?: () => void;
     isDrawing?: boolean;
-    onFinishDraw?: () => void;
-    onCancelDraw?: () => void;
     onLandUseChange?: (allPlotsChecked: Record<number, Record<string, boolean>>, focusedPlotIdx?: number | null) => void;
     onProjectTypeChange?: (type: "replanting" | "existing") => void;
 };
 
-type PlotTab = "analyze" | "forecast";
-type ForecastYr = 3 | 5 | 7;
-type SubStep = "form" | "carbon" | "save";
+type SubStep = "carbon";
+
 
 interface PlotFormData {
     plantStatus: "replanting" | "existing" | "";
@@ -45,7 +41,6 @@ interface PlotFormData {
     variety: string;
     spacing: string;
     luChecked: Record<string, boolean>;
-    luMockData: Record<string, { rai: number, pct: number }>;
 }
 
 const VARIETY_OPTIONS = [
@@ -204,16 +199,6 @@ function computePlot(feat: GeoJSON.Feature): PlotInfo {
     };
 }
 
-function ageDistribution(age: number, conf: number) {
-    const c = Math.min(Math.max(conf || 0.65, 0.1), 0.9);
-    const rest = 1 - c;
-    const raw = [rest * 0.18, rest * 0.32, c, rest * 0.35, rest * 0.15];
-    const total = raw.reduce((a, b) => a + b, 0);
-    return [age - 2, age - 1, age, age + 1, age + 2]
-        .map((a, i) => ({ a, pct: Math.round((raw[i] / total) * 1000) / 10 }))
-        .filter(({ a }) => a > 0);
-}
-
 function profileToBarPoints(profile: YearlyEstimate[], baseAge: number = 0): BarPoint[] {
     return profile.map((item, i) => {
         const yearAt = item.year_at ?? i;
@@ -280,245 +265,6 @@ function aggregateProfiles(responses: EstimationResponse[], fallbackBaseAge: num
         });
     }
     return pts;
-}
-
-function forecastPts(age: number, trees: number, years: ForecastYr) {
-    return Array.from({ length: years + 1 }, (_, i) => ({
-        yearBE: CURRENT_BE + i,
-        co2: trees > 0 ? carbonForAge(age + i, trees).co2 : 0,
-    }));
-}
-
-function generateMockLU(totalRai: number, checked: Record<string, boolean>) {
-    const keys = Object.keys(checked).filter(k => checked[k] && !['U', 'W'].includes(k)); // Exclude disabled ones
-    if (keys.length === 0) return {};
-    const res: Record<string, { rai: number, pct: number }> = {};
-    if (keys.length === 1) {
-        res[keys[0]] = { rai: totalRai, pct: 100 };
-        return res;
-    }
-    const basePct = Math.floor(100 / keys.length);
-    let remaining = 100;
-    keys.forEach((k, i) => {
-        if (i === keys.length - 1) {
-            res[k] = { rai: (remaining / 100) * totalRai, pct: remaining };
-        } else {
-            const pct = Math.max(1, basePct + Math.floor(Math.random() * 10 - 5));
-            res[k] = { rai: (pct / 100) * totalRai, pct };
-            remaining -= pct;
-        }
-    });
-    return res;
-}
-
-function summaryForecast(plots: PlotInfo[], years: ForecastYr) {
-    return Array.from({ length: years + 1 }, (_, i) => ({
-        yearBE: CURRENT_BE + i,
-        co2: plots.reduce((s, pl) => s + (pl.trees > 0 ? carbonForAge(pl.age + i, pl.trees).co2 : 0), 0),
-    }));
-}
-
-// ── SVG: Age distribution bar chart with hover tooltip ────────────────────
-function AgeBarChart({ age, conf, trees, isMobile }: { age: number; conf: number; trees: number; isMobile?: boolean }) {
-    const [hoverIdx, setHoverIdx] = useState<number | null>(null);
-    const dist = ageDistribution(age, conf);
-    const maxPct = Math.max(...dist.map(d => d.pct));
-
-    const W = isMobile ? 400 : 550, BAR_W = isMobile ? 58 : 64, GAP = isMobile ? 10 : 22;
-    const totalW = dist.length * BAR_W + (dist.length - 1) * GAP;
-    const sx = (W - totalW) / 2;
-    const BASE_Y = isMobile ? 180 : 200, MAX_BH = isMobile ? 120 : 140, H = isMobile ? 240 : 260;
-
-    return (
-        <div style={{ background: "linear-gradient(135deg,#f0fdf4,#ecfdf5)", borderRadius: 14, padding: "12px 8px 8px", marginBottom: 12 }}>
-            <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: H, display: "block", overflow: "visible" }}>
-                <defs>
-                    <linearGradient id="barGradMain" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#10b981" />
-                        <stop offset="100%" stopColor="#059669" />
-                    </linearGradient>
-                    <filter id="barShadow">
-                        <feDropShadow dx="0" dy="3" stdDeviation="4" floodColor="#059669" floodOpacity="0.3" />
-                    </filter>
-                </defs>
-
-                {/* background grid */}
-                {[0.25, 0.5, 0.75, 1].map(t => (
-                    <line key={t}
-                        x1={sx} y1={BASE_Y - t * MAX_BH} x2={sx + totalW} y2={BASE_Y - t * MAX_BH}
-                        stroke="rgba(16,185,129,0.1)" strokeWidth={t === 1 ? 1.2 : 0.6}
-                        strokeDasharray={t < 1 ? "4,4" : undefined} />
-                ))}
-
-                {dist.map(({ a, pct }, i) => {
-                    const bh = Math.max((pct / maxPct) * MAX_BH, 5);
-                    const x = sx + i * (BAR_W + GAP);
-                    const cx = x + BAR_W / 2;
-                    const isMain = a === age;
-                    const isHov = hoverIdx === i;
-                    const co2Val = trees > 0 ? carbonForAge(a, trees).co2 : 0;
-
-                    const ttW = 102, ttH = 46;
-                    const ttLeft = Math.min(Math.max(cx - ttW / 2, 2), W - ttW - 2);
-                    const ttTop = BASE_Y - bh - ttH - 16;
-
-                    return (
-                        <g key={i} onMouseEnter={() => setHoverIdx(i)} onMouseLeave={() => setHoverIdx(null)} style={{ cursor: "pointer" }}>
-                            {/* hover glow bg */}
-                            {(isMain || isHov) && (
-                                <rect x={x - 4} y={BASE_Y - bh - 4} width={BAR_W + 8} height={bh + 4}
-                                    rx={10} fill={isHov ? "rgba(16,185,129,0.12)" : "rgba(45,158,95,0.07)"} />
-                            )}
-                            {/* bar */}
-                            <rect x={x} y={BASE_Y - bh} width={BAR_W} height={bh} rx={8}
-                                fill={isMain ? "url(#barGradMain)" : isHov ? "rgba(16,185,129,0.45)" : "rgba(16,185,129,0.18)"}
-                                filter={isMain ? "url(#barShadow)" : undefined}
-                                style={{ transition: "fill 0.15s" }} />
-                            {/* % label above bar */}
-                            <text x={cx} y={BASE_Y - bh - 8} textAnchor="middle"
-                                fontSize={isMain ? (isMobile ? 22 : 21) : (isMobile ? 18 : 16)}
-                                fontWeight={isMain ? "900" : isHov ? "700" : "500"}
-                                fill={isMain ? "#065f46" : isHov ? "#059669" : "#94a3b8"}>
-                                {pct}%
-                            </text>
-                            {/* age labels removed per user request */}
-
-                            {/* tooltip */}
-                            {isHov && (
-                                <g pointerEvents="none">
-                                    <rect x={ttLeft} y={ttTop} width={ttW} height={ttH + 10} rx={9} fill="#064e3b" opacity={0.95} />
-                                    <text x={ttLeft + ttW / 2} y={ttTop + 18} textAnchor="middle" fontSize={12} fill="#6ee7b7" fontWeight="600">
-                                        อายุ {a} ปี · {pct}%
-                                    </text>
-                                    <text x={ttLeft + ttW / 2} y={ttTop + 38} textAnchor="middle" fontSize={15} fill="#fff" fontWeight="800">
-                                        {co2Val > 0 ? `${Math.floor(co2Val).toLocaleString("th-TH")} tCO₂` : "—"}
-                                    </text>
-                                    <polygon points={`${cx - 5},${ttTop + ttH} ${cx + 5},${ttTop + ttH} ${cx},${ttTop + ttH + 6}`} fill="#064e3b" opacity={0.95} />
-                                </g>
-                            )}
-                        </g>
-                    );
-                })}
-            </svg>
-        </div>
-    );
-}
-
-// ── SVG: Carbon forecast line chart with hover ────────────────────────────
-function ForecastChart({ pts, isMobile }: { pts: Array<{ yearBE: number; co2: number }>; isMobile?: boolean }) {
-    const [hoverIdx, setHoverIdx] = useState<number | null>(null);
-    const W = isMobile ? 360 : 550, H = isMobile ? 230 : 250, PL = 12, PR = isMobile ? 55 : 75, PT = isMobile ? 24 : 30, PB = isMobile ? 38 : 42;
-    const iW = W - PL - PR, iH = H - PT - PB;
-    const vals = pts.map(p => p.co2);
-    const minV = Math.min(...vals), maxV = Math.max(...vals);
-    const rng = maxV - minV || 1;
-
-    const svgPts = pts.map((d, i) => ({
-        x: PL + (i / Math.max(pts.length - 1, 1)) * iW,
-        y: PT + (1 - (d.co2 - minV) / rng) * iH,
-        ...d,
-    }));
-    const line = svgPts.map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
-    const fillPath = `${PL},${PT + iH} ${line} ${(PL + iW).toFixed(1)},${PT + iH}`;
-    const hp = hoverIdx !== null ? svgPts[hoverIdx] : null;
-
-    return (
-        <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: H, display: "block", overflow: "visible" }}>
-            <defs>
-                <linearGradient id="fcAreaGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#0d9488" stopOpacity="0.28" />
-                    <stop offset="100%" stopColor="#0d9488" stopOpacity="0.02" />
-                </linearGradient>
-                <filter id="ptShadow">
-                    <feDropShadow dx="0" dy="1" stdDeviation="2" floodColor="#059669" floodOpacity="0.4" />
-                </filter>
-            </defs>
-
-            {/* Grid */}
-            {[0, 0.5, 1].map(t => (
-                <line key={t} x1={PL} y1={PT + t * iH} x2={PL + iW} y2={PT + t * iH}
-                    stroke="rgba(45,158,95,0.1)" strokeWidth={t === 0 || t === 1 ? 1 : 0.5}
-                    strokeDasharray={t === 0.5 ? "4,4" : undefined} />
-            ))}
-
-            {/* Hover vertical guide */}
-            {hp && (
-                <line x1={hp.x} y1={PT} x2={hp.x} y2={PT + iH}
-                    stroke="rgba(16,185,129,0.35)" strokeWidth={1.5} strokeDasharray="3,3" />
-            )}
-
-            {/* Area */}
-            <polygon points={fillPath} fill="url(#fcAreaGrad)" />
-
-            {/* Line */}
-            <polyline points={line} fill="none" stroke="#0d9488" strokeWidth={2.2}
-                strokeLinejoin="round" strokeLinecap="round" />
-
-            {/* Invisible wide hit targets per segment */}
-            {svgPts.map((p, i) => (
-                <rect key={i}
-                    x={i === 0 ? PL : (svgPts[i - 1].x + p.x) / 2}
-                    y={PT}
-                    width={i === 0
-                        ? (svgPts[1] ? (svgPts[1].x + p.x) / 2 - PL : iW)
-                        : i === svgPts.length - 1
-                            ? (PL + iW) - (svgPts[i - 1].x + p.x) / 2
-                            : (p.x - svgPts[i - 1].x)}
-                    height={iH}
-                    fill="transparent"
-                    onMouseEnter={() => setHoverIdx(i)}
-                    onMouseLeave={() => setHoverIdx(null)}
-                    style={{ cursor: "crosshair" }}
-                />
-            ))}
-
-            {/* Data points */}
-            {svgPts.map((p, i) => (
-                <circle key={i} cx={p.x} cy={p.y} r={hoverIdx === i ? 5.5 : 3.5}
-                    fill={hoverIdx === i ? "#10b981" : "#ffffff"}
-                    stroke="#059669" strokeWidth={2}
-                    filter={hoverIdx === i ? "url(#ptShadow)" : undefined}
-                    style={{ transition: "r 0.15s ease" }} />
-            ))}
-
-            {/* Year labels */}
-            {svgPts.map(p => (
-                <text key={p.yearBE} x={p.x} y={H - 12} textAnchor="middle" fontSize={isMobile ? 14 : 13} fill="#94a3b8">
-                    {p.yearBE}
-                </text>
-            ))}
-
-            {/* Y axis labels */}
-            <text x={PL + iW + 8} y={PT + 4} fontSize={isMobile ? 12 : 11} fill="#6b9e7e" textAnchor="start">
-                {Math.floor(maxV).toLocaleString()}
-            </text>
-            <text x={PL + iW + 8} y={PT + iH + 4} fontSize={isMobile ? 12 : 11} fill="#6b9e7e" textAnchor="start">
-                {Math.floor(minV).toLocaleString()}
-            </text>
-
-            {/* Hover tooltip */}
-            {hp && (() => {
-                const ttW = 96, ttH = 42;
-                const ttX = Math.min(Math.max(hp.x - ttW / 2, PL), PL + iW - ttW);
-                const ttY = hp.y - ttH - 10;
-                return (
-                    <g pointerEvents="none">
-                        <rect x={ttX} y={ttY} width={ttW + 10} height={ttH + 10} rx={7} fill="#0f1f17" opacity={0.93} />
-                        <text x={ttX + (ttW + 10) / 2} y={ttY + 16} textAnchor="middle" fontSize={11} fill="#6ee7b7" fontWeight="600">
-                            พ.ศ. {hp.yearBE}
-                        </text>
-                        <text x={ttX + (ttW + 10) / 2} y={ttY + 34} textAnchor="middle" fontSize={13} fill="#ffffff" fontWeight="700">
-                            {Math.floor(hp.co2).toLocaleString("th-TH")} tCO₂
-                        </text>
-                        <polygon
-                            points={`${hp.x - 5},${ttY + ttH} ${hp.x + 5},${ttY + ttH} ${hp.x},${ttY + ttH + 6}`}
-                            fill="#0f1f17" opacity={0.93}
-                        />
-                    </g>
-                );
-            })()}
-        </svg>
-    );
 }
 
 function convertYearNoteToBE(note: string): string {
@@ -597,15 +343,10 @@ export function ParcelResultsPanel({
     onDeleteParcel,
     onDrawMore,
     isDrawing,
-    onFinishDraw,
-    onCancelDraw,
     onLandUseChange,
     onProjectTypeChange,
 }: Props) {
     const [expandedIdx, setExpandedIdx] = useState<number | null>(0);
-    const [plotTabs, setPlotTabs] = useState<Record<number, PlotTab>>({});
-    const [forecastYrs, setForecastYrs] = useState<Record<number, ForecastYr>>({});
-    const [summaryFcYrs, setSummaryFcYrs] = useState<ForecastYr>(7);
     const { user } = useAuth();
 
     const plots = useMemo(() => parcelFeatures.map(computePlot), [parcelFeatures]);
@@ -754,8 +495,6 @@ export function ParcelResultsPanel({
         }
         return dataArr;
     }, [parcelFeatures, luFeatures, plots]);
-    const totalCO2 = useMemo(() => plots.reduce((s, p) => s + p.co2, 0), [plots]);
-    const summaryPts = useMemo(() => summaryForecast(plots, summaryFcYrs), [plots, summaryFcYrs]);
     const dominantProvince = useMemo(() => {
         const freq: Record<string, number> = {};
         plots.forEach(p => { if (p.province) freq[p.province] = (freq[p.province] ?? 0) + 1; });
@@ -892,7 +631,6 @@ export function ParcelResultsPanel({
                             variety: props.variety || "",
                             spacing: props.spacing || "",
                             luChecked: { ...initialLU },
-                            luMockData: generateMockLU(plots[i].areaRai, { ...initialLU })
                         });
                     }
                     return next;

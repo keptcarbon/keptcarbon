@@ -2008,8 +2008,6 @@ function MapDrawContent() {
                 onDeleteParcel={deleteParcel}
                 onDrawMore={startDrawFlow}
                 isDrawing={drawing}
-                onFinishDraw={() => finishDraw()}
-                onCancelDraw={cancelDrawMode}
                 onLandUseChange={handleLandUseChange}
                 onProjectTypeChange={handleProjectTypeChange}
               />

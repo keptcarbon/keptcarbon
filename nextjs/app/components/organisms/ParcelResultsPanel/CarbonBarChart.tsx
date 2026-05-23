@@ -13,7 +13,6 @@ const GREEN_THEME_COLORS = [
 const getCycleColor = (cycle: number) =>
   GREEN_THEME_COLORS[Math.min(Math.max(0, cycle), GREEN_THEME_COLORS.length - 1)];
 
-export const CUT_AGE = 27;
 export const TOTAL_PROJ_YEARS = 35;
 
 export function carbonCo2(age: number, trees: number, spacing: string): number {
