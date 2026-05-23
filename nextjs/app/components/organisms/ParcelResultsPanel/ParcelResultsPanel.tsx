@@ -1693,6 +1693,11 @@ export function ParcelResultsPanel({
                                                     return sum + realRai;
                                                 }, 0);
 
+                                                const hasAnyDetected = Object.values(plotLUData).some(v => v.rai > 0);
+                                                const effectiveCount = Object.entries(form.luChecked || {})
+                                                    .filter(([cls, on]) => on && (plotLUData[cls]?.rai ?? 0) > 0).length;
+                                                const showNoLuWarning = form.plantStatus && hasAnyDetected && effectiveCount === 0;
+
                                                 return selectedRai > 0 ? (
                                                     <div style={{ marginTop: 12, padding: "8px 12px", background: "rgba(249,115,22,0.08)", borderRadius: 8, border: "1px solid rgba(249,115,22,0.2)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                                                         <span style={{ fontSize: 12, color: "#92400e", fontWeight: 600 }}>
@@ -1701,6 +1706,11 @@ export function ParcelResultsPanel({
                                                         <span style={{ fontSize: 13, color: "#c2410c", fontWeight: 700 }}>
                                                             {selectedRai.toFixed(2)} ไร่
                                                         </span>
+                                                    </div>
+                                                ) : showNoLuWarning ? (
+                                                    <div style={{ marginTop: 12, padding: "8px 12px", background: "rgba(239,68,68,0.08)", borderRadius: 8, border: "1px solid rgba(239,68,68,0.25)", display: "flex", alignItems: "center", gap: 8 }}>
+                                                        <i className="bi bi-exclamation-triangle-fill" style={{ color: "#dc2626", fontSize: 13, flexShrink: 0 }} />
+                                                        <span style={{ fontSize: 12, color: "#dc2626", fontWeight: 600 }}>กรุณาเลือกประเภทการใช้ที่ดินอย่างน้อย 1 ประเภท</span>
                                                     </div>
                                                 ) : null;
                                             })()}
