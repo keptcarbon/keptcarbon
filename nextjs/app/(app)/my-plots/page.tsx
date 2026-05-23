@@ -481,8 +481,67 @@ function EditPlotModal({ plot, onClose, onSave, isMobile }: { plot: SavedPlot; o
   );
 }
 
+function PlotMiniMap({ plot, isMobile }: { plot: SavedPlot; isMobile: boolean }) {
+  const mapContainerRef = useRef<HTMLDivElement>(null);
+  const mapRef = useRef<maplibregl.Map | null>(null);
+
+  useEffect(() => {
+    if (!mapContainerRef.current || mapRef.current) return;
+    const map = new maplibregl.Map({
+      container: mapContainerRef.current,
+      style: {
+        version: 8,
+        sources: {
+          sat: { type: "raster", tiles: ["https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"], tileSize: 256, maxzoom: 18 }
+        },
+        layers: [{ id: "sat", type: "raster", source: "sat" }]
+      },
+      center: [101.258, 13.5],
+      zoom: 14,
+      attributionControl: false,
+    });
+    mapRef.current = map;
+    map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "bottom-right");
+
+    map.on("load", () => {
+      const geom = plot.boundaryGeojson || plot.geojson;
+      if (!geom) return;
+      map.addSource("plot-geom", {
+        type: "geojson",
+        data: { type: "Feature", geometry: geom as any, properties: {} }
+      });
+      map.addLayer({
+        id: "plot-fill", type: "fill", source: "plot-geom",
+        paint: { "fill-color": "#f97316", "fill-opacity": 0.35 }
+      });
+      map.addLayer({
+        id: "plot-line", type: "line", source: "plot-geom",
+        paint: { "line-color": "#ea580c", "line-width": 2 }
+      });
+      const bounds = new maplibregl.LngLatBounds();
+      const processCoords = (coords: any) => {
+        if (typeof coords[0] === "number") bounds.extend(coords as [number, number]);
+        else if (Array.isArray(coords)) coords.forEach(processCoords);
+      };
+      processCoords((geom as any).coordinates);
+      if (!bounds.isEmpty()) {
+        map.fitBounds(bounds, { padding: isMobile ? 30 : 40, duration: 0 });
+      }
+    });
+
+    return () => { map.remove(); mapRef.current = null; };
+  }, [plot, isMobile]);
+
+  return (
+    <div style={{ width: "100%", height: isMobile ? 220 : 300, borderRadius: 12, overflow: "hidden", border: "1px solid rgba(0,0,0,0.1)", background: "#e2e8f0" }}>
+      <div ref={mapContainerRef} style={{ width: "100%", height: "100%" }} />
+    </div>
+  );
+}
+
 function PlotCard({ plot, index, onDelete, onEdit, expanded, onToggle, isMobile }: { plot: SavedPlot; index: number; onDelete: () => void; onEdit?: (p: SavedPlot) => void; expanded: boolean; onToggle: () => void; isMobile: boolean }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [activeTab, setActiveTab] = useState<"map"|"chart">("map");
 
   const currentYearBE = new Date().getFullYear() + 543;
   const plantYearBE = plot.plantYearBE && plot.plantYearBE > 0
@@ -622,43 +681,63 @@ function PlotCard({ plot, index, onDelete, onEdit, expanded, onToggle, isMobile 
               <span style={{ fontSize: 13, color: "#94a3b8", fontWeight: 600, letterSpacing: 0.2 }}>{label}</span>
             </div>
             <div style={{ display: "flex", alignItems: "baseline", gap: 3 }}>
+              {label === "ปีที่ปลูก" && val !== "—" && <span style={{ fontSize: 12, color: "#94a3b8", fontWeight: 500 }}>{unit}</span>}
               <span style={{ fontSize: isMobile ? 17 : 18, fontWeight: 800, color: val === "—" ? "#cbd5e1" : "#1e293b", lineHeight: 1 }}>{val}</span>
-              {unit && <span style={{ fontSize: 12, color: "#94a3b8", fontWeight: 500 }}>{unit}</span>}
+              {unit && label !== "ปีที่ปลูก" && <span style={{ fontSize: 12, color: "#94a3b8", fontWeight: 500 }}>{unit}</span>}
             </div>
           </div>
         ))}
       </div>
 
-      {/* Chart toggle */}
-      <button
-        onClick={onToggle}
-        style={{
-          width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between",
-          padding: isMobile ? "10px 16px 10px 20px" : "11px 20px 11px 22px",
-          background: expanded ? "rgba(16,185,129,0.04)" : "#fff",
-          border: "none", cursor: "pointer",
-          fontSize: 15, fontWeight: 700, color: "#059669",
-          transition: "background 0.15s",
-          borderTop: expanded ? "1px solid rgba(16,185,129,0.08)" : "none",
-        }}
-      >
-        <span style={{ display: "flex", alignItems: "center", gap: 7 }}>
-          <i className={`bi bi-bar-chart-line${expanded ? "-fill" : ""}`} style={{ fontSize: 14 }} />
-          กราฟการกักเก็บคาร์บอนรายปี (tCO₂)
-        </span>
-        <i className={`bi bi-chevron-${expanded ? "up" : "down"}`} style={{ fontSize: 13, opacity: 0.5 }} />
-      </button>
+      {/* Tabs */}
+      <div style={{ display: "flex", borderTop: "1px solid rgba(16,185,129,0.08)" }}>
+        <button
+          onClick={() => {
+            if (expanded && activeTab === "map") onToggle();
+            else { if (!expanded) onToggle(); setActiveTab("map"); }
+          }}
+          style={{
+            flex: 1, padding: "12px", background: expanded && activeTab === "map" ? "rgba(16,185,129,0.06)" : "#fff",
+            border: "none", borderRight: "1px solid rgba(16,185,129,0.08)", cursor: "pointer",
+            fontSize: 14, fontWeight: 700, color: expanded && activeTab === "map" ? "#059669" : "#64748b",
+            display: "flex", alignItems: "center", justifyContent: "center", gap: 8, transition: "background 0.15s"
+          }}
+        >
+          <i className={`bi bi-map${expanded && activeTab === "map" ? "-fill" : ""}`} style={{ fontSize: 15 }} />
+          แผนที่ของแปลง
+        </button>
+        <button
+          onClick={() => {
+            if (expanded && activeTab === "chart") onToggle();
+            else { if (!expanded) onToggle(); setActiveTab("chart"); }
+          }}
+          style={{
+            flex: 1, padding: "12px", background: expanded && activeTab === "chart" ? "rgba(16,185,129,0.06)" : "#fff",
+            border: "none", cursor: "pointer",
+            fontSize: 14, fontWeight: 700, color: expanded && activeTab === "chart" ? "#059669" : "#64748b",
+            display: "flex", alignItems: "center", justifyContent: "center", gap: 8, transition: "background 0.15s"
+          }}
+        >
+          <i className={`bi bi-bar-chart-line${expanded && activeTab === "chart" ? "-fill" : ""}`} style={{ fontSize: 15 }} />
+           กราฟการกักเก็บคาร์บอนรายปี (tCO₂)
+        </button>
+      </div>
 
-      {/* Chart section */}
+      {/* Content section */}
       {expanded && (
-        <div style={{ padding: isMobile ? "4px 16px 20px 20px" : "4px 20px 24px 22px", background: "#fff", borderTop: "1px solid #f8fafc" }}>
-          {barPts.length > 0 ? (
-            <CarbonBarChart pts={barPts} isMobile={isMobile} />
-          ) : (
-            <div style={{ textAlign: "center", padding: "28px 20px", background: "#f8fafc", borderRadius: 14, border: "1.5px dashed #e2e8f0", color: "#94a3b8", fontSize: 14 }}>
-              <i className="bi bi-bar-chart-line" style={{ fontSize: 24, display: "block", marginBottom: 8, opacity: 0.5 }} />
-              {plot.carbonTotal > 0 ? "ข้อมูลไม่เพียงพอในการสร้างกราฟ" : "ยังไม่ได้ประมวลผลคาร์บอนสำหรับแปลงนี้"}
-            </div>
+        <div style={{ padding: isMobile ? "12px 16px 20px" : "16px 20px 24px", background: "#fff", borderTop: "1px solid #f8fafc" }}>
+          {activeTab === "map" && (
+            <PlotMiniMap plot={plot} isMobile={isMobile} />
+          )}
+          {activeTab === "chart" && (
+            barPts.length > 0 ? (
+              <CarbonBarChart pts={barPts} isMobile={isMobile} />
+            ) : (
+              <div style={{ textAlign: "center", padding: "28px 20px", background: "#f8fafc", borderRadius: 14, border: "1.5px dashed #e2e8f0", color: "#94a3b8", fontSize: 14 }}>
+                <i className="bi bi-bar-chart-line" style={{ fontSize: 24, display: "block", marginBottom: 8, opacity: 0.5 }} />
+                {plot.carbonTotal > 0 ? "ข้อมูลไม่เพียงพอในการสร้างกราฟ" : "ยังไม่ได้ประมวลผลคาร์บอนสำหรับแปลงนี้"}
+              </div>
+            )
           )}
         </div>
       )}
@@ -1027,49 +1106,7 @@ export default function MyPlotsPage() {
               </span>
             </h2>
             <div style={{ display: "flex", gap: isMobile ? 6 : 10, alignItems: "center", flexShrink: 0 }}>
-              {plots.length > 0 && (
-                <div style={{
-                  display: "flex",
-                  background: "rgba(255,255,255,0.8)",
-                  padding: 4,
-                  borderRadius: 12,
-                  border: "1px solid rgba(16,185,129,0.15)",
-                  boxShadow: "0 2px 8px rgba(0,0,0,0.05)"
-                }}>
-                  <button
-                    onClick={() => setDisplayMode("list")}
-                    style={{
-                      padding: isMobile ? "5px 8px" : "6px 12px",
-                      borderRadius: 8,
-                      border: "none",
-                      fontSize: isMobile ? 13 : 15,
-                      fontWeight: 700,
-                      cursor: "pointer",
-                      background: displayMode === "list" ? "#10b981" : "transparent",
-                      color: displayMode === "list" ? "#fff" : "#64748b",
-                      transition: "all 0.2s"
-                    }}
-                  >
-                    <i className="bi bi-list-ul" style={{ marginRight: isMobile ? 2 : 5 }} /> รายการ
-                  </button>
-                  <button
-                    onClick={() => setDisplayMode("map")}
-                    style={{
-                      padding: isMobile ? "5px 8px" : "6px 12px",
-                      borderRadius: 8,
-                      border: "none",
-                      fontSize: isMobile ? 13 : 15,
-                      fontWeight: 700,
-                      cursor: "pointer",
-                      background: displayMode === "map" ? "#10b981" : "transparent",
-                      color: displayMode === "map" ? "#fff" : "#64748b",
-                      transition: "all 0.2s"
-                    }}
-                  >
-                    <i className="bi bi-map-fill" style={{ marginRight: isMobile ? 2 : 5 }} /> แผนที่
-                  </button>
-                </div>
-              )}
+
               {plots.length > 0 && (
                 <div>
                   {confirmDeleteAll ? (
@@ -1101,9 +1138,7 @@ export default function MyPlotsPage() {
             </div>
           </div>
 
-          {displayMode === "map" && filteredPlots.length > 0 ? (
-            <PlotsMapView plots={filteredPlots} isMobile={isMobile} />
-          ) : filteredPlots.length === 0 ? (
+          {filteredPlots.length === 0 ? (
             <div style={{ textAlign: "center", padding: "44px 24px", background: "#fff", borderRadius: 20, color: "#94a3b8", fontSize: 14 }}>
               <i className="bi bi-search" style={{ fontSize: 32, display: "block", marginBottom: 8 }} />
               ไม่พบแปลงที่ตรงกับ &ldquo;<strong style={{ color: "#64748b" }}>{searchTerm}</strong>&rdquo;
