@@ -10,8 +10,9 @@ CREATE TABLE IF NOT EXISTS users (
   fullname      VARCHAR(255) NOT NULL,
   phone         VARCHAR(20)  DEFAULT '',
   picture_url   TEXT         DEFAULT '',
-  provider      VARCHAR(20)  NOT NULL DEFAULT 'local',  -- 'local' | 'line'
-  line_user_id  VARCHAR(100) UNIQUE,    -- LINE userId, NULL for local users
+  provider      VARCHAR(20)  NOT NULL DEFAULT 'local',  -- 'local' | 'line' | 'google'
+  line_user_id  VARCHAR(100) UNIQUE,    -- LINE userId, NULL for non-LINE users
+  google_user_id VARCHAR(100) UNIQUE,   -- Google sub, NULL for non-Google users
   role          VARCHAR(20)  NOT NULL DEFAULT 'user',    -- 'user' | 'admin'
   created_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
   updated_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW()
@@ -20,7 +21,8 @@ CREATE TABLE IF NOT EXISTS users (
 -- Index for fast login lookups
 CREATE INDEX IF NOT EXISTS idx_users_email    ON users (email);
 CREATE INDEX IF NOT EXISTS idx_users_username ON users (username);
-CREATE INDEX IF NOT EXISTS idx_users_line_uid ON users (line_user_id);
+CREATE INDEX IF NOT EXISTS idx_users_line_uid   ON users (line_user_id);
+CREATE INDEX IF NOT EXISTS idx_users_google_uid ON users (google_user_id);
 
 -- ==========================================================================
 -- Seed: default admin user

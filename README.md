@@ -161,6 +161,8 @@ Authentication uses an HttpOnly JWT cookie (`auth_token`). Log in first via `/ap
 | `GET` | `/api/auth/me` | cookie | Return the current authenticated user |
 | `POST` | `/api/auth/logout` | cookie | Clear the JWT cookie |
 | `GET` | `/api/auth/line` | — | Redirect to LINE OAuth (browser only) |
+| `GET` | `/api/auth/google` | — | Redirect to Google OAuth (browser only) |
+| `GET` | `/api/auth/google/callback` | — | Google OAuth callback — exchanges code for token, upserts user, sets JWT cookie, redirects to `/` |
 
 #### User
 
@@ -205,6 +207,41 @@ Authentication uses an HttpOnly JWT cookie (`auth_token`). Log in first via `/ap
 | `POST` | `/api/rubber-age/bfast` | Run BFAST-based planting-year detection on a set of plots via the GEE service |
 | `POST` | `/api/rubber-age/bfast-raster/generate` | Generate a rubber-age raster tile over a region using the GEE service |
 | `POST` | `/api/rubber-age/from-raster` | Extract per-plot rubber age from a pre-generated raster and bulk-write results |
+
+---
+
+## Environment Variables
+
+### Next.js (`nextjs/.env.local`)
+
+| Variable | Description |
+|---|---|
+| `GOOGLE_CLIENT_ID` | Google OAuth 2.0 client ID from [Google Cloud Console](https://console.cloud.google.com/) |
+| `GOOGLE_CLIENT_SECRET` | Google OAuth 2.0 client secret |
+| `GOOGLE_CALLBACK_URL` | Redirect URI registered in Google Cloud Console (default: `http://localhost:3000/api/auth/google/callback`) |
+
+#### Google OAuth setup
+
+1. Go to [Google Cloud Console](https://console.cloud.google.com/) → APIs & Services → Credentials.
+2. Create an **OAuth 2.0 Client ID** (Web application).
+3. Add `http://localhost:3000/api/auth/google/callback` to **Authorised redirect URIs** (add your production URL too).
+4. Copy the client ID and secret into `nextjs/.env.local`.
+
+#### Google OAuth flow
+
+```
+Browser → GET /api/auth/google
+       ← 302 redirect to accounts.google.com (state cookie set)
+
+Google → GET /api/auth/google/callback?code=…&state=…
+       ← exchanges code for access token
+       ← fetches profile (email, name, picture) from Google
+       ← upserts user row (provider = 'google', conflict on google_user_id)
+       ← sets auth_token JWT cookie (7 days, HttpOnly)
+       ← 302 redirect to /
+```
+
+Error redirects go to `/?google_error=<reason>` — possible values: `cancelled`, `missing_params`, `state_mismatch`, `token_failed`, `profile_failed`, `server_error`.
 
 ---
 
