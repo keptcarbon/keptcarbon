@@ -154,7 +154,6 @@ class AgeMapService:
         for year, count in iterator:
             percentage = round(count / total_pixels, 4) * 100 if total_pixels > 0 else 0.0
 
-            # BUG FIX: Added 'else' so year_string isn't immediately overwritten by str(year)
             if year == 0:
                 year_string = "NA"
             else:
