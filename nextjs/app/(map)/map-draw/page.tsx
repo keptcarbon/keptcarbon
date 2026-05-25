@@ -362,7 +362,7 @@ function MapDrawContent() {
 
     const onVertsUp = () => {
       if (activePIdx !== -1) {
-        map.getCanvas().style.cursor = '';
+        map.getCanvas().style.cursor = 'grab';
         map.off('mousemove', onVertsMove);
         map.off('mouseup', onVertsUp);
         const parcels = [...drawnParcelsRef.current];
@@ -1364,7 +1364,7 @@ function MapDrawContent() {
         if (isMid) {
           map.getCanvas().style.cursor = cursorAddNode;
         } else {
-          map.getCanvas().style.cursor = 'move';
+          map.getCanvas().style.cursor = 'grab';
         }
 
         if (f.id !== undefined && f.id !== hoveredDrawVertId) {
@@ -1421,7 +1421,7 @@ function MapDrawContent() {
     const onDrawMouseUp = () => {
       if (dragIdx !== -1) {
         dragIdx = -1;
-        map.getCanvas().style.cursor = 'crosshair';
+        map.getCanvas().style.cursor = 'grab';
         map.dragPan.enable();
       }
     };

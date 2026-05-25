@@ -599,6 +599,7 @@ function PlotCard({ plot, index, onDelete, onEdit, expanded, onToggle, isMobile 
   const ep = backendData.ep;
 
   const userEnteredYear = !!form?.plantYear;
+  const showPlotAge = plot.backendData ? userEnteredYear : true;
   const yearParam = ep?.year_of_planting;
   const rawNotes: string[] = yearParam?.note ?? [];
   const yearNotes = rawNotes.slice(0, 5);
@@ -819,7 +820,7 @@ function PlotCard({ plot, index, onDelete, onEdit, expanded, onToggle, isMobile 
           {isProcessed && barPts.length > 0 ? (
             <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "3fr 2fr", gap: 20, alignItems: "stretch" }}>
               <div style={{ minWidth: 0, overflow: "hidden", height: "100%" }}>
-                <CarbonBarChart pts={barPts} isMobile={isMobile} />
+                <CarbonBarChart pts={barPts} isMobile={isMobile} showAge={showPlotAge} />
               </div>
               <div style={{ background: "#fff", borderRadius: 16, border: "1px solid #e2e8f0", padding: "20px", display: "flex", flexDirection: "column", gap: 16, boxShadow: "0 4px 12px rgba(0,0,0,0.02)", height: "100%" }}>
                 <div style={{ display: "flex", flexDirection: "column", gap: 8, fontSize: 13, color: "#475569" }}>

@@ -86,11 +86,13 @@ export function CarbonBarChart({
   isMobile,
   title = "ปริมาณการกักเก็บคาร์บอนสะสม (tCO₂)",
   narrowMode = false,
+  showAge = true,
 }: {
   pts: BarPoint[];
   isMobile?: boolean;
   title?: string;
   narrowMode?: boolean;
+  showAge?: boolean;
 }) {
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
   if (!pts.length) return null;
@@ -103,7 +105,9 @@ export function CarbonBarChart({
   const H = isMobile ? 520 : (narrowMode ? 600 : 640);
   const PL = isMobile ? 46 : (narrowMode ? 62 : 78);
   const PT = isMobile ? 50 : 64;
-  const PB = isMobile ? 130 : (narrowMode ? 132 : 136);
+  const PB = showAge
+    ? (isMobile ? 130 : (narrowMode ? 132 : 136))
+    : (isMobile ? 96 : (narrowMode ? 98 : 102));
   const PR = isMobile ? 30 : (narrowMode ? 32 : 40);
   const iW = W - PL - PR;
   const iH = H - PT - PB;
@@ -250,11 +254,13 @@ export function CarbonBarChart({
           return (
             <g key={i}>
               {/* อายุ (แทนที่ปีที่เดิม) */}
-              <text x={x} y={PT + iH + (isMobile ? 30 : 40)} textAnchor="middle" fontSize={isMobile ? 15 : 18} fill="#475569" fontWeight={700}>
-                {p.age}
-              </text>
+              {showAge && (
+                <text x={x} y={PT + iH + (isMobile ? 30 : 40)} textAnchor="middle" fontSize={isMobile ? 15 : 18} fill="#475569" fontWeight={700}>
+                  {p.age}
+                </text>
+              )}
               {/* พ.ศ. */}
-              <text x={x} y={PT + iH + (isMobile ? 56 : 72)} textAnchor="middle" fontSize={isMobile ? 15 : 18} fill="#94a3b8" fontWeight={500}>
+              <text x={x} y={PT + iH + (showAge ? (isMobile ? 56 : 72) : (isMobile ? 30 : 40))} textAnchor="middle" fontSize={isMobile ? 15 : 18} fill="#94a3b8" fontWeight={500}>
                 {p.yearBE}
               </text>
             </g>
@@ -265,8 +271,10 @@ export function CarbonBarChart({
         <text x={isMobile ? 2 : PL - 8} y={PT + 6} textAnchor={isMobile ? "start" : "end"} fontSize={isMobile ? 17 : 22} fill="#94a3b8" fontWeight={600}>tCO₂</text>
 
         {/* X-axis row labels — เปลี่ยนจาก "ปีที่" เป็น "อายุ" */}
-        <text x={isMobile ? 4 : PL - 14} y={PT + iH + (isMobile ? 30 : 40)} textAnchor={isMobile ? "start" : "end"} fontSize={isMobile ? 15 : 18} fill="#64748b" fontWeight={600}>อายุ</text>
-        <text x={isMobile ? 4 : PL - 14} y={PT + iH + (isMobile ? 56 : 72)} textAnchor={isMobile ? "start" : "end"} fontSize={isMobile ? 15 : 18} fill="#64748b" fontWeight={600}>พ.ศ.</text>
+        {showAge && (
+          <text x={isMobile ? 4 : PL - 14} y={PT + iH + (isMobile ? 30 : 40)} textAnchor={isMobile ? "start" : "end"} fontSize={isMobile ? 15 : 18} fill="#64748b" fontWeight={600}>อายุ</text>
+        )}
+        <text x={isMobile ? 4 : PL - 14} y={PT + iH + (showAge ? (isMobile ? 56 : 72) : (isMobile ? 30 : 40))} textAnchor={isMobile ? "start" : "end"} fontSize={isMobile ? 15 : 18} fill="#64748b" fontWeight={600}>พ.ศ.</text>
 
         {/* Tooltip */}
         {hoverIdx !== null && hoveredPt && (() => {

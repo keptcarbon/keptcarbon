@@ -1881,6 +1881,12 @@ export function ParcelResultsPanel({
             }
         }
 
+        const showAggregateAge = carbonResults.some((c, idx) => {
+            const form = plotForms[idx];
+            const resp = backendResponses?.find(r => r.polygon_id === `plot-${idx}`);
+            return !!form?.plantYear || (resp?.carbon_profile?.some(p => p.age !== null) ?? false);
+        });
+
         return (
             <div className="prp-shell">
                 {/* ── Header ─────────────────────────────────────── */}
@@ -2059,7 +2065,7 @@ export function ParcelResultsPanel({
 
                             {aggregatePts.length > 0 && (
                                 <div>
-                                    <CarbonBarChart pts={aggregatePts} isMobile={isMobile} narrowMode={!isMobile} />
+                                    <CarbonBarChart pts={aggregatePts} isMobile={isMobile} narrowMode={!isMobile} showAge={showAggregateAge} />
                                 </div>
                             )}
                         </div>
@@ -2079,6 +2085,8 @@ export function ParcelResultsPanel({
                         const plotPts = backendProfile && backendProfile.length > 0
                             ? profileToBarPoints(backendProfile, cr.age)
                             : buildBarPoints(cr.age, startYearBE, cr.trees, cr.spacing || "2.5x8");
+
+                        const showPlotAge = !!form?.plantYear || (backendResp?.carbon_profile?.some(p => p.age !== null) ?? false);
 
                         return (
                             <div
@@ -2158,7 +2166,7 @@ export function ParcelResultsPanel({
 
                                         {/* Plot chart */}
                                         <div style={{ padding: "12px 12px 4px" }}>
-                                            <CarbonBarChart pts={plotPts} isMobile={isMobile} narrowMode={!isMobile} />
+                                            <CarbonBarChart pts={plotPts} isMobile={isMobile} narrowMode={!isMobile} showAge={showPlotAge} />
                                         </div>
 
                                         {/* Plot details */}
