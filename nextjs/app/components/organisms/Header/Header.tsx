@@ -130,6 +130,11 @@ export default function Header() {
                     แดชบอร์ด
                   </Link>
                 </li>
+                <li>
+                  <Link href="/map-draw" onClick={closeNav}>
+                    คำนวณคาร์บอน
+                  </Link>
+                </li>
               </ul>
             )}
             <i
