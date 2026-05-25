@@ -40,6 +40,15 @@ type SavedPlot = {
   plantStatus?: string;
   processed?: boolean;
   luChecked?: Record<string, boolean>;
+  backendData?: {
+    plantYearBE?: number;
+    age?: number;
+    variety?: string;
+    spacing?: string;
+    trees?: number;
+    ep?: any;
+    form?: any;
+  };
 };
 
 const PROJECT_COLORS = [
@@ -553,7 +562,6 @@ function PlotMiniMap({ plot, isMobile, index }: { plot: SavedPlot; isMobile: boo
 
 function PlotCard({ plot, index, onDelete, onEdit, expanded, onToggle, isMobile }: { plot: SavedPlot; index: number; onDelete: () => void; onEdit?: (p: SavedPlot) => void; expanded: boolean; onToggle: () => void; isMobile: boolean }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const [activeTab, setActiveTab] = useState<"map"|"chart">("map");
 
   // Determine if this plot has been carbon-processed
   // Compatible with old data: if `processed` flag is missing, infer from carbonProfile or carbonTotal
@@ -585,6 +593,50 @@ function PlotCard({ plot, index, onDelete, onEdit, expanded, onToggle, isMobile 
       luVal = activeLu.join(", ");
     }
   }
+
+  const backendData = plot.backendData || {};
+  const form = backendData.form;
+  const ep = backendData.ep;
+
+  const userEnteredYear = !!form?.plantYear;
+  const yearParam = ep?.year_of_planting;
+  const rawNotes: string[] = yearParam?.note ?? [];
+  const yearNotes = rawNotes.slice(0, 5);
+
+  let yearBoxItems: Array<{ label: string; pct: number, yearBE: number }> = [];
+  let displayYearBE: number | null = null;
+
+  if (yearParam) {
+      if (typeof yearParam.value === "number" && yearParam.value > 0) {
+          displayYearBE = yearParam.value + 543;
+          yearBoxItems = [{ label: `พ.ศ. ${displayYearBE}`, pct: 0, yearBE: displayYearBE as number }];
+      } else if (Array.isArray(yearParam.value) && yearParam.value.length > 0) {
+          const parsed = (yearParam.value as string[]).map(s => {
+              const yearMatch = s.match(/^(\d{4})/);
+              const pctMatch = s.match(/([\d.]+)%/);
+              const yearCE = yearMatch ? parseInt(yearMatch[1]) : null;
+              const yearBE = yearCE !== null ? yearCE + 543 : null;
+              const pct = pctMatch ? parseFloat(pctMatch[1]) : 0;
+              return { label: yearBE ? `พ.ศ. ${yearBE}` : s, pct, yearBE };
+          }).filter((x): x is { label: string; pct: number; yearBE: number } => x.yearBE !== null);
+          parsed.sort((a, b) => b.pct - a.pct);
+          yearBoxItems = parsed;
+          if (parsed.length > 0) displayYearBE = parsed[0].yearBE;
+      }
+  }
+  if (!displayYearBE && plot.plantYearBE && plot.plantYearBE > 0) displayYearBE = plot.plantYearBE;
+
+  const isVarietyFromUser = !!form?.variety;
+  const isSpacingFromUser = !!form?.spacing;
+  const isTreeCountFromUser = !!form?.treeCount;
+
+  const displayVariety = isVarietyFromUser ? form.variety : (ep?.rubber_clone?.value ? String(ep.rubber_clone.value) : (plot.variety || ""));
+  const displaySpacing = isSpacingFromUser ? form.spacing : (ep?.spacing_system?.value ? String(ep.spacing_system.value).replace(/\s*\([^)]*\)/, "").trim() : (plot.spacing || ""));
+  const displayTreeCount = isTreeCountFromUser
+      ? (parseInt(form?.treeCount || "0") || 0)
+      : (ep?.tree_count?.value && typeof ep.tree_count.value === "number" ? ep.tree_count.value : (plot.trees || 0));
+
+  const convertYearNoteToBE = (note: string) => note.replace(/^(\d{4})/, (_, y) => String(parseInt(y) + 543));
 
   const infoItems = [
     { label: "พื้นที่", val: plot.areaRai > 0 ? plot.areaRai.toFixed(2) : "—", unit: "ไร่", icon: "bi-grid-3x3", color: "#0d9488", bg: "rgba(13,148,136,0.12)" },
@@ -738,42 +790,24 @@ function PlotCard({ plot, index, onDelete, onEdit, expanded, onToggle, isMobile 
         ))}
       </div>
 
-      {/* Tabs */}
+      {/* Tab/Toggle */}
       <div style={{ display: "flex", borderTop: "1px solid rgba(16,185,129,0.08)" }}>
         <button
           onClick={() => {
-            if (expanded && activeTab === "map") onToggle();
-            else { if (!expanded) onToggle(); setActiveTab("map"); }
+            onToggle();
           }}
           style={{
-            flex: 1, padding: isMobile ? "10px 4px" : "12px", background: expanded && activeTab === "map" ? "rgba(16,185,129,0.06)" : "#fff",
-            border: "none", borderRight: "1px solid rgba(16,185,129,0.08)", cursor: "pointer",
-            fontSize: isMobile ? 12 : 14, fontWeight: 700, color: expanded && activeTab === "map" ? "#059669" : "#64748b",
-            display: "flex", flexDirection: isMobile ? "column" : "row", alignItems: "center", justifyContent: "center", gap: 6, transition: "background 0.15s"
-          }}
-        >
-          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <i className={`bi bi-map${expanded && activeTab === "map" ? "-fill" : ""}`} style={{ fontSize: 15 }} />
-            <span style={{ whiteSpace: "nowrap" }}>แผนที่ของแปลง</span>
-          </div>
-        </button>
-        <button
-          onClick={() => {
-            if (expanded && activeTab === "chart") onToggle();
-            else { if (!expanded) onToggle(); setActiveTab("chart"); }
-          }}
-          style={{
-            flex: 1, padding: isMobile ? "10px 4px" : "12px", background: expanded && activeTab === "chart" ? "rgba(16,185,129,0.06)" : "#fff",
+            flex: 1, padding: isMobile ? "10px 4px" : "12px", background: expanded ? "rgba(16,185,129,0.06)" : "#fff",
             border: "none",
             fontSize: isMobile ? 12 : 14, fontWeight: 700,
-            color: !isProcessed ? "#cbd5e1" : (expanded && activeTab === "chart" ? "#059669" : "#64748b"),
+            color: !isProcessed ? "#cbd5e1" : (expanded ? "#059669" : "#64748b"),
             display: "flex", flexDirection: isMobile ? "column" : "row", alignItems: "center", justifyContent: "center", gap: 6, transition: "background 0.15s",
             cursor: isProcessed ? "pointer" : "default",
             opacity: isProcessed ? 1 : 0.6
           }}
         >
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <i className={`bi bi-bar-chart-line${expanded && activeTab === "chart" ? "-fill" : ""}`} style={{ fontSize: 15 }} />
+            <i className={`bi bi-bar-chart-line${expanded ? "-fill" : ""}`} style={{ fontSize: 15 }} />
             <span style={{ whiteSpace: "nowrap" }}>กราฟคาร์บอน (tCO₂)</span>
           </div>
           {!isProcessed && <span style={{ fontSize: 10, color: "#f59e0b", whiteSpace: "nowrap", background: "rgba(245,158,11,0.08)", padding: "2px 6px", borderRadius: 10 }}>ยังไม่ประมวลผล</span>}
@@ -783,21 +817,105 @@ function PlotCard({ plot, index, onDelete, onEdit, expanded, onToggle, isMobile 
       {/* Content section */}
       {expanded && (
         <div style={{ padding: isMobile ? "12px 16px 20px" : "16px 20px 24px", background: "#fff", borderTop: "1px solid #f8fafc" }}>
-          {activeTab === "map" && (
-            <PlotMiniMap plot={plot} isMobile={isMobile} index={index} />
-          )}
-          {activeTab === "chart" && (
-            isProcessed && barPts.length > 0 ? (
-              <CarbonBarChart pts={barPts} isMobile={isMobile} />
-            ) : (
-              <div style={{ textAlign: "center", padding: "32px 20px", background: "linear-gradient(135deg, #fffbeb, #fef3c7)", borderRadius: 14, border: "1.5px dashed rgba(245,158,11,0.3)", color: "#92400e", fontSize: 14 }}>
-                <div style={{ width: 48, height: 48, borderRadius: 12, background: "rgba(245,158,11,0.15)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 12px" }}>
-                  <i className="bi bi-clock-history" style={{ fontSize: 22, color: "#f59e0b" }} />
-                </div>
-                <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 4 }}>ยังไม่ได้ประมวลผลคาร์บอน</div>
-                <div style={{ fontSize: 12, color: "#b45309", lineHeight: 1.5 }}>กรุณาไปที่หน้าวาดแปลงและกด "ประมวลผล" เพื่อดูกราฟการกักเก็บคาร์บอน</div>
+          {isProcessed && barPts.length > 0 ? (
+            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "3fr 2fr", gap: 20, alignItems: "start" }}>
+              <div style={{ minWidth: 0, overflow: "hidden" }}>
+                <CarbonBarChart pts={barPts} isMobile={isMobile} />
               </div>
-            )
+              <div style={{ background: "#fff", borderRadius: 16, border: "1px solid #e2e8f0", padding: "20px", display: "flex", flexDirection: "column", gap: 16, boxShadow: "0 4px 12px rgba(0,0,0,0.02)" }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: 8, fontSize: 13, color: "#475569" }}>
+                  {userEnteredYear ? (
+                      // Case 1: User entered year
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 14px", background: "rgba(14,165,233,0.06)", borderRadius: 10, border: "1px solid rgba(14,165,233,0.18)" }}>
+                          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                              <span style={{ fontWeight: 700, color: "#0369a1", display: "flex", alignItems: "center", gap: 6 }}>
+                                  <i className="bi bi-person-check-fill" /> ปีที่ปลูก
+                              </span>
+                              <span style={{ fontSize: 11, color: "#0284c7", fontWeight: 600, background: "rgba(14,165,233,0.15)", padding: "2px 8px", borderRadius: 12, width: "fit-content" }}>
+                                  ระบุโดยผู้ใช้งาน
+                              </span>
+                          </div>
+                          <span style={{ color: "#0f172a", fontWeight: 800, fontSize: 16 }}>
+                              {displayYearBE ? `พ.ศ. ${displayYearBE}` : "—"}
+                          </span>
+                      </div>
+                  ) : (
+                      // Case 2: Backend only
+                      yearBoxItems.length > 0 && (
+                          <div style={{ padding: "12px 14px", background: "rgba(16,185,129,0.04)", borderRadius: 10, border: "1px solid rgba(16,185,129,0.15)" }}>
+                              <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 12 }}>
+                                  <span style={{ fontWeight: 700, color: "#047857", display: "flex", alignItems: "center", gap: 6, fontSize: 14 }}>
+                                      <i className="bi bi-cpu-fill" /> ปีที่ตรวจพบ
+                                  </span>
+                                  <div style={{ 
+                                      display: "flex", alignItems: "center", gap: 6, 
+                                      fontSize: 12, color: "#059669", fontWeight: 600, 
+                                      background: "rgba(16,185,129,0.1)", padding: "6px 10px", 
+                                      borderRadius: 6, border: "1px dashed rgba(16,185,129,0.2)"
+                                  }}>
+                                      <i className="bi bi-info-circle-fill" />
+                                      ข้อมูลอ้างอิงจากระบบที่ใช้ในการประมวลผล
+                                  </div>
+                              </div>
+                              <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+                                  {yearBoxItems.slice(0, 3).map((box, bi) => (
+                                      <div key={bi} style={{
+                                          padding: "4px 10px",
+                                          background: bi === 0 ? "rgba(16,185,129,0.12)" : "rgba(100,116,139,0.06)",
+                                          borderRadius: 8,
+                                          border: bi === 0 ? "1px solid rgba(16,185,129,0.3)" : "1px solid rgba(100,116,139,0.15)",
+                                          fontWeight: bi === 0 ? 700 : 500,
+                                          fontSize: 12,
+                                          color: bi === 0 ? "#047857" : "#475569",
+                                      }}>
+                                          {box.label}{box.pct > 0 ? ` (${box.pct}%)` : ""}
+                                      </div>
+                                  ))}
+                                  {yearBoxItems.length > 3 && (
+                                      <span style={{ fontSize: 14, color: "#94a3b8", fontWeight: 600 }}>...</span>
+                                  )}
+                              </div>
+                          </div>
+                      )
+                  )}
+
+                  {/* Year distribution from note (both cases) */}
+                  {yearNotes.length > 0 && (
+                      <div style={{ padding: "10px 14px", background: "rgba(100,116,139,0.04)", borderRadius: 10, border: "1px solid rgba(100,116,139,0.12)" }}>
+                          <div style={{ fontSize: 12, color: "#475569", fontWeight: 700, marginBottom: 6, display: "flex", alignItems: "center", gap: 6 }}>
+                              <i className="bi bi-pie-chart-fill" /> สัดส่วนปีที่ปลูกที่ตรวจพบในแปลง:
+                          </div>
+                          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                              {yearNotes.slice(0, 3).map((note, ni) => (
+                                  <span key={ni} style={{ fontSize: 12, color: ni === 0 ? "#0f172a" : "#64748b", fontWeight: ni === 0 ? 700 : 500, display: "flex", alignItems: "center", gap: 6 }}>
+                                      {ni === 0 ? <i className="bi bi-caret-right-fill" style={{ color: "#047857" }} /> : <span style={{ width: 12 }} />}
+                                      {convertYearNoteToBE(note)}
+                                  </span>
+                              ))}
+                              {yearNotes.length > 3 && (
+                                  <span style={{ fontSize: 12, color: "#94a3b8", paddingLeft: 18 }}>...</span>
+                              )}
+                          </div>
+                      </div>
+                  )}
+
+                  {/* Common params: variety, spacing, tree count */}
+                  <div style={{ display: "flex", flexDirection: "column", gap: 3, marginTop: 2 }}>
+                      {displayVariety && <div>• พันธุ์ยาง: <strong style={{ color: "#0f172a" }}>{displayVariety}</strong> {!isVarietyFromUser && <span style={{ color: "#64748b", fontSize: 12 }}>(ค่าเริ่มต้น)</span>}</div>}
+                      {displaySpacing && <div>• ระยะปลูก: <strong style={{ color: "#0f172a" }}>{displaySpacing}</strong> {!isSpacingFromUser && <span style={{ color: "#64748b", fontSize: 12 }}>(ค่าเริ่มต้น)</span>}</div>}
+                      {displayTreeCount > 0 && <div>• จำนวนต้น: <strong style={{ color: "#0f172a" }}>{displayTreeCount.toLocaleString("th-TH")}</strong> ต้น {!isTreeCountFromUser && <span style={{ color: "#64748b", fontSize: 12 }}>(ประเมินโดยระบบ)</span>}</div>}
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div style={{ textAlign: "center", padding: "32px 20px", background: "linear-gradient(135deg, #fffbeb, #fef3c7)", borderRadius: 14, border: "1.5px dashed rgba(245,158,11,0.3)", color: "#92400e", fontSize: 14 }}>
+              <div style={{ width: 48, height: 48, borderRadius: 12, background: "rgba(245,158,11,0.15)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 12px" }}>
+                <i className="bi bi-clock-history" style={{ fontSize: 22, color: "#f59e0b" }} />
+              </div>
+              <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 4 }}>ยังไม่ได้ประมวลผลคาร์บอน</div>
+              <div style={{ fontSize: 12, color: "#b45309", lineHeight: 1.5 }}>กรุณาไปที่หน้าวาดแปลงและกด "ประมวลผล" เพื่อดูกราฟการกักเก็บคาร์บอน</div>
+            </div>
           )}
         </div>
       )}

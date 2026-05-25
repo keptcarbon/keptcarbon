@@ -1127,6 +1127,15 @@ export function ParcelResultsPanel({
                         yr5: carbonCo2(age + 5, trees, spacing),
                         yr7: carbonCo2(age + 7, trees, spacing),
                     } : { yr3: 0, yr5: 0, yr7: 0 },
+                    backendData: {
+                        plantYearBE: epPlantYearBE,
+                        age: epPlantYearBE > 0 ? (CURRENT_BE_NOW - epPlantYearBE) : 0,
+                        variety: epVariety,
+                        spacing: epSpacing,
+                        trees: epTrees,
+                        ep: ep || null,
+                        form: form || null
+                    }
                 };
             });
             const newPlotsWithStatus = newPlots.filter(p => p.plantStatus);
@@ -2138,22 +2147,17 @@ export function ParcelResultsPanel({
                                                 background: "linear-gradient(to right, rgba(13,148,136,0.08), rgba(20,184,166,0.03))",
                                                 border: "1px solid rgba(13,148,136,0.2)",
                                                 borderRadius: 12,
-                                                padding: "12px 16px",
+                                                padding: "16px 16px",
                                                 display: "flex",
-                                                justifyContent: "space-between",
+                                                flexDirection: "column",
+                                                justifyContent: "center",
                                                 alignItems: "center"
                                             }}>
-                                                <div>
-                                                    <div style={{ fontSize: 11, color: "#0f766e", fontWeight: 700, marginBottom: 4, display: "flex", alignItems: "center", gap: 6 }}>
-                                                        <i className="bi bi-cloud-arrow-down-fill" /> คาร์บอนสะสมปัจจุบัน
-                                                    </div>
-                                                    <div style={{ fontWeight: 800, color: "#0d9488", fontSize: isMobile ? 20 : 24, lineHeight: 1.1 }}>
-                                                        {Math.floor(cr.co2Now).toLocaleString()} <span style={{ fontSize: 14, fontWeight: 600, opacity: 0.8 }}>tCO₂</span>
-                                                    </div>
+                                                <div style={{ fontSize: 13, color: "#0f766e", fontWeight: 700, marginBottom: 6, display: "flex", alignItems: "center", gap: 6 }}>
+                                                    <i className="bi bi-cloud-arrow-down-fill" /> คาร์บอนสะสมปัจจุบัน
                                                 </div>
-                                                <div style={{ textAlign: "right", background: "#fff", padding: "6px 12px", borderRadius: 8, border: "1px solid rgba(13,148,136,0.15)", boxShadow: "0 2px 4px rgba(0,0,0,0.02)" }}>
-                                                    <div style={{ fontSize: 10, color: "#64748b", fontWeight: 700 }}>อายุต้นยาง</div>
-                                                    <div style={{ fontSize: 14, color: "#334155", fontWeight: 800 }}>{cr.age} <span style={{ fontSize: 11 }}>ปี</span></div>
+                                                <div style={{ fontWeight: 800, color: "#0d9488", fontSize: isMobile ? 24 : 28, lineHeight: 1.1 }}>
+                                                    {Math.floor(cr.co2Now).toLocaleString()} <span style={{ fontSize: 16, fontWeight: 600, opacity: 0.8 }}>tCO₂</span>
                                                 </div>
                                             </div>
                                         </div>
