@@ -97,8 +97,9 @@ export function CarbonBarChart({
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
   if (!pts.length) return null;
 
-  // กรองเฉพาะข้อมูลที่อายุ <= MAX_AGE_DISPLAY
-  const displayPts = pts.filter(p => p.age <= MAX_AGE_DISPLAY);
+  // showAge = true → กรอกปีปลูกมา → filter ให้แสดงถึง MAX_AGE_DISPLAY ปี
+  // showAge = false → ไม่ได้กรอกปี → แสดงข้อมูลทั้งหมดที่ backend ส่งมา
+  const displayPts = showAge ? pts.filter(p => p.age <= MAX_AGE_DISPLAY) : pts;
   if (!displayPts.length) return null;
 
   const W = isMobile ? 560 : (narrowMode ? 760 : 1120);
@@ -115,7 +116,7 @@ export function CarbonBarChart({
   const maxValueWithMargin = Math.max(...displayPts.map((p) => (p.co2 || 0) + (p.ci || 0)), 1);
   const maxCo2 = maxValueWithMargin * 1.15;
   const gap = isMobile ? 2 : 5;
-  
+
   // Calculate standard max bar width for ~28 bars, cap it so it doesn't get huge
   let barW = iW / displayPts.length - gap;
   const maxBarW = isMobile ? 48 : 72;
@@ -143,11 +144,11 @@ export function CarbonBarChart({
   const hoveredPt = hoverIdx !== null ? displayPts[hoverIdx] : null;
 
   return (
-    <div style={{ 
-      background: "linear-gradient(135deg,#f0fdf4,#dcfce7)", 
-      borderRadius: 16, 
-      padding: isMobile ? "14px 10px 10px" : "24px 20px 14px", 
-      boxShadow: "0 10px 30px -5px rgba(5,150,105,0.12)", 
+    <div style={{
+      background: "linear-gradient(135deg,#f0fdf4,#dcfce7)",
+      borderRadius: 16,
+      padding: isMobile ? "14px 10px 10px" : "24px 20px 14px",
+      boxShadow: "0 10px 30px -5px rgba(5,150,105,0.12)",
       border: "1px solid rgba(16,185,129,0.15)",
       height: "100%",
       display: "flex",
@@ -175,10 +176,10 @@ export function CarbonBarChart({
             <feDropShadow dx="0" dy="2" stdDeviation="3" floodOpacity="0.18" />
           </filter>
           <linearGradient id="lineGrad" x1="0" y1="0" x2="1" y2="0">
-            <stop offset="0%"   stopColor="#a3e635" />
-            <stop offset="25%"  stopColor="#4ade80" />
-            <stop offset="50%"  stopColor="#10b981" />
-            <stop offset="75%"  stopColor="#059669" />
+            <stop offset="0%" stopColor="#a3e635" />
+            <stop offset="25%" stopColor="#4ade80" />
+            <stop offset="50%" stopColor="#10b981" />
+            <stop offset="75%" stopColor="#059669" />
             <stop offset="100%" stopColor="#0d9488" />
           </linearGradient>
         </defs>
@@ -247,16 +248,21 @@ export function CarbonBarChart({
           );
         })}
 
-        {/* X-axis labels (dynamic frequency) */}
+        {/* X-axis labels (cycle boundary) */}
         {displayPts.map((p, i) => {
-          if (i % labelStep !== 0 && i !== displayPts.length - 1) return null;
+          const isCycleEnd = p.year_at > 0 && p.year_at % 7 === 0;
+          const isFirst = i === 0;
+          const isLast = i === displayPts.length - 1;
+
+          if (!isCycleEnd && !isFirst && !isLast) return null;
+
           const x = startX + i * (barW + gap) + barW / 2;
           return (
             <g key={i}>
               {/* อายุ (แทนที่ปีที่เดิม) */}
               {showAge && (
                 <text x={x} y={PT + iH + (isMobile ? 30 : 40)} textAnchor="middle" fontSize={isMobile ? 15 : 18} fill="#475569" fontWeight={700}>
-                  {p.age}
+                  {p.year_at}
                 </text>
               )}
               {/* พ.ศ. */}
@@ -270,7 +276,7 @@ export function CarbonBarChart({
         {/* Y-axis label */}
         <text x={isMobile ? 2 : PL - 8} y={PT + 6} textAnchor={isMobile ? "start" : "end"} fontSize={isMobile ? 17 : 22} fill="#94a3b8" fontWeight={600}>tCO₂</text>
 
-        {/* X-axis row labels — เปลี่ยนจาก "ปีที่" เป็น "อายุ" */}
+        {/* X-axis row labels */}
         {showAge && (
           <text x={isMobile ? 4 : PL - 14} y={PT + iH + (isMobile ? 30 : 40)} textAnchor={isMobile ? "start" : "end"} fontSize={isMobile ? 15 : 18} fill="#64748b" fontWeight={600}>อายุ</text>
         )}
@@ -285,86 +291,71 @@ export function CarbonBarChart({
           const x = startX + hoverIdx * (barW + gap) + barW / 2;
           const y = PT + iH - bh;
 
-          // Tooltip dimensions
-          const ttW = isMobile ? 240 : 280;
-          const ttH = isMobile ? 230 : 270;
+          const ttW = isMobile ? 220 : 260;
+          const ttH = isMobile ? 210 : 236;
           const ttX = Math.min(Math.max(x - ttW / 2, 4), W - ttW - 4);
           const ttY = Math.max(y - ttH - 14, 4);
 
           const co2Val = Math.floor(p.co2 || 0);
-          const co2Ci = (Math.floor((p.ci || 0) * 10) / 10);
-          const gainVal = Math.floor(p.gainValue || 0);
-          const gainCiVal = (Math.floor((p.gainCi || 0) * 10) / 10);
+          const co2Ci = ((p.ci || 0)).toFixed(1);
+          const gainVal = (p.gainValue || 0).toFixed(1);
+          const gainCiVal = ((p.gainCi || 0)).toFixed(1);
 
           return (
             <g pointerEvents="none">
-              <foreignObject x={ttX} y={ttY} width={ttW} height={ttH}>
+              <foreignObject x={ttX} y={ttY} width={ttW} height={ttH} overflow="visible">
                 <div style={{
-                  width: "100%",
-                  height: "100%",
-                  background: "linear-gradient(145deg, rgba(2,44,34,0.95), rgba(6,78,59,0.85))",
-                  backdropFilter: "blur(12px)",
-                  WebkitBackdropFilter: "blur(12px)",
-                  borderRadius: "20px",
-                  border: "1px solid rgba(16,185,129,0.4)",
-                  boxShadow: "0 10px 40px rgba(2,44,34,0.6), inset 0 1px 1px rgba(255,255,255,0.1)",
+                  width: `${ttW}px`,
+                  background: "#082f20",
+                  borderRadius: "12px",
+                  borderTop: `4px solid ${col.top}`,
+                  boxShadow: "0 12px 40px rgba(0,0,0,0.6)",
                   color: "#fff",
                   display: "flex",
                   flexDirection: "column",
-                  padding: isMobile ? "16px" : "20px",
+                  alignItems: "center",
+                  padding: isMobile ? "12px 14px 14px" : "14px 18px 16px",
                   boxSizing: "border-box",
                   fontFamily: "inherit",
-                  justifyContent: "space-between"
+                  gap: isMobile ? "8px" : "10px"
                 }}>
-                  {/* Header */}
-                  <div style={{ display: "flex", justifyContent: "center", alignItems: "center" }}>
-                    <div style={{ 
-                      background: "rgba(255,255,255,0.12)", 
-                      padding: "6px 16px", 
-                      borderRadius: "24px",
-                      color: col.top,
-                      fontWeight: 800,
-                      fontSize: isMobile ? 14 : 16,
-                      border: `1px solid ${col.top}50`,
-                      boxShadow: "0 2px 8px rgba(0,0,0,0.2)"
-                    }}>
-                      ปีที่ {p.year_at}
-                    </div>
+                  {/* ปีที่ */}
+                  <div style={{ color: col.top, fontSize: isMobile ? 14 : 17, fontWeight: 700, letterSpacing: "0.02em" }}>
+                    ปีที่ {p.year_at}
                   </div>
 
-                  {/* Section 1: Carbon Storage */}
-                  <div style={{ textAlign: "center", marginTop: isMobile ? 12 : 16 }}>
-                    <div style={{ color: "rgba(255,255,255,0.75)", fontSize: isMobile ? 13 : 15, fontWeight: 700, marginBottom: 4, letterSpacing: "0.5px" }}>
+                  {/* CO2 สะสม */}
+                  <div style={{ textAlign: "center" }}>
+                    <div style={{ color: "#fff", fontSize: isMobile ? 11 : 13, fontWeight: 600, marginBottom: 3, opacity: 0.85 }}>
                       กักเก็บคาร์บอน
                     </div>
-                    <div style={{ fontSize: isMobile ? 24 : 28, fontWeight: 800, color: "#fff", display: "flex", alignItems: "baseline", justifyContent: "center", gap: 4, textShadow: "0 2px 10px rgba(0,0,0,0.3)" }}>
-                      {co2Val.toLocaleString("th-TH")}
-                      <span style={{ fontSize: isMobile ? 16 : 18, color: "rgba(255,255,255,0.75)", fontWeight: 600, textShadow: "none" }}>
-                        ±{co2Ci.toLocaleString("th-TH", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+                    <div style={{ display: "flex", alignItems: "baseline", justifyContent: "center", gap: 6 }}>
+                      <span style={{ fontSize: isMobile ? 26 : 32, fontWeight: 800, color: "#fff", lineHeight: 1 }}>
+                        {co2Val.toLocaleString("th-TH")}
+                      </span>
+                      <span style={{ fontSize: isMobile ? 15 : 18, color: "rgba(255,255,255,0.65)", fontWeight: 500 }}>
+                        ±{co2Ci}
                       </span>
                     </div>
                   </div>
 
-                  {/* Elegant Divider */}
-                  <div style={{ 
-                    width: "100%", 
-                    height: 1, 
-                    background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.25), transparent)", 
-                    margin: isMobile ? "12px 0" : "16px 0" 
-                  }} />
+                  {/* Divider */}
+                  <div style={{ width: "85%", height: 1, background: "rgba(255,255,255,0.15)" }} />
 
-                  {/* Section 2: Carbon Credit */}
+                  {/* Annual gain */}
                   <div style={{ textAlign: "center" }}>
-                    <div style={{ color: "#38bdf8", fontSize: isMobile ? 15 : 17, fontWeight: 800, marginBottom: 4, letterSpacing: "0.5px" }}>
+                    <div style={{ color: "rgba(56,189,248,0.9)", fontSize: isMobile ? 11 : 13, fontWeight: 600, marginBottom: 3 }}>
                       คาร์บอนเครดิต
                     </div>
-                    <div style={{ fontSize: isMobile ? 32 : 40, fontWeight: 900, color: "#38bdf8", display: "flex", alignItems: "baseline", justifyContent: "center", gap: 4, lineHeight: 1.1, textShadow: "0 4px 16px rgba(56,189,248,0.4)" }}>
-                      {gainVal.toLocaleString("th-TH")}
-                      <span style={{ fontSize: isMobile ? 18 : 22, color: "rgba(56,189,248,0.75)", fontWeight: 700, textShadow: "none" }}>
-                        ±{gainCiVal.toLocaleString("th-TH", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+                    <div style={{ display: "flex", alignItems: "baseline", justifyContent: "center", gap: 6 }}>
+                      <span style={{ fontSize: isMobile ? 28 : 34, fontWeight: 800, color: "#38bdf8", lineHeight: 1 }}>
+                        {parseFloat(gainVal).toLocaleString("th-TH", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+                      </span>
+                      <span style={{ fontSize: isMobile ? 15 : 18, color: "rgba(56,189,248,0.65)", fontWeight: 500 }}>
+                        ±{gainCiVal}
                       </span>
                     </div>
-                    <div style={{ fontSize: isMobile ? 12 : 14, color: "rgba(56,189,248,0.65)", fontWeight: 600, marginTop: 4 }}>
+                    <div style={{ color: "rgba(186,230,253,0.75)", fontSize: isMobile ? 12 : 13, fontWeight: 500, marginTop: 4 }}>
                       tCO₂eq
                     </div>
                   </div>

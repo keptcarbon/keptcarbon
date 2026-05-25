@@ -254,10 +254,10 @@ class CarbonService:
                     },
                     "tree_count": {
                         "value": tree_info['tree_count'],
-                        "source": "calculated for area and spacing system" if tree_info['is_calculated'] else "user input"
+                        "source": "calculated from area and spacing system" if tree_info['is_calculated'] else "user input"
                     },
                     "spacing_system": {
-                        "value": poly_data.get('spacing_system') if poly_data.get('spacing_system') else "2.5x8 (default)",
+                        "value": poly_data.get('spacing_system') if poly_data.get('spacing_system') else "2.5x8",
                         "source": "user input" if poly_data.get('spacing_system') else "default value applied"
                     }
                 }
@@ -274,7 +274,9 @@ class CarbonService:
             dominant_cohort = max(cohorts, key=lambda c: c['proportion'])
             
             highest_proportion = dominant_cohort['proportion']
+            print(f"highest_proportion: {highest_proportion}")
             highest_proportion_age = dominant_cohort['age']
+            print(f"highest_proportion_age age cohorts: {highest_proportion_age}")
 
             # Unknow year of planting is highest propotion
             if highest_proportion_age > MAX_TREE_AGE: 
@@ -292,16 +294,17 @@ class CarbonService:
                     "estimated_parameters": None
                 }
 
+            # Found mojority age
             if highest_proportion > TREE_AGE_HOMOLOGOUS_THRESHOLD:
                 
-
                 total_tree_count = sum((cohort.get('tree_count') or 0) for cohort in cohorts)
 
-                cohorts = [{"age": age, 
+                cohorts = [{"age": highest_proportion_age, 
                             "pixel_count": None,
                             "proportion": 1, 
-                            "tree_count": tree_info['tree_count']}
+                            "tree_count": total_tree_count}
                         ]
+
 
             else: # High age VARIABILITY found
                 # Identify undetermined entries where age equates to the current calendar year
@@ -350,7 +353,7 @@ class CarbonService:
 
             reliable_mgs = (
                 "CARBON PROFILE GENERATED USING CALCULATED YEAR "
-                "OF PLANTING AND RELIABLE TREE COUNT." + reliable_mgs_add
+                "OF PLANTING AND RELIABLE TREE COUNT."
             )
             return {
                 "polygon_id": poly_data["id"],
@@ -373,11 +376,11 @@ class CarbonService:
                     },
                     "tree_count": {
                         "value": total_tree_count,
-                        "source": "calculated for area and spacing system"
+                        "source": "calculated from area and spacing system"
                     },
                     "spacing_system": {
-                        "value": poly_data.get('spacing_system') if poly_data.get('spacing_system') else "2.5x8 (default)",
-                        "source": "user input" if poly_data.get('spacing_system') else "default value applied"
+                        "value": poly_data.get('spacing_system') if poly_data.get('spacing_system') else "2.5x8",
+                        "source": "user input" if poly_data.get('spacing_system') else "default value"
                     }
                 }
             }

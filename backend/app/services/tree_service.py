@@ -32,13 +32,6 @@ class TreeService:
                 "note": "CALCULATED FROM AREA AND SPACING."
             }
 
-        if calculated_count == 0:
-            return {
-                "tree_count": user_tree_count,
-                "is_calculated": False,
-                "note": "CALCULATED TREE COUNT IS ZERO; USED USER INPUT."
-            }
-
         diff_percent = abs(user_tree_count - calculated_count) / calculated_count
 
         if diff_percent <= TREE_COUNT_VALIDATION_THRESHOLD:
@@ -78,7 +71,7 @@ class TreeService:
         
         return {
             "tree_count": calculated_count,
-            "is_reliable": False,
+            "is_calculated": True,
             "note": (
                 "USE RASTER DATA TO ESTIMATE TREE COUNT."
                 "THUS, USED CALCULATED TREE COUNT."
