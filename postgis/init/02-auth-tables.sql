@@ -12,7 +12,8 @@ CREATE TABLE IF NOT EXISTS users (
   picture_url   TEXT         DEFAULT '',
   provider      VARCHAR(20)  NOT NULL DEFAULT 'local',  -- 'local' | 'line' | 'google'
   line_user_id  VARCHAR(100) UNIQUE,    -- LINE userId, NULL for non-LINE users
-  google_user_id VARCHAR(100) UNIQUE,   -- Google sub, NULL for non-Google users
+  google_user_id   VARCHAR(100) UNIQUE,  -- Google sub, NULL for non-Google users
+  facebook_user_id VARCHAR(100) UNIQUE,  -- Facebook id, NULL for non-Facebook users
   role          VARCHAR(20)  NOT NULL DEFAULT 'user',    -- 'user' | 'admin'
   created_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
   updated_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW()
@@ -22,7 +23,8 @@ CREATE TABLE IF NOT EXISTS users (
 CREATE INDEX IF NOT EXISTS idx_users_email    ON users (email);
 CREATE INDEX IF NOT EXISTS idx_users_username ON users (username);
 CREATE INDEX IF NOT EXISTS idx_users_line_uid   ON users (line_user_id);
-CREATE INDEX IF NOT EXISTS idx_users_google_uid ON users (google_user_id);
+CREATE INDEX IF NOT EXISTS idx_users_google_uid   ON users (google_user_id);
+CREATE INDEX IF NOT EXISTS idx_users_facebook_uid ON users (facebook_user_id);
 
 -- ==========================================================================
 -- Seed: default admin user

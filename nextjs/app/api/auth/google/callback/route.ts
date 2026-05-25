@@ -57,18 +57,36 @@ export async function GET(request: NextRequest) {
     }
     const profile = await profileRes.json();
     const email = profile.email as string;
-    const fullname = profile.name as string;
-    const pictureUrl = profile.picture || "";
+    const fullname = (profile.name ?? email) as string;
+    const pictureUrl = (profile.picture ?? "") as string;
+    const googleSub = (profile.sub ?? profile.id) as string | undefined;
+    if (!email || !googleSub) {
+      return NextResponse.redirect(new URL("/?google_error=profile_incomplete", baseUrl));
+    }
 
-    // Upsert user in DB
-    const result = await pool.query(
-      `INSERT INTO users (email, username, fullname, picture_url, provider, google_user_id, role)
-       VALUES ($1, $2, $3, $4, 'google', $5, 'user')
-       ON CONFLICT (google_user_id) DO UPDATE SET picture_url = EXCLUDED.picture_url, fullname = EXCLUDED.fullname
-       RETURNING id, email, role, provider`,
-      [email, `google_${profile.sub?.slice(0, 8) || email}`, fullname, pictureUrl, profile.sub]
+    // Find existing user by google_user_id or email (handles account linking)
+    const existing = await pool.query(
+      `SELECT id, email, role, provider FROM users WHERE google_user_id = $1 OR email = $2 LIMIT 1`,
+      [googleSub, email]
     );
-    const dbUser = result.rows[0];
+
+    let dbUser;
+    if (existing.rows.length > 0) {
+      const updated = await pool.query(
+        `UPDATE users SET google_user_id = $1, picture_url = $2, fullname = $3
+         WHERE id = $4 RETURNING id, email, role, provider`,
+        [googleSub, pictureUrl, fullname, existing.rows[0].id]
+      );
+      dbUser = updated.rows[0];
+    } else {
+      const inserted = await pool.query(
+        `INSERT INTO users (email, username, fullname, picture_url, provider, google_user_id, role)
+         VALUES ($1, $2, $3, $4, 'google', $5, 'user')
+         RETURNING id, email, role, provider`,
+        [email, `google_${googleSub?.slice(0, 8) ?? email}`, fullname, pictureUrl, googleSub]
+      );
+      dbUser = inserted.rows[0];
+    }
 
     // Issue JWT
     const token = signToken({
