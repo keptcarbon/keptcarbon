@@ -32,6 +32,7 @@ export function LoginModal() {
   const emailRef = useRef<HTMLInputElement>(null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [busy, setBusy] = useState(false);
   const [alert, setAlert] = useState<AlertState>(null);
 
@@ -39,6 +40,7 @@ export function LoginModal() {
     if (modal === "login") {
       setEmail("");
       setPassword("");
+      setShowPassword(false);
       setAlert(null);
       setBusy(false);
       setTimeout(() => emailRef.current?.focus(), 50);
@@ -109,16 +111,24 @@ export function LoginModal() {
         </div>
         <div className="modal-auth-form-group">
           <label>รหัสผ่าน</label>
-          <div className="modal-inp-wrap">
+          <div className="modal-inp-wrap modal-pwd-wrap">
             <i className="bi bi-lock" />
             <input
-              type="password"
+              type={showPassword ? "text" : "password"}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="กรอกรหัสผ่าน"
               required
               autoComplete="current-password"
             />
+            <button
+              type="button"
+              className="modal-pwd-toggle"
+              onClick={() => setShowPassword(!showPassword)}
+              tabIndex={-1}
+            >
+              <i className={`bi ${showPassword ? "bi-eye-slash" : "bi-eye"}`} />
+            </button>
           </div>
         </div>
         <button type="submit" className="modal-btn-submit" disabled={busy}>
@@ -176,7 +186,9 @@ export function RegisterModal() {
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [confirmPwd, setConfirmPwd] = useState("");
+  const [showConfirmPwd, setShowConfirmPwd] = useState(false);
   const [busy, setBusy] = useState(false);
   const [alert, setAlert] = useState<AlertState>(null);
 
@@ -186,7 +198,9 @@ export function RegisterModal() {
       setEmail("");
       setPhone("");
       setPassword("");
+      setShowPassword(false);
       setConfirmPwd("");
+      setShowConfirmPwd(false);
       setAlert(null);
       setBusy(false);
       setTimeout(() => fullnameRef.current?.focus(), 50);
@@ -294,16 +308,24 @@ export function RegisterModal() {
         <div className="row g-2">
           <div className="col-6 modal-auth-form-group">
             <label>รหัสผ่าน</label>
-            <div className="modal-inp-wrap">
+            <div className="modal-inp-wrap modal-pwd-wrap">
               <i className="bi bi-lock" />
               <input
-                type="password"
+                type={showPassword ? "text" : "password"}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="≥ 6 ตัวอักษร"
                 required
                 minLength={6}
               />
+              <button
+                type="button"
+                className="modal-pwd-toggle"
+                onClick={() => setShowPassword(!showPassword)}
+                tabIndex={-1}
+              >
+                <i className={`bi ${showPassword ? "bi-eye-slash" : "bi-eye"}`} />
+              </button>
             </div>
             <div className="modal-pwd-strength">
               <div
@@ -314,16 +336,24 @@ export function RegisterModal() {
           </div>
           <div className="col-6 modal-auth-form-group">
             <label>ยืนยันรหัสผ่าน</label>
-            <div className="modal-inp-wrap">
+            <div className="modal-inp-wrap modal-pwd-wrap">
               <i className="bi bi-lock-fill" />
               <input
-                type="password"
+                type={showConfirmPwd ? "text" : "password"}
                 value={confirmPwd}
                 onChange={(e) => setConfirmPwd(e.target.value)}
                 placeholder="กรอกซ้ำ"
                 required
                 minLength={6}
               />
+              <button
+                type="button"
+                className="modal-pwd-toggle"
+                onClick={() => setShowConfirmPwd(!showConfirmPwd)}
+                tabIndex={-1}
+              >
+                <i className={`bi ${showConfirmPwd ? "bi-eye-slash" : "bi-eye"}`} />
+              </button>
             </div>
           </div>
         </div>

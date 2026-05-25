@@ -116,6 +116,39 @@
   color: #b3c4ba;
 }
 
+/* ── Password input with toggle ──────────────────── */
+.modal-pwd-wrap input {
+  padding-right: 44px;
+}
+
+.modal-pwd-toggle {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: var(--kc-sage-soft, #738f7d);
+  font-size: 18px;
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.2s;
+  line-height: 1;
+}
+
+.modal-pwd-toggle:hover {
+  color: var(--kc-green, #2d9e5f);
+}
+
+.modal-pwd-toggle:focus-visible {
+  outline: 2px solid var(--kc-green, #2d9e5f);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
 /* ── Password strength bar ─────────────────────── */
 .modal-pwd-strength {
   margin-top: 6px;
