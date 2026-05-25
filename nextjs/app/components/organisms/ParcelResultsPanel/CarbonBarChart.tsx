@@ -14,6 +14,7 @@ const getCycleColor = (cycle: number) =>
   GREEN_THEME_COLORS[Math.min(Math.max(0, cycle), GREEN_THEME_COLORS.length - 1)];
 
 export const TOTAL_PROJ_YEARS = 35;
+const MAX_AGE_DISPLAY = 28; // แสดงกราฟถึงอายุ 28 ปี
 
 export function carbonCo2(age: number, trees: number, spacing: string): number {
   const spacingMap: Record<string, number> = {
@@ -94,6 +95,10 @@ export function CarbonBarChart({
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
   if (!pts.length) return null;
 
+  // กรองเฉพาะข้อมูลที่อายุ <= MAX_AGE_DISPLAY
+  const displayPts = pts.filter(p => p.age <= MAX_AGE_DISPLAY);
+  if (!displayPts.length) return null;
+
   const W = isMobile ? 560 : (narrowMode ? 760 : 1120);
   const H = isMobile ? 520 : (narrowMode ? 600 : 640);
   const PL = isMobile ? 46 : (narrowMode ? 62 : 78);
@@ -103,12 +108,12 @@ export function CarbonBarChart({
   const iW = W - PL - PR;
   const iH = H - PT - PB;
 
-  const maxValueWithMargin = Math.max(...pts.map((p) => (p.co2 || 0) + (p.ci || 0)), 1);
+  const maxValueWithMargin = Math.max(...displayPts.map((p) => (p.co2 || 0) + (p.ci || 0)), 1);
   const maxCo2 = maxValueWithMargin * 1.15;
-  const barW = iW / pts.length - (isMobile ? 2 : 5);
+  const barW = iW / displayPts.length - (isMobile ? 2 : 5);
   const gap = isMobile ? 2 : 5;
 
-  const linePoints = pts.map((p, i) => {
+  const linePoints = displayPts.map((p, i) => {
     const bh = Math.max(((p.co2 || 0) / maxCo2) * iH, 2);
     const x = PL + i * (barW + gap) + barW / 2;
     const y = PT + iH - bh;
@@ -118,6 +123,9 @@ export function CarbonBarChart({
   const linePath = linePoints
     .map((p, i) => (i === 0 ? `M ${p.x},${p.y}` : `L ${p.x},${p.y}`))
     .join(" ");
+
+  // ตัดสินว่า tooltip อยู่ที่ไหน
+  const hoveredPt = hoverIdx !== null ? displayPts[hoverIdx] : null;
 
   return (
     <div style={{ background: "linear-gradient(135deg,#f0fdf4,#dcfce7)", borderRadius: 16, padding: isMobile ? "14px 10px 10px" : "24px 20px 14px", boxShadow: "0 10px 30px -5px rgba(5,150,105,0.12)", border: "1px solid rgba(16,185,129,0.15)" }}>
@@ -158,7 +166,7 @@ export function CarbonBarChart({
         ))}
 
         {/* Bars */}
-        {pts.map((p, i) => {
+        {displayPts.map((p, i) => {
           const bh = Math.max(((p.co2 || 0) / maxCo2) * iH, 4);
           const x = PL + i * (barW + gap);
           const y = PT + iH - bh;
@@ -207,22 +215,24 @@ export function CarbonBarChart({
 
         {/* Trend Line Dots */}
         {linePoints.map((lp, i) => {
-          const dotCycle = pts[i].year_at === 0 ? 0 : Math.floor((pts[i].year_at - 1) / 7);
+          const dotCycle = displayPts[i].year_at === 0 ? 0 : Math.floor((displayPts[i].year_at - 1) / 7);
           const col = getCycleColor(dotCycle);
           return (
             <circle key={i} cx={lp.x} cy={lp.y} r={2.5} fill="#fff" stroke={col.bot} strokeWidth={1.5} opacity={0.9} style={{ pointerEvents: "none" }} />
           );
         })}
 
-        {/* X-axis labels every 7th bar: year_at above BE year */}
-        {pts.map((p, i) => {
+        {/* X-axis labels every 7th bar: อายุ (บน) + พ.ศ. (ล่าง) */}
+        {displayPts.map((p, i) => {
           if (i % 7 !== 0) return null;
           const x = PL + i * (barW + gap) + barW / 2;
           return (
             <g key={i}>
+              {/* อายุ (แทนที่ปีที่เดิม) */}
               <text x={x} y={PT + iH + (isMobile ? 30 : 40)} textAnchor="middle" fontSize={isMobile ? 15 : 18} fill="#475569" fontWeight={700}>
-                {p.year_at}
+                {p.age}
               </text>
+              {/* พ.ศ. */}
               <text x={x} y={PT + iH + (isMobile ? 56 : 72)} textAnchor="middle" fontSize={isMobile ? 15 : 18} fill="#94a3b8" fontWeight={500}>
                 {p.yearBE}
               </text>
@@ -233,42 +243,71 @@ export function CarbonBarChart({
         {/* Y-axis label */}
         <text x={isMobile ? 2 : PL - 8} y={PT + 6} textAnchor={isMobile ? "start" : "end"} fontSize={isMobile ? 17 : 22} fill="#94a3b8" fontWeight={600}>tCO₂</text>
 
-        {/* X-axis row labels */}
-        <text x={isMobile ? 4 : PL - 14} y={PT + iH + (isMobile ? 30 : 40)} textAnchor={isMobile ? "start" : "end"} fontSize={isMobile ? 15 : 18} fill="#64748b" fontWeight={600}>ปีที่</text>
+        {/* X-axis row labels — เปลี่ยนจาก "ปีที่" เป็น "อายุ" */}
+        <text x={isMobile ? 4 : PL - 14} y={PT + iH + (isMobile ? 30 : 40)} textAnchor={isMobile ? "start" : "end"} fontSize={isMobile ? 15 : 18} fill="#64748b" fontWeight={600}>อายุ</text>
         <text x={isMobile ? 4 : PL - 14} y={PT + iH + (isMobile ? 56 : 72)} textAnchor={isMobile ? "start" : "end"} fontSize={isMobile ? 15 : 18} fill="#64748b" fontWeight={600}>พ.ศ.</text>
 
         {/* Tooltip */}
-        {hoverIdx !== null && (() => {
-          const p = pts[hoverIdx];
+        {hoverIdx !== null && hoveredPt && (() => {
+          const p = hoveredPt;
           const hoverDisplayCycle = p.year_at === 0 ? 0 : Math.floor((p.year_at - 1) / 7);
           const col = getCycleColor(hoverDisplayCycle);
           const bh = Math.max(((p.co2 || 0) / maxCo2) * iH, 4);
           const x = PL + hoverIdx * (barW + gap) + barW / 2;
           const y = PT + iH - bh;
-          const ttW = isMobile ? 196 : 248;
-          const ttH = isMobile ? 196 : 214;
+
+          // Tooltip dimensions
+          const ttW = isMobile ? 220 : 280;
+          const ttH = isMobile ? 240 : 270;
           const ttX = Math.min(Math.max(x - ttW / 2, 4), W - ttW - 4);
           const ttY = Math.max(y - ttH - 14, 4);
-          const divY = ttY + (isMobile ? 108 : 118);
+
+          const co2Val = Math.floor(p.co2 || 0);
+          const co2Ci = (Math.floor((p.ci || 0) * 10) / 10);
+          const gainVal = Math.floor(p.gainValue || 0);
+          const gainCiVal = (Math.floor((p.gainCi || 0) * 10) / 10);
+
+          const lineY = ttY + (isMobile ? 130 : 146);
+
           return (
             <g pointerEvents="none">
-              <rect x={ttX} y={ttY} width={ttW} height={ttH} rx={10} fill="#022c22" style={{ filter: "drop-shadow(0 4px 14px rgba(5,150,105,0.35))" }} />
-              <rect x={ttX} y={ttY} width={ttW} height={4} rx={2} fill={col.top} />
-              {/* Header: age — 20px */}
-              <text x={ttX + ttW / 2} y={ttY + (isMobile ? 46 : 50)} textAnchor="middle" fontSize={20} fill={col.top} fontWeight={700}>
-                อายุ {p.age} ปี
+              {/* Background */}
+              <rect x={ttX} y={ttY} width={ttW} height={ttH} rx={12} fill="#022c22" style={{ filter: "drop-shadow(0 4px 16px rgba(5,150,105,0.38))" }} />
+              {/* Top accent bar */}
+              <rect x={ttX} y={ttY} width={ttW} height={5} rx={3} fill={col.top} />
+
+              {/* Row 1: ปีที่ X */}
+              <text x={ttX + ttW / 2} y={ttY + (isMobile ? 42 : 48)} textAnchor="middle" fontSize={isMobile ? 22 : 24} fill={col.top} fontWeight={800}>
+                {`ปีที่ ${p.year_at}`}
               </text>
-              {/* Stocks */}
-              <text x={ttX + ttW / 2} y={ttY + (isMobile ? 84 : 92)} textAnchor="middle" fontSize={isMobile ? 22 : 26} fill="rgba(255,255,255,0.82)" fontWeight={700}>
-                {Math.floor(p.co2 || 0).toLocaleString("th-TH")} ±{(Math.floor((p.ci || 0) * 10) / 10).toLocaleString("th-TH", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+
+              {/* Divider */}
+              <line x1={ttX + 14} y1={ttY + (isMobile ? 58 : 66)} x2={ttX + ttW - 14} y2={ttY + (isMobile ? 58 : 66)} stroke="rgba(255,255,255,0.1)" strokeWidth={1} />
+
+              {/* Row 2: กักเก็บคาร์บอน label */}
+              <text x={ttX + ttW / 2} y={ttY + (isMobile ? 84 : 96)} textAnchor="middle" fontSize={isMobile ? 15 : 17} fill="rgba(255,255,255,0.6)" fontWeight={600}>
+                กักเก็บคาร์บอน
               </text>
-              <line x1={ttX + 12} y1={divY} x2={ttX + ttW - 12} y2={divY} stroke="rgba(255,255,255,0.10)" strokeWidth={1} />
-              {/* Gain — HERO */}
-              <text x={ttX + ttW / 2} y={divY + (isMobile ? 36 : 40)} textAnchor="middle" fontSize={isMobile ? 26 : 30} fill="#7dd3fc" fontWeight={900}>
-                {Math.floor(p.gainValue || 0).toLocaleString("th-TH")} ±{(Math.floor((p.gainCi || 0) * 10) / 10).toLocaleString("th-TH", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+              {/* Row 2: ค่า co2 ± ci */}
+              <text x={ttX + ttW / 2} y={ttY + (isMobile ? 112 : 126)} textAnchor="middle" fontSize={isMobile ? 28 : 32} fill="rgba(255,255,255,0.92)" fontWeight={800}>
+                {co2Val.toLocaleString("th-TH")}
+                <tspan fontSize={isMobile ? 18 : 20} fill="rgba(255,255,255,0.55)" fontWeight={500}>{` ±${co2Ci.toLocaleString("th-TH", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}`}</tspan>
               </text>
-              <text x={ttX + ttW / 2} y={divY + (isMobile ? 60 : 66)} textAnchor="middle" fontSize={isMobile ? 16 : 18} fill="rgba(125,211,252,0.9)" fontWeight={600}>
-                เกณฑ์คาร์บอน (tCO₂/ปี)
+
+              {/* Divider */}
+              <line x1={ttX + 14} y1={lineY} x2={ttX + ttW - 14} y2={lineY} stroke="rgba(255,255,255,0.1)" strokeWidth={1} />
+
+              {/* Row 3: คาร์บอนเครดิต label */}
+              <text x={ttX + ttW / 2} y={lineY + (isMobile ? 26 : 30)} textAnchor="middle" fontSize={isMobile ? 15 : 17} fill="rgba(125,211,252,0.75)" fontWeight={600}>
+                คาร์บอนเครดิต
+              </text>
+              {/* Row 3: gain ± gainCi tco2eq */}
+              <text x={ttX + ttW / 2} y={lineY + (isMobile ? 54 : 62)} textAnchor="middle" fontSize={isMobile ? 28 : 32} fill="#7dd3fc" fontWeight={900}>
+                {gainVal.toLocaleString("th-TH")}
+                <tspan fontSize={isMobile ? 18 : 20} fill="rgba(125,211,252,0.55)" fontWeight={500}>{` ±${gainCiVal.toLocaleString("th-TH", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}`}</tspan>
+              </text>
+              <text x={ttX + ttW / 2} y={lineY + (isMobile ? 80 : 92)} textAnchor="middle" fontSize={isMobile ? 15 : 17} fill="rgba(125,211,252,0.65)" fontWeight={600}>
+                tCO₂eq
               </text>
             </g>
           );

@@ -6,6 +6,12 @@
 
 @import "./styles/tokens.css";
 
+/* ── Override --kc-font-family to always include explicit Thai name ── */
+:root {
+  --kc-font-family: var(--font-noto-sans-thai), 'Noto Sans Thai', 'Noto Sans',
+    system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
 /* ── Global resets using token values ──────────── */
 *,
 *::before,
@@ -14,12 +20,17 @@
 }
 
 body {
-  font-family: var(--kc-font-family);
+  font-family: var(--font-noto-sans-thai), 'Noto Sans Thai', 'Noto Sans', system-ui, -apple-system, sans-serif;
   font-size: var(--kc-font-size-base);
   color: var(--kc-ink);
   line-height: var(--kc-line-height-normal);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* Ensure ALL elements inherit Thai font */
+* {
+  font-family: inherit;
 }
 
 /* ── Field error (atoms/Input) ─────────────────── */

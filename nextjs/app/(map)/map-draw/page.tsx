@@ -411,6 +411,63 @@ function MapDrawContent() {
       }
     };
 
+    const onLineTouchStart = (e: maplibregl.MapTouchEvent) => {
+      if (drawingRef.current) return;
+      e.preventDefault();
+      const vertsHit = map.queryRenderedFeatures(e.point, { layers: ['plot-verts-l'] });
+      if (vertsHit.length > 0) return;
+
+      const clickPt = [e.lngLat.lng, e.lngLat.lat];
+      let minD = Infinity;
+      let bestPIdx = -1;
+      let bestSIdx = -1;
+      const p = map.project(clickPt as [number, number]);
+
+      drawnParcelsRef.current.forEach((parcel, pIdx) => {
+        if (parcel.geometry.type === "Polygon") {
+          const coords = parcel.geometry.coordinates[0];
+          for (let i = 0; i < coords.length - 1; i++) {
+             const p1 = map.project(coords[i] as [number, number]);
+             const p2 = map.project(coords[i+1] as [number, number]);
+             const l2 = (p1.x - p2.x)**2 + (p1.y - p2.y)**2;
+             let t = 0;
+             if (l2 !== 0) {
+                 t = Math.max(0, Math.min(1, ((p.x - p1.x)*(p2.x - p1.x) + (p.y - p1.y)*(p2.y - p1.y)) / l2));
+             }
+             const proj = { x: p1.x + t*(p2.x - p1.x), y: p1.y + t*(p2.y - p1.y) };
+             const d = Math.hypot(p.x - proj.x, p.y - proj.y);
+             if (d < minD) {
+               minD = d;
+               bestPIdx = pIdx;
+               bestSIdx = i;
+             }
+          }
+        }
+      });
+
+      if (minD < 30 && bestPIdx !== -1) {
+         const newParcels = [...drawnParcelsRef.current];
+         const parcel = { ...newParcels[bestPIdx] };
+         if (parcel.geometry.type === "Polygon") {
+            const coords = [...parcel.geometry.coordinates[0]];
+            coords.splice(bestSIdx + 1, 0, clickPt);
+            parcel.geometry.coordinates[0] = coords;
+            parcel.properties = parcel.properties || {};
+            parcel.properties.rai = polygonAreaM2(coords as LngLat[]) / 1600;
+            newParcels[bestPIdx] = parcel;
+
+            setDrawnParcels(newParcels);
+            drawnParcelsRef.current = newParcels;
+
+            activePIdx = bestPIdx;
+            activeVIdx = bestSIdx + 1;
+
+            map.on('touchmove', onVertsTouchMove);
+            map.on('touchend', onVertsTouchEnd);
+         }
+      }
+    };
+
     const onVertsContextMenu = (e: maplibregl.MapMouseEvent) => {
       if (drawingRef.current) return;
       e.preventDefault();
@@ -455,6 +512,7 @@ function MapDrawContent() {
     map.on('mouseleave', 'plot-verts-l', mouseLeaveVerts);
  
     map.on('mousedown', 'plot-line', onLineDown);
+    map.on('touchstart', 'plot-line', onLineTouchStart);
     map.on('mouseenter', 'plot-line', mouseEnterLine);
     map.on('mouseleave', 'plot-line', mouseLeaveLine);
  
@@ -469,6 +527,7 @@ function MapDrawContent() {
       map.off('mouseenter', 'plot-verts-l', mouseEnterVerts);
       map.off('mouseleave', 'plot-verts-l', mouseLeaveVerts);
       map.off('mousedown', 'plot-line', onLineDown);
+      map.off('touchstart', 'plot-line', onLineTouchStart);
       map.off('mouseenter', 'plot-line', mouseEnterLine);
       map.off('mouseleave', 'plot-line', mouseLeaveLine);
     };
@@ -673,7 +732,7 @@ function MapDrawContent() {
         source: "draw-verts",
         paint: {
           "circle-color": "#3b82f6",
-          "circle-radius": ["interpolate", ["linear"], ["zoom"], 4, 4, 14, 6],
+          "circle-radius": ["interpolate", ["linear"], ["zoom"], 4, 3, 14, 7],
           "circle-stroke-color": "rgba(255,255,255,0.95)",
           "circle-stroke-width": 2,
         },
@@ -690,7 +749,7 @@ function MapDrawContent() {
         type: "line",
         source: "plot",
         layout: { "line-join": "round", "line-cap": "round" },
-        paint: { "line-color": "#3b82f6", "line-width": 2.5 },
+        paint: { "line-color": "#3b82f6", "line-width": ["interpolate", ["linear"], ["zoom"], 4, 2, 14, 5] },
       });
 
 
@@ -747,9 +806,9 @@ function MapDrawContent() {
         source: "plot-verts",
         paint: {
           "circle-color": "#ffffff",
-          "circle-radius": ["interpolate", ["linear"], ["zoom"], 4, 4, 14, 6],
+          "circle-radius": ["interpolate", ["linear"], ["zoom"], 4, 3, 14, 7],
           "circle-stroke-color": "#3b82f6",
-          "circle-stroke-width": 2,
+          "circle-stroke-width": 2.5,
         },
       });
 
@@ -1871,8 +1930,8 @@ function MapDrawContent() {
               onClick={handleExitProject}
               style={{
                 background: "#ffffff",
-                color: "#dc2626",
-                border: "1px solid rgba(220, 38, 38, 0.25)",
+                color: "#059669",
+                border: "1px solid rgba(5, 150, 105, 0.25)",
                 borderRadius: "10px",
                 padding: "8px 16px",
                 fontSize: "13.5px",
@@ -1887,15 +1946,15 @@ function MapDrawContent() {
                 boxShadow: "0 1px 2px rgba(0,0,0,0.02)"
               }}
               onMouseOver={(e) => {
-                e.currentTarget.style.background = "rgba(220, 38, 38, 0.04)";
-                e.currentTarget.style.borderColor = "rgba(220, 38, 38, 0.45)";
+                e.currentTarget.style.background = "rgba(5, 150, 105, 0.04)";
+                e.currentTarget.style.borderColor = "rgba(5, 150, 105, 0.45)";
               }}
               onMouseOut={(e) => {
                 e.currentTarget.style.background = "#ffffff";
-                e.currentTarget.style.borderColor = "rgba(220, 38, 38, 0.25)";
+                e.currentTarget.style.borderColor = "rgba(5, 150, 105, 0.25)";
               }}
             >
-              <i className="bi bi-x-circle" style={{ fontSize: "15px" }} /> ออกจากโครงการ
+              <i className="bi bi-plus-circle" style={{ fontSize: "15px" }} /> เริ่มโปรเจคใหม่
             </button>
           </div>
         )}

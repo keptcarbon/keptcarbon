@@ -37,6 +37,14 @@ export default function RootLayout({
   return (
     <html lang="th" className={notoSansThai.variable} data-scroll-behavior="smooth">
       <head>
+        {/* Preconnect for performance */}
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        {/* Noto Sans Thai — direct CDN load ensures Thai glyphs always render */}
+        <link
+          rel="stylesheet"
+          href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@300;400;500;600;700;800&display=swap"
+        />
         <link rel="stylesheet" href="/assets/vendor/bootstrap/css/bootstrap.min.css" />
         <link rel="stylesheet" href="/assets/vendor/bootstrap-icons/bootstrap-icons.css" />
         <link rel="stylesheet" href="/assets/vendor/aos/aos.css" />
@@ -46,7 +54,7 @@ export default function RootLayout({
         <link rel="stylesheet" href="/assets/css/kc-design.css" />
         <link rel="stylesheet" href="/assets/css/dashboard.css?v=12" />
         <link rel="stylesheet" href="/assets/css/map-draw.css?v=4" />
-        <link rel="stylesheet" href="/assets/css/map-draw-redesign.css?v=7" />
+        <link rel="stylesheet" href="/assets/css/map-draw-redesign.css?v=8" />
         <link rel="stylesheet" href="/assets/css/map-split.css?v=28" />
         <link rel="stylesheet" href="/assets/css/modal-auth.css?v=3" />
       </head>

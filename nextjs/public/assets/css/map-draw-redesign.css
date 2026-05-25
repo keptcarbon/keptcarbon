@@ -1352,6 +1352,11 @@ body.map-draw-active.scrolled .header {
   display: flex;
   flex-direction: column;
   gap: 0;
+  font-family: 'Noto Sans Thai', 'Noto Sans', system-ui, sans-serif !important;
+}
+
+.prp-shell * {
+  font-family: 'Noto Sans Thai', 'Noto Sans', system-ui, sans-serif !important;
 }
 
 /* ── Step bar ──────────────────────────────────────────────── */

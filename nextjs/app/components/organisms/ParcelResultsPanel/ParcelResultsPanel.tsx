@@ -31,7 +31,6 @@ type Props = {
     onProjectTypeChange?: (type: "replanting" | "existing") => void;
 };
 
-type SubStep = "carbon";
 
 
 interface PlotFormData {
@@ -271,52 +270,136 @@ function convertYearNoteToBE(note: string): string {
     return note.replace(/^(\d{4})/, (_, y) => String(parseInt(y) + 543));
 }
 
-function EstimatedParamsCard({ params }: { params: EstimatedParameters }) {
-    const yearParam = params.year_of_planting;
-    const yearNotes = (yearParam.note ?? []).slice(0, 5);
+function PlotDetailCard({
+    form,
+    cr,
+    ep,
+}: {
+    form: PlotFormData | undefined;
+    cr: CarbonResult;
+    ep: EstimatedParameters | null | undefined;
+}) {
+    const userEnteredYear = !!form?.plantYear;
+    const yearParam = ep?.year_of_planting;
+    const rawNotes = yearParam?.note ?? [];
+    const yearNotes = rawNotes.slice(0, 5);
 
-    let usedYearBE: number | null = null;
-    if (typeof yearParam.value === "number") {
-        usedYearBE = yearParam.value + 543;
-    } else if (Array.isArray(yearParam.value) && yearParam.value.length > 0) {
-        const m = yearParam.value[0].match(/^(\d{4})/);
-        if (m) usedYearBE = parseInt(m[1]) + 543;
+    // Parse year boxes from value
+    let yearBoxItems: Array<{ label: string; pct: number }> = [];
+    let displayYearBE: number | null = null;
+
+    if (yearParam) {
+        if (typeof yearParam.value === "number" && yearParam.value > 0) {
+            displayYearBE = yearParam.value + 543;
+            yearBoxItems = [{ label: `พ.ศ. ${displayYearBE}`, pct: 0 }];
+        } else if (Array.isArray(yearParam.value) && yearParam.value.length > 0) {
+            const parsed = (yearParam.value as string[]).map(s => {
+                const yearMatch = s.match(/^(\d{4})/);
+                const pctMatch = s.match(/([\d.]+)%/);
+                const yearCE = yearMatch ? parseInt(yearMatch[1]) : null;
+                const yearBE = yearCE !== null ? yearCE + 543 : null;
+                const pct = pctMatch ? parseFloat(pctMatch[1]) : 0;
+                return { label: yearBE ? `พ.ศ. ${yearBE}` : s, pct, yearBE };
+            }).filter((x): x is { label: string; pct: number; yearBE: number } => x.yearBE !== null);
+            parsed.sort((a, b) => b.pct - a.pct);
+            yearBoxItems = parsed;
+            if (parsed.length > 0) displayYearBE = parsed[0].yearBE;
+        }
     }
+    if (!displayYearBE && cr.plantYearBE > 0) displayYearBE = cr.plantYearBE;
+
+    const isVarietyFromUser = !!form?.variety;
+    const isSpacingFromUser = !!form?.spacing;
+    const isTreeCountFromUser = !!form?.treeCount;
+
+    const variety = isVarietyFromUser ? form.variety : (ep?.rubber_clone.value ? String(ep.rubber_clone.value) : "");
+    const spacing = isSpacingFromUser ? form.spacing : (ep?.spacing_system.value ? String(ep.spacing_system.value).replace(/\s*\([^)]*\)/, "").trim() : "");
+    const treeCount = isTreeCountFromUser
+        ? (parseInt(form.treeCount) || 0)
+        : (ep?.tree_count.value && typeof ep.tree_count.value === "number" ? ep.tree_count.value : cr.trees);
 
     return (
-        <div style={{ marginTop: 8, paddingTop: 8, borderTop: "1px dashed rgba(14,165,233,0.2)", fontSize: 14 }}>
-            <div style={{ fontWeight: 700, color: "#0284c7", marginBottom: 6, display: "flex", alignItems: "center", gap: 4 }}>
-                <i className="bi bi-cpu" /> ข้อมูลอ้างอิงจากระบบ
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                {/* Year used */}
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", color: "#475569" }}>
-                    <span>• ปีที่ปลูก (ใช้คำนวณ)</span>
-                    <span style={{ color: "#0f172a", fontWeight: 700 }}>
-                        {usedYearBE ? `พ.ศ. ${usedYearBE}` : "—"}
+        <div style={{ display: "flex", flexDirection: "column", gap: 8, fontSize: 13, color: "#475569" }}>
+            {userEnteredYear ? (
+                // Case 1: User entered year
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 14px", background: "rgba(14,165,233,0.06)", borderRadius: 10, border: "1px solid rgba(14,165,233,0.18)" }}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                        <span style={{ fontWeight: 700, color: "#0369a1", display: "flex", alignItems: "center", gap: 6 }}>
+                            <i className="bi bi-person-check-fill" /> ปีที่ปลูก
+                        </span>
+                        <span style={{ fontSize: 11, color: "#0284c7", fontWeight: 600, background: "rgba(14,165,233,0.15)", padding: "2px 8px", borderRadius: 12, width: "fit-content" }}>
+                            ระบุโดยผู้ใช้งาน
+                        </span>
+                    </div>
+                    <span style={{ color: "#0f172a", fontWeight: 800, fontSize: 16 }}>
+                        {displayYearBE ? `พ.ศ. ${displayYearBE}` : "—"}
                     </span>
                 </div>
-                {/* Year distribution from raster — top 5 */}
-                {yearNotes.length > 0 && (
-                    <div style={{ marginLeft: 8, marginTop: 2, padding: "6px 10px", background: "rgba(14,165,233,0.04)", borderRadius: 6, border: "1px solid rgba(14,165,233,0.12)" }}>
-                        <div style={{ fontSize: 13, color: "#64748b", fontWeight: 700, marginBottom: 4 }}>
-                            <i className="bi bi-satellite" style={{ marginRight: 4 }} />การกระจายปีที่ตรวจพบ:
+            ) : (
+                // Case 2: Backend only
+                yearBoxItems.length > 0 && (
+                    <div style={{ padding: "12px 14px", background: "rgba(16,185,129,0.04)", borderRadius: 10, border: "1px solid rgba(16,185,129,0.15)" }}>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 12 }}>
+                            <span style={{ fontWeight: 700, color: "#047857", display: "flex", alignItems: "center", gap: 6, fontSize: 14 }}>
+                                <i className="bi bi-cpu-fill" /> ปีที่ตรวจพบ
+                            </span>
+                            <div style={{ 
+                                display: "flex", alignItems: "center", gap: 6, 
+                                fontSize: 12, color: "#059669", fontWeight: 600, 
+                                background: "rgba(16,185,129,0.1)", padding: "6px 10px", 
+                                borderRadius: 6, border: "1px dashed rgba(16,185,129,0.2)"
+                            }}>
+                                <i className="bi bi-info-circle-fill" />
+                                ข้อมูลอ้างอิงจากระบบที่ใช้ในการประมวลผล
+                            </div>
                         </div>
-                        <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                            {yearNotes.map((note, ni) => (
-                                <span key={ni} style={{ fontSize: 13, color: ni === 0 ? "#0369a1" : "#94a3b8", fontWeight: ni === 0 ? 700 : 400 }}>
-                                    {ni === 0 ? "▶ " : "  "}{convertYearNoteToBE(note)}
-                                </span>
+                        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+                            {yearBoxItems.slice(0, 3).map((box, bi) => (
+                                <div key={bi} style={{
+                                    padding: "4px 10px",
+                                    background: bi === 0 ? "rgba(16,185,129,0.12)" : "rgba(100,116,139,0.06)",
+                                    borderRadius: 8,
+                                    border: bi === 0 ? "1px solid rgba(16,185,129,0.3)" : "1px solid rgba(100,116,139,0.15)",
+                                    fontWeight: bi === 0 ? 700 : 500,
+                                    fontSize: 12,
+                                    color: bi === 0 ? "#047857" : "#475569",
+                                }}>
+                                    {box.label}{box.pct > 0 ? ` (${box.pct}%)` : ""}
+                                </div>
                             ))}
+                            {yearBoxItems.length > 3 && (
+                                <span style={{ fontSize: 14, color: "#94a3b8", fontWeight: 600 }}>...</span>
+                            )}
                         </div>
                     </div>
-                )}
-                {/* Clone, tree count, spacing */}
-                <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: "4px 8px", marginTop: 2, color: "#475569" }}>
-                    <div>• พันธุ์ยาง: <strong style={{ color: "#0f172a" }}>{String(params.rubber_clone.value)}</strong></div>
-                    <div>• ระยะปลูก: <strong style={{ color: "#0f172a" }}>{String(params.spacing_system.value)}</strong></div>
-                    <div>• จำนวนต้น: <strong style={{ color: "#0f172a" }}>{Number(params.tree_count.value).toLocaleString("th-TH")}</strong> ต้น</div>
+                )
+            )}
+
+            {/* Year distribution from note (both cases) */}
+            {yearNotes.length > 0 && (
+                <div style={{ padding: "10px 14px", background: "rgba(100,116,139,0.04)", borderRadius: 10, border: "1px solid rgba(100,116,139,0.12)" }}>
+                    <div style={{ fontSize: 12, color: "#475569", fontWeight: 700, marginBottom: 6, display: "flex", alignItems: "center", gap: 6 }}>
+                        <i className="bi bi-pie-chart-fill" /> สัดส่วนปีที่ปลูกที่ตรวจพบในแปลง:
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                        {yearNotes.slice(0, 3).map((note, ni) => (
+                            <span key={ni} style={{ fontSize: 12, color: ni === 0 ? "#0f172a" : "#64748b", fontWeight: ni === 0 ? 700 : 500, display: "flex", alignItems: "center", gap: 6 }}>
+                                {ni === 0 ? <i className="bi bi-caret-right-fill" style={{ color: "#047857" }} /> : <span style={{ width: 12 }} />}
+                                {convertYearNoteToBE(note)}
+                            </span>
+                        ))}
+                        {yearNotes.length > 3 && (
+                            <span style={{ fontSize: 12, color: "#94a3b8", paddingLeft: 18 }}>...</span>
+                        )}
+                    </div>
                 </div>
+            )}
+
+            {/* Common params: variety, spacing, tree count */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 3, marginTop: 2 }}>
+                {variety && <div>• พันธุ์ยาง: <strong style={{ color: "#0f172a" }}>{variety}</strong> {!isVarietyFromUser && <span style={{ color: "#64748b", fontSize: 12 }}>(ค่าเริ่มต้น)</span>}</div>}
+                {spacing && <div>• ระยะปลูก: <strong style={{ color: "#0f172a" }}>{spacing}</strong> {!isSpacingFromUser && <span style={{ color: "#64748b", fontSize: 12 }}>(ค่าเริ่มต้น)</span>}</div>}
+                {treeCount > 0 && <div>• จำนวนต้น: <strong style={{ color: "#0f172a" }}>{treeCount.toLocaleString("th-TH")}</strong> ต้น {!isTreeCountFromUser && <span style={{ color: "#64748b", fontSize: 12 }}>(ประเมินโดยระบบ)</span>}</div>}
             </div>
         </div>
     );
@@ -347,6 +430,7 @@ export function ParcelResultsPanel({
     onProjectTypeChange,
 }: Props) {
     const [expandedIdx, setExpandedIdx] = useState<number | null>(0);
+    const [expandedResultIdx, setExpandedResultIdx] = useState<number | "total" | null>(null);
     const { user } = useAuth();
 
     const plots = useMemo(() => parcelFeatures.map(computePlot), [parcelFeatures]);
@@ -519,11 +603,6 @@ export function ParcelResultsPanel({
     }, [plots.length]);
 
 
-    // Step 3 form
-    // Sub-step tracking for Step 3 results view
-    // (Formerly used for a separate save form, now removed for direct saving)
-    const [subStep, setSubStep] = useState<SubStep>("carbon");
-
     const searchParams = useSearchParams();
     const initialProjectName = searchParams.get("project") || "";
     const [projectName, setProjectName] = useState(initialProjectName);
@@ -554,7 +633,6 @@ export function ParcelResultsPanel({
     const [ownerName, setOwnerName] = useState(userDisplayName);
     const [province, setProvince] = useState("");
     const [saveState, setSaveState] = useState<"idle" | "saving" | "done">("idle");
-    const [showInputDetails, setShowInputDetails] = useState(false);
     const [plotForms, setPlotForms] = useState<PlotFormData[]>([]);
 
     // When plotForms grows (new parcel added), propagate initial luChecked to map
@@ -903,8 +981,8 @@ export function ParcelResultsPanel({
             }
 
             setCarbonResults(results);
+            setExpandedResultIdx("total");
             if (onMapPlotSelected) onMapPlotSelected("total");
-            setSubStep("carbon");
             onStepChange(3);
         } catch (err) {
             setCarbonErr(getFriendlyErrorMessage(err, plots, plotForms));
@@ -1188,10 +1266,10 @@ export function ParcelResultsPanel({
                         </span>
                     </div>
                 )}
-                <div style={{ display: "flex", gap: isMobile ? 6 : 8, marginBottom: 16, flexWrap: "nowrap" }}>
+                <div style={{ display: "flex", gap: isMobile ? 6 : 8, marginBottom: 16, flexWrap: "wrap", justifyContent: "stretch" }}>
                     {onDrawMore && !isDrawing && (
-                        <button className="prp-btn-ghost" style={{ flex: 1, padding: isMobile ? "8px 2px" : "10px 4px", fontSize: isMobile ? 13 : 14, display: "flex", flexDirection: "column", alignItems: "center", gap: isMobile ? 4 : 6, background: "rgba(16,185,129,0.1)", color: "#059669", border: "1px solid rgba(16,185,129,0.2)", borderRadius: isMobile ? 10 : 12 }} onClick={onDrawMore}>
-                            <i className="bi bi-pencil-square" style={{ fontSize: isMobile ? 16 : 18 }} /> <span style={{ fontWeight: 600, textAlign: "center", lineHeight: 1.2 }}>วาดแปลงเพิ่ม</span>
+                        <button className="prp-btn-ghost" style={{ flex: "1 1 calc(33% - 8px)", minWidth: 100, padding: isMobile ? "8px 6px" : "10px 12px", fontSize: isMobile ? 12 : 14, display: "flex", flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 6, background: "rgba(16,185,129,0.1)", color: "#059669", border: "1px solid rgba(16,185,129,0.2)", borderRadius: isMobile ? 10 : 12 }} onClick={onDrawMore}>
+                            <i className="bi bi-pencil-square" style={{ fontSize: isMobile ? 14 : 16 }} /> <span style={{ fontWeight: 600, textAlign: "center", whiteSpace: "nowrap" }}>วาดเพิ่ม</span>
                         </button>
                     )}
                     <button
@@ -1199,7 +1277,7 @@ export function ParcelResultsPanel({
                         onClick={() => handleSave([])}
                         disabled={!user || !projectName.trim() || isDuplicateProjectName || saveState === "saving"}
                         style={{
-                            flex: 1, padding: isMobile ? "8px 2px" : "10px 4px", fontSize: isMobile ? 13 : 14, display: "flex", flexDirection: "column", alignItems: "center", gap: isMobile ? 4 : 6,
+                            flex: "1 1 calc(33% - 8px)", minWidth: 110, padding: isMobile ? "8px 6px" : "10px 12px", fontSize: isMobile ? 12 : 14, display: "flex", flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 6,
                             background: !user ? "#cbd5e1" : (saveState === "done" ? "#94a3b8" : ((projectName.trim() && !isDuplicateProjectName && !hasEmptyStatus) ? "linear-gradient(135deg,#0ea5e9,#0284c7)" : "#cbd5e1")),
                             color: "#fff", border: "none", borderRadius: isMobile ? 10 : 12,
                             cursor: !user ? "not-allowed" : (saveState !== "idle" ? "not-allowed" : ((projectName.trim() && !isDuplicateProjectName && !hasEmptyStatus) ? "pointer" : "not-allowed")),
@@ -1209,11 +1287,11 @@ export function ParcelResultsPanel({
                         }}
                     >
                         {saveState === "saving" ? (
-                            <><span className="s1-spin" style={{ width: isMobile ? 16 : 18, height: isMobile ? 16 : 18, border: "2px solid rgba(255,255,255,0.3)", borderTopColor: "#fff" }} /> <span style={{ fontWeight: 600, textAlign: "center", lineHeight: 1.2 }}>กำลังบันทึก</span></>
+                            <><span className="s1-spin" style={{ width: 14, height: 14, border: "2px solid rgba(255,255,255,0.3)", borderTopColor: "#fff" }} /> <span style={{ fontWeight: 600, textAlign: "center", whiteSpace: "nowrap" }}>บันทึก...</span></>
                         ) : saveState === "done" ? (
-                            <><i className="bi bi-check-circle-fill" style={{ fontSize: isMobile ? 16 : 18 }} /> <span style={{ fontWeight: 600, textAlign: "center", lineHeight: 1.2 }}>บันทึกแล้ว ✓</span></>
+                            <><i className="bi bi-check-circle-fill" style={{ fontSize: isMobile ? 14 : 16 }} /> <span style={{ fontWeight: 600, textAlign: "center", whiteSpace: "nowrap" }}>บันทึกแล้ว</span></>
                         ) : (
-                            <><i className="bi bi-save" style={{ fontSize: isMobile ? 16 : 18 }} /> <span style={{ fontWeight: 600, textAlign: "center", lineHeight: 1.2 }}>บันทึกข้อมูลแปลง</span></>
+                            <><i className="bi bi-save" style={{ fontSize: isMobile ? 14 : 16 }} /> <span style={{ fontWeight: 600, textAlign: "center", whiteSpace: "nowrap" }}>บันทึกแปลง</span></>
                         )}
                     </button>
                     <button
@@ -1221,7 +1299,7 @@ export function ParcelResultsPanel({
                         onClick={() => { void handleProcessCarbon(); }}
                         disabled={!projectName.trim() || isDuplicateProjectName || hasEmptyStatus || processingCarbon}
                         style={{
-                            flex: 1, padding: isMobile ? "8px 2px" : "10px 4px", fontSize: isMobile ? 13 : 14, display: "flex", flexDirection: "column", alignItems: "center", gap: isMobile ? 4 : 6,
+                            flex: "1 1 calc(33% - 8px)", minWidth: 110, padding: isMobile ? "8px 6px" : "10px 12px", fontSize: isMobile ? 12 : 14, display: "flex", flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 6,
                             background: (projectName.trim() && !isDuplicateProjectName && !hasEmptyStatus && !processingCarbon) ? "linear-gradient(135deg,#10b981,#059669)" : "#cbd5e1",
                             color: "#fff", border: "none", borderRadius: isMobile ? 10 : 12,
                             cursor: (projectName.trim() && !isDuplicateProjectName && !hasEmptyStatus && !processingCarbon) ? "pointer" : "not-allowed",
@@ -1229,9 +1307,9 @@ export function ParcelResultsPanel({
                         }}
                     >
                         {processingCarbon ? (
-                            <><span className="s1-spin" style={{ width: isMobile ? 16 : 18, height: isMobile ? 16 : 18, border: "2px solid rgba(255,255,255,0.3)", borderTopColor: "#fff" }} /> <span style={{ fontWeight: 600, textAlign: "center", lineHeight: 1.2 }}>ประมวลผล</span></>
+                            <><span className="s1-spin" style={{ width: 14, height: 14, border: "2px solid rgba(255,255,255,0.3)", borderTopColor: "#fff" }} /> <span style={{ fontWeight: 600, textAlign: "center", whiteSpace: "nowrap" }}>ประมวลผล</span></>
                         ) : (
-                            <><i className="bi bi-graph-up-arrow" style={{ fontSize: isMobile ? 16 : 18 }} /> <span style={{ fontWeight: 600, textAlign: "center", lineHeight: 1.2 }}>ประมวลผล</span></>
+                            <><i className="bi bi-graph-up-arrow" style={{ fontSize: isMobile ? 14 : 16 }} /> <span style={{ fontWeight: 600, textAlign: "center", whiteSpace: "nowrap" }}>ประมวลผล</span></>
                         )}
                     </button>
                 </div>
@@ -1331,7 +1409,15 @@ export function ParcelResultsPanel({
                                 >
                                     <div style={{ pointerEvents: 'none', width: 28, height: 28, borderRadius: 8, background: "#10b981", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 13 }}>{i + 1}</div>
                                     <div style={{ pointerEvents: 'none', flex: 1 }}>
-                                        <div style={{ fontWeight: 700, fontSize: 15, color: "#0f172a" }}>แปลงที่ {i + 1}</div>
+                                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                            <div style={{ fontWeight: 700, fontSize: 15, color: "#0f172a" }}>แปลงที่ {i + 1}</div>
+                                            {form?.plantStatus === "replanting" && (
+                                                <span style={{ fontSize: 10, background: "#dcfce7", color: "#166534", padding: "2px 6px", borderRadius: 10, fontWeight: 700 }}>เริ่มปลูกใหม่</span>
+                                            )}
+                                            {form?.plantStatus === "existing" && (
+                                                <span style={{ fontSize: 10, background: "#e0f2fe", color: "#075985", padding: "2px 6px", borderRadius: 10, fontWeight: 700 }}>ปลูกมาแล้ว</span>
+                                            )}
+                                        </div>
                                         {p.areaRai > 0 && (
                                             <div style={{ fontSize: 13, color: "#64748b" }}>{p.areaRai.toFixed(2)} ไร่</div>
                                         )}
@@ -1704,402 +1790,310 @@ export function ParcelResultsPanel({
 
     // ── Step 3: Carbon Results & Save ────────────────────────────────
     if (currentStep === 3) {
-        // ── sub: carbon results ──
-        if (subStep === "carbon") {
-            const isTotal = selectedMapPlotIndex === "total";
-            const cr = typeof selectedMapPlotIndex === "number" ? carbonResults[selectedMapPlotIndex] : null;
+        const summaryTotalCo2 = carbonResults.reduce((sum, c) => sum + c.co2Now, 0);
 
-            let pts: BarPoint[] = [];
-            let summaryTotalCo2 = 0;
-
-            if (isTotal && carbonResults.length > 0) {
-                summaryTotalCo2 = carbonResults.reduce((sum, c) => sum + c.co2Now, 0);
-
-                if (backendResponses && backendResponses.length > 0) {
-                    const avgStartAge = carbonResults.length > 0
-                        ? Math.round(carbonResults.reduce((s, c) => s + c.age, 0) / carbonResults.length)
-                        : 0;
-                    pts = aggregateProfiles(backendResponses, avgStartAge);
-                } else {
-                    const CURRENT_BE = new Date().getFullYear() + 543;
-                    const initialPlotCarbons = carbonResults.map(c => carbonCo2(c.age, c.trees, c.spacing));
-                    const plotStates = carbonResults.map(c => ({ continuousAge: c.age }));
-                    const N = plotStates.length;
-                    for (let i = 0; i < 35; i++) {
-                        const yearBE = CURRENT_BE + i;
-                        let totalCo2 = 0, totalContinuousAge = 0, sumSqMargin = 0;
-                        plotStates.forEach((state, idx) => {
-                            const plotCo2 = carbonCo2(state.continuousAge, carbonResults[idx].trees, carbonResults[idx].spacing);
-                            totalCo2 += plotCo2;
-                            if (i > 0) {
-                                const growth = plotCo2 - initialPlotCarbons[idx];
-                                const factor = 0.05 + 0.002 * i;
-                                const m = Math.max(0, growth * factor);
-                                sumSqMargin += m * m;
-                            }
-                            totalContinuousAge += state.continuousAge;
-                            state.continuousAge++;
-                        });
-                        const avgAge = Math.round(totalContinuousAge / N);
-                        const errorMargin = Math.sqrt(sumSqMargin);
-                        pts.push({ age: avgAge, yearBE, year_at: i, co2: totalCo2, ci: errorMargin, gainValue: 0, gainCi: 0, cycle: Math.floor(i / 7), cycleAge: avgAge, errorMargin });
+        // Build aggregate bar points
+        let aggregatePts: BarPoint[] = [];
+        if (backendResponses && backendResponses.length > 0) {
+            const avgStartAge = carbonResults.length > 0
+                ? Math.round(carbonResults.reduce((s, c) => s + c.age, 0) / carbonResults.length)
+                : 0;
+            aggregatePts = aggregateProfiles(backendResponses, avgStartAge);
+        } else if (carbonResults.length > 0) {
+            const initialPlotCarbons = carbonResults.map(c => carbonCo2(c.age, c.trees, c.spacing));
+            const plotStates = carbonResults.map(c => ({ continuousAge: c.age }));
+            const N = plotStates.length;
+            for (let i = 0; i < 35; i++) {
+                const yearBE = CURRENT_BE + i;
+                let totalCo2 = 0, totalContinuousAge = 0, sumSqMargin = 0;
+                plotStates.forEach((state, idx) => {
+                    const plotCo2 = carbonCo2(state.continuousAge, carbonResults[idx].trees, carbonResults[idx].spacing);
+                    totalCo2 += plotCo2;
+                    if (i > 0) {
+                        const growth = plotCo2 - initialPlotCarbons[idx];
+                        const factor = 0.05 + 0.002 * i;
+                        sumSqMargin += Math.max(0, growth * factor) ** 2;
                     }
-                }
-            } else if (cr) {
-                const plotIdx = selectedMapPlotIndex as number;
-                const backendProfile = backendResponses?.find(r => r.polygon_id === `plot-${plotIdx}`)?.carbon_profile;
-                const startYearBE = cr.plantYearBE > 0 ? cr.plantYearBE + cr.age : CURRENT_BE;
-                pts = backendProfile && backendProfile.length > 0
-                    ? profileToBarPoints(backendProfile, cr.age)
-                    : buildBarPoints(cr.age, startYearBE, cr.trees, cr.spacing || "2.5x8");
+                    totalContinuousAge += state.continuousAge;
+                    state.continuousAge++;
+                });
+                const avgAge = Math.round(totalContinuousAge / N);
+                const errorMargin = Math.sqrt(sumSqMargin);
+                aggregatePts.push({ age: avgAge, yearBE, year_at: i, co2: totalCo2, ci: errorMargin, gainValue: 0, gainCi: 0, cycle: Math.floor(i / 7), cycleAge: avgAge, errorMargin });
             }
+        }
 
-            return (
-                <div className="prp-shell">
-                    {/* New Integrated Header Design */}
+        return (
+            <div className="prp-shell">
+                {/* ── Header ─────────────────────────────────────── */}
+                <div style={{
+                    display: "flex", alignItems: "center", gap: 10,
+                    marginBottom: 12, paddingBottom: 12,
+                    borderBottom: "1px solid rgba(16,185,129,0.1)"
+                }}>
                     <div style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 10,
-                        marginBottom: 12,
-                        paddingBottom: 12,
-                        borderBottom: "1px solid rgba(16,185,129,0.1)"
+                        width: 38, height: 38, borderRadius: 12,
+                        background: "linear-gradient(135deg,#10b981,#059669)",
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                        color: "#fff", boxShadow: "0 3px 8px rgba(16,185,129,0.2)", fontSize: 18
                     }}>
-                        <div style={{
-                            width: 38,
-                            height: 38,
-                            borderRadius: 12,
-                            background: "linear-gradient(135deg,#10b981,#059669)",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            color: "#fff",
-                            boxShadow: "0 3px 8px rgba(16,185,129,0.2)",
-                            fontSize: 18
-                        }}>
-                            <i className={`bi bi-${isTotal ? "pie-chart-fill" : "geo-fill"}`} />
+                        <i className="bi bi-graph-up-arrow" />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: isMobile ? 15 : 16, fontWeight: 800, color: "#0f172a", lineHeight: 1.2 }}>
+                            ผลการประมวลผลคาร์บอน
                         </div>
-                        <div style={{ flex: 1 }}>
-                            <div style={{ fontSize: isMobile ? 15 : 16, fontWeight: 800, color: "#0f172a", lineHeight: 1.2 }}>
-                                {isTotal ? "สรุปผลคาร์บอนรวม" : `ผลคาร์บอน: แปลงที่ ${(selectedMapPlotIndex as number) + 1}`}
-                            </div>
-                            <div style={{ fontSize: 11, color: "#64748b", marginTop: 2, fontWeight: 500 }}>
-                                {isTotal ? "ภาพรวมการคำนวณจากทุกแปลง" : "แสดงข้อมูลเฉพาะแปลงที่เลือก"}
-                            </div>
+                        <div style={{ fontSize: 11, color: "#64748b", marginTop: 2, fontWeight: 500 }}>
+                            แสดงผลรวมและรายแปลง
                         </div>
-                        {!isTotal && (
-                            <div
-                                onClick={() => onMapPlotSelected?.("total")}
-                                style={{
-                                    fontSize: isMobile ? 10 : 11,
-                                    fontWeight: 700,
-                                    color: "#059669",
-                                    cursor: "pointer",
-                                    padding: isMobile ? "4px 8px" : "6px 12px",
-                                    borderRadius: 20,
-                                    background: "rgba(16,185,129,0.08)",
-                                    border: "1px solid rgba(16,185,129,0.2)",
-                                    display: "flex",
-                                    alignItems: "center",
-                                    gap: 4,
-                                    transition: "all 0.2s"
-                                }}
-                            >
-                                <i className="bi bi-arrow-left-circle-fill" />
-                                กลับหน้ารวม
+                    </div>
+                </div>
+
+                {/* ── Action Buttons ────────────────────────────── */}
+                <div style={{ display: "flex", gap: 8, width: "100%", marginBottom: 16, alignItems: "center" }}>
+                    <button
+                        className="prp-btn-ghost"
+                        onClick={() => onStepChange(2)}
+                        style={{
+                            flex: 1, height: "42px", padding: 0, margin: 0,
+                            boxSizing: "border-box", fontSize: "12.5px", fontWeight: 700,
+                            color: "#047857", cursor: "pointer",
+                            background: "rgba(16,185,129,0.08)",
+                            border: "1.5px solid rgba(16,185,129,0.25)",
+                            borderRadius: "14px",
+                            display: "flex", alignItems: "center", justifyContent: "center", gap: "4px",
+                            transition: "all 0.2s", outline: "none",
+                            boxShadow: "0 2px 5px rgba(16,185,129,0.05)"
+                        }}
+                        onMouseOver={(e) => { e.currentTarget.style.background = "rgba(16,185,129,0.16)"; e.currentTarget.style.borderColor = "rgba(16,185,129,0.45)"; }}
+                        onMouseOut={(e) => { e.currentTarget.style.background = "rgba(16,185,129,0.08)"; e.currentTarget.style.borderColor = "rgba(16,185,129,0.25)"; }}
+                    >
+                        <i className="bi bi-arrow-left-short" style={{ fontSize: "16px" }} />
+                        <span style={{ whiteSpace: "nowrap" }}>ย้อนกลับ</span>
+                    </button>
+                    <button
+                        className="prp-btn-primary"
+                        onClick={() => handleSave()}
+                        disabled={!user || !projectName.trim() || isDuplicateProjectName || saveState === "saving"}
+                        style={{
+                            flex: isMobile ? 1.5 : 1.2, minHeight: "42px", height: "auto",
+                            padding: "6px 4px", margin: 0, boxSizing: "border-box",
+                            fontSize: "12.5px", fontWeight: 700,
+                            background: !user ? "#cbd5e1" : "linear-gradient(135deg,#0369a1,#0284c7)",
+                            border: "1.5px solid transparent", borderRadius: "14px",
+                            display: "flex", alignItems: "center", justifyContent: "center", gap: "6px",
+                            cursor: !user || !projectName.trim() || isDuplicateProjectName || saveState === "saving" ? "not-allowed" : "pointer",
+                            opacity: !user ? 0.5 : (!projectName.trim() || isDuplicateProjectName || saveState === "saving" ? 0.6 : 1),
+                            color: "#fff", transition: "all 0.2s",
+                            boxShadow: !user ? "none" : "0 4px 10px rgba(2,132,199,0.2)"
+                        }}
+                    >
+                        {saveState === "saving" ? (
+                            <><span className="s1-spin" style={{ width: 14, height: 14, border: "2px solid rgba(255,255,255,0.3)", borderTopColor: "#fff" }} /> <span style={{ whiteSpace: "nowrap" }}>บันทึก...</span></>
+                        ) : saveState === "done" ? (
+                            <><i className="bi bi-check-circle-fill" /> <span style={{ whiteSpace: "nowrap" }}>บันทึกแล้ว</span></>
+                        ) : (
+                            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                <i className="bi bi-save" style={{ fontSize: isMobile ? 16 : 14 }} />
+                                {isMobile ? (
+                                    <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", lineHeight: 1.15, textAlign: "left", fontSize: 11 }}>
+                                        <span>บันทึกข้อมูล</span><span>ประมวลผล</span>
+                                    </div>
+                                ) : (
+                                    <span style={{ whiteSpace: "nowrap" }}>บันทึกข้อมูลประมวลผล</span>
+                                )}
                             </div>
                         )}
-                    </div>
-
-
-
-                    <div style={{ display: "flex", gap: 8, width: "100%", marginBottom: 16, alignItems: "center" }}>
+                    </button>
+                    {onBack && (
                         <button
                             className="prp-btn-ghost"
-                            onClick={() => onStepChange(2)}
+                            onClick={onBack}
                             style={{
-                                flex: 1,
-                                height: "42px",
-                                padding: 0,
-                                margin: 0,
-                                boxSizing: "border-box",
-                                fontSize: "12.5px",
-                                fontWeight: 700,
-                                color: "#047857",
-                                cursor: "pointer",
-                                background: "rgba(16, 185, 129, 0.08)",
-                                border: "1.5px solid rgba(16, 185, 129, 0.25)",
+                                flex: 1, height: "42px", padding: 0, margin: 0,
+                                boxSizing: "border-box", fontSize: "12.5px", fontWeight: 700,
+                                color: "#64748b", cursor: "pointer",
+                                background: "rgba(100,116,139,0.07)",
+                                border: "1.5px solid rgba(100,116,139,0.22)",
                                 borderRadius: "14px",
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                gap: "4px",
-                                transition: "all 0.2s",
-                                outline: "none",
-                                boxShadow: "0 2px 5px rgba(16, 185, 129, 0.05)"
+                                display: "flex", alignItems: "center", justifyContent: "center", gap: "4px",
+                                transition: "all 0.2s", outline: "none", boxShadow: "none"
                             }}
-                            onMouseOver={(e) => {
-                                e.currentTarget.style.background = "rgba(16, 185, 129, 0.16)";
-                                e.currentTarget.style.borderColor = "rgba(16, 185, 129, 0.45)";
-                            }}
-                            onMouseOut={(e) => {
-                                e.currentTarget.style.background = "rgba(16, 185, 129, 0.08)";
-                                e.currentTarget.style.borderColor = "rgba(16, 185, 129, 0.25)";
-                            }}
+                            onMouseOver={(e) => { e.currentTarget.style.background = "rgba(100,116,139,0.14)"; e.currentTarget.style.borderColor = "rgba(100,116,139,0.4)"; }}
+                            onMouseOut={(e) => { e.currentTarget.style.background = "rgba(100,116,139,0.07)"; e.currentTarget.style.borderColor = "rgba(100,116,139,0.22)"; }}
                         >
-                            <i className="bi bi-arrow-left-short" style={{ fontSize: "16px", fontWeight: "bold" }} /> <span style={{ whiteSpace: "nowrap" }}>ย้อนกลับ</span>
+                            <i className="bi bi-house-door" style={{ fontSize: "13px" }} />
+                            <span style={{ whiteSpace: "nowrap" }}>ขั้นตอนที่ 1</span>
                         </button>
-                        <button
-                            className="prp-btn-primary"
-                            onClick={() => handleSave()}
-                            disabled={!user || !projectName.trim() || isDuplicateProjectName || saveState === "saving"}
-                            style={{
-                                flex: isMobile ? 1.5 : 1.2,
-                                minHeight: "42px",
-                                height: "auto",
-                                padding: "6px 4px",
-                                margin: 0,
-                                boxSizing: "border-box",
-                                fontSize: "12.5px",
-                                fontWeight: 700,
-                                background: !user ? "#cbd5e1" : "linear-gradient(135deg,#0369a1,#0284c7)",
-                                border: "1.5px solid transparent",
-                                borderRadius: "14px",
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                gap: "6px",
-                                cursor: !user || !projectName.trim() || isDuplicateProjectName || saveState === "saving" ? "not-allowed" : "pointer",
-                                opacity: !user ? 0.5 : (!projectName.trim() || isDuplicateProjectName || saveState === "saving" ? 0.6 : 1),
-                                color: "#fff",
-                                transition: "all 0.2s",
-                                boxShadow: !user ? "none" : "0 4px 10px rgba(2,132,199,0.2)"
-                            }}
-                        >
-                            {saveState === "saving" ? (
-                                <><span className="s1-spin" style={{ width: 14, height: 14, border: "2px solid rgba(255,255,255,0.3)", borderTopColor: "#fff" }} /> <span style={{ whiteSpace: "nowrap" }}>บันทึก...</span></>
-                            ) : saveState === "done" ? (
-                                <><i className="bi bi-check-circle-fill" /> <span style={{ whiteSpace: "nowrap" }}>บันทึกแล้ว</span></>
-                            ) : (
-                                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                                    <i className="bi bi-save" style={{ fontSize: isMobile ? 16 : 14 }} />
-                                    {isMobile ? (
-                                        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", lineHeight: 1.15, textAlign: "left", fontSize: 11 }}>
-                                            <span>บันทึกข้อมูล</span>
-                                            <span>ประมวลผล</span>
-                                        </div>
-                                    ) : (
-                                        <span style={{ whiteSpace: "nowrap" }}>บันทึกข้อมูลประมวลผล</span>
-                                    )}
+                    )}
+                </div>
+
+                {/* ── Total Overview Accordion ────────────────────────────── */}
+                <div style={{
+                    background: "#fff",
+                    borderRadius: 14,
+                    border: "1px solid rgba(16,185,129,0.15)",
+                    overflow: "hidden",
+                    boxShadow: "0 2px 10px rgba(0,0,0,0.04)",
+                    marginBottom: 16
+                }}>
+                    <div
+                        onClick={() => {
+                            const willExpand = expandedResultIdx !== "total";
+                            setExpandedResultIdx(willExpand ? "total" : null);
+                            if (willExpand) {
+                                onMapPlotSelected?.("total");
+                            }
+                        }}
+                        style={{
+                            background: "linear-gradient(135deg,rgba(16,185,129,0.08),rgba(5,150,105,0.04))",
+                            padding: "10px 14px",
+                            display: "flex", alignItems: "center", gap: 10, cursor: "pointer",
+                            borderBottom: expandedResultIdx === "total" ? "1px solid rgba(16,185,129,0.1)" : "none"
+                        }}
+                    >
+                        <div style={{
+                            width: 32, height: 32, borderRadius: 10, flexShrink: 0,
+                            background: "linear-gradient(135deg,#0ea5e9,#0284c7)",
+                            color: "#fff", display: "flex", alignItems: "center",
+                            justifyContent: "center", fontWeight: 800, fontSize: 14
+                        }}>
+                            <i className="bi bi-pie-chart-fill" />
+                        </div>
+                        <div style={{ flex: 1 }}>
+                            <div style={{ fontWeight: 700, fontSize: 14, color: "#0f172a" }}>ผลรวมโครงการ</div>
+                            <div style={{ fontSize: 12, color: "#64748b" }}>
+                                {carbonResults.length} แปลง · {totalArea.toFixed(2)} ไร่
+                            </div>
+                        </div>
+                        <i className={`bi bi-chevron-${expandedResultIdx === "total" ? 'up' : 'down'}`} style={{ color: "#64748b", fontSize: 14 }} />
+                    </div>
+
+                    {expandedResultIdx === "total" && (
+                        <div style={{ padding: "14px 14px 16px" }}>
+                            <div style={{
+                                background: "linear-gradient(135deg,#f0fdf4,#ecfdf5)",
+                                borderRadius: 12, padding: "12px 16px", marginBottom: 16,
+                                border: "1px solid rgba(16,185,129,0.18)",
+                                display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px 12px"
+                            }}>
+                                <div>
+                                    <div style={{ fontSize: 11, color: "#64748b", fontWeight: 600 }}>ชื่อโครงการ</div>
+                                    <div style={{ fontWeight: 700, color: "#0f172a", fontSize: 14 }}>{projectName || "—"}</div>
+                                </div>
+                                <div>
+                                    <div style={{ fontSize: 11, color: "#64748b", fontWeight: 600 }}>จำนวนแปลง</div>
+                                    <div style={{ fontWeight: 700, color: "#0f172a", fontSize: 14 }}>{carbonResults.length} แปลง</div>
+                                </div>
+                                <div>
+                                    <div style={{ fontSize: 11, color: "#64748b", fontWeight: 600 }}>พื้นที่รวม</div>
+                                    <div style={{ fontWeight: 800, color: "#0284c7", fontSize: isMobile ? 16 : 18 }}>
+                                        {totalArea.toFixed(2)} <span style={{ fontSize: 12, fontWeight: 600 }}>ไร่</span>
+                                    </div>
+                                </div>
+                                <div>
+                                    <div style={{ fontSize: 11, color: "#64748b", fontWeight: 600 }}>คาร์บอนรวมปัจจุบัน</div>
+                                    <div style={{ fontWeight: 800, color: "#0d9488", fontSize: isMobile ? 16 : 18 }}>
+                                        {Math.floor(summaryTotalCo2).toLocaleString()} <span style={{ fontSize: 12, fontWeight: 600 }}>tCO₂</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {aggregatePts.length > 0 && (
+                                <div>
+                                    <CarbonBarChart pts={aggregatePts} isMobile={isMobile} narrowMode={!isMobile} />
                                 </div>
                             )}
-                        </button>
-                        {onBack && (
-                            <button
-                                className="prp-btn-ghost"
-                                onClick={onBack}
+                        </div>
+                    )}
+                </div>
+
+                {/* ── Per-Plot Cards ────────────────────────────── */}
+                <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                    {carbonResults.map((cr, i) => {
+                        const form = plotForms[i];
+                        const plot = plots[i];
+                        const backendResp = backendResponses?.find(r => r.polygon_id === `plot-${i}`);
+                        const ep = backendResp?.estimated_parameters;
+
+                        const backendProfile = backendResp?.carbon_profile;
+                        const startYearBE = cr.plantYearBE > 0 ? cr.plantYearBE + cr.age : CURRENT_BE;
+                        const plotPts = backendProfile && backendProfile.length > 0
+                            ? profileToBarPoints(backendProfile, cr.age)
+                            : buildBarPoints(cr.age, startYearBE, cr.trees, cr.spacing || "2.5x8");
+
+                        return (
+                            <div
+                                key={i}
                                 style={{
-                                    flex: 1,
-                                    height: "42px",
-                                    padding: 0,
-                                    margin: 0,
-                                    boxSizing: "border-box",
-                                    fontSize: "12.5px",
-                                    fontWeight: 700,
-                                    color: "#64748b",
-                                    cursor: "pointer",
-                                    background: "rgba(100, 116, 139, 0.07)",
-                                    border: "1.5px solid rgba(100, 116, 139, 0.22)",
-                                    borderRadius: "14px",
-                                    display: "flex",
-                                    alignItems: "center",
-                                    justifyContent: "center",
-                                    gap: "4px",
-                                    transition: "all 0.2s",
-                                    outline: "none",
-                                    boxShadow: "none"
-                                }}
-                                onMouseOver={(e) => {
-                                    e.currentTarget.style.background = "rgba(100, 116, 139, 0.14)";
-                                    e.currentTarget.style.borderColor = "rgba(100, 116, 139, 0.4)";
-                                }}
-                                onMouseOut={(e) => {
-                                    e.currentTarget.style.background = "rgba(100, 116, 139, 0.07)";
-                                    e.currentTarget.style.borderColor = "rgba(100, 116, 139, 0.22)";
+                                    background: "#fff",
+                                    borderRadius: 14,
+                                    border: "1px solid rgba(16,185,129,0.15)",
+                                    overflow: "hidden",
+                                    boxShadow: "0 2px 10px rgba(0,0,0,0.04)"
                                 }}
                             >
-                                <i className="bi bi-house-door" style={{ fontSize: "13px" }} /> <span style={{ whiteSpace: "nowrap" }}>ขั้นตอนที่ 1</span>
-                            </button>
-                        )}
-                    </div>
-                    {isTotal ? (
-                        <>
-                            {/* Total summary */}
-                            <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 6, marginBottom: 10 }}>
-                                {[
-                                    { label: "คาร์บอนรวมปัจจุบัน", val: `${Math.floor(summaryTotalCo2).toLocaleString()} tCO₂`, color: "#0d9488" },
-                                ].map(({ label, val, color }) => (
-                                    <div key={label} style={{ background: "#fff", borderRadius: 10, padding: "12px 8px", textAlign: "center", border: "1px solid rgba(0,0,0,0.06)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4 }}>
-                                        <div style={{ fontSize: 12, color: "#64748b", fontWeight: 600 }}>{label}</div>
-                                        <div style={{ fontSize: isMobile ? 18 : 22, fontWeight: 800, color }}>{val}</div>
+                                {/* Plot header */}
+                                <div
+                                    onClick={() => {
+                                        const willExpand = expandedResultIdx !== i;
+                                        setExpandedResultIdx(willExpand ? i : null);
+                                        if (willExpand) {
+                                            if (parcelFeatures[i]) onFlyTo(parcelFeatures[i]);
+                                            onMapPlotSelected?.(i);
+                                        } else {
+                                            onMapPlotSelected?.("total");
+                                        }
+                                    }}
+                                    style={{
+                                        background: "linear-gradient(135deg,rgba(16,185,129,0.08),rgba(5,150,105,0.04))",
+                                        padding: "10px 14px",
+                                        display: "flex", alignItems: "center", gap: 10, cursor: "pointer",
+                                        borderBottom: expandedResultIdx === i ? "1px solid rgba(16,185,129,0.1)" : "none"
+                                    }}
+                                >
+                                    <div style={{
+                                        width: 32, height: 32, borderRadius: 10, flexShrink: 0,
+                                        background: "linear-gradient(135deg,#10b981,#059669)",
+                                        color: "#fff", display: "flex", alignItems: "center",
+                                        justifyContent: "center", fontWeight: 800, fontSize: 14
+                                    }}>{i + 1}</div>
+                                    <div style={{ flex: 1 }}>
+                                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                            <div style={{ fontWeight: 700, fontSize: 14, color: "#0f172a" }}>แปลงที่ {i + 1}</div>
+                                            {form?.plantStatus === "replanting" && (
+                                                <span style={{ fontSize: 10, background: "#dcfce7", color: "#166534", padding: "2px 6px", borderRadius: 10, fontWeight: 700 }}>เริ่มปลูกใหม่</span>
+                                            )}
+                                            {form?.plantStatus === "existing" && (
+                                                <span style={{ fontSize: 10, background: "#e0f2fe", color: "#075985", padding: "2px 6px", borderRadius: 10, fontWeight: 700 }}>ปลูกมาแล้ว</span>
+                                            )}
+                                        </div>
+                                        <div style={{ fontSize: 12, color: "#64748b" }}>
+                                            {plot?.areaRai.toFixed(2)} ไร่
+                                        </div>
                                     </div>
-                                ))}
-                            </div>
-                            <CarbonBarChart pts={pts} isMobile={isMobile} narrowMode={!isMobile} />
-                        </>
-                    ) : cr ? (
-                        <>
-                            {/* Plot info summary */}
-                            <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 6, marginBottom: 10 }}>
-                                {[
-                                    { label: "คาร์บอนปัจจุบัน", val: `${Math.floor(cr.co2Now).toLocaleString()} tCO₂`, color: "#0d9488" },
-                                ].map(({ label, val, color }) => (
-                                    <div key={label} style={{ background: "#fff", borderRadius: 10, padding: "12px 8px", textAlign: "center", border: "1px solid rgba(0,0,0,0.06)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4 }}>
-                                        <div style={{ fontSize: 12, color: "#64748b", fontWeight: 600 }}>{label}</div>
-                                        <div style={{ fontSize: isMobile ? 18 : 22, fontWeight: 800, color }}>{val}</div>
-                                    </div>
-                                ))}
-                            </div>
-
-                            <CarbonBarChart pts={pts} isMobile={isMobile} narrowMode={!isMobile} />
-                        </>
-                    ) : null}
-
-                    {/* Input Details Summary (Collapsible) */}
-                    <div style={{ marginTop: 16, background: "#f8fafc", borderRadius: 12, border: "1px solid #e2e8f0", overflow: "hidden" }}>
-                        <div
-                            onClick={() => setShowInputDetails(!showInputDetails)}
-                            style={{
-                                padding: "12px 14px",
-                                cursor: "pointer",
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "space-between",
-                                background: showInputDetails ? "rgba(14,165,233,0.04)" : "transparent"
-                            }}
-                        >
-                            <div style={{ fontSize: 13, fontWeight: 700, color: "#1e293b", display: "flex", alignItems: "center", gap: 8 }}>
-                                <i className="bi bi-file-text" style={{ color: "#0ea5e9" }} /> ข้อมูลที่ใช้ประมวลผล
-                            </div>
-                            <i className={`bi bi-chevron-${showInputDetails ? "up" : "down"}`} style={{ fontSize: 12, color: "#64748b" }} />
-                        </div>
-
-                        {showInputDetails && (
-                            <div style={{ padding: "0 14px 14px", fontSize: 12, color: "#475569", borderTop: "1px solid rgba(226,232,240,0.6)" }}>
-                                <div style={{ paddingTop: 10 }}>
-                                    <div><strong>ชื่อโครงการ:</strong> {projectName || "-"}</div>
-                                    <div><strong>พื้นที่รวม:</strong> {totalArea.toFixed(2)} ไร่</div>
-                                    <div style={{ marginTop: 8 }}><strong>รายละเอียดแปลง:</strong></div>
-                                    <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 4 }}>
-                                        {plots.length > 1 && (
-                                            <div
-                                                onClick={() => onMapPlotSelected?.("total")}
-                                                style={{
-                                                    padding: "10px 12px",
-                                                    background: isTotal ? "rgba(16,185,129,0.06)" : "#fff",
-                                                    borderRadius: 8,
-                                                    border: isTotal ? "2px solid #10b981" : "1px solid rgba(0,0,0,0.06)",
-                                                    cursor: "pointer",
-                                                    transition: "all 0.2s",
-                                                    display: "flex",
-                                                    alignItems: "center",
-                                                    gap: 10
-                                                }}
-                                            >
-                                                <div style={{
-                                                    width: 24,
-                                                    height: 24,
-                                                    borderRadius: 6,
-                                                    background: isTotal ? "#10b981" : "#f1f5f9",
-                                                    display: "flex",
-                                                    alignItems: "center",
-                                                    justifyContent: "center",
-                                                    color: isTotal ? "#fff" : "#64748b"
-                                                }}>
-                                                    <i className="bi bi-pie-chart-fill" style={{ fontSize: 12 }} />
-                                                </div>
-                                                <div style={{ fontWeight: 700, color: isTotal ? "#047857" : "#334155", fontSize: 12 }}>
-                                                    ภาพรวมคาร์บอนรวมทุกแปลง ({totalArea.toFixed(2)} ไร่)
-                                                </div>
-                                            </div>
-                                        )}
-
-                                        {plots.map((p, i) => {
-                                            const f = plotForms[i];
-                                            const crInfo = carbonResults[i];
-                                            if (!f || !crInfo) return null;
-                                            const isSel = selectedMapPlotIndex === i;
-                                            return (
-                                                <div
-                                                    key={i}
-                                                    onClick={() => {
-                                                        if (parcelFeatures[i]) onFlyTo(parcelFeatures[i]);
-                                                        onMapPlotSelected?.(i);
-                                                    }}
-                                                    style={{
-                                                        padding: "10px 12px",
-                                                        background: isSel ? "rgba(16,185,129,0.06)" : "#fff",
-                                                        borderRadius: 8,
-                                                        border: isSel ? "2px solid #10b981" : "1px solid rgba(0,0,0,0.06)",
-                                                        cursor: "pointer",
-                                                        transition: "all 0.2s"
-                                                    }}
-                                                >
-                                                    <div style={{ fontWeight: 700, color: isSel ? "#047857" : "#0f172a", marginBottom: 6, display: "flex", alignItems: "center", gap: 6 }}>
-                                                        <i className="bi bi-geo-alt-fill" style={{ color: isSel ? "#10b981" : "#64748b" }} />
-                                                        แปลงที่ {i + 1} ({p.areaRai.toFixed(2)} ไร่)
-                                                    </div>
-                                                    <div style={{ display: "flex", flexDirection: "column", gap: 5, fontSize: 13, color: "#64748b" }}>
-                                                        {(f.plantYear || f.variety || f.treeCount || f.spacing) && (
-                                                        <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-                                                            {f.plantYear && <div>• ข้อมูลที่ผู้ใช้งานระบุ: <strong>พ.ศ. {crInfo.plantYearBE}</strong></div>}
-                                                        </div>
-                                                        )}
-                                                        {(f.variety || f.treeCount || f.spacing) && (
-                                                        <div style={{ display: "flex", flexDirection: "column", gap: 3, marginTop: 2 }}>
-                                                            {f.variety && <div>• พันธุ์ยาง: {crInfo.variety}</div>}
-                                                            {f.treeCount && <div>• จำนวนต้น: {crInfo.trees.toLocaleString("th-TH")} ต้น</div>}
-                                                            {f.spacing && <div>• ระยะปลูก: {crInfo.spacing} ม.</div>}
-                                                        </div>
-                                                        )}
-                                                    </div>
-                                                    {/* Estimated Parameters from backend */}
-                                                    {(() => {
-                                                        const backendResp = backendResponses?.find(r => r.polygon_id === `plot-${i}`);
-                                                        return backendResp?.estimated_parameters
-                                                            ? <EstimatedParamsCard params={backendResp.estimated_parameters} />
-                                                            : null;
-                                                    })()}
-                                                    {crInfo.selectedAreaRai !== undefined && (
-                                                        <div style={{ marginTop: 6, paddingTop: 6, borderTop: "1px dashed rgba(16,185,129,0.15)", fontSize: 13 }}>
-                                                            <div style={{ display: "flex", justifyContent: "space-between", color: "#0284c7", fontWeight: 700, marginBottom: 5 }}>
-                                                                <span>• พื้นที่ที่เลือกทั้งหมด:</span>
-                                                                <span>{crInfo.selectedAreaRai.toFixed(2)} ไร่</span>
-                                                            </div>
-                                                            {crInfo.luBreakdown && Object.keys(crInfo.luBreakdown).length > 0 && (
-                                                                <div style={{ display: "flex", flexDirection: "column", gap: 4, paddingLeft: 8 }}>
-                                                                    {Object.entries(crInfo.luBreakdown).map(([cls, info]) => (
-                                                                        <div key={cls} style={{ display: "flex", justifyContent: "space-between", color: "#059669", fontWeight: 600 }}>
-                                                                            <span>↳ {cls}{info.desc ? ` ${info.desc}` : ""}:</span>
-                                                                            <span>{info.rai.toFixed(2)} ไร่ ({info.pct}%)</span>
-                                                                        </div>
-                                                                    ))}
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
+                                    <i className={`bi bi-chevron-${expandedResultIdx === i ? 'up' : 'down'}`} style={{ color: "#64748b", fontSize: 14 }} />
                                 </div>
-                            </div>
-                        )}
-                    </div>
 
+                                {expandedResultIdx === i && (
+                                    <>
+                                        {/* Plot chart */}
+                                        <div style={{ padding: "12px 12px 4px" }}>
+                                            <CarbonBarChart pts={plotPts} isMobile={isMobile} narrowMode={!isMobile} />
+                                        </div>
+
+                                        {/* Plot details */}
+                                        <div style={{ padding: "8px 14px 14px" }}>
+                                            <PlotDetailCard form={form} cr={cr} ep={ep || null} />
+                                        </div>
+                                    </>
+                                )}
+                            </div>
+                        );
+                    })}
                 </div>
-            );
-        }
+            </div>
+        );
     }
 
     return null;

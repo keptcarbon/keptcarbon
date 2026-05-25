@@ -20,6 +20,7 @@ export interface StatusMessage {
     status: string;
     status_code: string;
     message: string;
+    message_th?: string;
 }
 
 export interface CarbonValue {
