@@ -1475,12 +1475,6 @@ export function ParcelResultsPanel({
                                     <div style={{ pointerEvents: 'none', flex: 1 }}>
                                         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                                             <div style={{ fontWeight: 700, fontSize: 15, color: "#0f172a" }}>แปลงที่ {i + 1}</div>
-                                            {form?.plantStatus === "replanting" && (
-                                                <span style={{ fontSize: 10, background: "#dcfce7", color: "#166534", padding: "2px 6px", borderRadius: 10, fontWeight: 700 }}>เริ่มปลูกใหม่</span>
-                                            )}
-                                            {form?.plantStatus === "existing" && (
-                                                <span style={{ fontSize: 10, background: "#e0f2fe", color: "#075985", padding: "2px 6px", borderRadius: 10, fontWeight: 700 }}>ปลูกมาแล้ว</span>
-                                            )}
                                         </div>
                                         {p.areaRai > 0 && (
                                             <div style={{ fontSize: 13, color: "#64748b" }}>{p.areaRai.toFixed(2)} ไร่</div>

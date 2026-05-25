@@ -21,6 +21,8 @@ import { useSearchParams } from "next/navigation";
 
 type Tab = "draw" | "shp";
 
+const cursorAddNode = "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none'><circle cx='12' cy='12' r='6' fill='%23ffffff' stroke='%233b82f6' stroke-width='2.5'/><line x1='12' y1='8' x2='12' y2='16' stroke='%233b82f6' stroke-width='2' stroke-linecap='round'/><line x1='8' y1='12' x2='16' y2='12' stroke='%233b82f6' stroke-width='2' stroke-linecap='round'/></svg>\") 12 12, cell";
+
 function MapDrawContent() {
   const { user } = useAuth();
 
@@ -107,6 +109,35 @@ function MapDrawContent() {
   const [drawnParcels, setDrawnParcels] = useState<GeoJSON.Feature[]>([]);
   const drawnParcelsRef = useRef<GeoJSON.Feature[]>([]);
   
+  const getVertFeatures = useCallback((parcels: GeoJSON.Feature[]) => {
+    const vertFeatures: GeoJSON.Feature[] = [];
+    parcels.forEach((p, pIdx) => {
+      if (p.geometry.type === "Polygon") {
+        const coords = p.geometry.coordinates[0];
+        coords.slice(0, -1).forEach((c, vIdx) => {
+          // Real node
+          vertFeatures.push({
+            type: "Feature",
+            id: pIdx * 1000 + vIdx * 2,
+            geometry: { type: "Point", coordinates: c as [number, number] },
+            properties: { pIdx, vIdx, isMid: false }
+          });
+          // Midpoint node (ghost)
+          const nextC = coords[vIdx + 1];
+          if (nextC) {
+            vertFeatures.push({
+               type: "Feature",
+               id: pIdx * 1000 + vIdx * 2 + 1,
+               geometry: { type: "Point", coordinates: [(c[0] + nextC[0]) / 2, (c[1] + nextC[1]) / 2] },
+               properties: { pIdx, vIdx, isMid: true }
+            });
+          }
+        });
+      }
+    });
+    return vertFeatures;
+  }, []);
+
   useEffect(() => {
     drawnParcelsRef.current = drawnParcels;
     const map = mapRef.current;
@@ -121,25 +152,12 @@ function MapDrawContent() {
       }
 
       // Sync plot vertices (nodes)
-      const vertFeatures: GeoJSON.Feature[] = [];
-      drawnParcels.forEach((parcel, pIdx) => {
-        if (parcel.geometry.type === "Polygon") {
-          const coords = parcel.geometry.coordinates[0];
-          coords.slice(0, -1).forEach((c, vIdx) => {
-            vertFeatures.push({
-              type: "Feature",
-              geometry: { type: "Point", coordinates: c as [number, number] },
-              properties: { pIdx, vIdx }
-            });
-          });
-        }
-      });
       const src = map.getSource("plot-verts") as maplibregl.GeoJSONSource | undefined;
       if (src) {
-        src.setData({ type: "FeatureCollection", features: vertFeatures });
+        src.setData({ type: "FeatureCollection", features: getVertFeatures(drawnParcels) });
       }
     }
-  }, [drawnParcels]);
+  }, [drawnParcels, getVertFeatures]);
 
   // Hide vertex nodes when not on step 1 (not editable at step 2/3)
   useEffect(() => {
@@ -176,8 +194,27 @@ function MapDrawContent() {
       e.preventDefault();
       const features = map.queryRenderedFeatures(e.point, { layers: ['plot-verts-l'] });
       if (!features.length) return;
-      activePIdx = features[0].properties.pIdx;
-      activeVIdx = features[0].properties.vIdx;
+      const f = features[0];
+      const { pIdx, vIdx, isMid } = f.properties;
+      
+      if (isMid) {
+         const parcels = [...drawnParcelsRef.current];
+         const parcel = { ...parcels[pIdx] };
+         if (parcel.geometry.type === "Polygon") {
+            const coords = [...parcel.geometry.coordinates[0]];
+            const touch = e.lngLats[0];
+            coords.splice(vIdx + 1, 0, [touch.lng, touch.lat]);
+            parcel.geometry.coordinates[0] = coords;
+            parcels[pIdx] = parcel;
+            setDrawnParcels(parcels);
+            drawnParcelsRef.current = parcels;
+            activePIdx = pIdx;
+            activeVIdx = vIdx + 1;
+         }
+      } else {
+         activePIdx = pIdx;
+         activeVIdx = vIdx;
+      }
       
       map.dragPan.disable();
       
@@ -205,22 +242,9 @@ function MapDrawContent() {
            srcPlot.setData({ type: "FeatureCollection", features: parcels });
         }
         
-        const vertFeatures: GeoJSON.Feature[] = [];
-        parcels.forEach((p, pIdx) => {
-          if (p.geometry.type === "Polygon") {
-            const cArr = p.geometry.coordinates[0];
-            cArr.slice(0, -1).forEach((c, vIdx) => {
-              vertFeatures.push({
-                type: "Feature",
-                geometry: { type: "Point", coordinates: c as [number, number] },
-                properties: { pIdx, vIdx }
-              });
-            });
-          }
-        });
         const srcVerts = map.getSource("plot-verts") as maplibregl.GeoJSONSource | undefined;
         if (srcVerts) {
-           srcVerts.setData({ type: "FeatureCollection", features: vertFeatures });
+           srcVerts.setData({ type: "FeatureCollection", features: getVertFeatures(parcels) });
         }
       }
     }
@@ -286,8 +310,27 @@ function MapDrawContent() {
       e.preventDefault();
       const features = map.queryRenderedFeatures(e.point, { layers: ['plot-verts-l'] });
       if (!features.length) return;
-      activePIdx = features[0].properties.pIdx;
-      activeVIdx = features[0].properties.vIdx;
+      const f = features[0];
+      const { pIdx, vIdx, isMid } = f.properties;
+
+      if (isMid) {
+         const parcels = [...drawnParcelsRef.current];
+         const parcel = { ...parcels[pIdx] };
+         if (parcel.geometry.type === "Polygon") {
+            const coords = [...parcel.geometry.coordinates[0]];
+            coords.splice(vIdx + 1, 0, [e.lngLat.lng, e.lngLat.lat]);
+            parcel.geometry.coordinates[0] = coords;
+            parcels[pIdx] = parcel;
+            setDrawnParcels(parcels);
+            drawnParcelsRef.current = parcels;
+            activePIdx = pIdx;
+            activeVIdx = vIdx + 1;
+         }
+      } else {
+         activePIdx = pIdx;
+         activeVIdx = vIdx;
+      }
+      
       map.getCanvas().style.cursor = 'grabbing';
       map.on('mousemove', onVertsMove);
       map.on('mouseup', onVertsUp);
@@ -310,22 +353,9 @@ function MapDrawContent() {
            srcPlot.setData({ type: "FeatureCollection", features: parcels });
         }
         
-        const vertFeatures: GeoJSON.Feature[] = [];
-        parcels.forEach((p, pIdx) => {
-          if (p.geometry.type === "Polygon") {
-            const cArr = p.geometry.coordinates[0];
-            cArr.slice(0, -1).forEach((c, vIdx) => {
-              vertFeatures.push({
-                type: "Feature",
-                geometry: { type: "Point", coordinates: c as [number, number] },
-                properties: { pIdx, vIdx }
-              });
-            });
-          }
-        });
         const srcVerts = map.getSource("plot-verts") as maplibregl.GeoJSONSource | undefined;
         if (srcVerts) {
-           srcVerts.setData({ type: "FeatureCollection", features: vertFeatures });
+           srcVerts.setData({ type: "FeatureCollection", features: getVertFeatures(parcels) });
         }
       }
     };
@@ -501,15 +531,80 @@ function MapDrawContent() {
       }
     };
 
-    const mouseEnterVerts = () => { if (!drawingRef.current) map.getCanvas().style.cursor = 'move'; };
-    const mouseLeaveVerts = () => { if (!drawingRef.current) map.getCanvas().style.cursor = ''; };
-    const mouseEnterLine = () => { if (!drawingRef.current) map.getCanvas().style.cursor = 'crosshair'; };
-    const mouseLeaveLine = () => { if (!drawingRef.current) map.getCanvas().style.cursor = ''; };
+    let hoveredVertId: number | null = null;
+
+    const mouseEnterVerts = (e: maplibregl.MapMouseEvent) => { 
+      if (!drawingRef.current) {
+        const features = map.queryRenderedFeatures(e.point, { layers: ['plot-verts-l'] });
+        if (features.length) {
+          const f = features[0];
+          const isMid = f.properties?.isMid;
+          if (isMid) {
+            map.getCanvas().style.cursor = cursorAddNode;
+          } else {
+            map.getCanvas().style.cursor = 'grab';
+          }
+
+          if (f.id !== undefined) {
+            if (hoveredVertId !== null) {
+              map.setFeatureState({ source: 'plot-verts', id: hoveredVertId }, { hover: false });
+            }
+            hoveredVertId = f.id as number;
+            map.setFeatureState({ source: 'plot-verts', id: hoveredVertId }, { hover: true });
+          }
+        }
+      } 
+    };
+
+    const mouseMoveVerts = (e: maplibregl.MapMouseEvent) => {
+      if (drawingRef.current) return;
+      const features = map.queryRenderedFeatures(e.point, { layers: ['plot-verts-l'] });
+      if (features.length) {
+        const f = features[0];
+        const isMid = f.properties?.isMid;
+        if (isMid) {
+          map.getCanvas().style.cursor = cursorAddNode;
+        } else {
+          map.getCanvas().style.cursor = 'grab';
+        }
+
+        if (f.id !== undefined && f.id !== hoveredVertId) {
+          if (hoveredVertId !== null) {
+            map.setFeatureState({ source: 'plot-verts', id: hoveredVertId }, { hover: false });
+          }
+          hoveredVertId = f.id as number;
+          map.setFeatureState({ source: 'plot-verts', id: hoveredVertId }, { hover: true });
+        }
+      }
+    };
+
+    const mouseLeaveVerts = () => { 
+      if (!drawingRef.current) {
+        map.getCanvas().style.cursor = ''; 
+        if (hoveredVertId !== null) {
+          map.setFeatureState({ source: 'plot-verts', id: hoveredVertId }, { hover: false });
+          hoveredVertId = null;
+        }
+      }
+    };
+
+    const mouseEnterLine = () => { 
+      if (!drawingRef.current) {
+        map.getCanvas().style.cursor = cursorAddNode; 
+      } 
+    };
+
+    const mouseLeaveLine = () => { 
+      if (!drawingRef.current) {
+        map.getCanvas().style.cursor = ''; 
+      } 
+    };
 
     map.on('mousedown', 'plot-verts-l', onVertsDown);
     map.on('touchstart', 'plot-verts-l', onVertsTouchStart);
     map.on('contextmenu', 'plot-verts-l', onVertsContextMenu);
     map.on('mouseenter', 'plot-verts-l', mouseEnterVerts);
+    map.on('mousemove', 'plot-verts-l', mouseMoveVerts);
     map.on('mouseleave', 'plot-verts-l', mouseLeaveVerts);
  
     map.on('mousedown', 'plot-line', onLineDown);
@@ -526,6 +621,7 @@ function MapDrawContent() {
       map.off('touchstart', 'plot-verts-l', onVertsTouchStart);
       map.off('contextmenu', 'plot-verts-l', onVertsContextMenu);
       map.off('mouseenter', 'plot-verts-l', mouseEnterVerts);
+      map.off('mousemove', 'plot-verts-l', mouseMoveVerts);
       map.off('mouseleave', 'plot-verts-l', mouseLeaveVerts);
       map.off('mousedown', 'plot-line', onLineDown);
       map.off('touchstart', 'plot-line', onLineTouchStart);
@@ -732,10 +828,75 @@ function MapDrawContent() {
         type: "circle",
         source: "draw-verts",
         paint: {
-          "circle-color": "#3b82f6",
-          "circle-radius": ["interpolate", ["linear"], ["zoom"], 4, 3, 14, 7],
-          "circle-stroke-color": "rgba(255,255,255,0.95)",
-          "circle-stroke-width": 2,
+          "circle-color": [
+            "case",
+            ["boolean", ["feature-state", "hover"], false],
+            [
+              "case",
+              ["==", ["get", "isMid"], true], "#3b82f6",
+              "#2563eb"
+            ],
+            [
+              "case",
+              ["==", ["get", "isMid"], true], "rgba(255, 255, 255, 0.75)",
+              "#3b82f6"
+            ]
+          ],
+          "circle-radius": [
+            "interpolate",
+            ["linear"],
+            ["zoom"],
+            4,
+            [
+              "case",
+              ["boolean", ["feature-state", "hover"], false],
+              ["case", ["==", ["get", "isMid"], true], 3.5, 4.5],
+              ["case", ["==", ["get", "isMid"], true], 2, 3]
+            ],
+            14,
+            [
+              "case",
+              ["boolean", ["feature-state", "hover"], false],
+              ["case", ["==", ["get", "isMid"], true], 6, 7.5],
+              ["case", ["==", ["get", "isMid"], true], 4, 5.5]
+            ]
+          ],
+          "circle-stroke-color": [
+            "case",
+            ["boolean", ["feature-state", "hover"], false], "#ffffff",
+            [
+              "case",
+              ["==", ["get", "isMid"], true], "#3b82f6",
+              "rgba(255,255,255,0.95)"
+            ]
+          ],
+          "circle-stroke-width": [
+            "case",
+            ["boolean", ["feature-state", "hover"], false], 1.5,
+            [
+              "case",
+              ["==", ["get", "isMid"], true], 1,
+              1.5
+            ]
+          ],
+          "circle-opacity": [
+            "case",
+            ["boolean", ["feature-state", "hover"], false], 1.0,
+            [
+              "case",
+              ["==", ["get", "isMid"], true], 0.5,
+              1.0
+            ]
+          ],
+          "circle-stroke-opacity": [
+            "case",
+            ["boolean", ["feature-state", "hover"], false], 1.0,
+            [
+              "case",
+              ["==", ["get", "isMid"], true], 0.6,
+              1.0
+            ]
+          ]
         },
       });
       map.addSource("plot", { type: "geojson", data: emptyFC() });
@@ -750,7 +911,7 @@ function MapDrawContent() {
         type: "line",
         source: "plot",
         layout: { "line-join": "round", "line-cap": "round" },
-        paint: { "line-color": "#3b82f6", "line-width": ["interpolate", ["linear"], ["zoom"], 4, 2, 14, 5] },
+        paint: { "line-color": "#3b82f6", "line-width": ["interpolate", ["linear"], ["zoom"], 4, 1, 14, 2] },
       });
 
 
@@ -806,10 +967,75 @@ function MapDrawContent() {
         type: "circle",
         source: "plot-verts",
         paint: {
-          "circle-color": "#ffffff",
-          "circle-radius": ["interpolate", ["linear"], ["zoom"], 4, 3, 14, 7],
-          "circle-stroke-color": "#3b82f6",
-          "circle-stroke-width": 2.5,
+          "circle-color": [
+            "case",
+            ["boolean", ["feature-state", "hover"], false],
+            [
+              "case",
+              ["==", ["get", "isMid"], true], "#3b82f6",
+              "#2563eb"
+            ],
+            [
+              "case",
+              ["==", ["get", "isMid"], true], "rgba(255, 255, 255, 0.75)",
+              "#ffffff"
+            ]
+          ],
+          "circle-radius": [
+            "interpolate",
+            ["linear"],
+            ["zoom"],
+            4,
+            [
+              "case",
+              ["boolean", ["feature-state", "hover"], false],
+              ["case", ["==", ["get", "isMid"], true], 3.5, 4.5],
+              ["case", ["==", ["get", "isMid"], true], 2, 3]
+            ],
+            14,
+            [
+              "case",
+              ["boolean", ["feature-state", "hover"], false],
+              ["case", ["==", ["get", "isMid"], true], 6, 7.5],
+              ["case", ["==", ["get", "isMid"], true], 4, 5.5]
+            ]
+          ],
+          "circle-stroke-color": [
+            "case",
+            ["boolean", ["feature-state", "hover"], false], "#ffffff",
+            [
+              "case",
+              ["==", ["get", "isMid"], true], "#3b82f6",
+              "#2563eb"
+            ]
+          ],
+          "circle-stroke-width": [
+            "case",
+            ["boolean", ["feature-state", "hover"], false], 1.5,
+            [
+              "case",
+              ["==", ["get", "isMid"], true], 1,
+              2
+            ]
+          ],
+          "circle-opacity": [
+            "case",
+            ["boolean", ["feature-state", "hover"], false], 1.0,
+            [
+              "case",
+              ["==", ["get", "isMid"], true], 0.5,
+              1.0
+            ]
+          ],
+          "circle-stroke-opacity": [
+            "case",
+            ["boolean", ["feature-state", "hover"], false], 1.0,
+            [
+              "case",
+              ["==", ["get", "isMid"], true], 0.6,
+              1.0
+            ]
+          ]
         },
       });
 
@@ -921,13 +1147,40 @@ function MapDrawContent() {
     const vertsSrc = map.getSource("draw-verts") as maplibregl.GeoJSONSource | undefined;
     if (!lineSrc || !fillSrc || !vertsSrc) return;
     if (verts.length) {
+      const features: GeoJSON.Feature[] = [];
+      verts.forEach((v, vIdx) => {
+        // Real vertex
+        features.push({
+          type: "Feature",
+          id: vIdx * 2,
+          geometry: { type: "Point", coordinates: v },
+          properties: { isMid: false, vIdx }
+        });
+        
+        // Midpoint between this and next vertex
+        if (vIdx < verts.length - 1) {
+          const nextV = verts[vIdx + 1];
+          features.push({
+            type: "Feature",
+            id: vIdx * 2 + 1,
+            geometry: { type: "Point", coordinates: [(v[0] + nextV[0]) / 2, (v[1] + nextV[1]) / 2] },
+            properties: { isMid: true, vIdx }
+          });
+        } else if (verts.length >= 3) {
+          // Close the loop midpoint
+          const firstV = verts[0];
+          features.push({
+            type: "Feature",
+            id: vIdx * 2 + 1,
+            geometry: { type: "Point", coordinates: [(v[0] + firstV[0]) / 2, (v[1] + firstV[1]) / 2] },
+            properties: { isMid: true, vIdx }
+          });
+        }
+      });
+
       vertsSrc.setData({
         type: "FeatureCollection",
-        features: verts.map((v) => ({
-          type: "Feature",
-          geometry: { type: "Point", coordinates: v },
-          properties: {},
-        })),
+        features,
       });
     } else {
       vertsSrc.setData(emptyFC());
@@ -1091,8 +1344,7 @@ function MapDrawContent() {
     // ── Vertex drag during drawing mode ──────────────────────────────────────
     let dragIdx = -1;
     let wasDragging = false;
-
-    const SNAP_PX = 16; // pixel radius to hit a vertex
+    let hoveredDrawVertId: number | null = null;
 
     const onDrawMouseMove = (ev: maplibregl.MapMouseEvent) => {
       if (!drawingRef.current) return;
@@ -1103,35 +1355,66 @@ function MapDrawContent() {
         previewDraw();
         return;
       }
-      // hover cursor: change to 'move' when near any temp vertex
-      const pts = vertsRef.current;
-      let near = false;
-      for (const p of pts) {
-        const proj = map.project(p as [number, number]);
-        if (Math.hypot(proj.x - ev.point.x, proj.y - ev.point.y) < SNAP_PX) { near = true; break; }
+
+      // Query draw-verts-l layer
+      const features = map.queryRenderedFeatures(ev.point, { layers: ['draw-verts-l'] });
+      if (features.length) {
+        const f = features[0];
+        const isMid = f.properties?.isMid;
+        if (isMid) {
+          map.getCanvas().style.cursor = cursorAddNode;
+        } else {
+          map.getCanvas().style.cursor = 'move';
+        }
+
+        if (f.id !== undefined && f.id !== hoveredDrawVertId) {
+          if (hoveredDrawVertId !== null) {
+            map.setFeatureState({ source: 'draw-verts', id: hoveredDrawVertId }, { hover: false });
+          }
+          hoveredDrawVertId = f.id as number;
+          map.setFeatureState({ source: 'draw-verts', id: hoveredDrawVertId }, { hover: true });
+        }
+      } else {
+        map.getCanvas().style.cursor = 'crosshair';
+        if (hoveredDrawVertId !== null) {
+          map.setFeatureState({ source: 'draw-verts', id: hoveredDrawVertId }, { hover: false });
+          hoveredDrawVertId = null;
+        }
       }
-      map.getCanvas().style.cursor = near ? 'move' : 'crosshair';
     };
 
     const onDrawMouseDown = (e: maplibregl.MapMouseEvent) => {
       if (!drawingRef.current) return;
-      const pts = vertsRef.current;
-      if (!pts.length) return;
 
-      // find nearest temp vertex in screen space
-      let nearIdx = -1;
-      let minD = Infinity;
-      pts.forEach((p, i) => {
-        const proj = map.project(p as [number, number]);
-        const d = Math.hypot(proj.x - e.point.x, proj.y - e.point.y);
-        if (d < SNAP_PX && d < minD) { minD = d; nearIdx = i; }
-      });
+      const features = map.queryRenderedFeatures(e.point, { layers: ['draw-verts-l'] });
+      if (features.length) {
+        const f = features[0];
+        const isMid = f.properties?.isMid;
+        const vIdx = f.properties?.vIdx;
 
-      if (nearIdx !== -1) {
-        dragIdx = nearIdx;
-        wasDragging = false;
-        map.getCanvas().style.cursor = 'grabbing';
-        map.dragPan.disable();
+        if (isMid) {
+          const newPts = [...vertsRef.current];
+          const ptCoords = f.geometry.type === "Point" ? (f.geometry.coordinates as [number, number]) : null;
+          if (ptCoords) {
+            newPts.splice(vIdx + 1, 0, ptCoords);
+            vertsRef.current = newPts;
+            setVertCount(newPts.length);
+            previewDraw();
+
+            // Drag this new node immediately
+            dragIdx = vIdx + 1;
+            wasDragging = false;
+            map.getCanvas().style.cursor = 'grabbing';
+            map.dragPan.disable();
+            e.preventDefault();
+          }
+        } else {
+          dragIdx = vIdx;
+          wasDragging = false;
+          map.getCanvas().style.cursor = 'grabbing';
+          map.dragPan.disable();
+          e.preventDefault();
+        }
       }
     };
 
@@ -1158,6 +1441,9 @@ function MapDrawContent() {
       map.off("mousedown", onDrawMouseDown);
       map.off("mouseup", onDrawMouseUp);
       map.dragPan.enable();
+      if (hoveredDrawVertId !== null) {
+        map.setFeatureState({ source: 'draw-verts', id: hoveredDrawVertId }, { hover: false });
+      }
     };
   }, [previewDraw, finishDraw]);
 
