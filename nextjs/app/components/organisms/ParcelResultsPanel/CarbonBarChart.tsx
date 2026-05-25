@@ -286,8 +286,8 @@ export function CarbonBarChart({
           const y = PT + iH - bh;
 
           // Tooltip dimensions
-          const ttW = isMobile ? 300 : 380;
-          const ttH = isMobile ? 300 : 350;
+          const ttW = isMobile ? 240 : 280;
+          const ttH = isMobile ? 230 : 270;
           const ttX = Math.min(Math.max(x - ttW / 2, 4), W - ttW - 4);
           const ttY = Math.max(y - ttH - 14, 4);
 
@@ -296,48 +296,80 @@ export function CarbonBarChart({
           const gainVal = Math.floor(p.gainValue || 0);
           const gainCiVal = (Math.floor((p.gainCi || 0) * 10) / 10);
 
-          const lineY = ttY + (isMobile ? 158 : 178);
-
           return (
             <g pointerEvents="none">
-              {/* Background */}
-              <rect x={ttX} y={ttY} width={ttW} height={ttH} rx={16} fill="#022c22" style={{ filter: "drop-shadow(0 6px 20px rgba(5,150,105,0.45))" }} />
-              {/* Top accent bar */}
-              <rect x={ttX} y={ttY} width={ttW} height={6} rx={3} fill={col.top} />
+              <foreignObject x={ttX} y={ttY} width={ttW} height={ttH}>
+                <div style={{
+                  width: "100%",
+                  height: "100%",
+                  background: "linear-gradient(145deg, rgba(2,44,34,0.95), rgba(6,78,59,0.85))",
+                  backdropFilter: "blur(12px)",
+                  WebkitBackdropFilter: "blur(12px)",
+                  borderRadius: "20px",
+                  border: "1px solid rgba(16,185,129,0.4)",
+                  boxShadow: "0 10px 40px rgba(2,44,34,0.6), inset 0 1px 1px rgba(255,255,255,0.1)",
+                  color: "#fff",
+                  display: "flex",
+                  flexDirection: "column",
+                  padding: isMobile ? "16px" : "20px",
+                  boxSizing: "border-box",
+                  fontFamily: "inherit",
+                  justifyContent: "space-between"
+                }}>
+                  {/* Header */}
+                  <div style={{ display: "flex", justifyContent: "center", alignItems: "center" }}>
+                    <div style={{ 
+                      background: "rgba(255,255,255,0.12)", 
+                      padding: "6px 16px", 
+                      borderRadius: "24px",
+                      color: col.top,
+                      fontWeight: 800,
+                      fontSize: isMobile ? 14 : 16,
+                      border: `1px solid ${col.top}50`,
+                      boxShadow: "0 2px 8px rgba(0,0,0,0.2)"
+                    }}>
+                      ปีที่ {p.year_at}
+                    </div>
+                  </div>
 
-              {/* Row 1: ปีที่ X */}
-              <text x={ttX + ttW / 2} y={ttY + (isMobile ? 48 : 56)} textAnchor="middle" fontSize={isMobile ? 28 : 32} fill={col.top} fontWeight={800}>
-                {`ปีที่ ${p.year_at}`}
-              </text>
+                  {/* Section 1: Carbon Storage */}
+                  <div style={{ textAlign: "center", marginTop: isMobile ? 12 : 16 }}>
+                    <div style={{ color: "rgba(255,255,255,0.75)", fontSize: isMobile ? 13 : 15, fontWeight: 700, marginBottom: 4, letterSpacing: "0.5px" }}>
+                      กักเก็บคาร์บอน
+                    </div>
+                    <div style={{ fontSize: isMobile ? 24 : 28, fontWeight: 800, color: "#fff", display: "flex", alignItems: "baseline", justifyContent: "center", gap: 4, textShadow: "0 2px 10px rgba(0,0,0,0.3)" }}>
+                      {co2Val.toLocaleString("th-TH")}
+                      <span style={{ fontSize: isMobile ? 16 : 18, color: "rgba(255,255,255,0.75)", fontWeight: 600, textShadow: "none" }}>
+                        ±{co2Ci.toLocaleString("th-TH", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+                      </span>
+                    </div>
+                  </div>
 
-              {/* Divider */}
-              <line x1={ttX + 16} y1={ttY + (isMobile ? 66 : 78)} x2={ttX + ttW - 16} y2={ttY + (isMobile ? 66 : 78)} stroke="rgba(255,255,255,0.12)" strokeWidth={1.5} />
+                  {/* Elegant Divider */}
+                  <div style={{ 
+                    width: "100%", 
+                    height: 1, 
+                    background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.25), transparent)", 
+                    margin: isMobile ? "12px 0" : "16px 0" 
+                  }} />
 
-              {/* Row 2: กักเก็บคาร์บอน label */}
-              <text x={ttX + ttW / 2} y={ttY + (isMobile ? 96 : 112)} textAnchor="middle" fontSize={isMobile ? 20 : 24} fill="rgba(255,255,255,0.65)" fontWeight={700}>
-                กักเก็บคาร์บอน
-              </text>
-              {/* Row 2: ค่า co2 ± ci (Same size) */}
-              <text x={ttX + ttW / 2} y={ttY + (isMobile ? 130 : 150)} textAnchor="middle" fontSize={isMobile ? 26 : 30} fill="rgba(255,255,255,0.95)" fontWeight={800}>
-                {co2Val.toLocaleString("th-TH")}
-                <tspan fontSize={isMobile ? 26 : 30} fill="rgba(255,255,255,0.6)" fontWeight={600}>{` ±${co2Ci.toLocaleString("th-TH", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}`}</tspan>
-              </text>
-
-              {/* Divider */}
-              <line x1={ttX + 16} y1={lineY} x2={ttX + ttW - 16} y2={lineY} stroke="rgba(255,255,255,0.12)" strokeWidth={1.5} />
-
-              {/* Row 3: คาร์บอนเครดิต label */}
-              <text x={ttX + ttW / 2} y={lineY + (isMobile ? 32 : 38)} textAnchor="middle" fontSize={isMobile ? 20 : 24} fill="rgba(125,211,252,0.8)" fontWeight={700}>
-                คาร์บอนเครดิต
-              </text>
-              {/* Row 3: gain ± gainCi tco2eq (Same size, Larger than Row 2) */}
-              <text x={ttX + ttW / 2} y={lineY + (isMobile ? 70 : 82)} textAnchor="middle" fontSize={isMobile ? 32 : 38} fill="#7dd3fc" fontWeight={900}>
-                {gainVal.toLocaleString("th-TH")}
-                <tspan fontSize={isMobile ? 32 : 38} fill="rgba(125,211,252,0.6)" fontWeight={700}>{` ±${gainCiVal.toLocaleString("th-TH", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}`}</tspan>
-              </text>
-              <text x={ttX + ttW / 2} y={lineY + (isMobile ? 104 : 116)} textAnchor="middle" fontSize={isMobile ? 18 : 22} fill="rgba(125,211,252,0.65)" fontWeight={600}>
-                tCO₂eq
-              </text>
+                  {/* Section 2: Carbon Credit */}
+                  <div style={{ textAlign: "center" }}>
+                    <div style={{ color: "#38bdf8", fontSize: isMobile ? 15 : 17, fontWeight: 800, marginBottom: 4, letterSpacing: "0.5px" }}>
+                      คาร์บอนเครดิต
+                    </div>
+                    <div style={{ fontSize: isMobile ? 32 : 40, fontWeight: 900, color: "#38bdf8", display: "flex", alignItems: "baseline", justifyContent: "center", gap: 4, lineHeight: 1.1, textShadow: "0 4px 16px rgba(56,189,248,0.4)" }}>
+                      {gainVal.toLocaleString("th-TH")}
+                      <span style={{ fontSize: isMobile ? 18 : 22, color: "rgba(56,189,248,0.75)", fontWeight: 700, textShadow: "none" }}>
+                        ±{gainCiVal.toLocaleString("th-TH", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+                      </span>
+                    </div>
+                    <div style={{ fontSize: isMobile ? 12 : 14, color: "rgba(56,189,248,0.65)", fontWeight: 600, marginTop: 4 }}>
+                      tCO₂eq
+                    </div>
+                  </div>
+                </div>
+              </foreignObject>
             </g>
           );
         })()}
