@@ -174,13 +174,9 @@ export interface DashboardDistrict {
 }
 
 export async function getDashboardRayong(): Promise<DashboardRayongResponse> {
-    const response = await fetch(`${API_BASE_URL}/dashboard/rayong-summary`);
-    if (!response.ok) throw new Error(`Dashboard API error: ${response.status}`);
-    return response.json();
+    throw new Error("Dashboard API not implemented on backend yet");
 }
 
 export async function getDashboardDistricts(): Promise<{ districts: DashboardDistrict[] }> {
-    const response = await fetch(`${API_BASE_URL}/dashboard/districts-summary`);
-    if (!response.ok) throw new Error(`Dashboard API error: ${response.status}`);
-    return response.json();
+    throw new Error("Dashboard API not implemented on backend yet");
 }

@@ -3,10 +3,6 @@ import { pool } from "@/lib/db";
 import { verifyToken, AUTH_COOKIE } from "@/lib/jwt";
 
 export async function GET(request: NextRequest) {
-  const token = request.cookies.get(AUTH_COOKIE)?.value;
-  if (!token || !verifyToken(token)) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
 
   try {
     const [statsResult, ageResult, bucketsResult, mapResult, bboxResult, districtsResult] =

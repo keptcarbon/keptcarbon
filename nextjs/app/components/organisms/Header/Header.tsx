@@ -172,12 +172,11 @@ export default function Header() {
                         width: "38px",
                         height: "38px",
                         borderRadius: "50%",
-                        backgroundColor: "var(--color-primary, #2d9e5f)",
-                        fontWeight: "600",
-                        fontSize: "16px",
+                        backgroundColor: "var(--kc-sage-soft, #738f7d)",
+                        fontSize: "20px",
                       }}
                     >
-                      {(user.fullname?.[0] ?? "U").toUpperCase()}
+                      <i className="bi bi-person-fill"></i>
                     </div>
                   )}
                 </a>

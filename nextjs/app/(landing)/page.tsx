@@ -25,14 +25,6 @@ export default function Home() {
                   A GeoAI-Driven Platform for Climate-Resilient
                   <br className="d-block d-md-none" /> Rubber Plantation Management
                 </p>
-                <div className="hero-actions" style={{ marginTop: 32 }}>
-                  <a href="/map-draw" className="hero-btn-primary">
-                    <i className="bi bi-calculator-fill"></i> ทดลองคำนวณคาร์บอน
-                  </a>
-                  <a href="/dashboard" className="hero-btn-secondary">
-                    <i className="bi bi-bar-chart-fill"></i> ดูแดชบอร์ด
-                  </a>
-                </div>
               </div>
             </div>
           </div>

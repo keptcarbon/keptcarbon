@@ -277,37 +277,41 @@
 
 /* ── Mobile adjustments ────────────────────────── */
 
-/* Google login button */
+/* Google login button — official Google brand style */
 .modal-btn-google {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 10px;
   width: 100%;
-  padding: 13px 24px;
-  background: #4285F4; /* Google blue */
-  border: none;
+  padding: 12px 24px;
+  background: #fff;
+  border: 1.5px solid #dadce0;
   border-radius: 14px;
-  color: #fff;
+  color: #1a1a1a;
   font-size: 16px;
-  font-weight: 700;
+  font-weight: 600;
   font-family: inherit;
   cursor: pointer;
   text-decoration: none;
   letter-spacing: 0.3px;
-  box-shadow: 0 8px 24px rgba(66, 133, 244, 0.3);
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .modal-btn-google:hover {
-  background: #357ae8;
+  background: #f8f9fa;
+  border-color: #c5c7ca;
   transform: translateY(-2px);
-  box-shadow: 0 12px 32px rgba(66, 133, 244, 0.4);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  color: #1a1a1a;
+  text-decoration: none;
 }
 
 .modal-btn-google:active {
   transform: translateY(0);
-  box-shadow: 0 6px 18px rgba(66, 133, 244, 0.25);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  background: #f1f3f4;
 }
 
 .modal-btn-google svg {

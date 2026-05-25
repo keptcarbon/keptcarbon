@@ -10,12 +10,12 @@ export async function GET(request: NextRequest) {
   try {
     const token = request.cookies.get(AUTH_COOKIE)?.value;
     if (!token) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return NextResponse.json({ user: null }, { status: 200 });
     }
 
     const payload = verifyToken(token);
     if (!payload) {
-      return NextResponse.json({ error: "Invalid token" }, { status: 401 });
+      return NextResponse.json({ user: null }, { status: 200 });
     }
 
     const result = await pool.query(

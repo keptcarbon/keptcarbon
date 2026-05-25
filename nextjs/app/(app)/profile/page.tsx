@@ -67,7 +67,6 @@ export default function ProfilePage() {
     );
     if (!user) return null;
 
-    const initial = (user.fullname?.[0] ?? "U").toUpperCase();
     const saveDisabled = loading || !firstname || !lastname;
 
     return (
@@ -88,10 +87,10 @@ export default function ProfilePage() {
                                 width: 80, height: 80, borderRadius: "50%", flexShrink: 0,
                                 background: "linear-gradient(135deg, #065f46 0%, #059669 100%)",
                                 display: "flex", alignItems: "center", justifyContent: "center",
-                                color: "white", fontSize: 32, fontWeight: 700,
+                                color: "white", fontSize: 36,
                                 boxShadow: "0 4px 16px rgba(5,150,105,0.30)",
                             }}>
-                                {initial}
+                                <i className="bi bi-person-fill"></i>
                             </div>
                         )}
                         <div style={{ flex: 1 }}>

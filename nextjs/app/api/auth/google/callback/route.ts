@@ -58,15 +58,19 @@ export async function GET(request: NextRequest) {
     const profile = await profileRes.json();
     const email = profile.email as string;
     const fullname = profile.name as string;
+    const googleUserId = profile.id || profile.sub;
     const pictureUrl = profile.picture || "";
 
     // Upsert user in DB
     const result = await pool.query(
       `INSERT INTO users (email, username, fullname, picture_url, provider, google_user_id, role)
        VALUES ($1, $2, $3, $4, 'google', $5, 'user')
-       ON CONFLICT (google_user_id) DO UPDATE SET picture_url = EXCLUDED.picture_url, fullname = EXCLUDED.fullname
+       ON CONFLICT (email) DO UPDATE SET
+         picture_url = EXCLUDED.picture_url,
+         fullname = EXCLUDED.fullname,
+         google_user_id = COALESCE(EXCLUDED.google_user_id, users.google_user_id)
        RETURNING id, email, role, provider`,
-      [email, `google_${profile.sub?.slice(0, 8) || email}`, fullname, pictureUrl, profile.sub]
+      [email, `google_${googleUserId?.slice(0, 8) || email}`, fullname, pictureUrl, googleUserId]
     );
     const dbUser = result.rows[0];
 

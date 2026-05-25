@@ -103,13 +103,13 @@ export function CarbonBarChart({
   const iW = W - PL - PR;
   const iH = H - PT - PB;
 
-  const maxValueWithMargin = Math.max(...pts.map((p) => p.co2 + p.ci), 1);
+  const maxValueWithMargin = Math.max(...pts.map((p) => (p.co2 || 0) + (p.ci || 0)), 1);
   const maxCo2 = maxValueWithMargin * 1.15;
   const barW = iW / pts.length - (isMobile ? 2 : 5);
   const gap = isMobile ? 2 : 5;
 
   const linePoints = pts.map((p, i) => {
-    const bh = Math.max((p.co2 / maxCo2) * iH, 2);
+    const bh = Math.max(((p.co2 || 0) / maxCo2) * iH, 2);
     const x = PL + i * (barW + gap) + barW / 2;
     const y = PT + iH - bh;
     return { x, y };
@@ -159,7 +159,7 @@ export function CarbonBarChart({
 
         {/* Bars */}
         {pts.map((p, i) => {
-          const bh = Math.max((p.co2 / maxCo2) * iH, 4);
+          const bh = Math.max(((p.co2 || 0) / maxCo2) * iH, 4);
           const x = PL + i * (barW + gap);
           const y = PT + iH - bh;
           const isYearZero = p.year_at === 0;
@@ -167,7 +167,7 @@ export function CarbonBarChart({
           const cycleClamp = Math.min(Math.max(0, displayCycle), GREEN_THEME_COLORS.length - 1);
           const col = getCycleColor(displayCycle);
           const isHov = hoverIdx === i;
-          const errorSize = (p.ci / maxCo2) * iH;
+          const errorSize = ((p.ci || 0) / maxCo2) * iH;
           const lineX = x + barW / 2;
 
           return (
@@ -182,7 +182,7 @@ export function CarbonBarChart({
                 filter={isHov && !isYearZero ? "url(#barShadow)" : undefined}
                 style={{ transition: "all 0.15s" }}
               />
-              {p.ci > 0 && (
+              {(p.ci || 0) > 0 && (
                 <>
                   <line x1={lineX} y1={y - errorSize} x2={lineX} y2={y + errorSize} stroke="#1e293b" strokeWidth={1.2} opacity={0.65} />
                   <line x1={lineX - 2.5} y1={y - errorSize} x2={lineX + 2.5} y2={y - errorSize} stroke="#1e293b" strokeWidth={1.2} opacity={0.65} />
@@ -242,7 +242,7 @@ export function CarbonBarChart({
           const p = pts[hoverIdx];
           const hoverDisplayCycle = p.year_at === 0 ? 0 : Math.floor((p.year_at - 1) / 7);
           const col = getCycleColor(hoverDisplayCycle);
-          const bh = Math.max((p.co2 / maxCo2) * iH, 4);
+          const bh = Math.max(((p.co2 || 0) / maxCo2) * iH, 4);
           const x = PL + hoverIdx * (barW + gap) + barW / 2;
           const y = PT + iH - bh;
           const ttW = isMobile ? 196 : 248;
@@ -260,12 +260,12 @@ export function CarbonBarChart({
               </text>
               {/* Stocks */}
               <text x={ttX + ttW / 2} y={ttY + (isMobile ? 84 : 92)} textAnchor="middle" fontSize={isMobile ? 22 : 26} fill="rgba(255,255,255,0.82)" fontWeight={700}>
-                {Math.floor(p.co2).toLocaleString("th-TH")} ±{(Math.floor(p.ci * 10) / 10).toLocaleString("th-TH", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+                {Math.floor(p.co2 || 0).toLocaleString("th-TH")} ±{(Math.floor((p.ci || 0) * 10) / 10).toLocaleString("th-TH", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
               </text>
               <line x1={ttX + 12} y1={divY} x2={ttX + ttW - 12} y2={divY} stroke="rgba(255,255,255,0.10)" strokeWidth={1} />
               {/* Gain — HERO */}
               <text x={ttX + ttW / 2} y={divY + (isMobile ? 36 : 40)} textAnchor="middle" fontSize={isMobile ? 26 : 30} fill="#7dd3fc" fontWeight={900}>
-                {Math.floor(p.gainValue).toLocaleString("th-TH")} ±{(Math.floor(p.gainCi * 10) / 10).toLocaleString("th-TH", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+                {Math.floor(p.gainValue || 0).toLocaleString("th-TH")} ±{(Math.floor((p.gainCi || 0) * 10) / 10).toLocaleString("th-TH", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
               </text>
               <text x={ttX + ttW / 2} y={divY + (isMobile ? 60 : 66)} textAnchor="middle" fontSize={isMobile ? 16 : 18} fill="rgba(125,211,252,0.9)" fontWeight={600}>
                 เกณฑ์คาร์บอน (tCO₂/ปี)
