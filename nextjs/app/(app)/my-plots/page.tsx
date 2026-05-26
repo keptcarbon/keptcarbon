@@ -865,6 +865,95 @@ function PlotMiniMap({ plot, isMobile, index }: { plot: SavedPlot; isMobile: boo
   );
 }
 
+function ProjectCarbonSummary({ plots, isMobile }: { plots: SavedPlot[]; isMobile: boolean }) {
+  const currentYearBE = new Date().getFullYear() + 543;
+
+  const { combinedPts, totalNow, ciNow } = useMemo(() => {
+    const sumMap = new Map<number, { co2: number; ci: number; age: number }>();
+    let fallbackTotal = 0;
+
+    for (const plot of plots) {
+      const isProcessed = plot.processed === true || (plot.carbonProfile && plot.carbonProfile.length > 0) || (plot.carbonTotal > 0);
+      if (!isProcessed) continue;
+
+      const plantYearBE = plot.plantYearBE && plot.plantYearBE > 0
+        ? plot.plantYearBE : (currentYearBE - (plot.rubberAge || 0));
+      const effectiveAge = plot.rubberAge > 0 ? plot.rubberAge : (plantYearBE > 0 ? currentYearBE - plantYearBE : 0);
+      const chartStartYearBE = plantYearBE > 0 ? plantYearBE + effectiveAge : currentYearBE;
+
+      let pts: BarPoint[];
+      if (plot.carbonProfile && plot.carbonProfile.length > 0) {
+        pts = plot.carbonProfile;
+      } else if (effectiveAge > 0 && (plot.trees ?? 0) > 0) {
+        pts = buildBarPoints(effectiveAge, chartStartYearBE, plot.trees ?? 0, plot.spacing || "2.5x8");
+      } else {
+        if (plot.carbonTotal > 0) fallbackTotal += plot.carbonTotal;
+        continue;
+      }
+
+      for (const p of pts) {
+        const e = sumMap.get(p.yearBE) ?? { co2: 0, ci: 0, age: 0 };
+        e.co2 += p.co2;
+        e.ci += p.ci;
+        e.age = Math.max(e.age, p.age);
+        sumMap.set(p.yearBE, e);
+      }
+    }
+
+    const sorted = Array.from(sumMap.entries()).sort((a, b) => a[0] - b[0]);
+    const combinedPts: BarPoint[] = sorted.map(([yearBE, d], i) => ({
+      age: d.age, yearBE, year_at: i,
+      co2: d.co2, ci: d.ci,
+      gainValue: i > 0 ? d.co2 - sorted[i - 1][1].co2 : 0,
+      gainCi: 0, cycle: Math.floor(i / 7), cycleAge: d.age, errorMargin: d.ci,
+    }));
+
+    const currentPt = combinedPts.find(p => p.yearBE === currentYearBE);
+    return {
+      combinedPts,
+      totalNow: (currentPt?.co2 ?? 0) + fallbackTotal,
+      ciNow: currentPt?.ci ?? 0,
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [plots]);
+
+  if (combinedPts.length === 0 && totalNow === 0) return null;
+
+  return (
+    <div style={{
+      background: "linear-gradient(135deg,rgba(16,185,129,0.06),rgba(5,150,105,0.02))",
+      borderRadius: 16, border: "1px solid rgba(16,185,129,0.18)",
+      padding: isMobile ? "14px 12px" : "16px 20px",
+      marginBottom: 4,
+    }}>
+      {/* summary number row */}
+      <div style={{ textAlign: "center", marginBottom: combinedPts.length > 0 ? 10 : 0 }}>
+        <div style={{ fontSize: isMobile ? 11 : 12, color: "#059669", fontWeight: 600, marginBottom: 4, display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }}>
+          <i className="bi bi-cloud-fill" />
+          ปริมาณคาร์บอนเครดิตรวม ณ ปีปัจจุบัน
+        </div>
+        <div style={{ display: "flex", alignItems: "baseline", justifyContent: "center", gap: 5, flexWrap: "wrap" }}>
+          <span style={{ fontSize: isMobile ? 24 : 28, fontWeight: 900, color: "#064e3b", lineHeight: 1 }}>
+            {Math.round(totalNow).toLocaleString("th-TH")}
+          </span>
+          {ciNow > 0 && (
+            <span style={{ fontSize: isMobile ? 13 : 15, fontWeight: 600, color: "#6b7280" }}>
+              ± {Math.round(ciNow).toLocaleString("th-TH")}
+            </span>
+          )}
+          <span style={{ fontSize: isMobile ? 12 : 14, fontWeight: 700, color: "#0d9488" }}>tCO₂eq</span>
+        </div>
+      </div>
+      {/* chart — constrained so it doesn't dominate on desktop */}
+      {combinedPts.length > 0 && (
+        <div style={{ maxWidth: isMobile ? "100%" : 560, margin: "0 auto" }}>
+          <CarbonBarChart pts={combinedPts} isMobile={true} title="ปริมาณคาร์บอนกักเก็บ(tCO₂eq)" narrowMode />
+        </div>
+      )}
+    </div>
+  );
+}
+
 function PlotCard({ plot, index, onDelete, onEdit, expanded, onToggle, isMobile }: { plot: SavedPlot; index: number; onDelete: () => void; onEdit?: (p: SavedPlot, i: number) => void; expanded: boolean; onToggle: () => void; isMobile: boolean }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [activeTab, setActiveTab] = useState<"map" | "carbon">("map");
@@ -1371,7 +1460,7 @@ export default function MyPlotsPage() {
   }, [filteredPlots]);
 
   const [expandedProjects, setExpandedProjects] = useState<Record<string, boolean>>({});
-  const toggleProject = (pName: string) => setExpandedProjects(prev => ({ ...prev, [pName]: !prev[pName] }));
+  const toggleProject = (pName: string) => setExpandedProjects(prev => (prev[pName] ? {} : { [pName]: true }));
 
   const [estimatingProject, setEstimatingProject] = useState<string | null>(null);
 
@@ -1629,20 +1718,20 @@ export default function MyPlotsPage() {
 
         {/* KPI Cards */}
         {plots.length > 0 && (
-          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(auto-fit, minmax(190px, 1fr))", gap: isMobile ? 10 : 14, marginBottom: 24 }}>
+          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(3, 1fr)" : "repeat(auto-fit, minmax(190px, 1fr))", gap: isMobile ? 8 : 14, marginBottom: 24 }}>
             {([
               { label: "โครงการทั้งหมด", val: new Set(plots.map(p => p.name || "ไม่มีชื่อโครงการ")).size.toLocaleString("th-TH"), unit: "โครงการ", icon: "bi-folder-fill", color: "#3b82f6", bg: "rgba(59,130,246,0.08)" },
               { label: "แปลงทั้งหมด", val: plots.length.toLocaleString("th-TH"), unit: "แปลง", icon: "bi-map", color: "#16a34a", bg: "rgba(22,163,74,0.08)" },
               { label: "พื้นที่รวม", val: totalArea.toFixed(2), unit: "ไร่", icon: "bi-grid-fill", color: "#0d9488", bg: "rgba(13,148,136,0.08)" },
             ] as { label: string; val: string; unit: string; icon: string; color: string; bg: string }[]).map(({ label, val, unit, icon, color, bg }) => (
-              <div key={label} style={{ background: "#fff", borderRadius: 14, padding: isMobile ? "10px 12px" : "12px 14px", border: "1px solid rgba(0,0,0,0.05)", boxShadow: "0 2px 8px rgba(0,0,0,0.02)" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 4 }}>
-                  <span style={{ fontSize: 13, color: "#64748b" }}>{label}</span>
-                  <div style={{ width: 22, height: 22, borderRadius: 6, background: bg, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    <i className={`bi ${icon}`} style={{ color, fontSize: 12 }} />
+              <div key={label} style={{ background: "#fff", borderRadius: isMobile ? 12 : 14, padding: isMobile ? "8px 9px" : "12px 14px", border: "1px solid rgba(0,0,0,0.05)", boxShadow: "0 2px 8px rgba(0,0,0,0.02)" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: isMobile ? 3 : 4 }}>
+                  <span style={{ fontSize: isMobile ? 11 : 13, color: "#64748b", lineHeight: 1.3 }}>{label}</span>
+                  <div style={{ width: isMobile ? 18 : 22, height: isMobile ? 18 : 22, borderRadius: 5, background: bg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                    <i className={`bi ${icon}`} style={{ color, fontSize: isMobile ? 10 : 12 }} />
                   </div>
                 </div>
-                <div style={{ fontSize: isMobile ? 19 : 22, fontWeight: 800, color }}>{val} <span style={{ fontSize: 12, color: "#94a3b8", fontWeight: 400 }}>{unit}</span></div>
+                <div style={{ fontSize: isMobile ? 16 : 22, fontWeight: 800, color, lineHeight: 1.2 }}>{val} <span style={{ fontSize: isMobile ? 10 : 12, color: "#94a3b8", fontWeight: 400 }}>{unit}</span></div>
               </div>
             ))}
           </div>
@@ -1745,6 +1834,7 @@ export default function MyPlotsPage() {
                   {expandedProjects[group.projectName] && (
                     <div style={{ padding: isMobile ? "16px" : "24px", background: "#f8fafc", borderTop: "1px solid rgba(16,185,129,0.1)" }}>
                       <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                        <ProjectCarbonSummary plots={group.plots} isMobile={isMobile} />
                         {group.plots.map((plot, i) => (
                           <PlotCard
                             key={`${plot.id}-${i}`}
