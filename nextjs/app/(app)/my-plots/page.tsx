@@ -842,6 +842,7 @@ function PlotCard({ plot, index, onDelete, onEdit, expanded, onToggle, isMobile 
                 <CarbonBarChart pts={barPts} isMobile={isMobile} showAge={showPlotAge} />
               </div>
               <div style={{ background: "#fff", borderRadius: 16, border: "1px solid #e2e8f0", padding: "20px", display: "flex", flexDirection: "column", gap: 16, boxShadow: "0 4px 12px rgba(0,0,0,0.02)", height: "100%" }}>
+                <PlotMiniMap plot={plot} isMobile={isMobile} index={index} />
                 <div style={{ display: "flex", flexDirection: "column", gap: 8, fontSize: 13, color: "#475569" }}>
                   {userEnteredYear ? (
                     // Case 1: User entered year
@@ -1226,9 +1227,11 @@ export default function MyPlotsPage() {
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14, padding: "0 2px", gap: 10 }}>
             <h2 style={{ fontSize: isMobile ? 17 : 20, fontWeight: 800, color: "#064e3b", margin: 0, whiteSpace: "nowrap", flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>
               {viewMode === "all" ? (isMobile ? "แปลงทั้งหมด" : "รายการแปลงทั้งหมด") : (isMobile ? "แปลงที่บันทึก" : "รายการแปลงที่บันทึกแล้ว")}
-              <span style={{ fontSize: isMobile ? 13 : 15, fontWeight: 400, color: "#64748b", marginLeft: isMobile ? 4 : 8 }}>
-                {searchTerm ? `พบ ${filteredPlots.length}` : `(${plots.length})`}
-              </span>
+              {searchTerm && (
+                <span style={{ fontSize: isMobile ? 13 : 15, fontWeight: 400, color: "#64748b", marginLeft: isMobile ? 4 : 8 }}>
+                  พบ {filteredPlots.length}
+                </span>
+              )}
             </h2>
             <div style={{ display: "flex", gap: isMobile ? 6 : 10, alignItems: "center", flexShrink: 0 }}>
 
@@ -1284,7 +1287,7 @@ export default function MyPlotsPage() {
                         <div style={{ width: 32, height: 32, borderRadius: "50%", background: "linear-gradient(135deg, #10b981 0%, #047857 100%)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, fontWeight: 900, boxShadow: "0 2px 8px rgba(16,185,129,0.35)", flexShrink: 0 }}>
                           {gIdx + 1}
                         </div>
-                        <h3 style={{ margin: 0, fontSize: isMobile ? 20 : 22, fontWeight: 800, color: "#064e3b" }}>{group.projectName}</h3>
+                        <h3 style={{ margin: 0, fontSize: isMobile ? 20 : 22, fontWeight: 800, color: "#064e3b" }}>{group.projectName !== "ไม่มีชื่อโครงการ" ? `โครงการ ${group.projectName}` : "ไม่มีชื่อโครงการ"}</h3>
                       </div>
                       <div style={{ display: "flex", flexWrap: "wrap", gap: 12, color: "#64748b", fontSize: 15, fontWeight: 500 }}>
                         <span><i className="bi bi-map-fill me-1" style={{ color: "#0ea5e9" }} /> {group.plots.length} แปลง</span>
@@ -1293,7 +1296,7 @@ export default function MyPlotsPage() {
                     </div>
                     <div style={{ display: "flex", flexWrap: "wrap", gap: 10, width: isMobile ? "100%" : "auto" }}>
                       <Link href={`/map-draw?project=${encodeURIComponent(group.projectName)}&action=calc`} style={{ flex: isMobile ? "1 1 100%" : "auto", textAlign: "center", padding: isMobile ? "10px 16px" : "8px 16px", borderRadius: 12, background: "linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%)", color: "#fff", fontWeight: 700, fontSize: isMobile ? 15 : 14, textDecoration: "none", border: "none", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, boxShadow: "0 4px 15px rgba(14,165,233,0.3)", whiteSpace: "nowrap" }}>
-                        <i className="bi bi-magic" /> ไปหน้าประมวลผลคาร์บอน
+                        <i className="bi bi-magic" /> ประเมินคาร์บอนเครดิต
                       </Link>
                       <Link href={`/map-draw?project=${encodeURIComponent(group.projectName)}`} style={{ flex: isMobile ? 1 : "auto", textAlign: "center", padding: "8px 16px", borderRadius: 12, background: "rgba(16,185,129,0.1)", color: "#059669", fontWeight: 700, fontSize: 15, textDecoration: "none", border: "1px solid rgba(16,185,129,0.2)", display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }}>
                         <i className="bi bi-plus-lg" /> เพิ่มแปลง
