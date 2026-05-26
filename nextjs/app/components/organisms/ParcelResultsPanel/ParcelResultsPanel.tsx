@@ -1941,7 +1941,7 @@ export function ParcelResultsPanel({
                             color: "#fff", display: "flex", alignItems: "center",
                             justifyContent: "center", fontWeight: 800, fontSize: 14
                         }}>
-                            <i className="bi bi-pie-chart-fill" />
+                            <i className="bi bi-folder-fill" />
                         </div>
                         <div style={{ flex: 1 }}>
                             <div style={{ fontWeight: 700, fontSize: 14, color: "#0f172a" }}>{projectName ? `โครงการ ${projectName}` : "โครงการ"}</div>
