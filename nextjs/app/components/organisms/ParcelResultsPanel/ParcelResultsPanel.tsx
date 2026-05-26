@@ -29,6 +29,7 @@ type Props = {
     isDrawing?: boolean;
     onLandUseChange?: (allPlotsChecked: Record<number, Record<string, boolean>>, focusedPlotIdx?: number | null) => void;
     onProjectTypeChange?: (type: "replanting" | "existing") => void;
+    projectName?: string;
 };
 
 
@@ -490,6 +491,7 @@ export function ParcelResultsPanel({
     isDrawing,
     onLandUseChange,
     onProjectTypeChange,
+    projectName = "",
 }: Props) {
     const [expandedIdx, setExpandedIdx] = useState<number | null>(0);
     const [expandedResultIdx, setExpandedResultIdx] = useState<number | "total" | null>(null);
@@ -667,13 +669,6 @@ export function ParcelResultsPanel({
 
     const searchParams = useSearchParams();
     const initialProjectName = searchParams.get("project") || "";
-    const [projectName, setProjectName] = useState(initialProjectName);
-
-    useEffect(() => {
-        if (!user && !initialProjectName) {
-            setProjectName("ทดสอบ");
-        }
-    }, [user, initialProjectName]);
 
     const isDuplicateProjectName = useMemo(() => {
         if (!projectName.trim()) return false;
@@ -1409,37 +1404,7 @@ export function ParcelResultsPanel({
                         </div>
                     )}
 
-                <div style={{
-                    background: !user ? "#f8f9fa" : (isDuplicateProjectName ? "linear-gradient(135deg,#fef2f2,#fff5f5)" : "linear-gradient(135deg,#f0fdf4,#ecfdf5)"),
-                    borderRadius: 14,
-                    padding: isMobile ? "14px 14px" : "16px 20px",
-                    marginBottom: 16,
-                    border: !user ? "1px solid #e2e8f0" : (isDuplicateProjectName ? "1px solid rgba(220,38,38,0.25)" : "1px solid rgba(16,185,129,0.18)")
-                }}>
-                    <div style={{ fontSize: 14, fontWeight: 700, color: !user ? "#94a3b8" : (isDuplicateProjectName ? "#dc2626" : "#059669"), marginBottom: 6, display: "flex", alignItems: "center", gap: 6 }}>
-                        <i className="bi bi-folder2-open" /> ชื่อโครงการ  <span style={{ color: "#ef4444" }}>*</span>
-                    </div>
-                    <input
-                        className="prp-input"
-                        style={{
-                            marginBottom: 0,
-                            background: !user ? "#e9ecef" : undefined,
-                            borderColor: isDuplicateProjectName ? "#dc2626" : (!user ? "#ced4da" : undefined),
-                            boxShadow: isDuplicateProjectName ? "0 0 0 1px rgba(220,38,38,0.2)" : undefined,
-                            color: !user ? "#6c757d" : undefined,
-                            cursor: !user ? "not-allowed" : undefined
-                        }}
-                        placeholder="เช่น โครงการที่1"
-                        value={projectName}
-                        onChange={e => setProjectName(e.target.value)}
-                        disabled={!user}
-                    />
-                    {isDuplicateProjectName && (
-                        <div style={{ color: "#dc2626", fontSize: 12, marginTop: 6, fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
-                            <i className="bi bi-exclamation-circle-fill" /> ชื่อโครงการนี้ถูกใช้งานแล้ว กรุณาใช้ชื่ออื่น
-                        </div>
-                    )}
-                </div>
+
 
                 {/* Summary of drawn parcels */}
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, padding: "0 4px" }}>

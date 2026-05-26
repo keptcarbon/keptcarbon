@@ -104,6 +104,23 @@ function MapDrawContent() {
   const [drawnGeometry, setDrawnGeometry] = useState<GeoJSON.Geometry | null>(null);
   const [selectedPlotIndex, setSelectedPlotIndex] = useState<number | "total">("total");
   const [projectType, setProjectType] = useState<"replanting" | "existing" | null>(null);
+  const [projectName, setProjectName] = useState(projNameParam || "");
+
+  const isDuplicateProjectName = useMemo(() => {
+    if (!projectName.trim()) return false;
+    if (projNameParam && projectName.trim().toLowerCase() === projNameParam.trim().toLowerCase()) {
+      return false;
+    }
+    try {
+      const key = user ? `user_saved_plots_${user.id}` : "global_saved_plots";
+      const existing = JSON.parse(localStorage.getItem(key) || "[]");
+      const names = new Set(existing.map((p: any) => String(p.name || "").trim().toLowerCase()));
+      return names.has(projectName.trim().toLowerCase());
+    } catch (e) {
+      console.error(e);
+      return false;
+    }
+  }, [projectName, projNameParam, user]);
 
   // Multi-parcel support
   const [drawnParcels, setDrawnParcels] = useState<GeoJSON.Feature[]>([]);
@@ -2319,7 +2336,7 @@ function MapDrawContent() {
               <div className="mds-stepper-fill" style={{ width: `${(currentStep - 1) * 50}%` }} />
             </div>
             {([
-              { n: 1 as const, label: "กำหนดพื้นที่" },
+              { n: 1 as const, label: "เริ่มกำหนดพื้นที่" },
               { n: 2 as const, label: "กรอกข้อมูล" },
               { n: 3 as const, label: "ประเมิน/บันทึก" },
             ]).map(({ n, label }) => {
@@ -2352,8 +2369,38 @@ function MapDrawContent() {
                       วาดหรือนำเข้าพื้นที่บนแผนที่เพื่อค้นหาแปลงยางในฐานข้อมูล
                     </p>
                   </div>
-
                 </div>
+                {user && (
+                  <div style={{ marginBottom: 16 }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: "#059669", marginBottom: 6, display: "flex", alignItems: "center", gap: 6 }}>
+                      <i className="bi bi-folder2-open" /> ชื่อโครงการ <span style={{ color: "#ef4444" }}>*</span>
+                    </div>
+                    <input
+                      className="prp-input"
+                      style={{ 
+                        marginBottom: 0, 
+                        width: "100%",
+                        padding: "10px 14px",
+                        borderRadius: "10px",
+                        border: "1px solid #cbd5e1",
+                        fontSize: "14px"
+                      }}
+                      placeholder="เช่น โครงการที่1"
+                      value={projectName}
+                      onChange={e => setProjectName(e.target.value)}
+                    />
+                    {isDuplicateProjectName && (
+                        <div style={{ color: "#dc2626", fontSize: 12, marginTop: 6, fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
+                            <i className="bi bi-exclamation-circle-fill" /> ชื่อโครงการนี้ถูกใช้งานแล้ว กรุณาใช้ชื่ออื่น
+                        </div>
+                    )}
+                    {!projectName.trim() && (
+                        <div style={{ color: "#f59e0b", fontSize: 12, marginTop: 6, fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
+                            <i className="bi bi-exclamation-circle-fill" /> กรุณากรอกชื่อโครงการเพื่อดำเนินการต่อ
+                        </div>
+                    )}
+                  </div>
+                )}
 
                 {/* Method selector */}
                 <div className="mds-method-toggle">
@@ -2413,18 +2460,31 @@ function MapDrawContent() {
                         )}
 
                         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                          <button className="mds-btn mds-btn-solid" onClick={startDrawFlow}>
+                          <button 
+                            className="mds-btn mds-btn-solid" 
+                            onClick={startDrawFlow}
+                            style={{
+                              background: (user && (!projectName.trim() || isDuplicateProjectName)) ? "#cbd5e1" : undefined,
+                              cursor: (user && (!projectName.trim() || isDuplicateProjectName)) ? "not-allowed" : "pointer",
+                              boxShadow: (user && (!projectName.trim() || isDuplicateProjectName)) ? "none" : undefined,
+                              color: (user && (!projectName.trim() || isDuplicateProjectName)) ? "#fff" : undefined,
+                              border: (user && (!projectName.trim() || isDuplicateProjectName)) ? "none" : undefined
+                            }}
+                            disabled={!!(user && (!projectName.trim() || isDuplicateProjectName))}
+                          >
                             <i className="bi bi-pencil" /> {drawnParcels.length > 0 ? "วาดแปลงเพิ่ม" : "เริ่มวาดแปลง"}
                           </button>
                           {drawnParcels.length > 0 && (
                             <button
                               className="mds-btn"
                               style={{
-                                background: "linear-gradient(135deg, #0d9488, #0f766e)",
+                                background: (user && (!projectName.trim() || isDuplicateProjectName)) ? "#cbd5e1" : "linear-gradient(135deg, #0d9488, #0f766e)",
                                 color: "#fff",
                                 border: "none",
-                                boxShadow: "0 4px 10px rgba(13,148,136,0.25)"
+                                boxShadow: (user && (!projectName.trim() || isDuplicateProjectName)) ? "none" : "0 4px 10px rgba(13,148,136,0.25)",
+                                cursor: (user && (!projectName.trim() || isDuplicateProjectName)) ? "not-allowed" : "pointer"
                               }}
+                              disabled={!!(user && (!projectName.trim() || isDuplicateProjectName))}
                               onClick={() => setCurrentStep(2)}
                             >
                               <i className="bi bi-arrow-right-circle" /> กรอกข้อมูลแปลง (ขั้นตอนถัดไป)
@@ -2526,6 +2586,7 @@ function MapDrawContent() {
                 isDrawing={drawing}
                 onLandUseChange={handleLandUseChange}
                 onProjectTypeChange={handleProjectTypeChange}
+                projectName={projectName}
               />
             </div>
           )}
