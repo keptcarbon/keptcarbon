@@ -801,11 +801,16 @@ export function ParcelResultsPanel({
                             ? savedLU
                             : { A: true, A302: true };
 
+                        const bdForm = props.backendData?.form || {};
+
                         // Restore plantStatus from saved data first, then infer from year as fallback
                         let initialStatus: "replanting" | "existing" | "" =
-                            (props.plantStatus === "replanting" || props.plantStatus === "existing")
-                                ? props.plantStatus
-                                : "";
+                            (bdForm.plantStatus === "replanting" || bdForm.plantStatus === "existing")
+                                ? bdForm.plantStatus
+                                : (props.plantStatus === "replanting" || props.plantStatus === "existing"
+                                    ? props.plantStatus
+                                    : "");
+
                         if (!initialStatus && props.plantYearBE) {
                             const yStr = String(props.plantYearBE);
                             if (NEW_YEAR_OPTIONS.includes(yStr)) {
@@ -817,10 +822,10 @@ export function ParcelResultsPanel({
 
                         next.push({
                             plantStatus: initialStatus,
-                            plantYear: props.plantYearBE ? String(props.plantYearBE) : "",
-                            treeCount: props.trees ? String(props.trees) : "",
-                            variety: props.variety || "",
-                            spacing: props.spacing || "",
+                            plantYear: bdForm.plantYear || "",
+                            treeCount: bdForm.treeCount || "",
+                            variety: bdForm.variety || "",
+                            spacing: bdForm.spacing || "",
                             luChecked: { ...initialLU },
                         });
                     }

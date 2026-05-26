@@ -1210,7 +1210,7 @@ function PlotCard({ plot, index, onDelete, onEdit, expanded, onToggle, isMobile 
                           fontSize: 12,
                           color: "#475569",
                         }}>
-                          {displayYearBE ? `พ.ศ. ${displayYearBE}` : "—"}
+                          {displayYearBE ? `${displayYearBE}` : "—"}
                         </div>
                       ) : yearBoxItems.length > 0 ? (
                         <>
