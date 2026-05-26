@@ -237,16 +237,16 @@ function getFriendlyErrorMessage(err: unknown, plots: PlotInfo[], plotForms: Plo
             const updatedSuffix = plotSuffix || ` (ที่แปลง ${missingPlots.join(", ")})`;
             return `ไม่พบข้อมูลปีปลูกในฐานข้อมูล กรุณาระบุปีปลูก (พ.ศ.) ในช่องกรอกข้อมูล${updatedSuffix}`;
         }
-        return `ระบบไม่สามารถประมวลผลคาร์บอนได้ในขณะนี้ กรุณาตรวจสอบข้อมูลแปลงอีกครั้ง หรือลองใหม่ภายหลัง${plotSuffix}`;
+        return `กรุณาเลือกประเภทการใช้ที่ดินอย่างน้อย 1 ประเภทในแต่ละแปลงก่อนประมวลผล${plotSuffix}`;
     }
 
     // Network / connection errors
     if (msg.includes("fetch") || msg.includes("NetworkError") || msg.includes("Failed to fetch")) {
-        return `ไม่สามารถเชื่อมต่อกับระบบประมวลผลได้ กรุณาตรวจสอบการเชื่อมต่ออินเทอร์เน็ตและลองอีกครั้ง${plotSuffix}`;
+        return `ไม่สามารถเชื่อมต่อกับระบบประมวลผลคาร์บอนเครดิตได้ กรุณาตรวจสอบการเชื่อมต่ออินเทอร์เน็ตและลองอีกครั้ง${plotSuffix}`;
     }
 
     // Other errors
-    return `เกิดข้อผิดพลาดในการประมวลผลคาร์บอน กรุณาตรวจสอบข้อมูลแปลงและลองอีกครั้ง${plotSuffix}`;
+    return `เกิดข้อผิดพลาดในการประมวลผลคาร์บอนเครดิต กรุณาตรวจสอบข้อมูลแปลงและลองอีกครั้ง${plotSuffix}`;
 }
 
 function computePlot(feat: GeoJSON.Feature): PlotInfo {
@@ -1113,7 +1113,7 @@ export function ParcelResultsPanel({
         const featuresToUse = luFeatures && luFeatures.length > 0 ? luFeatures : parcelFeatures;
         const featsByPlot: Record<number, typeof featuresToUse> = {};
         for (let idx = 0; idx < parcelFeatures.length; idx++) featsByPlot[idx] = [];
-        
+
         featuresToUse.forEach(feat => {
             const props = (feat.properties ?? {}) as Record<string, unknown>;
             const plotIdxFromProp = props.plot_index !== undefined ? parseInt(String(props.plot_index)) - 1 : -1;
@@ -1154,8 +1154,8 @@ export function ParcelResultsPanel({
                 const epPlantYearCE = typeof ep?.year_of_planting?.value === "number" ? ep.year_of_planting.value : 0;
                 const epPlantYearBE = epPlantYearCE > 0 ? epPlantYearCE + 543 : 0;
                 const epTrees = typeof ep?.tree_count?.value === "number" ? ep.tree_count.value : 0;
-                
-                const dominantProvince = plotsLuRealData[i] 
+
+                const dominantProvince = plotsLuRealData[i]
                     ? Object.keys(plotsLuRealData[i])[0] || ""
                     : "";
 
@@ -1215,17 +1215,17 @@ export function ParcelResultsPanel({
                     carbonProfile,
                     processed: isProcessed,
                     forecast,
-                backendData: {
-                    lu_polygon: featsByPlot[i] || [],
-                    plantYearBE: epPlantYearBE,
-                    age: epPlantYearBE > 0 ? (CURRENT_BE_NOW - epPlantYearBE) : 0,
-                    variety: epVariety,
-                    spacing: epSpacing,
-                    trees: epTrees,
-                    ep: ep || null,
-                    form: form || null
-                }
-            };
+                    backendData: {
+                        lu_polygon: featsByPlot[i] || [],
+                        plantYearBE: epPlantYearBE,
+                        age: epPlantYearBE > 0 ? (CURRENT_BE_NOW - epPlantYearBE) : 0,
+                        variety: epVariety,
+                        spacing: epSpacing,
+                        trees: epTrees,
+                        ep: ep || null,
+                        form: form || null
+                    }
+                };
             });
             const newPlotsWithStatus = newPlots.filter(p => p.plantStatus);
             if (newPlotsWithStatus.length === 0) {
@@ -1323,7 +1323,7 @@ export function ParcelResultsPanel({
                             <i className="bi bi-exclamation-triangle-fill" style={{ fontSize: 14, color: "#dc2626" }} />
                         </div>
                         <div style={{ flex: 1, lineHeight: 1.6 }}>
-                            <div style={{ fontWeight: 700, marginBottom: 2 }}>ไม่สามารถประมวลผลคาร์บอนได้</div>
+                            <div style={{ fontWeight: 700, marginBottom: 2 }}>ไม่สามารถประมวลผลคาร์บอนเครดิตได้</div>
                             <span style={{ color: "#b91c1c", opacity: 0.9 }}>{carbonErr}</span>
                         </div>
                         <button
@@ -1445,26 +1445,7 @@ export function ParcelResultsPanel({
                     </button>
                 </div>
 
-                {/* Warning: no LU selected for a plot that has detected data */}
-                {plotForms.some((form, idx) => {
-                    if (!form.plantStatus) return false;
-                    const plotLU = plotsLuRealData[idx] || {};
-                    const hasDetected = Object.values(plotLU).some(v => v.rai > 0);
-                    if (!hasDetected) return false;
-                    // Exclude "A" (parent category, always auto-checked) — only count actual leaf LU classes
-                    return Object.entries(form.luChecked || {})
-                        .filter(([cls, on]) => cls !== "A" && on && (plotLU[cls]?.rai ?? 0) > 0).length === 0;
-                }) && (
-                        <div style={{
-                            marginBottom: 12, padding: "8px 12px",
-                            background: "rgba(245,158,11,0.10)", border: "1px solid rgba(245,158,11,0.35)",
-                            borderRadius: 10, display: "flex", alignItems: "center", gap: 8,
-                            fontSize: 12, color: "#92400e", fontWeight: 600
-                        }}>
-                            <i className="bi bi-exclamation-triangle-fill" style={{ color: "#f59e0b", flexShrink: 0 }} />
-                            <span>กรุณาเลือกประเภทการใช้ที่ดินอย่างน้อย 1 ประเภทในแต่ละแปลงก่อนประมวลผล</span>
-                        </div>
-                    )}
+
 
 
 
@@ -1801,11 +1782,6 @@ export function ParcelResultsPanel({
                                                             <span style={{ fontSize: 15, color: "#c2410c", fontWeight: 700 }}>
                                                                 {selectedRai.toFixed(2)} ไร่
                                                             </span>
-                                                        </div>
-                                                    ) : showNoLuWarning ? (
-                                                        <div style={{ marginTop: 12, padding: "8px 12px", background: "rgba(239,68,68,0.08)", borderRadius: 8, border: "1px solid rgba(239,68,68,0.25)", display: "flex", alignItems: "center", gap: 8 }}>
-                                                            <i className="bi bi-exclamation-triangle-fill" style={{ color: "#dc2626", fontSize: 13, flexShrink: 0 }} />
-                                                            <span style={{ fontSize: 12, color: "#dc2626", fontWeight: 600 }}>กรุณาเลือกประเภทการใช้ที่ดินอย่างน้อย 1 ประเภท</span>
                                                         </div>
                                                     ) : null;
                                                 })()}

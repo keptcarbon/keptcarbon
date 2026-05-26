@@ -2356,36 +2356,7 @@ function MapDrawContent() {
                 <strong style={{ fontSize: "18px", color: "#0f172a", fontWeight: 800, display: "block", marginTop: "2px" }} title={projNameParam}>{projNameParam}</strong>
               </div>
             </div>
-            <button
-              onClick={handleExitProject}
-              style={{
-                background: "#ffffff",
-                color: "#059669",
-                border: "1px solid rgba(5, 150, 105, 0.25)",
-                borderRadius: "10px",
-                padding: "8px 16px",
-                fontSize: "13.5px",
-                fontWeight: 600,
-                cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
-                gap: "6px",
-                transition: "all 0.2s",
-                whiteSpace: "nowrap",
-                flexShrink: 0,
-                boxShadow: "0 1px 2px rgba(0,0,0,0.02)"
-              }}
-              onMouseOver={(e) => {
-                e.currentTarget.style.background = "rgba(5, 150, 105, 0.04)";
-                e.currentTarget.style.borderColor = "rgba(5, 150, 105, 0.45)";
-              }}
-              onMouseOut={(e) => {
-                e.currentTarget.style.background = "#ffffff";
-                e.currentTarget.style.borderColor = "rgba(5, 150, 105, 0.25)";
-              }}
-            >
-              <i className="bi bi-plus-circle" style={{ fontSize: "15px" }} /> เริ่มโปรเจคใหม่
-            </button>
+
           </div>
         )}
 
