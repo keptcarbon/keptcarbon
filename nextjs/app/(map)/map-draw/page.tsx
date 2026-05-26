@@ -105,6 +105,7 @@ function MapDrawContent() {
   const [selectedPlotIndex, setSelectedPlotIndex] = useState<number | "total">("total");
   const [projectType, setProjectType] = useState<"replanting" | "existing" | null>(null);
   const [projectName, setProjectName] = useState(projNameParam || "");
+  const [stepWarningPopup, setStepWarningPopup] = useState<boolean>(false);
 
   const isDuplicateProjectName = useMemo(() => {
     if (!projectName.trim()) return false;
@@ -121,6 +122,34 @@ function MapDrawContent() {
       return false;
     }
   }, [projectName, projNameParam, user]);
+
+  const handleStepClick = (n: number) => {
+    if (n === currentStep) return;
+
+    if (n === 1) {
+      if (drawnParcels.length > 0) {
+        setStepWarningPopup(true);
+      } else {
+        setCurrentStep(1);
+      }
+    } else if (n === 2) {
+      if (currentStep === 3) {
+        setCurrentStep(2);
+      } else if (currentStep === 1) {
+        if (drawnParcels.length > 0 && !(user && (!projectName.trim() || isDuplicateProjectName))) {
+          setCurrentStep(2);
+        }
+      }
+    } else if (n === 3) {
+      // Step 3 can only be reached via processing button in Step 2.
+    }
+  };
+
+  const handleConfirmStep1 = () => {
+    setStepWarningPopup(false);
+    clearDraw();
+    setCurrentStep(1);
+  };
 
   // Multi-parcel support
   const [drawnParcels, setDrawnParcels] = useState<GeoJSON.Feature[]>([]);
@@ -2343,7 +2372,12 @@ function MapDrawContent() {
               const isActive = currentStep === n;
               const isDone = currentStep > n;
               return (
-                <div key={n} className={`mds-step${isActive ? " active" : isDone ? " done" : ""}`}>
+                <div
+                  key={n}
+                  className={`mds-step${isActive ? " active" : isDone ? " done" : ""}`}
+                  style={{ cursor: "pointer" }}
+                  onClick={() => handleStepClick(n)}
+                >
                   <div className="mds-step-circle">
                     {isDone ? <i className="bi bi-check-lg" /> : n}
                   </div>
@@ -2370,15 +2404,15 @@ function MapDrawContent() {
                     </p>
                   </div>
                 </div>
-                {user && (
+                {user && !drawing && (
                   <div style={{ marginBottom: 16 }}>
                     <div style={{ fontSize: 13, fontWeight: 700, color: "#059669", marginBottom: 6, display: "flex", alignItems: "center", gap: 6 }}>
                       <i className="bi bi-folder2-open" /> ชื่อโครงการ <span style={{ color: "#ef4444" }}>*</span>
                     </div>
                     <input
                       className="prp-input"
-                      style={{ 
-                        marginBottom: 0, 
+                      style={{
+                        marginBottom: 0,
                         width: "100%",
                         padding: "10px 14px",
                         borderRadius: "10px",
@@ -2390,54 +2424,88 @@ function MapDrawContent() {
                       onChange={e => setProjectName(e.target.value)}
                     />
                     {isDuplicateProjectName && (
-                        <div style={{ color: "#dc2626", fontSize: 12, marginTop: 6, fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
-                            <i className="bi bi-exclamation-circle-fill" /> ชื่อโครงการนี้ถูกใช้งานแล้ว กรุณาใช้ชื่ออื่น
-                        </div>
+                      <div style={{ color: "#dc2626", fontSize: 12, marginTop: 6, fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
+                        <i className="bi bi-exclamation-circle-fill" /> ชื่อโครงการนี้ถูกใช้งานแล้ว กรุณาใช้ชื่ออื่น
+                      </div>
                     )}
                     {!projectName.trim() && (
-                        <div style={{ color: "#f59e0b", fontSize: 12, marginTop: 6, fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
-                            <i className="bi bi-exclamation-circle-fill" /> กรุณากรอกชื่อโครงการเพื่อดำเนินการต่อ
-                        </div>
+                      <div style={{ color: "#f59e0b", fontSize: 12, marginTop: 6, fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
+                        <i className="bi bi-exclamation-circle-fill" /> กรุณากรอกชื่อโครงการเพื่อดำเนินการต่อ
+                      </div>
                     )}
                   </div>
                 )}
 
                 {/* Method selector */}
-                <div className="mds-method-toggle">
-                  <button
-                    className={`mds-mtab${tab === "draw" ? " active" : ""}`}
-                    onClick={() => setTab("draw")}
-                  >
-                    <i className="bi bi-pencil-square" /> วาดแปลง
-                  </button>
-                  <button
-                    className={`mds-mtab${tab === "shp" ? " active" : ""}`}
-                    onClick={() => setTab("shp")}
-                  >
-                    <i className="bi bi-file-earmark-zip" /> นำเข้า SHP
-                  </button>
-                </div>
+                {!drawing && (
+                  <div className="mds-method-toggle">
+                    <button
+                      className={`mds-mtab${tab === "draw" ? " active" : ""}`}
+                      onClick={() => setTab("draw")}
+                    >
+                      <i className="bi bi-pencil-square" /> วาดแปลง
+                    </button>
+                    <button
+                      className={`mds-mtab${tab === "shp" ? " active" : ""}`}
+                      onClick={() => setTab("shp")}
+                    >
+                      <i className="bi bi-file-earmark-zip" /> นำเข้า SHP
+                    </button>
+                  </div>
+                )}
 
                 {/* ── Draw tab ── */}
                 {tab === "draw" && (
                   <div className="mds-action-content">
                     {drawing ? (
                       /* ── Drawing in progress ── */
-                      <>
-                        <div style={{ display: "flex", gap: "8px", marginTop: "10px", flexWrap: "wrap" }}>
-                          <button
-                            className="mds-btn mds-btn-solid mds-finish-btn-mobile"
-                            style={{ flex: 1 }}
-                            onClick={() => finishDraw()}
-                            disabled={vertCount < 3}
-                          >
-                            <i className="bi bi-check-circle" /> เสร็จสิ้น วาดแปลง
-                          </button>
-                          <button className="mds-btn mds-btn-danger" onClick={clearDraw}>
-                            <i className="bi bi-x-circle" /> ยกเลิก
-                          </button>
+                      <div style={{
+                        marginTop: 16,
+                        padding: "24px 20px",
+                        background: "rgba(220, 38, 38, 0.04)",
+                        border: "1px dashed rgba(220, 38, 38, 0.3)",
+                        borderRadius: "16px",
+                        display: "flex",
+                        flexDirection: "column",
+                        alignItems: "center",
+                        gap: 16,
+                        animation: "pulse-soft 2s infinite"
+                      }}>
+                        <div style={{
+                          width: "48px", height: "48px", borderRadius: "50%",
+                          background: "rgba(220, 38, 38, 0.1)", color: "#dc2626",
+                          display: "flex", alignItems: "center", justifyContent: "center",
+                          fontSize: "20px"
+                        }}>
+                          <i className="bi bi-vector-pen" />
                         </div>
-                      </>
+                        <div style={{ textAlign: "center" }}>
+                          <h3 style={{ margin: 0, fontSize: "16px", fontWeight: 700, color: "#0f172a" }}>กำลังวาดแปลง...</h3>
+                        </div>
+                        <button
+                          className="mds-btn"
+                          style={{
+                            width: "100%",
+                            background: "#ef4444",
+                            color: "#fff",
+                            border: "none",
+                            padding: "12px",
+                            borderRadius: "12px",
+                            fontWeight: 700,
+                            boxShadow: "0 4px 12px rgba(239,68,68,0.25)"
+                          }}
+                          onClick={clearDraw}
+                        >
+                          <i className="bi bi-x-circle" /> ยกเลิกการวาด
+                        </button>
+                        <style>{`
+                          @keyframes pulse-soft {
+                            0% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.1); }
+                            70% { box-shadow: 0 0 0 10px rgba(220, 38, 38, 0); }
+                            100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0); }
+                          }
+                        `}</style>
+                      </div>
                     ) : (
                       /* ── Default: show instructions + start button ── */
                       <>
@@ -2460,8 +2528,8 @@ function MapDrawContent() {
                         )}
 
                         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                          <button 
-                            className="mds-btn mds-btn-solid" 
+                          <button
+                            className="mds-btn mds-btn-solid"
                             onClick={startDrawFlow}
                             style={{
                               background: (user && (!projectName.trim() || isDuplicateProjectName)) ? "#cbd5e1" : undefined,
@@ -2677,6 +2745,64 @@ function MapDrawContent() {
               to { opacity: 1; transform: scale(1) translateY(0); }
             }
           `}</style>
+        </div>
+      )}
+
+      {/* Step Warning Popup */}
+      {stepWarningPopup && (
+        <div style={{
+          position: "fixed", inset: 0, zIndex: 99999,
+          background: "rgba(15,23,42,0.4)", backdropFilter: "blur(4px)",
+          display: "flex", alignItems: "center", justifyContent: "center", padding: 20
+        }}>
+          <div style={{
+            background: "#fff", borderRadius: 20, padding: "28px 24px 24px",
+            width: "100%", maxWidth: 360, textAlign: "center",
+            boxShadow: "0 20px 40px rgba(0,0,0,0.15), 0 0 0 1px rgba(0,0,0,0.05)",
+            animation: "popupIn 0.3s cubic-bezier(0.16, 1, 0.3, 1)"
+          }}>
+            <div style={{
+              width: 56, height: 56, borderRadius: "50%",
+              background: "#fef08a",
+              color: "#ca8a04",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontSize: 28, margin: "0 auto 16px"
+            }}>
+              <i className="bi bi-exclamation-triangle-fill" />
+            </div>
+            <h3 style={{ fontSize: 18, fontWeight: 800, color: "#0f172a", marginBottom: 8, lineHeight: 1.3 }}>
+              {user ? "เริ่มโครงการใหม่หรือไม่?" : "แน่ใจหรือไม่?"}
+            </h3>
+            <p style={{ fontSize: 14, color: "#475569", lineHeight: 1.5, marginBottom: 24 }}>
+              {user
+                ? "ต้องการที่จะเริ่มกำหนดขอบเขตและสร้างโครงการใหม่ใช่หรือไม่?"
+                : "หากกลับไปที่ขั้นตอนกำหนดพื้นที่ ข้อมูลที่ทำไว้ทั้งหมดจะหายไป คุณแน่ใจหรือไม่ที่จะดำเนินการต่อ?"}
+            </p>
+            <div style={{ display: "flex", gap: 12 }}>
+              <button
+                onClick={() => setStepWarningPopup(false)}
+                style={{
+                  flex: 1, padding: "12px", borderRadius: 12,
+                  background: "#e2e8f0", color: "#475569",
+                  border: "none", fontSize: 15, fontWeight: 700,
+                  cursor: "pointer", transition: "all 0.2s"
+                }}
+              >
+                ยกเลิก
+              </button>
+              <button
+                onClick={handleConfirmStep1}
+                style={{
+                  flex: 1, padding: "12px", borderRadius: 12,
+                  background: "#ca8a04", color: "#fff",
+                  border: "none", fontSize: 15, fontWeight: 700,
+                  cursor: "pointer", transition: "all 0.2s"
+                }}
+              >
+                ตกลง
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
