@@ -1357,12 +1357,17 @@ function MapDrawContent() {
     setCurrentStep(2);
     setIsPanelOpen(true);
 
+    if (map && !skipFit) {
+      const bounds = new maplibregl.LngLatBounds();
+      ring.forEach(c => bounds.extend(c as [number, number]));
+      if (!bounds.isEmpty()) {
+        map.fitBounds(bounds, { padding: { top: 60, bottom: 60, left: 60, right: 400 }, duration: 700, maxZoom: 17 });
+      }
+    }
 
     // Reset current drawing vertices
     vertsRef.current = [];
     setVertCount(0);
-
-    // Removed duplicate camera bounce (fitBounds) here to allow the subsequent plantation-info fetch to animate smoothly just once!
   }, []);
 
   // Map click / dblclick / Escape handlers — keep refs in sync
@@ -1773,18 +1778,8 @@ function MapDrawContent() {
           ?.setData({ type: "FeatureCollection", features: allFeatures });
         handleLandUseChange(allPlotsCheckedRef.current);
         if (allFeatures.length > 0) {
-          const bounds = new maplibregl.LngLatBounds();
-          allFeatures.forEach(f => {
-            const walk = (coords: unknown): void => {
-              if (!Array.isArray(coords)) return;
-              if (typeof coords[0] === "number") { bounds.extend(coords as [number, number]); return; }
-              coords.forEach(walk);
-            };
-            walk((f.geometry as GeoJSON.Polygon | GeoJSON.MultiPolygon).coordinates);
-          });
-          if (!bounds.isEmpty()) {
-            map.fitBounds(bounds, { padding: 60, duration: 700, maxZoom: 17 });
-          }
+          // Intentionally omitting fitBounds here so the camera remains focused
+          // on the newly drawn plot or user's current view.
         }
       }
 

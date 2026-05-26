@@ -158,60 +158,92 @@ function getFriendlyErrorMessage(err: unknown, plots: PlotInfo[], plotForms: Plo
     // Check for specific error codes (E01, E02, E04)
     const statusCode = backendErrData?.status_code || backendErrData?.status?.status_code;
     const backendMessage = backendErrData?.message || backendErrData?.status?.message || "";
+    const polygonId = backendErrData?.polygon_id || backendErrData?.status?.polygon_id;
 
-    if (statusCode === "E01" || msg.includes('"status_code":"E01"') || msg.includes('"E01"')) {
-        return "พื้นที่ที่คุณระบุไม่อยู่ในขอบเขตประเทศไทย กรุณาลบแล้ววาดแปลงใหม่";
+    let plotSuffix = "";
+    if (polygonId && typeof polygonId === "string" && polygonId.startsWith("plot-")) {
+        const plotIdx = parseInt(polygonId.replace("plot-", ""), 10);
+        if (!isNaN(plotIdx)) {
+            plotSuffix = ` (ที่แปลง ${plotIdx + 1})`;
+        }
     }
-    if (statusCode === "E02" || msg.includes('"status_code":"E02"') || msg.includes('"E02"')) {
-        return "พื้นที่ที่คุณระบุไม่อยู่ในจังหวัดที่ให้บริการ กรุณาลบแล้ววาดแปลงใหม่";
+
+    const isE01 = statusCode === "E01" || msg.includes('"status_code":"E01"') || msg.includes('"E01"');
+    const isE02 = statusCode === "E02" || msg.includes('"status_code":"E02"') || msg.includes('"E02"');
+    const isE04 = statusCode === "E04" || msg.includes('"status_code":"E04"') || msg.includes('"E04"');
+
+    // Fallback for E04: find missing plots manually
+    if (isE04 && !plotSuffix) {
+        const missingPlots = [];
+        for (let i = 0; i < plots.length; i++) {
+            const form = plotForms[i];
+            if (form?.plantStatus === "existing" && !form?.plantYear) {
+                missingPlots.push(i + 1);
+            }
+        }
+        if (missingPlots.length > 0) {
+            plotSuffix = ` (ที่แปลง ${missingPlots.join(", ")})`;
+        }
     }
-    if (statusCode === "E04" || msg.includes('"status_code":"E04"') || msg.includes('"E04"')) {
-        return "ไม่พบข้อมูลปีปลูกในฐานข้อมูล กรุณาระบุปีปลูก (พ.ศ.) ในช่องกรอกข้อมูล";
+
+    if (isE01) {
+        return `พื้นที่ที่คุณระบุไม่อยู่ในขอบเขตประเทศไทย กรุณาลบแล้ววาดแปลงใหม่${plotSuffix}`;
+    }
+    if (isE02) {
+        return `พื้นที่ที่คุณระบุไม่อยู่ในจังหวัดที่ให้บริการ กรุณาลบแล้ววาดแปลงใหม่${plotSuffix}`;
+    }
+    if (isE04) {
+        return `ไม่พบข้อมูลปีปลูกในฐานข้อมูล กรุณาระบุปีปลูก (พ.ศ.) ในช่องกรอกข้อมูล${plotSuffix}`;
     }
 
     // Translate English errors from the backend
     if (backendMessage) {
         if (backendErrData?.message_th) {
-            return backendErrData.message_th;
+            return `${backendErrData.message_th}${plotSuffix}`;
         }
         if (backendErrData?.status?.message_th) {
-            return backendErrData.status.message_th;
+            return `${backendErrData.status.message_th}${plotSuffix}`;
         }
 
         const engMsg = backendMessage.toLowerCase();
-        if (engMsg.includes("not found")) return "ไม่พบข้อมูลในระบบ กรุณาตรวจสอบอีกครั้ง";
-        if (engMsg.includes("invalid") && engMsg.includes("polygon")) return "รูปทรงหรือขอบเขตพื้นที่ไม่ถูกต้อง กรุณาลบแล้ววาดแปลงใหม่";
-        if (engMsg.includes("invalid")) return "ข้อมูลไม่ถูกต้อง กรุณาตรวจสอบอีกครั้ง";
-        if (engMsg.includes("geometry")) return "ข้อมูลพิกัดพื้นที่ไม่ถูกต้อง กรุณาลบแล้ววาดแปลงใหม่";
-        if (engMsg.includes("timeout")) return "ระบบใช้เวลาประมวลผลนานเกินไป กรุณาลองใหม่อีกครั้ง";
-        if (engMsg.includes("missing")) return "ข้อมูลไม่ครบถ้วน กรุณาตรวจสอบการกรอกข้อมูล";
-        if (engMsg.includes("overlap")) return "พื้นที่ทับซ้อนกับแปลงอื่น กรุณาลบแล้ววาดแปลงใหม่";
-        if (engMsg.includes("error") || engMsg.includes("failed")) return "ระบบเกิดข้อผิดพลาดในการประมวลผล กรุณาลองใหม่อีกครั้ง";
+        if (engMsg.includes("not found")) return `ไม่พบข้อมูลในระบบ กรุณาตรวจสอบอีกครั้ง${plotSuffix}`;
+        if (engMsg.includes("invalid") && engMsg.includes("polygon")) return `รูปทรงหรือขอบเขตพื้นที่ไม่ถูกต้อง กรุณาลบแล้ววาดแปลงใหม่${plotSuffix}`;
+        if (engMsg.includes("invalid")) return `ข้อมูลไม่ถูกต้อง กรุณาตรวจสอบอีกครั้ง${plotSuffix}`;
+        if (engMsg.includes("geometry")) return `ข้อมูลพิกัดพื้นที่ไม่ถูกต้อง กรุณาลบแล้ววาดแปลงใหม่${plotSuffix}`;
+        if (engMsg.includes("timeout")) return `ระบบใช้เวลาประมวลผลนานเกินไป กรุณาลองใหม่อีกครั้ง${plotSuffix}`;
+        if (engMsg.includes("missing")) return `ข้อมูลไม่ครบถ้วน กรุณาตรวจสอบการกรอกข้อมูล${plotSuffix}`;
+        if (engMsg.includes("overlap")) return `พื้นที่ทับซ้อนกับแปลงอื่น กรุณาลบแล้ววาดแปลงใหม่${plotSuffix}`;
+        if (engMsg.includes("error") || engMsg.includes("failed")) return `ระบบเกิดข้อผิดพลาดในการประมวลผล กรุณาลองใหม่อีกครั้ง${plotSuffix}`;
 
         // General prefix for unknown backend messages translated
-        return `ระบบไม่สามารถประมวลผลได้: ${backendMessage} กรุณาลองใหม่อีกครั้ง`;
+        return `ระบบไม่สามารถประมวลผลได้: ${backendMessage} กรุณาลองใหม่อีกครั้ง${plotSuffix}`;
     }
 
     // Backend 500 errors
     if (msg.includes("Backend API error: 500")) {
         // Check if any plot is "existing" with no planting data — likely cause
-        const hasExistingNoData = plots.some((p, i) => {
+        const missingPlots = [];
+        for (let i = 0; i < plots.length; i++) {
             const form = plotForms[i];
-            return form?.plantStatus === "existing" && !form.plantYear && !p.plantYearBE;
-        });
-        if (hasExistingNoData) {
-            return "ไม่สามารถประมวลผลคาร์บอนได้ เนื่องจากไม่พบข้อมูลปีปลูกสำหรับแปลงที่ปลูกมาแล้ว กรุณากรอกปีที่ปลูก (พ.ศ.) ในขั้นตอนกรอกข้อมูล ";
+            const p = plots[i];
+            if (form?.plantStatus === "existing" && !form.plantYear && !p.plantYearBE) {
+                missingPlots.push(i + 1);
+            }
         }
-        return "ระบบไม่สามารถประมวลผลคาร์บอนได้ในขณะนี้ กรุณาตรวจสอบข้อมูลแปลงอีกครั้ง หรือลองใหม่ภายหลัง";
+        if (missingPlots.length > 0) {
+            const updatedSuffix = plotSuffix || ` (ที่แปลง ${missingPlots.join(", ")})`;
+            return `ไม่พบข้อมูลปีปลูกในฐานข้อมูล กรุณาระบุปีปลูก (พ.ศ.) ในช่องกรอกข้อมูล${updatedSuffix}`;
+        }
+        return `ระบบไม่สามารถประมวลผลคาร์บอนได้ในขณะนี้ กรุณาตรวจสอบข้อมูลแปลงอีกครั้ง หรือลองใหม่ภายหลัง${plotSuffix}`;
     }
 
     // Network / connection errors
     if (msg.includes("fetch") || msg.includes("NetworkError") || msg.includes("Failed to fetch")) {
-        return "ไม่สามารถเชื่อมต่อกับระบบประมวลผลได้ กรุณาตรวจสอบการเชื่อมต่ออินเทอร์เน็ตและลองอีกครั้ง";
+        return `ไม่สามารถเชื่อมต่อกับระบบประมวลผลได้ กรุณาตรวจสอบการเชื่อมต่ออินเทอร์เน็ตและลองอีกครั้ง${plotSuffix}`;
     }
 
     // Other errors
-    return "เกิดข้อผิดพลาดในการประมวลผลคาร์บอน กรุณาตรวจสอบข้อมูลแปลงและลองอีกครั้ง";
+    return `เกิดข้อผิดพลาดในการประมวลผลคาร์บอน กรุณาตรวจสอบข้อมูลแปลงและลองอีกครั้ง${plotSuffix}`;
 }
 
 function computePlot(feat: GeoJSON.Feature): PlotInfo {
