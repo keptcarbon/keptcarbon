@@ -119,21 +119,30 @@ function MapDrawContent() {
   const [hiddenProjectPlots, setHiddenProjectPlots] = useState<GeoJSON.Feature[]>([]);
   const [autoProcessTrigger, setAutoProcessTrigger] = useState(0);
 
+  const [existingProjectNames, setExistingProjectNames] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (!user) return;
+    fetch('/api/plots')
+      .then(res => res.ok ? res.json() : { plots: [] })
+      .then(data => {
+        const plots = Array.isArray(data.plots) ? data.plots : [];
+        const names = new Set<string>();
+        plots.forEach((p: any) => {
+          if (p.name) names.add(String(p.name).trim().toLowerCase());
+        });
+        setExistingProjectNames(names);
+      })
+      .catch(console.error);
+  }, [user]);
+
   const isDuplicateProjectName = useMemo(() => {
     if (!projectName.trim()) return false;
     if (projNameParam && projectName.trim().toLowerCase() === projNameParam.trim().toLowerCase()) {
       return false;
     }
-    try {
-      const key = user ? `user_saved_plots_${user.id}` : "global_saved_plots";
-      const existing = JSON.parse(localStorage.getItem(key) || "[]");
-      const names = new Set(existing.map((p: any) => String(p.name || "").trim().toLowerCase()));
-      return names.has(projectName.trim().toLowerCase());
-    } catch (e) {
-      console.error(e);
-      return false;
-    }
-  }, [projectName, projNameParam, user]);
+    return existingProjectNames.has(projectName.trim().toLowerCase());
+  }, [projectName, projNameParam, existingProjectNames]);
 
   const handleStepClick = (n: number) => {
     if (n === currentStep) return;
