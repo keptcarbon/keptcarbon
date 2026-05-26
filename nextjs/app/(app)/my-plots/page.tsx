@@ -934,11 +934,11 @@ function ProjectCarbonSummary({ plots, isMobile }: { plots: SavedPlot[]; isMobil
         </div>
         <div style={{ display: "flex", alignItems: "baseline", justifyContent: "center", gap: 5, flexWrap: "wrap" }}>
           <span style={{ fontSize: isMobile ? 24 : 28, fontWeight: 900, color: "#064e3b", lineHeight: 1 }}>
-            {Math.round(totalNow).toLocaleString("th-TH")}
+            {Math.floor(totalNow).toLocaleString("th-TH")}
           </span>
           {ciNow > 0 && (
             <span style={{ fontSize: isMobile ? 13 : 15, fontWeight: 600, color: "#6b7280" }}>
-              ± {Math.round(ciNow).toLocaleString("th-TH")}
+              ± {(Math.floor(ciNow * 10) / 10).toLocaleString("th-TH", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
             </span>
           )}
           <span style={{ fontSize: isMobile ? 12 : 14, fontWeight: 700, color: "#0d9488" }}>tCO₂eq</span>

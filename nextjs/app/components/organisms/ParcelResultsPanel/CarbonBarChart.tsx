@@ -314,9 +314,9 @@ export function CarbonBarChart({
           const ttY = Math.max(y - ttH - 14, 4);
 
           const co2Val = Math.floor(p.co2 || 0);
-          const co2Ci = ((p.ci || 0)).toFixed(1);
-          const gainVal = (p.gainValue || 0).toFixed(1);
-          const gainCiVal = ((p.gainCi || 0)).toFixed(1);
+          const co2Ci = (Math.floor((p.ci || 0) * 10) / 10).toLocaleString("th-TH", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+          const gainVal = Math.floor(p.gainValue || 0).toLocaleString("th-TH");
+          const gainCiVal = (Math.floor((p.gainCi || 0) * 10) / 10).toLocaleString("th-TH", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 
           return (
             <g pointerEvents="none">
@@ -366,7 +366,7 @@ export function CarbonBarChart({
                     </div>
                     <div style={{ display: "flex", alignItems: "baseline", justifyContent: "center", gap: 8 }}>
                       <span style={{ fontSize: isMobile ? 34 : 46, fontWeight: 800, color: "#38bdf8", lineHeight: 1 }}>
-                        {parseFloat(gainVal).toLocaleString("th-TH", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+                        {gainVal}
                       </span>
                       <span style={{ fontSize: isMobile ? 24 : 32, color: "rgba(56,189,248,0.65)", fontWeight: 500 }}>
                         ±{gainCiVal}
