@@ -106,6 +106,9 @@ function MapDrawContent() {
   const [projectType, setProjectType] = useState<"replanting" | "existing" | null>(null);
   const [projectName, setProjectName] = useState(projNameParam || "");
   const [stepWarningPopup, setStepWarningPopup] = useState<boolean>(false);
+  
+  const [hiddenProjectPlots, setHiddenProjectPlots] = useState<GeoJSON.Feature[]>([]);
+  const [autoProcessTrigger, setAutoProcessTrigger] = useState(0);
 
   const isDuplicateProjectName = useMemo(() => {
     if (!projectName.trim()) return false;
@@ -1145,11 +1148,8 @@ function MapDrawContent() {
           const apiData = apiRes.ok ? await apiRes.json() : { plots: [] };
           const allProjectPlots: any[] = Array.isArray(apiData.plots) ? apiData.plots : [];
           console.log("[AUTO-LOAD] API plots for:", projName, allProjectPlots);
-          // ถ้ามี plotId ให้แสดงเฉพาะแปลงนั้น
-          const projectPlots = plotId
-            ? allProjectPlots.filter((p: any) => p.id === plotId)
-            : allProjectPlots;
-          console.log("[AUTO-LOAD] Filtered projectPlots for:", projName, projectPlots);
+          const projectPlots = allProjectPlots;
+          console.log("[AUTO-LOAD] projectPlots for:", projName, projectPlots);
 
           if (projectPlots.length > 0) {
             const feats: GeoJSON.Feature[] = projectPlots.map((p: any, i: number) => ({
@@ -1163,34 +1163,46 @@ function MapDrawContent() {
                 province: p.province
               }
             }));
+            
+            let visibleFeats = feats;
+            let hiddenFeats: GeoJSON.Feature[] = [];
+            
+            if (plotId) {
+                const editedPlot = feats.find(f => (f.properties as any).id === plotId);
+                if (editedPlot) {
+                    visibleFeats = [editedPlot];
+                    hiddenFeats = feats.filter(f => (f.properties as any).id !== plotId);
+                }
+            }
 
-            console.log("[AUTO-LOAD] Setting drawnParcels and parcelFeatures to feats:", feats);
-            setDrawnParcels(feats);
-            setParcelFeatures(feats);
+            console.log("[AUTO-LOAD] Setting drawnParcels and parcelFeatures to feats:", visibleFeats);
+            setDrawnParcels(visibleFeats);
+            setParcelFeatures(visibleFeats);
+            setHiddenProjectPlots(hiddenFeats);
             needsPlantationSearchRef.current = true;
-            setSearchCount(feats.length);
+            setSearchCount(visibleFeats.length);
             if (projectPlots[0].boundaryGeojson) {
               setDrawnGeometry(projectPlots[0].boundaryGeojson as GeoJSON.Geometry);
             }
             setCurrentStep(2);
             setStatus(`เตรียมประมวลผลคาร์บอนสำหรับโครงการ: ${projName}`);
 
-            (map.getSource("matched-parcels") as maplibregl.GeoJSONSource)?.setData({ type: "FeatureCollection", features: feats });
+            const map = mapRef.current;
+            if (map && map.getSource("matched-parcels")) {
+              (map.getSource("matched-parcels") as maplibregl.GeoJSONSource).setData({ type: "FeatureCollection", features: visibleFeats });
 
-            const bounds = new maplibregl.LngLatBounds();
-            feats.forEach(f => {
-              if (!f.geometry) return;
-              const processCoords = (coords: any) => {
-                if (typeof coords[0] === "number") bounds.extend(coords as [number, number]);
-                else if (Array.isArray(coords)) coords.forEach(processCoords);
-              };
-              processCoords((f.geometry as any).coordinates);
-            });
-            if (!bounds.isEmpty()) {
-              map.fitBounds(bounds, { padding: { top: 60, bottom: 60, left: 60, right: 60 }, duration: 1000, maxZoom: 16 });
+              const bounds = new maplibregl.LngLatBounds();
+              visibleFeats.forEach(f => {
+                const geom = f.geometry as any;
+                const coords = geom.type === 'Polygon'
+                  ? geom.coordinates[0]
+                  : geom.coordinates[0][0];
+                coords.forEach((coord: any) => bounds.extend(coord));
+              });
+              if (!bounds.isEmpty()) {
+                map.fitBounds(bounds, { padding: 50 });
+              }
             }
-
-            setIsPanelOpen(true);
           }
         } catch (err) {
           console.error("Failed to auto-load project for calculation", err);
@@ -1591,6 +1603,12 @@ function MapDrawContent() {
 
   const deleteParcel = useCallback((idx: number) => {
     setDrawnParcels(prev => {
+      const featToDelete = prev[idx];
+      const dbId = featToDelete?.properties?.id;
+      if (dbId) {
+        fetch(`/api/plots/${dbId}`, { method: 'DELETE' }).catch(console.error);
+      }
+      
       const next = prev.filter((_, i) => i !== idx);
       const map = mapRef.current;
       if (map && mapLoadedRef.current) {
@@ -2667,8 +2685,42 @@ function MapDrawContent() {
                 onCancelDraw={cancelDrawMode}
                 isDrawing={drawing}
                 onLandUseChange={handleLandUseChange}
-                onProjectTypeChange={handleProjectTypeChange}
+                onProjectTypeChange={(type) => setProjectType(type)}
                 projectName={projectName}
+                autoProcessTrigger={autoProcessTrigger}
+                onBeforeProcess={() => {
+                  if (hiddenProjectPlots.length > 0) {
+                    const merged = [...drawnParcels, ...hiddenProjectPlots];
+                    merged.sort((a, b) => {
+                      const ia = parseInt((a.properties as any)?.plot_index) || 0;
+                      const ib = parseInt((b.properties as any)?.plot_index) || 0;
+                      return ia - ib;
+                    });
+                    setDrawnParcels(merged);
+                    setParcelFeatures(merged);
+                    setHiddenProjectPlots([]);
+                    
+                    const map = mapRef.current;
+                    if (map && map.getSource("matched-parcels")) {
+                      (map.getSource("matched-parcels") as maplibregl.GeoJSONSource).setData({ type: "FeatureCollection", features: merged });
+                      const bounds = new maplibregl.LngLatBounds();
+                      merged.forEach(f => {
+                        if (f.geometry.type === 'Polygon') {
+                          f.geometry.coordinates[0].forEach((coord: any) => bounds.extend(coord));
+                        } else if (f.geometry.type === 'MultiPolygon') {
+                          f.geometry.coordinates[0][0].forEach((coord: any) => bounds.extend(coord));
+                        }
+                      });
+                      if (!bounds.isEmpty()) map.fitBounds(bounds, { padding: 50 });
+                    }
+                    
+                    setTimeout(() => {
+                      setAutoProcessTrigger(prev => prev + 1);
+                    }, 50);
+                    return true;
+                  }
+                  return false;
+                }}
               />
             </div>
           )}

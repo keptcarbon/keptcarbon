@@ -5,7 +5,8 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
-import { CarbonBarChart, buildBarPoints, carbonCo2, type BarPoint } from "@/app/components/organisms/ParcelResultsPanel/CarbonBarChart";
+import { CarbonBarChart, buildBarPoints, profileToBarPoints, carbonCo2, type BarPoint } from "@/app/components/organisms/ParcelResultsPanel/CarbonBarChart";
+import { estimateCarbon, type PlantationPolygon } from "@/lib/carbon-api";
 
 const HERO_BG =
   "radial-gradient(1000px 400px at -5% -5%, rgba(16,185,129,0.12) 0%, rgba(16,185,129,0) 60%)," +
@@ -52,6 +53,7 @@ type SavedPlot = {
     trees?: number;
     ep?: any;
     form?: any;
+    lu_polygon?: GeoJSON.Feature[];
   };
 };
 
@@ -673,9 +675,65 @@ function PlotMiniMap({ plot, isMobile, index }: { plot: SavedPlot; isMobile: boo
     map.on("load", () => {
       const bounds = new maplibregl.LngLatBounds();
 
-      // Removed plot.boundaryGeojson rendering so each sub-parcel only shows its own boundary
+      const luPolygons = plot.backendData?.lu_polygon as GeoJSON.Feature[];
+      const hasLu = luPolygons && luPolygons.length > 0;
 
-      if (plot.geojson) {
+      if (hasLu) {
+        // Render LU polygons
+        const luChecked = plot.luChecked || {};
+        const features = luPolygons.map(f => {
+          const cls = (f.properties as any).lu_class;
+          const isSelected = !!luChecked[cls];
+          return {
+            ...f,
+            properties: {
+              ...f.properties,
+              fill_color: isSelected ? "#10b981" : "#cbd5e1", // Green for selected, gray for unselected
+              fill_opacity: isSelected ? 0.5 : 0.3
+            }
+          };
+        });
+
+        map.addSource("lu-polygons", {
+          type: "geojson",
+          data: { type: "FeatureCollection", features } as any
+        });
+        
+        map.addLayer({
+          id: "lu-polygons-fill", type: "fill", source: "lu-polygons",
+          paint: { 
+            "fill-color": ["get", "fill_color"], 
+            "fill-opacity": ["get", "fill_opacity"]
+          }
+        });
+        
+        map.addLayer({
+          id: "lu-polygons-line", type: "line", source: "lu-polygons",
+          paint: { "line-color": "#ffffff", "line-width": 1 }
+        });
+
+        // Add boundary outline over the LUs
+        if (plot.geojson) {
+          map.addSource("plot-parcel-outline", {
+            type: "geojson",
+            data: { type: "Feature", geometry: plot.geojson as any, properties: {} }
+          });
+          map.addLayer({
+            id: "parcel-outline-line", type: "line", source: "plot-parcel-outline",
+            paint: { "line-color": "#064e3b", "line-width": 2.5 }
+          });
+        }
+
+        const processCoords = (coords: any) => {
+          if (typeof coords[0] === "number") bounds.extend(coords as [number, number]);
+          else if (Array.isArray(coords)) coords.forEach(processCoords);
+        };
+        luPolygons.forEach(f => {
+          if (f.geometry) processCoords((f.geometry as any).coordinates);
+        });
+
+      } else if (plot.geojson) {
+        // Fallback to just showing the drawn polygon if no LU data
         map.addSource("plot-parcel", {
           type: "geojson",
           data: { type: "Feature", geometry: plot.geojson as any, properties: {} }
@@ -703,9 +761,24 @@ function PlotMiniMap({ plot, isMobile, index }: { plot: SavedPlot; isMobile: boo
     return () => { map.remove(); mapRef.current = null; };
   }, [plot, isMobile]);
 
+  const hasLuData = plot.backendData?.lu_polygon && plot.backendData.lu_polygon.length > 0;
+
   return (
-    <div style={{ width: "100%", height: isMobile ? 220 : 300, borderRadius: 12, overflow: "hidden", border: "1px solid rgba(0,0,0,0.1)", background: "#e2e8f0" }}>
+    <div style={{ position: "relative", width: "100%", height: isMobile ? 220 : 300, borderRadius: 12, overflow: "hidden", border: "1px solid rgba(0,0,0,0.1)", background: "#e2e8f0" }}>
       <div ref={mapContainerRef} style={{ width: "100%", height: "100%" }} />
+      {hasLuData && (
+        <div style={{ position: "absolute", bottom: 12, left: 12, background: "rgba(255,255,255,0.95)", padding: "8px 12px", borderRadius: 8, fontSize: 12, boxShadow: "0 2px 8px rgba(0,0,0,0.15)", zIndex: 1, pointerEvents: "none" }}>
+          <div style={{ fontWeight: 700, marginBottom: 6, color: "#1e293b", fontSize: 13 }}>คำอธิบาย (Land Use)</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+            <div style={{ width: 14, height: 14, background: "#10b981", opacity: 0.5, border: "1px solid #059669", borderRadius: 3 }} />
+            <span style={{ color: "#334155" }}>พื้นที่ที่ใช้ประมวลผล</span>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <div style={{ width: 14, height: 14, background: "#cbd5e1", opacity: 0.3, border: "1px solid #94a3b8", borderRadius: 3 }} />
+            <span style={{ color: "#334155" }}>พื้นที่ที่ไม่เกี่ยวข้อง</span>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1223,6 +1296,106 @@ export default function MyPlotsPage() {
   const [expandedProjects, setExpandedProjects] = useState<Record<string, boolean>>({});
   const toggleProject = (pName: string) => setExpandedProjects(prev => ({ ...prev, [pName]: !prev[pName] }));
 
+  const [estimatingProject, setEstimatingProject] = useState<string | null>(null);
+
+  const handleInlineEstimate = async (projectName: string, projectPlots: SavedPlot[]) => {
+    if (!user) return;
+    setEstimatingProject(projectName);
+
+    try {
+      const polygons: PlantationPolygon[] = projectPlots.map((plot) => {
+        let geom = plot.geojson as GeoJSON.Geometry;
+        if (!geom && plot.boundaryGeojson) {
+            geom = plot.boundaryGeojson as GeoJSON.Geometry;
+        }
+
+        const backendYearBE = plot.backendData?.plantYearBE || 0;
+        const userYearBE = plot.plantYearBE || 0;
+        const finalPlantYearBE = userYearBE > 0 ? userYearBE : (backendYearBE > 0 ? backendYearBE : 0);
+
+        return {
+          id: plot.id,
+          geometry: geom,
+          year_of_planting: finalPlantYearBE > 0 ? finalPlantYearBE - 543 : null,
+          rubber_clone: plot.variety || null,
+          tree_count: plot.trees || null,
+          spacing_system: plot.spacing || null,
+          selected_lu_classes: Object.entries(plot.luChecked || {})
+            .filter(([_, on]) => on)
+            .map(([cls]) => cls),
+          project_type: (plot.plantStatus as "replanting" | "existing") || undefined,
+        };
+      });
+
+      const responses = await estimateCarbon(polygons);
+
+      const CURRENT_BE_NOW = new Date().getFullYear() + 543;
+      const updatedPlots: SavedPlot[] = [];
+
+      for (let i = 0; i < projectPlots.length; i++) {
+        const plot = projectPlots[i];
+        const resp = responses.find(r => r.polygon_id === plot.id);
+        if (!resp) continue;
+
+        const ep = resp.estimated_parameters;
+        const epPlantYearCE = typeof ep?.year_of_planting?.value === "number" ? ep.year_of_planting.value : 0;
+        const epPlantYearBE = epPlantYearCE > 0 ? epPlantYearCE + 543 : 0;
+        const epTrees = typeof ep?.tree_count?.value === "number" ? ep.tree_count.value : 0;
+
+        const userPlantYear = plot.plantYearBE || 0;
+        const userTrees = plot.trees || 0;
+
+        const age = userPlantYear > 0 ? (CURRENT_BE_NOW - userPlantYear) : (epPlantYearBE > 0 ? (CURRENT_BE_NOW - epPlantYearBE) : 0);
+        const trees = userTrees > 0 ? userTrees : (epTrees > 0 ? epTrees : 0);
+        const finalPlantYear = userPlantYear > 0 ? userPlantYear : epPlantYearBE;
+
+        const rawProfile = resp.carbon_profile ?? [];
+        const co2Now = rawProfile[0]?.stocks?.value ?? 0;
+        const carbonProfile = rawProfile.length > 0 ? profileToBarPoints(rawProfile, age) : [];
+
+        const updatedPlot: SavedPlot = {
+          ...plot,
+          processed: true,
+          carbonTotal: co2Now,
+          rubberAge: age,
+          plantYearBE: finalPlantYear,
+          trees,
+          carbonProfile,
+          backendData: {
+            ...plot.backendData,
+            age,
+            plantYearBE: epPlantYearBE,
+            ep: ep || null,
+          }
+        };
+
+        updatedPlots.push(updatedPlot);
+      }
+
+      // Update state locally
+      setPlots(prev => prev.map(p => {
+        const up = updatedPlots.find(u => u.id === p.id);
+        return up ? up : p;
+      }));
+
+      // Expand project to show graphs
+      setExpandedProjects(prev => ({ ...prev, [projectName]: true }));
+
+      // Save to backend
+      await fetch(`/api/plots`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ plots: updatedPlots }),
+      });
+
+    } catch (err) {
+      console.error("Inline estimate error:", err);
+      alert("เกิดข้อผิดพลาดในการประมวลผลคาร์บอนเครดิต");
+    } finally {
+      setEstimatingProject(null);
+    }
+  };
+
   const [editingPlot, setEditingPlot] = useState<{ plot: SavedPlot; index: number } | null>(null);
 
   const handleUpdatePlot = (updated: SavedPlot) => {
@@ -1471,9 +1644,17 @@ export default function MyPlotsPage() {
                       </div>
                     </div>
                     <div style={{ display: "flex", flexWrap: "wrap", gap: 10, width: isMobile ? "100%" : "auto" }}>
-                      <Link href={`/map-draw?project=${encodeURIComponent(group.projectName)}&action=calc`} style={{ flex: isMobile ? "1 1 100%" : "auto", textAlign: "center", padding: isMobile ? "10px 16px" : "8px 16px", borderRadius: 12, background: "linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%)", color: "#fff", fontWeight: 700, fontSize: isMobile ? 15 : 14, textDecoration: "none", border: "none", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, boxShadow: "0 4px 15px rgba(14,165,233,0.3)", whiteSpace: "nowrap" }}>
-                        <i className="bi bi-magic" /> ประเมินคาร์บอนเครดิต
-                      </Link>
+                      <button 
+                        onClick={() => handleInlineEstimate(group.projectName, group.plots)}
+                        disabled={estimatingProject === group.projectName}
+                        style={{ flex: isMobile ? "1 1 100%" : "auto", textAlign: "center", padding: isMobile ? "10px 16px" : "8px 16px", borderRadius: 12, background: estimatingProject === group.projectName ? "#94a3b8" : "linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%)", color: "#fff", fontWeight: 700, fontSize: isMobile ? 15 : 14, textDecoration: "none", border: "none", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, boxShadow: estimatingProject === group.projectName ? "none" : "0 4px 15px rgba(14,165,233,0.3)", whiteSpace: "nowrap", cursor: estimatingProject === group.projectName ? "not-allowed" : "pointer" }}
+                      >
+                        {estimatingProject === group.projectName ? (
+                          <><i className="spinner-border spinner-border-sm" /> กำลังประมวลผล...</>
+                        ) : (
+                          <><i className="bi bi-magic" /> ประเมินคาร์บอนเครดิต</>
+                        )}
+                      </button>
                       <Link href={`/map-draw?project=${encodeURIComponent(group.projectName)}`} style={{ flex: isMobile ? 1 : "auto", textAlign: "center", padding: "8px 16px", borderRadius: 12, background: "rgba(16,185,129,0.1)", color: "#059669", fontWeight: 700, fontSize: 15, textDecoration: "none", border: "1px solid rgba(16,185,129,0.2)", display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }}>
                         <i className="bi bi-plus-lg" /> เพิ่มแปลง
                       </Link>

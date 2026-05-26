@@ -2,7 +2,7 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
-import { CarbonBarChart, buildBarPoints, carbonCo2, type BarPoint } from "./CarbonBarChart";
+import { CarbonBarChart, buildBarPoints, profileToBarPoints, carbonCo2, type BarPoint } from "./CarbonBarChart";
 import { estimateCarbon, type PlantationPolygon, type EstimationResponse, type YearlyEstimate, type EstimatedParameters } from "@/lib/carbon-api";
 
 
@@ -31,6 +31,8 @@ type Props = {
     onLandUseChange?: (allPlotsChecked: Record<number, Record<string, boolean>>, focusedPlotIdx?: number | null) => void;
     onProjectTypeChange?: (type: "replanting" | "existing") => void;
     projectName?: string;
+    onBeforeProcess?: () => boolean;
+    autoProcessTrigger?: number;
 };
 
 
@@ -249,7 +251,7 @@ function getFriendlyErrorMessage(err: unknown, plots: PlotInfo[], plotForms: Plo
 
 function computePlot(feat: GeoJSON.Feature): PlotInfo {
     const p = (feat.properties ?? {}) as Record<string, unknown>;
-    const areaRai = parseRai(p.grow_area || p.rai);
+    const areaRai = parseRai(p.rai ?? p.grow_area ?? p.areaRai);
 
     let bPlantYear = Number(p.grow_year || 0);
     let bAge = Number(p.rubber_age || 0);
@@ -281,24 +283,7 @@ function computePlot(feat: GeoJSON.Feature): PlotInfo {
     };
 }
 
-function profileToBarPoints(profile: YearlyEstimate[], baseAge: number = 0): BarPoint[] {
-    return profile.map((item, i) => {
-        const yearAt = item.year_at ?? i;
-        const age = (item.age != null && !isNaN(item.age)) ? item.age : baseAge + yearAt;
-        return {
-            age,
-            yearBE: item.year + 543,
-            year_at: yearAt,
-            co2: item.stocks.value,
-            ci: item.stocks.ci,
-            gainValue: item.gain.value,
-            gainCi: item.gain.ci,
-            cycle: Math.floor(yearAt / 7),
-            cycleAge: age,
-            errorMargin: item.stocks.ci,
-        };
-    });
-}
+
 
 function aggregateProfiles(responses: EstimationResponse[], fallbackBaseAge: number = 0): BarPoint[] {
     const profiles = responses.map(r => r.carbon_profile ?? []);
@@ -535,6 +520,8 @@ export function ParcelResultsPanel({
     onLandUseChange,
     onProjectTypeChange,
     projectName = "",
+    onBeforeProcess,
+    autoProcessTrigger,
 }: Props) {
     const [expandedIdx, setExpandedIdx] = useState<number | null>(0);
     const [expandedResultIdx, setExpandedResultIdx] = useState<number | "total" | null>(null);
@@ -1093,6 +1080,11 @@ export function ParcelResultsPanel({
             setExpandedResultIdx("total");
             if (onMapPlotSelected) onMapPlotSelected("total");
             onStepChange(3);
+
+            // Auto-save to backend if logged in
+            if (user) {
+                handleSave(results, responses).catch(console.error);
+            }
         } catch (err) {
             setCarbonErr(getFriendlyErrorMessage(err, plots, plotForms));
         } finally {
@@ -1100,10 +1092,16 @@ export function ParcelResultsPanel({
         }
     };
 
+    useEffect(() => {
+        if (autoProcessTrigger && autoProcessTrigger > 0) {
+            void handleProcessCarbon();
+        }
+    }, [autoProcessTrigger]);
+
 
     // Removed: if (!(searchRunning || searchErr || searchCount !== null)) return null;
 
-    const handleSave = async (overrideResults?: CarbonResult[]) => {
+    const handleSave = async (overrideResults?: CarbonResult[], overrideResponses?: any[]) => {
         if (isDuplicateProjectName) {
             setCarbonErr("ชื่อโครงการนี้ถูกใช้งานแล้ว กรุณาใช้ชื่ออื่น");
             return;
@@ -1111,12 +1109,36 @@ export function ParcelResultsPanel({
         const resultsToSave = overrideResults || carbonResults;
         const hasCarbonResults = resultsToSave.length > 0;
 
+        // Match luFeatures to plots so we can save them
+        const featuresToUse = luFeatures && luFeatures.length > 0 ? luFeatures : parcelFeatures;
+        const featsByPlot: Record<number, typeof featuresToUse> = {};
+        for (let idx = 0; idx < parcelFeatures.length; idx++) featsByPlot[idx] = [];
+        
+        featuresToUse.forEach(feat => {
+            const props = (feat.properties ?? {}) as Record<string, unknown>;
+            const plotIdxFromProp = props.plot_index !== undefined ? parseInt(String(props.plot_index)) - 1 : -1;
+            let matchedPlotIdx = -1;
+            if (plotIdxFromProp >= 0 && plotIdxFromProp < parcelFeatures.length) {
+                matchedPlotIdx = plotIdxFromProp;
+            } else {
+                const samplePoint = getSamplePoint(feat.geometry);
+                for (let idx = 0; idx < parcelFeatures.length; idx++) {
+                    if (isPointInGeometry(samplePoint, parcelFeatures[idx].geometry)) {
+                        matchedPlotIdx = idx;
+                        break;
+                    }
+                }
+            }
+            if (matchedPlotIdx >= 0) featsByPlot[matchedPlotIdx].push(feat);
+        });
+
         setSaveState("saving");
 
         await new Promise(r => setTimeout(r, 900));
         try {
             if (!user) return;
             const CURRENT_BE_NOW = new Date().getFullYear() + 543;
+            const activeResponses = overrideResponses || backendResponses;
             const newPlots = plots.map((p, i) => {
                 const feat = parcelFeatures[i];
                 const props = (feat?.properties || {}) as any;
@@ -1126,32 +1148,50 @@ export function ParcelResultsPanel({
                 const userPlantYear = form?.plantYear ? parseInt(form.plantYear) : 0;
                 const userTrees = form?.treeCount ? parseInt(form.treeCount) : 0;
 
-                const backendResp = backendResponses?.find(r => r.polygon_id === `plot-${i}`);
+                const backendResp = activeResponses?.find(r => r.polygon_id === `plot-${i}`);
                 const ep = backendResp?.estimated_parameters;
 
                 const epPlantYearCE = typeof ep?.year_of_planting?.value === "number" ? ep.year_of_planting.value : 0;
                 const epPlantYearBE = epPlantYearCE > 0 ? epPlantYearCE + 543 : 0;
                 const epTrees = typeof ep?.tree_count?.value === "number" ? ep.tree_count.value : 0;
+                
+                const dominantProvince = plotsLuRealData[i] 
+                    ? Object.keys(plotsLuRealData[i])[0] || ""
+                    : "";
 
-                const age = cr?.age ?? (userPlantYear > 0 ? (CURRENT_BE_NOW - userPlantYear) : (epPlantYearBE > 0 ? (CURRENT_BE_NOW - epPlantYearBE) : 0));
-                const trees = cr?.trees ?? (userTrees > 0 ? userTrees : (epTrees > 0 ? epTrees : 0));
-                const finalPlantYear = cr?.plantYearBE ?? (userPlantYear > 0 ? userPlantYear : epPlantYearBE);
+                const hasNewResult = !!cr && hasCarbonResults;
 
-                // If saved directly without processing, set carbon to 0
-                const co2 = hasCarbonResults ? (cr?.co2Now ?? 0) : 0;
+                const age = hasNewResult ? cr.age : (props.rubberAge > 0 ? props.rubberAge : (userPlantYear > 0 ? (CURRENT_BE_NOW - userPlantYear) : (epPlantYearBE > 0 ? (CURRENT_BE_NOW - epPlantYearBE) : 0)));
+                const trees = hasNewResult ? cr.trees : (props.trees > 0 ? props.trees : (userTrees > 0 ? userTrees : (epTrees > 0 ? epTrees : 0)));
+                const finalPlantYear = hasNewResult ? cr.plantYearBE : (props.plantYearBE > 0 ? props.plantYearBE : (userPlantYear > 0 ? userPlantYear : epPlantYearBE));
+
+                // If saved directly without processing, retain previous carbon if it exists
+                const co2 = hasNewResult ? cr.co2Now : (props.carbonTotal ?? 0);
+                const isProcessed = hasNewResult ? true : (props.processed ?? false);
 
                 // Use backend estimated_parameters to fill missing variety/spacing when user didn't fill form
                 const epVariety = typeof ep?.rubber_clone?.value === "string" ? ep.rubber_clone.value : "";
                 const epSpacingRaw = typeof ep?.spacing_system?.value === "string" ? ep.spacing_system.value : "";
                 const epSpacing = epSpacingRaw.replace(/\s*\([^)]*\)/, "").trim(); // "2.5x8 (default)" → "2.5x8"
 
-                const variety = form?.variety || cr?.variety || epVariety;
-                const spacing = cr?.spacing || form?.spacing || epSpacing;
+                const variety = form?.variety || cr?.variety || props.variety || epVariety;
+                const spacing = cr?.spacing || form?.spacing || props.spacing || epSpacing;
 
                 // Save backend profile as BarPoint[] so my-plots can render the exact same chart
-                // Only include carbonProfile when we actually have carbon results (Step 3 processing)
                 const rawProfile = backendResp?.carbon_profile ?? [];
-                const carbonProfile = hasCarbonResults && rawProfile.length > 0 ? profileToBarPoints(rawProfile, age) : null;
+                let carbonProfile = props.carbonProfile ?? null;
+                if (hasNewResult && rawProfile.length > 0) {
+                    carbonProfile = profileToBarPoints(rawProfile, age);
+                }
+
+                let forecast = props.forecast ?? { yr3: 0, yr5: 0, yr7: 0 };
+                if (hasNewResult) {
+                    forecast = {
+                        yr3: carbonCo2(age + 3, trees, spacing),
+                        yr5: carbonCo2(age + 5, trees, spacing),
+                        yr7: carbonCo2(age + 7, trees, spacing),
+                    };
+                }
 
                 return {
                     id: props.id || Math.random().toString(36).substring(7),
@@ -1173,22 +1213,19 @@ export function ParcelResultsPanel({
                     geojson: feat?.geometry || null,
                     boundaryGeojson: drawnGeometry || null,
                     carbonProfile,
-                    processed: hasCarbonResults,
-                    forecast: hasCarbonResults ? {
-                        yr3: carbonCo2(age + 3, trees, spacing),
-                        yr5: carbonCo2(age + 5, trees, spacing),
-                        yr7: carbonCo2(age + 7, trees, spacing),
-                    } : { yr3: 0, yr5: 0, yr7: 0 },
-                    backendData: {
-                        plantYearBE: epPlantYearBE,
-                        age: epPlantYearBE > 0 ? (CURRENT_BE_NOW - epPlantYearBE) : 0,
-                        variety: epVariety,
-                        spacing: epSpacing,
-                        trees: epTrees,
-                        ep: ep || null,
-                        form: form || null
-                    }
-                };
+                    processed: isProcessed,
+                    forecast,
+                backendData: {
+                    lu_polygon: featsByPlot[i] || [],
+                    plantYearBE: epPlantYearBE,
+                    age: epPlantYearBE > 0 ? (CURRENT_BE_NOW - epPlantYearBE) : 0,
+                    variety: epVariety,
+                    spacing: epSpacing,
+                    trees: epTrees,
+                    ep: ep || null,
+                    form: form || null
+                }
+            };
             });
             const newPlotsWithStatus = newPlots.filter(p => p.plantStatus);
             if (newPlotsWithStatus.length === 0) {
@@ -1385,7 +1422,12 @@ export function ParcelResultsPanel({
                     </button>
                     <button
                         className="prp-btn-primary"
-                        onClick={() => { void handleProcessCarbon(); }}
+                        onClick={() => {
+                            if (onBeforeProcess && onBeforeProcess()) {
+                                return;
+                            }
+                            void handleProcessCarbon();
+                        }}
                         disabled={(!!user && (!projectName.trim() || isDuplicateProjectName)) || hasEmptyStatus || processingCarbon}
                         style={{
                             flex: "1 1 calc(33% - 8px)", minWidth: 110, padding: isMobile ? "8px 6px" : "10px 12px", fontSize: isMobile ? 12 : 14, display: "flex", flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 6,

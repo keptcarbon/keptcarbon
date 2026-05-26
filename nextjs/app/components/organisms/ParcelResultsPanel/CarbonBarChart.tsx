@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import type { YearlyEstimate } from "@/lib/carbon-api";
 
 // All-green theme: lime → mint → emerald → forest → teal
 const GREEN_THEME_COLORS = [
@@ -39,6 +40,25 @@ export type BarPoint = {
   cycleAge: number;
   errorMargin: number;
 };
+
+export function profileToBarPoints(profile: YearlyEstimate[], baseAge: number = 0): BarPoint[] {
+    return profile.map((item, i) => {
+        const yearAt = item.year_at ?? i;
+        const age = (item.age != null && !isNaN(item.age)) ? item.age : baseAge + yearAt;
+        return {
+            age,
+            yearBE: item.year + 543,
+            year_at: yearAt,
+            co2: item.stocks.value,
+            ci: item.stocks.ci,
+            gainValue: item.gain.value,
+            gainCi: item.gain.ci,
+            cycle: Math.floor(yearAt / 7),
+            cycleAge: age,
+            errorMargin: item.stocks.ci,
+        };
+    });
+}
 
 export function buildBarPoints(
   startAge: number,
