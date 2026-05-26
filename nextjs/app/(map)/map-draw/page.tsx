@@ -49,6 +49,15 @@ function MapDrawContent() {
     return pName || "";
   }, [searchParams]);
 
+  const isEditingPlotParam = useMemo(() => {
+    let pId = searchParams?.get("plotId");
+    if (!pId && typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      pId = params.get("plotId");
+    }
+    return !!pId;
+  }, [searchParams]);
+
   const handleExitProject = useCallback(() => {
     window.location.href = "/map-draw";
   }, []);
@@ -152,6 +161,8 @@ function MapDrawContent() {
     setStepWarningPopup(false);
     clearDraw();
     setCurrentStep(1);
+    setProjectName("");
+    window.location.href = "/map-draw";
   };
 
   // Multi-parcel support
@@ -2325,40 +2336,6 @@ function MapDrawContent() {
           }
         `}</style>
 
-        {/* ── Project Mode Banner ── */}
-        {projNameParam && (
-          <div style={{
-            background: "#ffffff",
-            borderBottom: "1px solid #e2e8f0",
-            padding: "14px 20px",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            gap: "14px",
-            boxSizing: "border-box"
-          }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "12px", overflow: "hidden" }}>
-              <div style={{
-                width: "36px",
-                height: "36px",
-                borderRadius: "10px",
-                background: "rgba(16, 185, 129, 0.08)",
-                border: "1px solid rgba(16, 185, 129, 0.15)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                flexShrink: 0
-              }}>
-                <i className="bi bi-folder-fill" style={{ color: "#10b981", fontSize: "18px" }} />
-              </div>
-              <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                <span style={{ fontSize: "12.5px", color: "#64748b", fontWeight: 600, display: "block", lineHeight: 1.25 }}>แก้ไขโครงการ</span>
-                <strong style={{ fontSize: "18px", color: "#0f172a", fontWeight: 800, display: "block", marginTop: "2px" }} title={projNameParam}>{projNameParam}</strong>
-              </div>
-            </div>
-
-          </div>
-        )}
 
         {/* ── Step Tracker ── */}
         <div className="mds-stepper">
@@ -2534,13 +2511,13 @@ function MapDrawContent() {
                             className="mds-btn mds-btn-solid"
                             onClick={startDrawFlow}
                             style={{
-                              background: (user && (!projectName.trim() || isDuplicateProjectName)) ? "#cbd5e1" : undefined,
-                              cursor: (user && (!projectName.trim() || isDuplicateProjectName)) ? "not-allowed" : "pointer",
-                              boxShadow: (user && (!projectName.trim() || isDuplicateProjectName)) ? "none" : undefined,
-                              color: (user && (!projectName.trim() || isDuplicateProjectName)) ? "#fff" : undefined,
-                              border: (user && (!projectName.trim() || isDuplicateProjectName)) ? "none" : undefined
+                              background: (user && (!projectName.trim() || isDuplicateProjectName)) || isEditingPlotParam ? "#cbd5e1" : undefined,
+                              cursor: (user && (!projectName.trim() || isDuplicateProjectName)) || isEditingPlotParam ? "not-allowed" : "pointer",
+                              boxShadow: (user && (!projectName.trim() || isDuplicateProjectName)) || isEditingPlotParam ? "none" : undefined,
+                              color: (user && (!projectName.trim() || isDuplicateProjectName)) || isEditingPlotParam ? "#fff" : undefined,
+                              border: (user && (!projectName.trim() || isDuplicateProjectName)) || isEditingPlotParam ? "none" : undefined
                             }}
-                            disabled={!!(user && (!projectName.trim() || isDuplicateProjectName))}
+                            disabled={!!(user && (!projectName.trim() || isDuplicateProjectName)) || isEditingPlotParam}
                           >
                             <i className="bi bi-pencil" /> {drawnParcels.length > 0 ? "วาดแปลงเพิ่ม" : "เริ่มวาดแปลง"}
                           </button>
@@ -2653,6 +2630,7 @@ function MapDrawContent() {
                 onMapPlotSelected={setSelectedPlotIndex}
                 onDeleteParcel={deleteParcel}
                 onDrawMore={startDrawFlow}
+                drawMoreDisabled={isEditingPlotParam}
                 onCancelDraw={cancelDrawMode}
                 isDrawing={drawing}
                 onLandUseChange={handleLandUseChange}

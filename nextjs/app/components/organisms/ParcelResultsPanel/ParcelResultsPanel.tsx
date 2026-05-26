@@ -26,6 +26,7 @@ type Props = {
     onMapPlotSelected?: (idx: number | "total") => void;
     onDeleteParcel?: (idx: number) => void;
     onDrawMore?: () => void;
+    drawMoreDisabled?: boolean;
     onCancelDraw?: () => void;
     isDrawing?: boolean;
     onLandUseChange?: (allPlotsChecked: Record<number, Record<string, boolean>>, focusedPlotIdx?: number | null) => void;
@@ -515,6 +516,7 @@ export function ParcelResultsPanel({
     onMapPlotSelected,
     onDeleteParcel,
     onDrawMore,
+    drawMoreDisabled,
     onCancelDraw,
     isDrawing,
     onLandUseChange,
@@ -1389,7 +1391,7 @@ export function ParcelResultsPanel({
                 )}
                 <div style={{ display: "flex", gap: isMobile ? 6 : 8, marginBottom: 16, flexWrap: "wrap", justifyContent: "stretch" }}>
                     {onDrawMore && !isDrawing && (
-                        <button className="prp-btn-ghost" style={{ flex: "1 1 calc(33% - 8px)", minWidth: 100, padding: isMobile ? "8px 6px" : "10px 12px", fontSize: isMobile ? 12 : 14, display: "flex", flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 6, background: "rgba(16,185,129,0.1)", color: "#059669", border: "1px solid rgba(16,185,129,0.2)", borderRadius: isMobile ? 10 : 12 }} onClick={onDrawMore}>
+                        <button className="prp-btn-ghost" disabled={drawMoreDisabled} style={{ flex: "1 1 calc(33% - 8px)", minWidth: 100, padding: isMobile ? "8px 6px" : "10px 12px", fontSize: isMobile ? 12 : 14, display: "flex", flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 6, background: drawMoreDisabled ? "rgba(0,0,0,0.04)" : "rgba(16,185,129,0.1)", color: drawMoreDisabled ? "#b0bec5" : "#059669", border: `1px solid ${drawMoreDisabled ? "rgba(0,0,0,0.08)" : "rgba(16,185,129,0.2)"}`, borderRadius: isMobile ? 10 : 12, cursor: drawMoreDisabled ? "not-allowed" : "pointer", opacity: drawMoreDisabled ? 0.6 : 1 }} onClick={drawMoreDisabled ? undefined : onDrawMore}>
                             <i className="bi bi-pencil-square" style={{ fontSize: isMobile ? 14 : 16 }} /> <span style={{ fontWeight: 600, textAlign: "center", whiteSpace: "nowrap" }}>วาดแปลงเพิ่ม</span>
                         </button>
                     )}
@@ -1643,6 +1645,27 @@ export function ParcelResultsPanel({
                                                 <div style={{ fontSize: 15, fontWeight: 700, color: "#1e293b", marginBottom: 12, display: "flex", alignItems: "center", gap: 6 }}>
                                                     <i className="bi bi-layers" style={{ color: "#10b981" }} /> ชั้นข้อมูลการใช้ประโยชน์ที่ดิน (กรมพัฒนาที่ดิน)
                                                 </div>
+
+                                                {(() => {
+                                                    const plotLUData = plotsLuRealData[i] || {};
+                                                    const hasAnyDetected = Object.values(plotLUData).some(v => v.rai > 0);
+                                                    const effectiveCount = Object.entries(form.luChecked || {})
+                                                        .filter(([cls, on]) => cls !== "A" && on && (plotLUData[cls]?.rai ?? 0) > 0).length;
+                                                    const showNoLuWarning = form.plantStatus && hasAnyDetected && effectiveCount === 0;
+
+                                                    return showNoLuWarning ? (
+                                                        <div style={{
+                                                            marginBottom: 12, padding: "8px 12px",
+                                                            background: "rgba(245,158,11,0.10)", border: "1px solid rgba(245,158,11,0.35)",
+                                                            borderRadius: 10, display: "flex", alignItems: "center", gap: 8,
+                                                            fontSize: 12, color: "#92400e", fontWeight: 600
+                                                        }}>
+                                                            <i className="bi bi-exclamation-triangle-fill" style={{ color: "#f59e0b", flexShrink: 0 }} />
+                                                            <span>กรุณาเลือกประเภทการใช้ที่ดินอย่างน้อย 1 ประเภทเพื่อประมวลผล</span>
+                                                        </div>
+                                                    ) : null;
+                                                })()}
+
                                                 <div style={{ display: "flex", flexDirection: "column", gap: 10, fontSize: 14 }}>
                                                     {(() => {
                                                         const plotLUData = plotsLuRealData[i] || {};
