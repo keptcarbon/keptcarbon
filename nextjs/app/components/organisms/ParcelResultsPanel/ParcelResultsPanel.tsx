@@ -1307,7 +1307,7 @@ export function ParcelResultsPanel({
                         </button>
                     </div>
                 )}
-                {isDuplicateProjectName && (
+                {user && isDuplicateProjectName && (
                     <div style={{
                         marginBottom: 16,
                         padding: "10px 14px",
@@ -1325,7 +1325,7 @@ export function ParcelResultsPanel({
                         <span>ชื่อโครงการนี้ถูกใช้งานแล้ว กรุณาใช้ชื่ออื่น</span>
                     </div>
                 )}
-                {!isDuplicateProjectName && (!projectName.trim() || hasEmptyStatus) && (
+                {!(user && isDuplicateProjectName) && ((user && !projectName.trim()) || hasEmptyStatus) && (
                     <div style={{
                         marginBottom: 16,
                         padding: "10px 14px",
@@ -1341,9 +1341,9 @@ export function ParcelResultsPanel({
                     }}>
                         <i className="bi bi-exclamation-circle-fill" style={{ flexShrink: 0 }} />
                         <span>
-                            {!projectName.trim() && hasEmptyStatus
+                            {(user && !projectName.trim()) && hasEmptyStatus
                                 ? 'กรุณากรอก "ชื่อโครงการ" และเลือก "สถานะแปลง" ให้ครบทุกแปลง เพื่อประมวลผลหรือบันทึกข้อมูล'
-                                : !projectName.trim()
+                                : (user && !projectName.trim())
                                     ? 'กรุณากรอก "ชื่อโครงการ" เพื่อประมวลผลหรือบันทึกข้อมูล'
                                     : 'กรุณาเลือก "สถานะแปลง" ให้ครบทุกแปลง เพื่อประมวลผลหรือบันทึกข้อมูล'
                             }
@@ -1386,13 +1386,13 @@ export function ParcelResultsPanel({
                     <button
                         className="prp-btn-primary"
                         onClick={() => { void handleProcessCarbon(); }}
-                        disabled={!projectName.trim() || isDuplicateProjectName || hasEmptyStatus || processingCarbon}
+                        disabled={(!!user && (!projectName.trim() || isDuplicateProjectName)) || hasEmptyStatus || processingCarbon}
                         style={{
                             flex: "1 1 calc(33% - 8px)", minWidth: 110, padding: isMobile ? "8px 6px" : "10px 12px", fontSize: isMobile ? 12 : 14, display: "flex", flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 6,
-                            background: (projectName.trim() && !isDuplicateProjectName && !hasEmptyStatus && !processingCarbon) ? "linear-gradient(135deg,#10b981,#059669)" : "#cbd5e1",
+                            background: ((!user || (projectName.trim() && !isDuplicateProjectName)) && !hasEmptyStatus && !processingCarbon) ? "linear-gradient(135deg,#10b981,#059669)" : "#cbd5e1",
                             color: "#fff", border: "none", borderRadius: isMobile ? 10 : 12,
-                            cursor: (projectName.trim() && !isDuplicateProjectName && !hasEmptyStatus && !processingCarbon) ? "pointer" : "not-allowed",
-                            boxShadow: (projectName.trim() && !isDuplicateProjectName && !hasEmptyStatus && !processingCarbon) ? "0 4px 10px rgba(16,185,129,0.2)" : "none"
+                            cursor: ((!user || (projectName.trim() && !isDuplicateProjectName)) && !hasEmptyStatus && !processingCarbon) ? "pointer" : "not-allowed",
+                            boxShadow: ((!user || (projectName.trim() && !isDuplicateProjectName)) && !hasEmptyStatus && !processingCarbon) ? "0 4px 10px rgba(16,185,129,0.2)" : "none"
                         }}
                     >
                         {processingCarbon ? (
