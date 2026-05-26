@@ -437,7 +437,7 @@ function PlotDetailCard({
                     <div style={{ padding: "12px 14px", background: "rgba(16,185,129,0.04)", borderRadius: 10, border: "1px solid rgba(16,185,129,0.15)" }}>
                         <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 12 }}>
                             <span style={{ fontWeight: 700, color: "#047857", display: "flex", alignItems: "center", gap: 6, fontSize: 14 }}>
-                                <i className="bi bi-cpu-fill" /> ปีที่ตรวจพบ
+                                <i className="bi bi-cpu-fill" /> ข้อมูลที่ใช้ในการประมวลผล
                             </span>
                             <div style={{
                                 display: "flex", alignItems: "flex-start", gap: 6,
