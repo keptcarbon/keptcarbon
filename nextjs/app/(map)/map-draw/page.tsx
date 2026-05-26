@@ -37,7 +37,7 @@ function MapDrawContent() {
   const mapRef = useRef<MLMap | null>(null);
   const mapLoadedRef = useRef(false);
   const searchAbortRef = useRef<AbortController | null>(null);
-  
+
   const searchParams = useSearchParams();
 
   const projNameParam = useMemo(() => {
@@ -108,7 +108,7 @@ function MapDrawContent() {
   // Multi-parcel support
   const [drawnParcels, setDrawnParcels] = useState<GeoJSON.Feature[]>([]);
   const drawnParcelsRef = useRef<GeoJSON.Feature[]>([]);
-  
+
   const getVertFeatures = useCallback((parcels: GeoJSON.Feature[]) => {
     const vertFeatures: GeoJSON.Feature[] = [];
     parcels.forEach((p, pIdx) => {
@@ -126,10 +126,10 @@ function MapDrawContent() {
           const nextC = coords[vIdx + 1];
           if (nextC) {
             vertFeatures.push({
-               type: "Feature",
-               id: pIdx * 1000 + vIdx * 2 + 1,
-               geometry: { type: "Point", coordinates: [(c[0] + nextC[0]) / 2, (c[1] + nextC[1]) / 2] },
-               properties: { pIdx, vIdx, isMid: true }
+              type: "Feature",
+              id: pIdx * 1000 + vIdx * 2 + 1,
+              geometry: { type: "Point", coordinates: [(c[0] + nextC[0]) / 2, (c[1] + nextC[1]) / 2] },
+              properties: { pIdx, vIdx, isMid: true }
             });
           }
         });
@@ -196,28 +196,28 @@ function MapDrawContent() {
       if (!features.length) return;
       const f = features[0];
       const { pIdx, vIdx, isMid } = f.properties;
-      
+
       if (isMid) {
-         const parcels = [...drawnParcelsRef.current];
-         const parcel = { ...parcels[pIdx] };
-         if (parcel.geometry.type === "Polygon") {
-            const coords = [...parcel.geometry.coordinates[0]];
-            const touch = e.lngLats[0];
-            coords.splice(vIdx + 1, 0, [touch.lng, touch.lat]);
-            parcel.geometry.coordinates[0] = coords;
-            parcels[pIdx] = parcel;
-            setDrawnParcels(parcels);
-            drawnParcelsRef.current = parcels;
-            activePIdx = pIdx;
-            activeVIdx = vIdx + 1;
-         }
+        const parcels = [...drawnParcelsRef.current];
+        const parcel = { ...parcels[pIdx] };
+        if (parcel.geometry.type === "Polygon") {
+          const coords = [...parcel.geometry.coordinates[0]];
+          const touch = e.lngLats[0];
+          coords.splice(vIdx + 1, 0, [touch.lng, touch.lat]);
+          parcel.geometry.coordinates[0] = coords;
+          parcels[pIdx] = parcel;
+          setDrawnParcels(parcels);
+          drawnParcelsRef.current = parcels;
+          activePIdx = pIdx;
+          activeVIdx = vIdx + 1;
+        }
       } else {
-         activePIdx = pIdx;
-         activeVIdx = vIdx;
+        activePIdx = pIdx;
+        activeVIdx = vIdx;
       }
-      
+
       map.dragPan.disable();
-      
+
       map.on('touchmove', onVertsTouchMove);
       map.on('touchend', onVertsTouchEnd);
     }
@@ -233,18 +233,18 @@ function MapDrawContent() {
         const touch = e.lngLats[0];
         coords[activeVIdx] = [touch.lng, touch.lat];
         if (activeVIdx === 0) {
-           coords[coords.length - 1] = [touch.lng, touch.lat];
+          coords[coords.length - 1] = [touch.lng, touch.lat];
         }
         parcel.geometry.coordinates[0] = coords;
-        
+
         const srcPlot = map.getSource("plot") as maplibregl.GeoJSONSource | undefined;
         if (srcPlot) {
-           srcPlot.setData({ type: "FeatureCollection", features: parcels });
+          srcPlot.setData({ type: "FeatureCollection", features: parcels });
         }
-        
+
         const srcVerts = map.getSource("plot-verts") as maplibregl.GeoJSONSource | undefined;
         if (srcVerts) {
-           srcVerts.setData({ type: "FeatureCollection", features: getVertFeatures(parcels) });
+          srcVerts.setData({ type: "FeatureCollection", features: getVertFeatures(parcels) });
         }
       }
     }
@@ -254,9 +254,9 @@ function MapDrawContent() {
       if (!map || activePIdx === -1) return;
       map.off('touchmove', onVertsTouchMove);
       map.off('touchend', onVertsTouchEnd);
-      
+
       map.dragPan.enable();
-      
+
       const parcels = [...drawnParcelsRef.current];
       const parcel = parcels[activePIdx];
       if (parcel && parcel.geometry.type === "Polygon") {
@@ -314,23 +314,23 @@ function MapDrawContent() {
       const { pIdx, vIdx, isMid } = f.properties;
 
       if (isMid) {
-         const parcels = [...drawnParcelsRef.current];
-         const parcel = { ...parcels[pIdx] };
-         if (parcel.geometry.type === "Polygon") {
-            const coords = [...parcel.geometry.coordinates[0]];
-            coords.splice(vIdx + 1, 0, [e.lngLat.lng, e.lngLat.lat]);
-            parcel.geometry.coordinates[0] = coords;
-            parcels[pIdx] = parcel;
-            setDrawnParcels(parcels);
-            drawnParcelsRef.current = parcels;
-            activePIdx = pIdx;
-            activeVIdx = vIdx + 1;
-         }
+        const parcels = [...drawnParcelsRef.current];
+        const parcel = { ...parcels[pIdx] };
+        if (parcel.geometry.type === "Polygon") {
+          const coords = [...parcel.geometry.coordinates[0]];
+          coords.splice(vIdx + 1, 0, [e.lngLat.lng, e.lngLat.lat]);
+          parcel.geometry.coordinates[0] = coords;
+          parcels[pIdx] = parcel;
+          setDrawnParcels(parcels);
+          drawnParcelsRef.current = parcels;
+          activePIdx = pIdx;
+          activeVIdx = vIdx + 1;
+        }
       } else {
-         activePIdx = pIdx;
-         activeVIdx = vIdx;
+        activePIdx = pIdx;
+        activeVIdx = vIdx;
       }
-      
+
       map.getCanvas().style.cursor = 'grabbing';
       map.on('mousemove', onVertsMove);
       map.on('mouseup', onVertsUp);
@@ -344,18 +344,18 @@ function MapDrawContent() {
         const coords = [...parcel.geometry.coordinates[0]];
         coords[activeVIdx] = [e.lngLat.lng, e.lngLat.lat];
         if (activeVIdx === 0) {
-           coords[coords.length - 1] = [e.lngLat.lng, e.lngLat.lat];
+          coords[coords.length - 1] = [e.lngLat.lng, e.lngLat.lat];
         }
         parcel.geometry.coordinates[0] = coords;
-        
+
         const srcPlot = map.getSource("plot") as maplibregl.GeoJSONSource | undefined;
         if (srcPlot) {
-           srcPlot.setData({ type: "FeatureCollection", features: parcels });
+          srcPlot.setData({ type: "FeatureCollection", features: parcels });
         }
-        
+
         const srcVerts = map.getSource("plot-verts") as maplibregl.GeoJSONSource | undefined;
         if (srcVerts) {
-           srcVerts.setData({ type: "FeatureCollection", features: getVertFeatures(parcels) });
+          srcVerts.setData({ type: "FeatureCollection", features: getVertFeatures(parcels) });
         }
       }
     };
@@ -380,7 +380,7 @@ function MapDrawContent() {
 
     const onLineDown = (e: maplibregl.MapMouseEvent) => {
       if (drawingRef.current) return;
-      
+
       // If clicked on a vertex, ignore to let onVertsDown handle it
       const vertsHit = map.queryRenderedFeatures(e.point, { layers: ['plot-verts-l'] });
       if (vertsHit.length > 0) return;
@@ -398,47 +398,47 @@ function MapDrawContent() {
         if (parcel.geometry.type === "Polygon") {
           const coords = parcel.geometry.coordinates[0];
           for (let i = 0; i < coords.length - 1; i++) {
-             const p1 = map.project(coords[i] as [number, number]);
-             const p2 = map.project(coords[i+1] as [number, number]);
-             const l2 = (p1.x - p2.x)**2 + (p1.y - p2.y)**2;
-             let t = 0;
-             if (l2 !== 0) {
-                 t = Math.max(0, Math.min(1, ((p.x - p1.x)*(p2.x - p1.x) + (p.y - p1.y)*(p2.y - p1.y)) / l2));
-             }
-             const proj = { x: p1.x + t*(p2.x - p1.x), y: p1.y + t*(p2.y - p1.y) };
-             const d = Math.hypot(p.x - proj.x, p.y - proj.y);
-             if (d < minD) {
-               minD = d;
-               bestPIdx = pIdx;
-               bestSIdx = i;
-             }
+            const p1 = map.project(coords[i] as [number, number]);
+            const p2 = map.project(coords[i + 1] as [number, number]);
+            const l2 = (p1.x - p2.x) ** 2 + (p1.y - p2.y) ** 2;
+            let t = 0;
+            if (l2 !== 0) {
+              t = Math.max(0, Math.min(1, ((p.x - p1.x) * (p2.x - p1.x) + (p.y - p1.y) * (p2.y - p1.y)) / l2));
+            }
+            const proj = { x: p1.x + t * (p2.x - p1.x), y: p1.y + t * (p2.y - p1.y) };
+            const d = Math.hypot(p.x - proj.x, p.y - proj.y);
+            if (d < minD) {
+              minD = d;
+              bestPIdx = pIdx;
+              bestSIdx = i;
+            }
           }
         }
       });
 
       if (minD < 15 && bestPIdx !== -1) {
-         e.preventDefault();
-         const newParcels = [...drawnParcelsRef.current];
-         const parcel = { ...newParcels[bestPIdx] };
-         if (parcel.geometry.type === "Polygon") {
-            const coords = [...parcel.geometry.coordinates[0]];
-            coords.splice(bestSIdx + 1, 0, clickPt);
-            parcel.geometry.coordinates[0] = coords;
-            parcel.properties = parcel.properties || {};
-            parcel.properties.rai = polygonAreaM2(coords as LngLat[]) / 1600;
-            newParcels[bestPIdx] = parcel;
+        e.preventDefault();
+        const newParcels = [...drawnParcelsRef.current];
+        const parcel = { ...newParcels[bestPIdx] };
+        if (parcel.geometry.type === "Polygon") {
+          const coords = [...parcel.geometry.coordinates[0]];
+          coords.splice(bestSIdx + 1, 0, clickPt);
+          parcel.geometry.coordinates[0] = coords;
+          parcel.properties = parcel.properties || {};
+          parcel.properties.rai = polygonAreaM2(coords as LngLat[]) / 1600;
+          newParcels[bestPIdx] = parcel;
 
-            setDrawnParcels(newParcels);
-            drawnParcelsRef.current = newParcels;
+          setDrawnParcels(newParcels);
+          drawnParcelsRef.current = newParcels;
 
-            // Set index of the new vertex for immediate dragging!
-            activePIdx = bestPIdx;
-            activeVIdx = bestSIdx + 1;
+          // Set index of the new vertex for immediate dragging!
+          activePIdx = bestPIdx;
+          activeVIdx = bestSIdx + 1;
 
-            map.getCanvas().style.cursor = 'grabbing';
-            map.on('mousemove', onVertsMove);
-            map.on('mouseup', onVertsUp);
-         }
+          map.getCanvas().style.cursor = 'grabbing';
+          map.on('mousemove', onVertsMove);
+          map.on('mouseup', onVertsUp);
+        }
       }
     };
 
@@ -458,44 +458,44 @@ function MapDrawContent() {
         if (parcel.geometry.type === "Polygon") {
           const coords = parcel.geometry.coordinates[0];
           for (let i = 0; i < coords.length - 1; i++) {
-             const p1 = map.project(coords[i] as [number, number]);
-             const p2 = map.project(coords[i+1] as [number, number]);
-             const l2 = (p1.x - p2.x)**2 + (p1.y - p2.y)**2;
-             let t = 0;
-             if (l2 !== 0) {
-                 t = Math.max(0, Math.min(1, ((p.x - p1.x)*(p2.x - p1.x) + (p.y - p1.y)*(p2.y - p1.y)) / l2));
-             }
-             const proj = { x: p1.x + t*(p2.x - p1.x), y: p1.y + t*(p2.y - p1.y) };
-             const d = Math.hypot(p.x - proj.x, p.y - proj.y);
-             if (d < minD) {
-               minD = d;
-               bestPIdx = pIdx;
-               bestSIdx = i;
-             }
+            const p1 = map.project(coords[i] as [number, number]);
+            const p2 = map.project(coords[i + 1] as [number, number]);
+            const l2 = (p1.x - p2.x) ** 2 + (p1.y - p2.y) ** 2;
+            let t = 0;
+            if (l2 !== 0) {
+              t = Math.max(0, Math.min(1, ((p.x - p1.x) * (p2.x - p1.x) + (p.y - p1.y) * (p2.y - p1.y)) / l2));
+            }
+            const proj = { x: p1.x + t * (p2.x - p1.x), y: p1.y + t * (p2.y - p1.y) };
+            const d = Math.hypot(p.x - proj.x, p.y - proj.y);
+            if (d < minD) {
+              minD = d;
+              bestPIdx = pIdx;
+              bestSIdx = i;
+            }
           }
         }
       });
 
       if (minD < 30 && bestPIdx !== -1) {
-         const newParcels = [...drawnParcelsRef.current];
-         const parcel = { ...newParcels[bestPIdx] };
-         if (parcel.geometry.type === "Polygon") {
-            const coords = [...parcel.geometry.coordinates[0]];
-            coords.splice(bestSIdx + 1, 0, clickPt);
-            parcel.geometry.coordinates[0] = coords;
-            parcel.properties = parcel.properties || {};
-            parcel.properties.rai = polygonAreaM2(coords as LngLat[]) / 1600;
-            newParcels[bestPIdx] = parcel;
+        const newParcels = [...drawnParcelsRef.current];
+        const parcel = { ...newParcels[bestPIdx] };
+        if (parcel.geometry.type === "Polygon") {
+          const coords = [...parcel.geometry.coordinates[0]];
+          coords.splice(bestSIdx + 1, 0, clickPt);
+          parcel.geometry.coordinates[0] = coords;
+          parcel.properties = parcel.properties || {};
+          parcel.properties.rai = polygonAreaM2(coords as LngLat[]) / 1600;
+          newParcels[bestPIdx] = parcel;
 
-            setDrawnParcels(newParcels);
-            drawnParcelsRef.current = newParcels;
+          setDrawnParcels(newParcels);
+          drawnParcelsRef.current = newParcels;
 
-            activePIdx = bestPIdx;
-            activeVIdx = bestSIdx + 1;
+          activePIdx = bestPIdx;
+          activeVIdx = bestSIdx + 1;
 
-            map.on('touchmove', onVertsTouchMove);
-            map.on('touchend', onVertsTouchEnd);
-         }
+          map.on('touchmove', onVertsTouchMove);
+          map.on('touchend', onVertsTouchEnd);
+        }
       }
     };
 
@@ -533,7 +533,7 @@ function MapDrawContent() {
 
     let hoveredVertId: number | null = null;
 
-    const mouseEnterVerts = (e: maplibregl.MapMouseEvent) => { 
+    const mouseEnterVerts = (e: maplibregl.MapMouseEvent) => {
       if (!drawingRef.current) {
         const features = map.queryRenderedFeatures(e.point, { layers: ['plot-verts-l'] });
         if (features.length) {
@@ -553,7 +553,7 @@ function MapDrawContent() {
             map.setFeatureState({ source: 'plot-verts', id: hoveredVertId }, { hover: true });
           }
         }
-      } 
+      }
     };
 
     const mouseMoveVerts = (e: maplibregl.MapMouseEvent) => {
@@ -578,9 +578,9 @@ function MapDrawContent() {
       }
     };
 
-    const mouseLeaveVerts = () => { 
+    const mouseLeaveVerts = () => {
       if (!drawingRef.current) {
-        map.getCanvas().style.cursor = ''; 
+        map.getCanvas().style.cursor = '';
         if (hoveredVertId !== null) {
           map.setFeatureState({ source: 'plot-verts', id: hoveredVertId }, { hover: false });
           hoveredVertId = null;
@@ -588,16 +588,16 @@ function MapDrawContent() {
       }
     };
 
-    const mouseEnterLine = () => { 
+    const mouseEnterLine = () => {
       if (!drawingRef.current) {
-        map.getCanvas().style.cursor = cursorAddNode; 
-      } 
+        map.getCanvas().style.cursor = cursorAddNode;
+      }
     };
 
-    const mouseLeaveLine = () => { 
+    const mouseLeaveLine = () => {
       if (!drawingRef.current) {
-        map.getCanvas().style.cursor = ''; 
-      } 
+        map.getCanvas().style.cursor = '';
+      }
     };
 
     map.on('mousedown', 'plot-verts-l', onVertsDown);
@@ -606,12 +606,12 @@ function MapDrawContent() {
     map.on('mouseenter', 'plot-verts-l', mouseEnterVerts);
     map.on('mousemove', 'plot-verts-l', mouseMoveVerts);
     map.on('mouseleave', 'plot-verts-l', mouseLeaveVerts);
- 
+
     map.on('mousedown', 'plot-line', onLineDown);
     map.on('touchstart', 'plot-line', onLineTouchStart);
     map.on('mouseenter', 'plot-line', mouseEnterLine);
     map.on('mouseleave', 'plot-line', mouseLeaveLine);
- 
+
     return () => {
       map.dragPan.enable();
       map.off('touchmove', onVertsTouchMove);
@@ -718,11 +718,11 @@ function MapDrawContent() {
         sources: {
           sat: {
             type: "raster",
-            tiles: ["https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"],
+            tiles: ["https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}"],
             tileSize: 256,
             minzoom: 1,
-            maxzoom: 18,
-            attribution: "",
+            maxzoom: 20,
+            attribution: "© Google",
           },
           street: {
             type: "raster",
@@ -779,7 +779,7 @@ function MapDrawContent() {
       // ── Rayong Province Boundary ──────────────────────────────────────────
       map.addSource("rayong-boundary", {
         type: "geojson",
-        data: "/assets/rayong-boundary.geojson",
+        data: "/api/geojson/boundary",
       });
       // Glow / halo layer (wider, semi-transparent)
       map.addLayer({
@@ -1084,62 +1084,65 @@ function MapDrawContent() {
     console.log("[AUTO-LOAD] Effect triggered", { projName, action, plotId, currentDrawnCount: drawnParcels.length });
 
     if (projName && drawnParcels.length === 0) {
-      try {
-        const key = `user_saved_plots_${user.id}`;
-        const storedRaw = localStorage.getItem(key);
-        console.log("[AUTO-LOAD] LocalStorage storedRaw:", storedRaw);
-        const stored = JSON.parse(storedRaw || "[]");
-        const allProjectPlots = stored.filter((p: any) => p.name === projName);
-        // ถ้ามี plotId ให้แสดงเฉพาะแปลงนั้น
-        const projectPlots = plotId
-          ? allProjectPlots.filter((p: any) => p.id === plotId)
-          : allProjectPlots;
-        console.log("[AUTO-LOAD] Filtered projectPlots for:", projName, projectPlots);
+      const load = async () => {
+        try {
+          const apiUrl = `/api/plots?name=${encodeURIComponent(projName!)}`;
+          const apiRes = await fetch(apiUrl);
+          const apiData = apiRes.ok ? await apiRes.json() : { plots: [] };
+          const allProjectPlots: any[] = Array.isArray(apiData.plots) ? apiData.plots : [];
+          console.log("[AUTO-LOAD] API plots for:", projName, allProjectPlots);
+          // ถ้ามี plotId ให้แสดงเฉพาะแปลงนั้น
+          const projectPlots = plotId
+            ? allProjectPlots.filter((p: any) => p.id === plotId)
+            : allProjectPlots;
+          console.log("[AUTO-LOAD] Filtered projectPlots for:", projName, projectPlots);
 
-        if (projectPlots.length > 0) {
-          const feats: GeoJSON.Feature[] = projectPlots.map((p: any, i: number) => ({
-            type: "Feature",
-            geometry: p.geojson,
-            properties: {
-              ...p,
-              plot_index: String(i + 1),
-              grow_area: p.areaRai,
-              grow_year: p.plantYearBE,   // computePlot reads grow_year for plantYearBE
-              province: p.province
+          if (projectPlots.length > 0) {
+            const feats: GeoJSON.Feature[] = projectPlots.map((p: any, i: number) => ({
+              type: "Feature",
+              geometry: p.geojson,
+              properties: {
+                ...p,
+                plot_index: String(i + 1),
+                grow_area: p.areaRai,
+                grow_year: p.plantYearBE,
+                province: p.province
+              }
+            }));
+
+            console.log("[AUTO-LOAD] Setting drawnParcels and parcelFeatures to feats:", feats);
+            setDrawnParcels(feats);
+            setParcelFeatures(feats);
+            needsPlantationSearchRef.current = true;
+            setSearchCount(feats.length);
+            if (projectPlots[0].boundaryGeojson) {
+              setDrawnGeometry(projectPlots[0].boundaryGeojson as GeoJSON.Geometry);
             }
-          }));
+            setCurrentStep(2);
+            setStatus(`เตรียมประมวลผลคาร์บอนสำหรับโครงการ: ${projName}`);
 
-          console.log("[AUTO-LOAD] Setting drawnParcels and parcelFeatures to feats:", feats);
-          setDrawnParcels(feats);
-          setParcelFeatures(feats);
-          needsPlantationSearchRef.current = true;
-          setSearchCount(feats.length);
-          if (projectPlots[0].boundaryGeojson) {
-            setDrawnGeometry(projectPlots[0].boundaryGeojson as GeoJSON.Geometry);
+            (map.getSource("matched-parcels") as maplibregl.GeoJSONSource)?.setData({ type: "FeatureCollection", features: feats });
+
+            const bounds = new maplibregl.LngLatBounds();
+            feats.forEach(f => {
+              if (!f.geometry) return;
+              const processCoords = (coords: any) => {
+                if (typeof coords[0] === "number") bounds.extend(coords as [number, number]);
+                else if (Array.isArray(coords)) coords.forEach(processCoords);
+              };
+              processCoords((f.geometry as any).coordinates);
+            });
+            if (!bounds.isEmpty()) {
+              map.fitBounds(bounds, { padding: { top: 60, bottom: 60, left: 60, right: 60 }, duration: 1000, maxZoom: 16 });
+            }
+
+            setIsPanelOpen(true);
           }
-          setCurrentStep(2);
-          setStatus(`เตรียมประมวลผลคาร์บอนสำหรับโครงการ: ${projName}`);
-
-          (map.getSource("matched-parcels") as maplibregl.GeoJSONSource)?.setData({ type: "FeatureCollection", features: feats });
-
-          const bounds = new maplibregl.LngLatBounds();
-          feats.forEach(f => {
-            if (!f.geometry) return;
-            const processCoords = (coords: any) => {
-              if (typeof coords[0] === "number") bounds.extend(coords as [number, number]);
-              else if (Array.isArray(coords)) coords.forEach(processCoords);
-            };
-            processCoords((f.geometry as any).coordinates);
-          });
-          if (!bounds.isEmpty()) {
-            map.fitBounds(bounds, { padding: { top: 60, bottom: 60, left: 60, right: 60 }, duration: 1000, maxZoom: 16 });
-          }
-
-          setIsPanelOpen(true);
+        } catch (err) {
+          console.error("Failed to auto-load project for calculation", err);
         }
-      } catch (err) {
-        console.error("Failed to auto-load project for calculation", err);
-      }
+      };
+      load();
     }
   }, [user, mapLoaded, searchParams]);
 
@@ -1162,7 +1165,7 @@ function MapDrawContent() {
           geometry: { type: "Point", coordinates: v },
           properties: { isMid: false, vIdx }
         });
-        
+
         // Midpoint between this and next vertex
         if (vIdx < verts.length - 1) {
           const nextV = verts[vIdx + 1];
@@ -1655,46 +1658,46 @@ function MapDrawContent() {
           }
         } catch (parcelErr) {
           console.error(`[KeptCarbon] plantation-info error parcel ${pi}:`, parcelErr);
-          
+
           const errMsg = parcelErr instanceof Error ? parcelErr.message : String(parcelErr);
-          
+
           let sc = "";
           let backendMessage = "";
-          
+
           if (errMsg.startsWith("[API_ERR]")) {
-             const parts = errMsg.substring(9).split("|");
-             sc = parts[0];
-             backendMessage = parts[1] || "";
+            const parts = errMsg.substring(9).split("|");
+            sc = parts[0];
+            backendMessage = parts[1] || "";
           } else {
-             let backendErrData: any = null;
-             const jsonMatch = errMsg.match(/Backend API error: \d+ (\{.*\})/);
-             if (jsonMatch && jsonMatch[1]) {
-               try { backendErrData = JSON.parse(jsonMatch[1]); } catch (e) {}
-             }
-             sc = backendErrData?.status_code || backendErrData?.status?.status_code || "";
-             backendMessage = backendErrData?.message || backendErrData?.status?.message || "";
+            let backendErrData: any = null;
+            const jsonMatch = errMsg.match(/Backend API error: \d+ (\{.*\})/);
+            if (jsonMatch && jsonMatch[1]) {
+              try { backendErrData = JSON.parse(jsonMatch[1]); } catch (e) { }
+            }
+            sc = backendErrData?.status_code || backendErrData?.status?.status_code || "";
+            backendMessage = backendErrData?.message || backendErrData?.status?.message || "";
           }
-          
+
           if (sc === "E01" || errMsg.includes('"status_code":"E01"') || errMsg.includes('"E01"')) {
-            throw new Error("พื้นที่ที่คุณระบุไม่อยู่ในขอบเขตประเทศไทย กรุณาลบแล้ววาดแปลงใหม่");
+            throw new Error("พื้นที่ไม่อยู่ในขอบเขตประเทศไทย กรุณาระบุพื้นที่ใหม่");
           }
           if (sc === "E02" || errMsg.includes('"status_code":"E02"') || errMsg.includes('"E02"')) {
-            throw new Error("พื้นที่ที่คุณระบุไม่อยู่ในจังหวัดที่ให้บริการ กรุณาลบแล้ววาดแปลงใหม่");
+            throw new Error("พื้นที่ที่กำหนดไม่อยู่ในพื้นที่ที่ให้บริการ กรุณาระบุพื้นที่ใหม่");
           }
           if (sc === "E04" || errMsg.includes('"status_code":"E04"') || errMsg.includes('"E04"')) {
             throw new Error("ไม่พบข้อมูลปีปลูกในฐานข้อมูล กรุณาระบุปีปลูก (พ.ศ.) ในช่องกรอกข้อมูล");
           }
-          
+
           // If it's a validation error or known English error, we should probably throw it too, 
           // but for general errors, maybe we can fallback to allow the user to manually enter data
           const engMsg = backendMessage.toLowerCase();
           if (engMsg.includes("invalid") && engMsg.includes("polygon") || errMsg.toLowerCase().includes("invalid polygon")) {
-              throw new Error("รูปทรงหรือขอบเขตพื้นที่ไม่ถูกต้อง กรุณาลบแล้ววาดแปลงใหม่");
+            throw new Error("รูปทรงหรือขอบเขตพื้นที่ไม่ถูกต้อง กรุณาลบแล้ววาดแปลงใหม่");
           }
           if (engMsg.includes("geometry") || errMsg.toLowerCase().includes("geometry")) {
-              throw new Error("ข้อมูลพิกัดพื้นที่ไม่ถูกต้อง กรุณาลบแล้ววาดแปลงใหม่");
+            throw new Error("ข้อมูลพิกัดพื้นที่ไม่ถูกต้อง กรุณาลบแล้ววาดแปลงใหม่");
           }
-          
+
           // Fallback: use drawn parcel geometry when API fails for other unknown reasons
           allFeatures.push({
             type: "Feature",
@@ -1754,22 +1757,22 @@ function MapDrawContent() {
       }
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : String(err);
-      
-      if (errorMsg === "พื้นที่ที่คุณระบุไม่อยู่ในขอบเขตประเทศไทย กรุณาลบแล้ววาดแปลงใหม่" || 
-          errorMsg === "พื้นที่ที่คุณระบุไม่อยู่ในจังหวัดที่ให้บริการ กรุณาลบแล้ววาดแปลงใหม่" ||
-          errorMsg === "รูปทรงหรือขอบเขตพื้นที่ไม่ถูกต้อง กรุณาลบแล้ววาดแปลงใหม่" ||
-          errorMsg === "ข้อมูลพิกัดพื้นที่ไม่ถูกต้อง กรุณาลบแล้ววาดแปลงใหม่") {
-          
-          setErrorPopup({
-            title: "ไม่สามารถดำเนินการได้",
-            desc: errorMsg
-          });
-          clearDraw();
+
+      if (errorMsg === "พื้นที่ที่คุณระบุไม่อยู่ในขอบเขตประเทศไทย กรุณาลบแล้ววาดแปลงใหม่" ||
+        errorMsg === "พื้นที่ที่คุณระบุไม่อยู่ในจังหวัดที่ให้บริการ กรุณาลบแล้ววาดแปลงใหม่" ||
+        errorMsg === "รูปทรงหรือขอบเขตพื้นที่ไม่ถูกต้อง กรุณาลบแล้ววาดแปลงใหม่" ||
+        errorMsg === "ข้อมูลพิกัดพื้นที่ไม่ถูกต้อง กรุณาลบแล้ววาดแปลงใหม่") {
+
+        setErrorPopup({
+          title: "ไม่สามารถดำเนินการได้",
+          desc: errorMsg
+        });
+        clearDraw();
       } else if (errorMsg === "ไม่พบข้อมูลปีปลูกในฐานข้อมูล กรุณาระบุปีปลูก (พ.ศ.) ในช่องกรอกข้อมูล") {
-          setErrorPopup({
-            title: "แจ้งเตือนข้อมูล",
-            desc: errorMsg
-          });
+        setErrorPopup({
+          title: "แจ้งเตือนข้อมูล",
+          desc: errorMsg
+        });
       } else {
         setSearchErr(errorMsg);
       }
@@ -2210,8 +2213,8 @@ function MapDrawContent() {
               <i className="bi bi-geo-alt-fill" />
             </div>
             <div>
-              <div className="mds-panel-topbar-title">วิเคราะห์แปลงยาง</div>
-              <div className="mds-panel-topbar-sub">KeptCarbon · ระบบกำหนดขอบเขต</div>
+              <div className="mds-panel-topbar-title">ระบบประเมินคาร์บอนเครดิต</div>
+              <div className="mds-panel-topbar-sub">KeptCarbon · ประเมินผลคาร์บอนเครดิต</div>
             </div>
           </div>
           <button
@@ -2318,7 +2321,7 @@ function MapDrawContent() {
             {([
               { n: 1 as const, label: "กำหนดพื้นที่" },
               { n: 2 as const, label: "กรอกข้อมูล" },
-              { n: 3 as const, label: "ผลคาร์บอน/บันทึก" },
+              { n: 3 as const, label: "ประเมิน/บันทึก" },
             ]).map(({ n, label }) => {
               const isActive = currentStep === n;
               const isDone = currentStep > n;
@@ -2374,10 +2377,6 @@ function MapDrawContent() {
                     {drawing ? (
                       /* ── Drawing in progress ── */
                       <>
-                        <div className="mds-draw-hint">
-                          <div className="mds-dot-pulse" />
-                          คลิกบนแผนที่เพื่อเพิ่มจุด · <strong>คลิกขวา</strong>, <strong>Double-click</strong> หรือกดปุ่ม <strong>"เสร็จสิ้น"</strong> เพื่อจบการวาด
-                        </div>
                         <div style={{ display: "flex", gap: "8px", marginTop: "10px", flexWrap: "wrap" }}>
                           <button
                             className="mds-btn mds-btn-solid mds-finish-btn-mobile"

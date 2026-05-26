@@ -126,11 +126,11 @@ export default function DashboardMap({
           satellite: {
             type: "raster",
             tiles: [
-              "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+              "https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}",
             ],
             tileSize: 256,
-            attribution: "© Esri",
-            maxzoom: 18,
+            attribution: "© Google",
+            maxzoom: 20,
           },
         },
         layers: [{ id: "satellite", type: "raster", source: "satellite" }],
@@ -152,7 +152,7 @@ export default function DashboardMap({
       // ── District boundary (bottom-most layer) ─────────────────────────
       map.addSource("district-boundary", {
         type: "geojson",
-        data: "/assets/rayong-districts.geojson",
+        data: "/api/geojson/districts",
       } as any);
       map.addLayer({
         id: "district-boundary-fill",
@@ -236,7 +236,7 @@ export default function DashboardMap({
       // ── District markers with centroids from GeoJSON ──────────────────
       if (districts.length > 0) {
         // Load GeoJSON to compute centroids
-        fetch("/assets/rayong-districts.geojson")
+        fetch("/api/geojson/districts")
           .then(r => r.json())
           .then((gj: GeoJSON.FeatureCollection) => {
             const centroidMap: Record<string, [number, number]> = {};

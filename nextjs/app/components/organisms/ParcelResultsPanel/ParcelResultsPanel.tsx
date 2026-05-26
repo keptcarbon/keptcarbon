@@ -370,76 +370,90 @@ function PlotDetailCard({
         <div style={{ display: "flex", flexDirection: "column", gap: 8, fontSize: 13, color: "#475569" }}>
             {userEnteredYear ? (
                 // Case 1: User entered year
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 14px", background: "rgba(14,165,233,0.06)", borderRadius: 10, border: "1px solid rgba(14,165,233,0.18)" }}>
-                    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                        <span style={{ fontWeight: 700, color: "#0369a1", display: "flex", alignItems: "center", gap: 6 }}>
+                <div style={{ 
+                    display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", gap: 12, 
+                    padding: "12px 14px", background: "rgba(14,165,233,0.06)", borderRadius: 10, border: "1px solid rgba(14,165,233,0.18)" 
+                }}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 6, minWidth: 200, flex: 1 }}>
+                        <span style={{ fontWeight: 700, color: "#0369a1", display: "flex", alignItems: "center", gap: 6, fontSize: 14 }}>
                             <i className="bi bi-person-check-fill" /> ปีที่ปลูก
                         </span>
-                        <span style={{ fontSize: 11, color: "#0284c7", fontWeight: 600, background: "rgba(14,165,233,0.15)", padding: "2px 8px", borderRadius: 12, width: "fit-content" }}>
-                            ระบุโดยผู้ใช้งาน (นำไปใช้ประมวลผล)
-                        </span>
+                        <div style={{ 
+                            display: "flex", alignItems: "flex-start", gap: 6, 
+                            fontSize: 11, color: "#0284c7", fontWeight: 600, 
+                            background: "rgba(14,165,233,0.15)", padding: "6px 8px", 
+                            borderRadius: 6, width: "fit-content", lineHeight: 1.3 
+                        }}>
+                            <i className="bi bi-info-circle-fill" style={{ marginTop: 1, flexShrink: 0 }} />
+                            <span>ข้อมูลจากการระบุของผู้ใช้งาน<br />(นำไปใช้ประมวลผล)</span>
+                        </div>
                     </div>
-                    <span style={{ color: "#0f172a", fontWeight: 800, fontSize: 16 }}>
+                    <div style={{ 
+                        color: "#0f172a", fontWeight: 800, fontSize: 16, 
+                        flexShrink: 0, marginLeft: "auto",
+                        background: "#fff", padding: "4px 10px", borderRadius: 8,
+                        border: "1px solid rgba(14,165,233,0.2)"
+                    }}>
                         {displayYearBE ? `พ.ศ. ${displayYearBE}` : "—"}
-                    </span>
+                    </div>
                 </div>
             ) : (
                 // Case 2: Backend only
                 yearBoxItems.length > 0 && (
-                    <div style={{ padding: "12px 14px", background: "rgba(16,185,129,0.04)", borderRadius: 10, border: "1px solid rgba(16,185,129,0.15)" }}>
-                        <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 12 }}>
-                            <span style={{ fontWeight: 700, color: "#047857", display: "flex", alignItems: "center", gap: 6, fontSize: 14 }}>
-                                <i className="bi bi-cpu-fill" /> ปีที่ตรวจพบ
-                            </span>
-                            <div style={{
-                                display: "flex", alignItems: "flex-start", gap: 6,
-                                fontSize: 11, color: "#059669", fontWeight: 600,
-                                background: "rgba(16,185,129,0.1)", padding: "4px 8px",
-                                borderRadius: 6, border: "1px dashed rgba(16,185,129,0.2)", width: "fit-content", lineHeight: 1.4
-                            }}>
-                                <i className="bi bi-info-circle-fill" style={{ marginTop: 2, flexShrink: 0 }} />
-                                <span>ข้อมูลอ้างอิงจากระบบที่ใช้ในการประมวลผล</span>
-                            </div>
-                        </div>
-                        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
-                            {yearBoxItems.slice(0, 3).map((box, bi) => (
-                                <div key={bi} style={{
-                                    padding: "4px 10px",
-                                    background: "rgba(100,116,139,0.06)",
-                                    borderRadius: 8,
-                                    border: "1px solid rgba(100,116,139,0.15)",
-                                    fontWeight: 500,
-                                    fontSize: 12,
-                                    color: "#475569",
-                                }}>
-                                    {box.label}{box.pct > 0 ? ` (${box.pct}%)` : ""}
-                                </div>
-                            ))}
-                            {yearBoxItems.length > 3 && (
-                                <span style={{ fontSize: 14, color: "#94a3b8", fontWeight: 600 }}>...</span>
-                            )}
-                        </div>
+                  <div style={{ padding: "12px 14px", background: "rgba(16,185,129,0.04)", borderRadius: 10, border: "1px solid rgba(16,185,129,0.15)" }}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 12 }}>
+                      <span style={{ fontWeight: 700, color: "#047857", display: "flex", alignItems: "center", gap: 6, fontSize: 14 }}>
+                        <i className="bi bi-cpu-fill" /> ปีที่ตรวจพบ
+                      </span>
+                      <div style={{
+                            display: "flex", alignItems: "flex-start", gap: 6,
+                            fontSize: 11, color: "#059669", fontWeight: 600,
+                            background: "rgba(16,185,129,0.1)", padding: "6px 8px",
+                            borderRadius: 6, border: "1px dashed rgba(16,185,129,0.2)", width: "fit-content", lineHeight: 1.3
+                      }}>
+                            <i className="bi bi-info-circle-fill" style={{ marginTop: 1, flexShrink: 0 }} />
+                            <span>ข้อมูลอ้างอิงจากระบบที่ใช้ในการประมวลผล</span>
+                      </div>
                     </div>
+                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+                      {yearBoxItems.slice(0, 3).map((box, bi) => (
+                        <div key={bi} style={{
+                          padding: "4px 10px",
+                          background: "rgba(100,116,139,0.06)",
+                          borderRadius: 8,
+                          border: "1px solid rgba(100,116,139,0.15)",
+                          fontWeight: 500,
+                          fontSize: 12,
+                          color: "#475569",
+                        }}>
+                          {box.label}{box.pct > 0 ? ` (${box.pct}%)` : ""}
+                        </div>
+                      ))}
+                      {yearBoxItems.length > 3 && (
+                        <span style={{ fontSize: 14, color: "#94a3b8", fontWeight: 600 }}>...</span>
+                      )}
+                    </div>
+                  </div>
                 )
             )}
 
             {/* Year distribution from note (both cases) */}
             {yearNotes.length > 0 && (
-                <div style={{ padding: "10px 14px", background: "rgba(100,116,139,0.04)", borderRadius: 10, border: "1px solid rgba(100,116,139,0.12)" }}>
-                    <div style={{ fontSize: 12, color: "#475569", fontWeight: 700, marginBottom: 6, display: "flex", alignItems: "center", gap: 6 }}>
-                        <i className="bi bi-pie-chart-fill" /> สัดส่วนปีที่ปลูกที่ตรวจพบในแปลง:
-                    </div>
-                    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                        {yearNotes.slice(0, 3).map((note, ni) => (
-                            <span key={ni} style={{ fontSize: 12, color: "#64748b", fontWeight: 500, display: "flex", alignItems: "center", gap: 6 }}>
-                                <i className="bi bi-caret-right-fill" style={{ color: "#94a3b8", fontSize: 10 }} />
-                                {convertYearNoteToBE(note)}
-                            </span>
-                        ))}
-                        {yearNotes.length > 3 && (
-                            <span style={{ fontSize: 12, color: "#94a3b8", paddingLeft: 18 }}>...</span>
-                        )}
-                    </div>
+                <div style={{ padding: "10px 14px", background: "rgba(100,116,139,0.04)", borderRadius: 10, border: "1px solid rgba(100,116,139,0.12)", marginTop: 4 }}>
+                  <div style={{ fontSize: 12, color: "#475569", fontWeight: 700, marginBottom: 6, display: "flex", alignItems: "center", gap: 6 }}>
+                    <i className="bi bi-pie-chart-fill" /> สัดส่วนปีที่ปลูกที่ตรวจพบในแปลง:
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                    {yearNotes.slice(0, 3).map((note, ni) => (
+                      <span key={ni} style={{ fontSize: 12, color: "#64748b", fontWeight: 500, display: "flex", alignItems: "center", gap: 6 }}>
+                        <i className="bi bi-caret-right-fill" style={{ color: "#94a3b8", fontSize: 10 }} />
+                        {convertYearNoteToBE(note)}
+                      </span>
+                    ))}
+                    {yearNotes.length > 3 && (
+                      <span style={{ fontSize: 12, color: "#94a3b8", paddingLeft: 18 }}>...</span>
+                    )}
+                  </div>
                 </div>
             )}
 
@@ -1062,8 +1076,6 @@ export function ParcelResultsPanel({
         await new Promise(r => setTimeout(r, 900));
         try {
             if (!user) return;
-            const key = `user_saved_plots_${user.id}`;
-            const existing = JSON.parse(localStorage.getItem(key) || "[]");
             const CURRENT_BE_NOW = new Date().getFullYear() + 543;
             const newPlots = plots.map((p, i) => {
                 const feat = parcelFeatures[i];
@@ -1144,13 +1156,11 @@ export function ParcelResultsPanel({
                 setSaveState("idle");
                 return;
             }
-            const newPlotIds = new Set(newPlotsWithStatus.map(p => p.id));
-            const filteredExisting = existing.filter((p: any) => !newPlotIds.has(p.id));
-            localStorage.setItem(key, JSON.stringify([...newPlotsWithStatus, ...filteredExisting]));
-            const globalKey = "global_saved_plots";
-            const globalExisting = JSON.parse(localStorage.getItem(globalKey) || "[]");
-            const filteredGlobalExisting = globalExisting.filter((p: any) => !newPlotIds.has(p.id));
-            localStorage.setItem(globalKey, JSON.stringify([...newPlotsWithStatus, ...filteredGlobalExisting]));
+            await fetch("/api/plots", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ plots: newPlotsWithStatus }),
+            });
         } catch (e) { console.error(e); }
         setSaveState("done");
         setTimeout(() => setSaveState("idle"), 2000);

@@ -860,7 +860,7 @@ function PlotCard({ plot, index, onDelete, onEdit, expanded, onToggle, isMobile 
                                 borderRadius: 6, width: "fit-content", lineHeight: 1.3 
                             }}>
                                 <i className="bi bi-info-circle-fill" style={{ marginTop: 1, flexShrink: 0 }} />
-                                <span>ข้อมูลจากการระบุของผู้ใช้งาน (นำไปใช้ประมวลผล)</span>
+                                <span>ข้อมูลจากการระบุของผู้ใช้งาน<br />(นำไปใช้ประมวลผล)</span>
                             </div>
                         </div>
                         <div style={{ 
@@ -982,91 +982,21 @@ export default function MyPlotsPage() {
   useEffect(() => {
     setMounted(true);
     if (ready && user) {
-      try {
-        if (viewMode === "mine") {
-          const key = `user_saved_plots_${user.id}`;
-          const stored = localStorage.getItem(key);
-          if (stored) {
-            const parsed = JSON.parse(stored);
-            const myOnly = Array.isArray(parsed) ? parsed.filter((p: any) => p.userId === user.id || !p.userId) : [];
-            setPlots(myOnly);
-          } else {
-            setPlots([]);
-          }
-        } else if (isAdmin) {
-          // Admin view: fetch plots from ALL users
-          const usersRaw = localStorage.getItem("kc_users");
-          const allUsers = usersRaw ? JSON.parse(usersRaw) : [];
-          let allPlots: SavedPlot[] = [];
-
-          allUsers.forEach((u: any) => {
-            const userKey = `user_saved_plots_${u.id}`;
-            const userPlotsRaw = localStorage.getItem(userKey);
-            if (userPlotsRaw) {
-              const parsed = JSON.parse(userPlotsRaw);
-              if (Array.isArray(parsed)) {
-                // Decorate plots with owner info if missing
-                const decorated = parsed.map(p => ({
-                  ...p,
-                  userId: u.id,
-                  ownerName: p.ownerName || u.fullname
-                }));
-                allPlots = [...allPlots, ...decorated];
-              }
-            }
-          });
-
-          // Also check the global_saved_plots for any legacy/anonymous ones
-          const globalKey = 'global_saved_plots';
-          const globalRaw = localStorage.getItem(globalKey);
-          if (globalRaw) {
-            const globalPlots = JSON.parse(globalRaw);
-            // Only add global plots that aren't already in the list (by ID)
-            const existingIds = new Set(allPlots.map(p => p.id));
-            globalPlots.forEach((gp: any) => {
-              if (!existingIds.has(gp.id)) {
-                allPlots.push(gp);
-              }
-            });
-          }
-
-          // Sort by date desc
-          allPlots.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-          setPlots(allPlots);
-        }
-      } catch { }
+      const url = viewMode === "all" && isAdmin
+        ? "/api/plots?all=true"
+        : "/api/plots";
+      fetch(url)
+        .then(r => r.ok ? r.json() : { plots: [] })
+        .then(data => setPlots(Array.isArray(data.plots) ? data.plots : []))
+        .catch(() => setPlots([]));
     }
-  }, [ready, user, viewMode]);
+  }, [ready, user, viewMode, isAdmin]);
 
 
   const handleDelete = (id: string) => {
     if (!user) return;
-    const plotToDelete = plots.find(p => p.id === id);
-    if (!plotToDelete) return;
-
-    const updated = plots.filter(p => p.id !== id);
-    setPlots(updated);
-
-    try {
-      // 1. Update the owner's specific storage
-      const ownerId = plotToDelete.userId || user.id;
-      const key = `user_saved_plots_${ownerId}`;
-      const ownerStoredRaw = localStorage.getItem(key);
-      if (ownerStoredRaw) {
-        const ownerPlots = JSON.parse(ownerStoredRaw);
-        const filtered = ownerPlots.filter((p: any) => p.id !== id);
-        localStorage.setItem(key, JSON.stringify(filtered));
-      }
-
-      // 2. Also remove from global list
-      const globalKey = 'global_saved_plots';
-      const globalRaw = localStorage.getItem(globalKey);
-      if (globalRaw) {
-        const globalPlots = JSON.parse(globalRaw);
-        const filteredGlobal = globalPlots.filter((p: any) => p.id !== id);
-        localStorage.setItem(globalKey, JSON.stringify(filteredGlobal));
-      }
-    } catch { }
+    setPlots(prev => prev.filter(p => p.id !== id));
+    fetch(`/api/plots/${id}`, { method: "DELETE" }).catch(console.error);
   };
 
 
@@ -1074,24 +1004,11 @@ export default function MyPlotsPage() {
   const handleDeleteAll = () => {
     if (!user) return;
     if (viewMode === "all") {
-      // Admin deleting everything? Let's limit this to current view for safety
-      // Actually, standard behavior: delete what is shown
+      // Admin: ลบทีละแปลงที่แสดงอยู่
       plots.forEach(p => handleDelete(p.id));
     } else {
-      const idsToDelete = plots.map(p => p.id);
       setPlots([]);
-      try {
-        const key = `user_saved_plots_${user.id}`;
-        localStorage.removeItem(key);
-
-        const globalKey = 'global_saved_plots';
-        const globalRaw = localStorage.getItem(globalKey);
-        if (globalRaw) {
-          const globalPlots = JSON.parse(globalRaw);
-          const filteredGlobal = globalPlots.filter((p: any) => !idsToDelete.includes(p.id));
-          localStorage.setItem(globalKey, JSON.stringify(filteredGlobal));
-        }
-      } catch { }
+      fetch("/api/plots", { method: "DELETE" }).catch(console.error);
     }
     setConfirmDeleteAll(false);
   };
@@ -1133,26 +1050,22 @@ export default function MyPlotsPage() {
 
   const handleUpdatePlot = (updated: SavedPlot) => {
     if (!user) return;
-    const newPlots = plots.map(p => p.id === updated.id ? updated : p);
-    setPlots(newPlots);
-    try {
-      const ownerId = updated.userId || user.id;
-      const key = `user_saved_plots_${ownerId}`;
-      const ownerStoredRaw = localStorage.getItem(key);
-      if (ownerStoredRaw) {
-        const ownerPlots = JSON.parse(ownerStoredRaw);
-        const saved = ownerPlots.map((p: any) => p.id === updated.id ? updated : p);
-        localStorage.setItem(key, JSON.stringify(saved));
-      }
-
-      const globalKey = 'global_saved_plots';
-      const globalRaw = localStorage.getItem(globalKey);
-      if (globalRaw) {
-        const globalPlots = JSON.parse(globalRaw);
-        const savedGlobal = globalPlots.map((p: any) => p.id === updated.id ? updated : p);
-        localStorage.setItem(globalKey, JSON.stringify(savedGlobal));
-      }
-    } catch { }
+    setPlots(prev => prev.map(p => p.id === updated.id ? updated : p));
+    fetch(`/api/plots/${updated.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: updated.name,
+        variety: updated.variety,
+        spacing: updated.spacing,
+        trees: updated.trees,
+        plantStatus: updated.plantStatus,
+        ownerName: updated.ownerName,
+        province: updated.province,
+        plantYearBE: updated.plantYearBE,
+        backendData: updated.backendData,
+      }),
+    }).catch(console.error);
     setEditingPlot(null);
   };
 

@@ -152,7 +152,7 @@ export default function DashboardMap({
       // ── District boundary (bottom-most layer) ─────────────────────────
       map.addSource("district-boundary", {
         type: "geojson",
-        data: "/assets/rayong-districts.geojson",
+        data: "/api/geojson/districts",
       } as any);
       map.addLayer({
         id: "district-boundary-fill",
@@ -236,7 +236,7 @@ export default function DashboardMap({
       // ── District markers with centroids from GeoJSON ──────────────────
       if (districts.length > 0) {
         // Load GeoJSON to compute centroids
-        fetch("/assets/rayong-districts.geojson")
+        fetch("/api/geojson/districts")
           .then(r => r.json())
           .then((gj: GeoJSON.FeatureCollection) => {
             const centroidMap: Record<string, [number, number]> = {};
