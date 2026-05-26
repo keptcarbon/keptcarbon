@@ -251,9 +251,8 @@ export function CarbonBarChart({
         {displayPts.map((p, i) => {
           const isCycleEnd = p.year_at > 0 && p.year_at % 7 === 0;
           const isFirst = i === 0;
-          const isLast = i === displayPts.length - 1;
 
-          if (!isCycleEnd && !isFirst && !isLast) return null;
+          if (!isCycleEnd && !isFirst) return null;
 
           const x = startX + i * (barW + gap) + barW / 2;
           return (
