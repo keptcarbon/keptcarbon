@@ -24,6 +24,29 @@ function fmtCompact(v: number): string {
   return v.toLocaleString("th-TH", { maximumFractionDigits: 0 });
 }
 
+function getLuColor(luClass: string): string {
+  if (luClass.startsWith("A302")) return "#84cc16";
+  const p = luClass.charAt(0).toUpperCase();
+  if (p === "A") return "#84cc16";
+  if (p === "F") return "#166534";
+  if (p === "W") return "#3b82f6";
+  if (p === "U") return "#ef4444";
+  if (p === "M") return "#9ca3af";
+  return "#94a3b8";
+}
+
+function getLuShortLabel(luClass: string, descTh?: string): string {
+  if (descTh) return descTh;
+  if (luClass.startsWith("A302")) return "ยางพารา";
+  const p = luClass.charAt(0).toUpperCase();
+  if (p === "A") return `เกษตรกรรม (${luClass})`;
+  if (p === "F") return "พื้นที่ป่าไม้";
+  if (p === "W") return "แหล่งน้ำ";
+  if (p === "U") return "พื้นที่ชุมชนและสิ่งปลูกสร้าง";
+  if (p === "M") return "พื้นที่เบ็ดเตล็ด";
+  return luClass;
+}
+
 type SavedPlot = {
   id: string;
   name: string;
@@ -423,15 +446,15 @@ function EditPlotModal({ plot, index, onClose, onSave, isMobile }: { plot: Saved
     // Current year BE to calculate age
     const currentBE = new Date().getFullYear() + 543;
     let ageNum = 0;
-    
+
     let effectivePlantYear = parseInt(formData.plantYearBE) || undefined;
-    
+
     if (formData.plantStatus === "replanting") {
       ageNum = 0;
       effectivePlantYear = effectivePlantYear || currentBE;
     } else if (formData.plantStatus === "existing") {
       if (effectivePlantYear) {
-         ageNum = currentBE - effectivePlantYear;
+        ageNum = currentBE - effectivePlantYear;
       }
     }
 
@@ -660,6 +683,7 @@ function PlotMiniMap({ plot, isMobile, index }: { plot: SavedPlot; isMobile: boo
       container: mapContainerRef.current,
       style: {
         version: 8,
+        glyphs: "https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf",
         sources: {
           sat: { type: "raster", tiles: ["https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"], tileSize: 256, maxzoom: 18 }
         },
@@ -679,37 +703,54 @@ function PlotMiniMap({ plot, isMobile, index }: { plot: SavedPlot; isMobile: boo
       const hasLu = luPolygons && luPolygons.length > 0;
 
       if (hasLu) {
-        // Render LU polygons
         const luChecked = plot.luChecked || {};
         const features = luPolygons.map(f => {
-          const cls = (f.properties as any).lu_class;
-          const isSelected = !!luChecked[cls];
-          return {
-            ...f,
-            properties: {
-              ...f.properties,
-              fill_color: isSelected ? "#10b981" : "#cbd5e1", // Green for selected, gray for unselected
-              fill_opacity: isSelected ? 0.5 : 0.3
-            }
-          };
+          const cls = (f.properties as any).lu_class as string;
+          return { ...f, properties: { ...f.properties, is_selected: luChecked[cls] ? 1 : 0 } };
         });
+
+        const luColorExpr = [
+          "case",
+          ["==", ["slice", ["coalesce", ["get", "lu_class"], ""], 0, 4], "A302"], "#84cc16",
+          ["==", ["slice", ["coalesce", ["get", "lu_class"], ""], 0, 1], "A"], "#84cc16",
+          ["==", ["slice", ["coalesce", ["get", "lu_class"], ""], 0, 1], "F"], "#166534",
+          ["==", ["slice", ["coalesce", ["get", "lu_class"], ""], 0, 1], "W"], "#3b82f6",
+          ["==", ["slice", ["coalesce", ["get", "lu_class"], ""], 0, 1], "U"], "#ef4444",
+          ["==", ["slice", ["coalesce", ["get", "lu_class"], ""], 0, 1], "M"], "#9ca3af",
+          "#94a3b8"
+        ];
 
         map.addSource("lu-polygons", {
           type: "geojson",
           data: { type: "FeatureCollection", features } as any
         });
-        
+
         map.addLayer({
           id: "lu-polygons-fill", type: "fill", source: "lu-polygons",
-          paint: { 
-            "fill-color": ["get", "fill_color"], 
-            "fill-opacity": ["get", "fill_opacity"]
+          paint: {
+            "fill-color": luColorExpr as any,
+            "fill-opacity": ["case", ["==", ["get", "is_selected"], 1], 0.65, 0.15] as any
           }
         });
-        
+
         map.addLayer({
           id: "lu-polygons-line", type: "line", source: "lu-polygons",
-          paint: { "line-color": "#ffffff", "line-width": 1 }
+          paint: { "line-color": "#ffffff", "line-width": 1, "line-opacity": 0.7 }
+        });
+
+        map.addLayer({
+          id: "lu-polygons-label", type: "symbol", source: "lu-polygons",
+          filter: ["==", ["get", "is_selected"], 1],
+          layout: {
+            "text-field": ["get", "lu_class"],
+            "text-size": isMobile ? 10 : 12,
+            "text-allow-overlap": false,
+          },
+          paint: {
+            "text-color": "#ffffff",
+            "text-halo-color": "#0f172a",
+            "text-halo-width": 2,
+          },
         });
 
         // Add boundary outline over the LUs
@@ -761,22 +802,63 @@ function PlotMiniMap({ plot, isMobile, index }: { plot: SavedPlot; isMobile: boo
     return () => { map.remove(); mapRef.current = null; };
   }, [plot, isMobile]);
 
-  const hasLuData = plot.backendData?.lu_polygon && plot.backendData.lu_polygon.length > 0;
+  const luPolygonsForLegend = (plot.backendData?.lu_polygon as GeoJSON.Feature[] | undefined) ?? [];
+  const hasLuData = luPolygonsForLegend.length > 0;
+  const luCheckedForLegend = plot.luChecked || {};
+
+  const luLegendItems = useMemo(() => {
+    const seen = new Map<string, { cls: string; label: string; color: string; selected: boolean }>();
+    for (const f of luPolygonsForLegend) {
+      const cls = (f.properties as any).lu_class as string;
+      if (!cls || seen.has(cls)) continue;
+      seen.set(cls, {
+        cls,
+        label: getLuShortLabel(cls, (f.properties as any).lu_class_desc_th),
+        color: getLuColor(cls),
+        selected: !!luCheckedForLegend[cls],
+      });
+    }
+    return Array.from(seen.values()).filter(item => item.selected);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [plot]);
+
+  const swatchSize = isMobile ? 11 : 13;
+  const legendFontSize = isMobile ? 10 : 11;
 
   return (
     <div style={{ position: "relative", width: "100%", height: isMobile ? 220 : 300, borderRadius: 12, overflow: "hidden", border: "1px solid rgba(0,0,0,0.1)", background: "#e2e8f0" }}>
       <div ref={mapContainerRef} style={{ width: "100%", height: "100%" }} />
-      {hasLuData && (
-        <div style={{ position: "absolute", bottom: 12, left: 12, background: "rgba(255,255,255,0.95)", padding: "8px 12px", borderRadius: 8, fontSize: 12, boxShadow: "0 2px 8px rgba(0,0,0,0.15)", zIndex: 1, pointerEvents: "none" }}>
-          <div style={{ fontWeight: 700, marginBottom: 6, color: "#1e293b", fontSize: 13 }}>คำอธิบาย (Land Use)</div>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-            <div style={{ width: 14, height: 14, background: "#10b981", opacity: 0.5, border: "1px solid #059669", borderRadius: 3 }} />
-            <span style={{ color: "#334155" }}>พื้นที่ที่ใช้ประมวลผล</span>
+      {hasLuData && luLegendItems.length > 0 && (
+        <div style={{
+          position: "absolute", bottom: isMobile ? 10 : 12, left: isMobile ? 8 : 12,
+          background: "rgba(255,255,255,0.96)", backdropFilter: "blur(4px)",
+          padding: isMobile ? "6px 9px" : "8px 11px",
+          borderRadius: isMobile ? 8 : 10,
+          boxShadow: "0 2px 10px rgba(0,0,0,0.18)",
+          zIndex: 1, pointerEvents: "none",
+          maxWidth: isMobile ? 170 : 210,
+        }}>
+          <div style={{ fontWeight: 700, marginBottom: isMobile ? 4 : 5, color: "#1e293b", fontSize: isMobile ? 11 : 12, display: "flex", alignItems: "center", gap: 4 }}>
+            <i className="bi bi-layers" style={{ color: "#10b981", fontSize: isMobile ? 11 : 12 }} />
+            คำอธิบาย (Land Use)
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <div style={{ width: 14, height: 14, background: "#cbd5e1", opacity: 0.3, border: "1px solid #94a3b8", borderRadius: 3 }} />
-            <span style={{ color: "#334155" }}>พื้นที่ที่ไม่เกี่ยวข้อง</span>
-          </div>
+          {luLegendItems.map(item => (
+            <div key={item.cls} style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: isMobile ? 2 : 3 }}>
+              <div style={{
+                width: swatchSize, height: swatchSize, flexShrink: 0,
+                background: item.color, borderRadius: 2, opacity: 0.85,
+                border: `1.5px solid ${item.color}`,
+              }} />
+              <span style={{
+                fontSize: legendFontSize, lineHeight: 1.3,
+                color: "#1e293b", fontWeight: 600,
+                overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                maxWidth: isMobile ? 128 : 168,
+              }}>
+                <span style={{ fontWeight: 700 }}>{item.cls}</span> {item.label}
+              </span>
+            </div>
+          ))}
         </div>
       )}
     </div>
@@ -923,12 +1005,7 @@ function PlotCard({ plot, index, onDelete, onEdit, expanded, onToggle, isMobile 
               )}
             </div>
             <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 3 }}>
-              {plot.province && (
-                <span style={{ fontSize: 14, color: "#64748b", display: "flex", alignItems: "center", gap: 3 }}>
-                  <i className="bi bi-geo-alt-fill" style={{ color: "#10b981", fontSize: 12 }} />{plot.province}
-                </span>
-              )}
-              {plot.province && <span style={{ fontSize: 12, color: "#e2e8f0" }}>|</span>}
+
               <span style={{ fontSize: 12, color: "#cbd5e1" }}>
                 {new Date(plot.date).toLocaleDateString("th-TH", { year: "numeric", month: "short", day: "numeric" })}
               </span>
@@ -1306,7 +1383,7 @@ export default function MyPlotsPage() {
       const polygons: PlantationPolygon[] = projectPlots.map((plot) => {
         let geom = plot.geojson as GeoJSON.Geometry;
         if (!geom && plot.boundaryGeojson) {
-            geom = plot.boundaryGeojson as GeoJSON.Geometry;
+          geom = plot.boundaryGeojson as GeoJSON.Geometry;
         }
 
         const backendYearBE = plot.backendData?.plantYearBE || 0;
@@ -1644,7 +1721,7 @@ export default function MyPlotsPage() {
                       </div>
                     </div>
                     <div style={{ display: "flex", flexWrap: "wrap", gap: 10, width: isMobile ? "100%" : "auto" }}>
-                      <button 
+                      <button
                         onClick={() => handleInlineEstimate(group.projectName, group.plots)}
                         disabled={estimatingProject === group.projectName}
                         style={{ flex: isMobile ? "1 1 100%" : "auto", textAlign: "center", padding: isMobile ? "10px 16px" : "8px 16px", borderRadius: 12, background: estimatingProject === group.projectName ? "#94a3b8" : "linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%)", color: "#fff", fontWeight: 700, fontSize: isMobile ? 15 : 14, textDecoration: "none", border: "none", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, boxShadow: estimatingProject === group.projectName ? "none" : "0 4px 15px rgba(14,165,233,0.3)", whiteSpace: "nowrap", cursor: estimatingProject === group.projectName ? "not-allowed" : "pointer" }}

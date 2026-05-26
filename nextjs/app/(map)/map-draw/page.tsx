@@ -1179,10 +1179,20 @@ function MapDrawContent() {
             let hiddenFeats: GeoJSON.Feature[] = [];
             
             if (plotId) {
-                const editedPlot = feats.find(f => (f.properties as any).id === plotId);
+                // Try to find by exact id match first
+                let editedPlot = feats.find(f => (f.properties as any).id === plotId);
+                // Fallback: try matching by string comparison
+                if (!editedPlot) {
+                    editedPlot = feats.find(f => String((f.properties as any).id) === String(plotId));
+                }
                 if (editedPlot) {
                     visibleFeats = [editedPlot];
-                    hiddenFeats = feats.filter(f => (f.properties as any).id !== plotId);
+                    hiddenFeats = feats.filter(f => (f.properties as any).id !== (editedPlot as GeoJSON.Feature).properties?.id);
+                } else {
+                    // plotId specified but no match found — show only first plot to avoid showing all
+                    console.warn("[AUTO-LOAD] plotId not found in project plots, showing first plot. plotId:", plotId, "available ids:", feats.map(f => (f.properties as any).id));
+                    visibleFeats = feats.slice(0, 1);
+                    hiddenFeats = feats.slice(1);
                 }
             }
 
