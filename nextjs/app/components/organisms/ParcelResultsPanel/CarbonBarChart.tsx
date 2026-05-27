@@ -39,6 +39,7 @@ export type BarPoint = {
   cycle: number;
   cycleAge: number;
   errorMargin: number;
+  isAgeValid?: boolean;
 };
 
 export function profileToBarPoints(profile: YearlyEstimate[], baseAge: number = 0): BarPoint[] {
@@ -56,6 +57,7 @@ export function profileToBarPoints(profile: YearlyEstimate[], baseAge: number = 
       cycle: Math.floor(yearAt / 7),
       cycleAge: age,
       errorMargin: item.stocks.ci,
+      isAgeValid: (item.age != null && !isNaN(item.age)),
     };
   });
 }

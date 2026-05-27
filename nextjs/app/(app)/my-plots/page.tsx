@@ -962,8 +962,8 @@ function ProjectCarbonSummary({ plots, isMobile }: { plots: SavedPlot[]; isMobil
   const [isExpanded, setIsExpanded] = useState(false);
   const currentYearBE = new Date().getFullYear() + 543;
 
-  const { combinedPts, totalNow, ciNow } = useMemo(() => {
-    const sumMap = new Map<number, { co2: number; sumLinearCi: number; age: number; count: number }>();
+  const { combinedPts, totalNow, ciNow, showAggregateAge } = useMemo(() => {
+    const sumMap = new Map<number, { co2: number; sumLinearCi: number; totalValidAge: number; validAgeCount: number; fallbackAgeAccum: number; fallbackCount: number; }>();
     let fallbackTotal = 0;
     let fallbackLinearCi = 0;
     let minLength = Infinity;
@@ -990,13 +990,23 @@ function ProjectCarbonSummary({ plots, isMobile }: { plots: SavedPlot[]; isMobil
         continue;
       }
 
+      if (pts.length > 0) {
+        minLength = Math.min(minLength, pts.length);
+      }
+
       for (const p of pts) {
-        const e = sumMap.get(p.yearBE) ?? { co2: 0, sumLinearCi: 0, age: 0, count: 0 };
+        const e = sumMap.get(p.yearBE) ?? { co2: 0, sumLinearCi: 0, totalValidAge: 0, validAgeCount: 0, fallbackAgeAccum: 0, fallbackCount: 0 };
         e.co2 += Math.floor(p.co2 || 0);
         // Avoid floating point precision issues by multiplying by 10 and rounding
         e.sumLinearCi = Math.round((e.sumLinearCi + Math.floor((p.ci || 0) * 10) / 10) * 10) / 10;
-        e.age += p.age;
-        e.count += 1;
+        
+        if (p.isAgeValid) {
+          e.totalValidAge += p.age;
+          e.validAgeCount += 1;
+        } else {
+          e.fallbackAgeAccum += p.age;
+          e.fallbackCount += 1;
+        }
         sumMap.set(p.yearBE, e);
       }
     }
@@ -1005,18 +1015,27 @@ function ProjectCarbonSummary({ plots, isMobile }: { plots: SavedPlot[]; isMobil
     // Truncate the combined graph to the length of the shortest plot's graph
     const validSorted = minLength !== Infinity ? sorted.slice(0, minLength) : sorted;
 
-    const combinedPts: BarPoint[] = validSorted.map(([yearBE, d], i) => ({
-      age: Math.round(d.age / d.count), yearBE, year_at: i,
-      co2: d.co2, ci: d.sumLinearCi,
-      gainValue: i > 0 ? d.co2 - validSorted[i - 1][1].co2 : 0,
-      gainCi: 0, cycle: Math.floor(i / 7), cycleAge: Math.round(d.age / d.count), errorMargin: d.sumLinearCi,
-    }));
+    const combinedPts: BarPoint[] = validSorted.map(([yearBE, d], i) => {
+      const avgAge = d.validAgeCount > 0 ? Math.round(d.totalValidAge / d.validAgeCount) : Math.round(d.fallbackAgeAccum / (d.fallbackCount || 1));
+      return {
+        age: avgAge, yearBE, year_at: i,
+        co2: d.co2, ci: d.sumLinearCi,
+        gainValue: i > 0 ? d.co2 - validSorted[i - 1][1].co2 : 0,
+        gainCi: 0, cycle: Math.floor(i / 7), cycleAge: avgAge, errorMargin: d.sumLinearCi,
+        isAgeValid: d.validAgeCount > 0
+      };
+    });
 
-    const currentPt = combinedPts.find(p => p.yearBE === currentYearBE);
+    const showAggregateAge = plots.some(plot => 
+      (plot.plantYearBE && plot.plantYearBE > 0) || (plot.carbonProfile?.some(p => p.age != null) ?? false)
+    );
+
+    const currentPt = combinedPts.length > 0 ? combinedPts[0] : null;
     return {
       combinedPts,
       totalNow: (currentPt?.co2 ?? 0) + fallbackTotal,
       ciNow: currentPt ? currentPt.ci : fallbackLinearCi,
+      showAggregateAge
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [plots]);
@@ -1062,10 +1081,12 @@ function ProjectCarbonSummary({ plots, isMobile }: { plots: SavedPlot[]; isMobil
         </div>
       </div>
 
-      {/* Chart Section - mimics Step 3 total layout exactly */}
+      {/* Expanded Chart Area */}
       {isExpanded && combinedPts.length > 0 && (
-        <div style={{ animation: "fadeIn 0.3s ease" }}>
-          <CarbonBarChart pts={combinedPts} isMobile={isMobile} narrowMode={!isMobile} showAge={false} title="ปริมาณคาร์บอนกักเก็บ (tCO₂eq)" />
+        <div style={{ marginTop: 20, paddingTop: 20, borderTop: "1px dashed #e2e8f0", display: "flex", justifyContent: "center" }}>
+          <div style={{ width: "100%", maxWidth: 680, animation: "fadeIn 0.3s ease" }}>
+            <CarbonBarChart pts={combinedPts} isMobile={isMobile} narrowMode={!isMobile} showAge={showAggregateAge} title="ปริมาณคาร์บอนกักเก็บ (tCO₂eq)" />
+          </div>
         </div>
       )}
     </div>
@@ -1641,12 +1662,36 @@ export default function MyPlotsPage() {
           geom = plot.boundaryGeojson as GeoJSON.Geometry;
         }
 
+        const luFeatures = plot.backendData?.lu_polygon || [];
+        const luChecked = plot.luChecked || { A: true, A302: true };
+        
+        let combinedGeom = geom;
+        if (luFeatures.length > 0) {
+            const allRings: GeoJSON.Position[][][] = [];
+            for (const feat of luFeatures) {
+                const code = (feat as any).lu_class as string | undefined;
+                const P = code ? code.charAt(0).toUpperCase() : "";
+                if (!code || luChecked[code] || luChecked[P] || code === "A302") {
+                    const fGeom = feat.geometry as GeoJSON.Polygon | GeoJSON.MultiPolygon;
+                    if (fGeom.type === "Polygon") allRings.push(fGeom.coordinates);
+                    else if (fGeom.type === "MultiPolygon") allRings.push(...fGeom.coordinates);
+                }
+            }
+            if (allRings.length > 0) {
+                combinedGeom = allRings.length === 1
+                    ? { type: "Polygon", coordinates: allRings[0] }
+                    : { type: "MultiPolygon", coordinates: allRings };
+            }
+        }
+
         const userYearBE = plot.backendData?.form?.plantYear ? parseInt(plot.backendData.form.plantYear) : 0;
+        const backendYearBE = plot.plantYearBE || 0;
+        const finalPlantYearBE = userYearBE > 0 ? userYearBE : (backendYearBE > 0 ? backendYearBE : 0);
 
         return {
           id: plot.id,
-          geometry: geom,
-          year_of_planting: userYearBE > 0 ? userYearBE - 543 : null,
+          geometry: combinedGeom,
+          year_of_planting: finalPlantYearBE > 0 ? finalPlantYearBE - 543 : null,
           rubber_clone: plot.variety || null,
           tree_count: plot.trees || null,
           spacing_system: plot.spacing || null,
@@ -2024,7 +2069,16 @@ export default function MyPlotsPage() {
                         <div style={{ width: 32, height: 32, borderRadius: "50%", background: "linear-gradient(135deg, #10b981 0%, #047857 100%)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, fontWeight: 900, boxShadow: "0 2px 8px rgba(16,185,129,0.35)", flexShrink: 0 }}>
                           {gIdx + 1}
                         </div>
-                        <h3 style={{ margin: 0, fontSize: isMobile ? 20 : 22, fontWeight: 800, color: "#064e3b" }}>{group.projectName !== "ไม่มีชื่อโครงการ" ? `โครงการ ${group.projectName}` : "ไม่มีชื่อโครงการ"}</h3>
+                        <h3 style={{ margin: 0, fontSize: isMobile ? 22 : 26, fontWeight: 800, color: "#064e3b" }}>
+                          {group.projectName !== "ไม่มีชื่อโครงการ" ? (
+                            <>
+                              <span style={{ color: "#64748b", fontWeight: 700, fontSize: isMobile ? 18 : 20, marginRight: 6 }}>โครงการ</span>
+                              {group.projectName}
+                            </>
+                          ) : (
+                            <span style={{ color: "#64748b" }}>ไม่มีชื่อโครงการ</span>
+                          )}
+                        </h3>
                       </div>
                       <div style={{ display: "flex", flexWrap: "wrap", gap: 12, color: "#64748b", fontSize: 15, fontWeight: 500 }}>
                         <span><i className="bi bi-map-fill me-1" style={{ color: "#0ea5e9" }} /> {group.plots.length} แปลง</span>
