@@ -2471,8 +2471,8 @@ function MapDrawContent() {
                         animation: "pulse-soft 2s infinite"
                       }}>
                         <div style={{
-                          width: isMobile() ? "48px" : "36px", 
-                          height: isMobile() ? "48px" : "36px", 
+                          width: isMobile() ? "48px" : "36px",
+                          height: isMobile() ? "48px" : "36px",
                           borderRadius: "50%",
                           background: "rgba(220, 38, 38, 0.1)", color: "#dc2626",
                           display: "flex", alignItems: "center", justifyContent: "center",
@@ -2800,20 +2800,20 @@ function MapDrawContent() {
           }}>
             <div style={{
               width: 56, height: 56, borderRadius: "50%",
-              background: "#fef08a",
-              color: "#ca8a04",
+              background: "rgba(220,38,38,0.1)",
+              color: "#dc2626",
               display: "flex", alignItems: "center", justifyContent: "center",
               fontSize: 28, margin: "0 auto 16px"
             }}>
               <i className="bi bi-exclamation-triangle-fill" />
             </div>
-            <h3 style={{ fontSize: 18, fontWeight: 800, color: "#0f172a", marginBottom: 8, lineHeight: 1.3 }}>
+            <h3 style={{ fontSize: 18, fontWeight: 800, color: "#dc2626", marginBottom: 8, lineHeight: 1.3 }}>
               {user ? "เริ่มโครงการใหม่หรือไม่?" : "แน่ใจหรือไม่?"}
             </h3>
             <p style={{ fontSize: 14, color: "#475569", lineHeight: 1.5, marginBottom: 24 }}>
               {user
-                ? "ต้องการที่จะเริ่มกำหนดขอบเขตและสร้างโครงการใหม่ใช่หรือไม่?"
-                : "หากกลับไปที่ขั้นตอนกำหนดพื้นที่ ข้อมูลที่ทำไว้ทั้งหมดจะหายไป คุณแน่ใจหรือไม่ที่จะดำเนินการต่อ?"}
+                ? "ต้องการที่จะเริ่มกำหนดขอบเขตและสร้างโครงการใหม่"
+                : "หากกลับไปข้อมูลที่ทำไว้จะหายไป"}
             </p>
             <div style={{ display: "flex", gap: 12 }}>
               <button
@@ -2831,7 +2831,7 @@ function MapDrawContent() {
                 onClick={handleConfirmStep1}
                 style={{
                   flex: 1, padding: "12px", borderRadius: 12,
-                  background: "#ca8a04", color: "#fff",
+                  background: "#dc2626", color: "#fff",
                   border: "none", fontSize: 15, fontWeight: 700,
                   cursor: "pointer", transition: "all 0.2s"
                 }}
