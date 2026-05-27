@@ -866,6 +866,7 @@ function PlotMiniMap({ plot, isMobile, index }: { plot: SavedPlot; isMobile: boo
 }
 
 function ProjectCarbonSummary({ plots, isMobile }: { plots: SavedPlot[]; isMobile: boolean }) {
+  const [isExpanded, setIsExpanded] = useState(true);
   const currentYearBE = new Date().getFullYear() + 543;
 
   const { combinedPts, totalNow, ciNow } = useMemo(() => {
@@ -927,7 +928,20 @@ function ProjectCarbonSummary({ plots, isMobile }: { plots: SavedPlot[]; isMobil
       marginBottom: 4,
     }}>
       {/* summary number row */}
-      <div style={{ textAlign: "center", marginBottom: combinedPts.length > 0 ? 10 : 0 }}>
+      <div 
+        onClick={() => combinedPts.length > 0 && setIsExpanded(!isExpanded)}
+        style={{ 
+          textAlign: "center", 
+          marginBottom: (isExpanded && combinedPts.length > 0) ? 10 : 0, 
+          position: "relative",
+          cursor: combinedPts.length > 0 ? "pointer" : "default" 
+        }}
+      >
+        {combinedPts.length > 0 && (
+          <div style={{ position: "absolute", right: 0, top: "50%", transform: "translateY(-50%)" }}>
+            <i className={`bi bi-chevron-${isExpanded ? 'up' : 'down'}`} style={{ color: "#059669", fontSize: 16 }} />
+          </div>
+        )}
         <div style={{ fontSize: isMobile ? 11 : 12, color: "#059669", fontWeight: 600, marginBottom: 4, display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }}>
           <i className="bi bi-cloud-fill" />
           ปริมาณคาร์บอนเครดิตรวม ณ ปีปัจจุบัน
@@ -945,7 +959,7 @@ function ProjectCarbonSummary({ plots, isMobile }: { plots: SavedPlot[]; isMobil
         </div>
       </div>
       {/* chart — full width on desktop for better widescreen layout */}
-      {combinedPts.length > 0 && (
+      {isExpanded && combinedPts.length > 0 && (
         <div style={{ width: "100%" }}>
           <CarbonBarChart pts={combinedPts} isMobile={isMobile} title="ปริมาณคาร์บอนกักเก็บ (tCO₂eq)" narrowMode={false} />
         </div>
