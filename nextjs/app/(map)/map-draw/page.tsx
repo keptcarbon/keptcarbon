@@ -35,7 +35,6 @@ function MapDrawContent() {
   const [selectedRegion, setSelectedRegion] = useState("");
   const [selectedProvince, setSelectedProvince] = useState("");
 
-  // Toggle body class for full-screen layout
   useEffect(() => {
     document.body.classList.add("map-draw-active");
     return () => document.body.classList.remove("map-draw-active");
@@ -1610,14 +1609,31 @@ function MapDrawContent() {
         const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&countrycodes=th&limit=1&q=${encodeURIComponent("จังหวัด" + selectedProvince)}`);
         const data = await res.json();
         if (data && data.length > 0) {
-          map.flyTo({ center: [parseFloat(data[0].lon), parseFloat(data[0].lat)], zoom: 10, pitch: 0, bearing: 0, duration: 2500 });
+          map.flyTo({ 
+            center: [parseFloat(data[0].lon), parseFloat(data[0].lat)], 
+            zoom: 10, 
+            pitch: 0, 
+            bearing: 0, 
+            duration: 3000,
+            essential: true,
+            curve: 1.42
+          });
         }
       } catch (err) {
         console.error(err);
       }
       setSearchLoading(false);
-    } else if (map.getZoom() < 8) {
-      map.flyTo({ center: [101.258, 12.682], zoom: 10, pitch: 0, bearing: 0, duration: 2000 });
+    } else if (map.getZoom() < 10) {
+      // Default to the center of Rayong province
+      map.flyTo({ 
+        center: [101.35, 12.80], 
+        zoom: 9.5, 
+        pitch: 0, 
+        bearing: 0, 
+        duration: 3000,
+        essential: true,
+        curve: 1.42
+      });
     }
   };
 
@@ -2453,58 +2469,62 @@ function MapDrawContent() {
                         <i className="bi bi-exclamation-circle-fill" /> กรุณากรอกชื่อโครงการเพื่อดำเนินการต่อ
                       </div>
                     )}
-                  </div>
-                )}
 
-                {/* Region / Province Selection */}
-                {!drawing && drawnParcels.length === 0 && (
-                  <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 16 }}>
-                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                      <label style={{ fontSize: 13, fontWeight: 700, color: "#0f172a" }}>ภูมิภาค</label>
-                      <select
-                        className="prp-input"
-                        style={{
-                          padding: "10px 12px",
-                          borderRadius: 10,
-                          border: "1px solid #cbd5e1",
-                          fontSize: 14,
-                          background: "#fff"
-                        }}
-                        value={selectedRegion}
-                        onChange={(e) => {
-                          setSelectedRegion(e.target.value);
-                          setSelectedProvince("");
-                        }}
-                      >
-                        <option value="">-- เลือกภาค --</option>
-                        {REGIONS_DATA.map(r => (
-                          <option key={r.name} value={r.name}>{r.name}</option>
-                        ))}
-                      </select>
-                    </div>
-                    
-                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                      <label style={{ fontSize: 13, fontWeight: 700, color: "#0f172a" }}>จังหวัดเป้าหมาย</label>
-                      <select
-                        className="prp-input"
-                        style={{
-                          padding: "10px 12px",
-                          borderRadius: 10,
-                          border: "1px solid #cbd5e1",
-                          fontSize: 14,
-                          background: selectedRegion ? "#fff" : "#f1f5f9",
-                          color: selectedRegion ? "#0f172a" : "#94a3b8"
-                        }}
-                        value={selectedProvince}
-                        onChange={(e) => setSelectedProvince(e.target.value)}
-                        disabled={!selectedRegion}
-                      >
-                        <option value="">-- เลือกจังหวัด --</option>
-                        {selectedRegion && REGIONS_DATA.find(r => r.name === selectedRegion)?.provinces.map(p => (
-                          <option key={p} value={p}>{p}</option>
-                        ))}
-                      </select>
-                    </div>
+                    {/* Region / Province Selection */}
+                    {drawnParcels.length === 0 && (
+                      <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 16 }}>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                          <label style={{ fontSize: 13, fontWeight: 700, color: "#059669", display: "flex", alignItems: "center", gap: 6 }}>
+                            <i className="bi bi-geo-alt" /> ภูมิภาค
+                          </label>
+                          <select
+                            className="prp-input"
+                            style={{
+                              padding: "10px 12px",
+                              borderRadius: 10,
+                              border: "1px solid #cbd5e1",
+                              fontSize: 14,
+                              background: "#fff"
+                            }}
+                            value={selectedRegion}
+                            onChange={(e) => {
+                              setSelectedRegion(e.target.value);
+                              setSelectedProvince("");
+                            }}
+                          >
+                            <option value="">-- เลือกภาค --</option>
+                            {REGIONS_DATA.map(r => (
+                              <option key={r.name} value={r.name}>{r.name}</option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                          <label style={{ fontSize: 13, fontWeight: 700, color: "#059669", display: "flex", alignItems: "center", gap: 6 }}>
+                            <i className="bi bi-pin-map" /> จังหวัด
+                          </label>
+                          <select
+                            className="prp-input"
+                            style={{
+                              padding: "10px 12px",
+                              borderRadius: 10,
+                              border: "1px solid #cbd5e1",
+                              fontSize: 14,
+                              background: selectedRegion ? "#fff" : "#f1f5f9",
+                              color: selectedRegion ? "#0f172a" : "#94a3b8"
+                            }}
+                            value={selectedProvince}
+                            onChange={(e) => setSelectedProvince(e.target.value)}
+                            disabled={!selectedRegion}
+                          >
+                            <option value="">-- เลือกจังหวัด --</option>
+                            {selectedRegion && REGIONS_DATA.find(r => r.name === selectedRegion)?.provinces.map(p => (
+                              <option key={p} value={p}>{p}</option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -2584,58 +2604,6 @@ function MapDrawContent() {
                     ) : (
                       /* ── Default: show instructions + start button ── */
                       <>
-
-                        {drawnParcels.length === 0 && (
-                          <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 16 }}>
-                            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                              <label style={{ fontSize: 13, fontWeight: 700, color: "#0f172a" }}>ภูมิภาค</label>
-                              <select
-                                className="prp-input"
-                                style={{
-                                  padding: "10px 12px",
-                                  borderRadius: 10,
-                                  border: "1px solid #cbd5e1",
-                                  fontSize: 14,
-                                  background: "#fff"
-                                }}
-                                value={selectedRegion}
-                                onChange={(e) => {
-                                  setSelectedRegion(e.target.value);
-                                  setSelectedProvince("");
-                                }}
-                              >
-                                <option value="">-- เลือกภาค --</option>
-                                {REGIONS_DATA.map(r => (
-                                  <option key={r.name} value={r.name}>{r.name}</option>
-                                ))}
-                              </select>
-                            </div>
-
-                            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                              <label style={{ fontSize: 13, fontWeight: 700, color: "#0f172a" }}>จังหวัดเป้าหมาย</label>
-                              <select
-                                className="prp-input"
-                                style={{
-                                  padding: "10px 12px",
-                                  borderRadius: 10,
-                                  border: "1px solid #cbd5e1",
-                                  fontSize: 14,
-                                  background: selectedRegion ? "#fff" : "#f1f5f9",
-                                  color: selectedRegion ? "#0f172a" : "#94a3b8"
-                                }}
-                                value={selectedProvince}
-                                onChange={(e) => setSelectedProvince(e.target.value)}
-                                disabled={!selectedRegion}
-                              >
-                                <option value="">-- เลือกจังหวัด --</option>
-                                {selectedRegion && REGIONS_DATA.find(r => r.name === selectedRegion)?.provinces.map(p => (
-                                  <option key={p} value={p}>{p}</option>
-                                ))}
-                              </select>
-                            </div>
-                          </div>
-                        )}
-
                         {drawnParcels.length === 0 && (
                           <ol className="mds-instr-list">
                             <li>คลิกปุ่ม <strong>&ldquo;เริ่มวาดแปลง&rdquo;</strong></li>
