@@ -999,7 +999,7 @@ function ProjectCarbonSummary({ plots, isMobile }: { plots: SavedPlot[]; isMobil
         e.co2 += Math.floor(p.co2 || 0);
         // Avoid floating point precision issues by multiplying by 10 and rounding
         e.sumLinearCi = Math.round((e.sumLinearCi + Math.floor((p.ci || 0) * 10) / 10) * 10) / 10;
-        
+
         if (p.isAgeValid) {
           e.totalValidAge += p.age;
           e.validAgeCount += 1;
@@ -1026,7 +1026,7 @@ function ProjectCarbonSummary({ plots, isMobile }: { plots: SavedPlot[]; isMobil
       };
     });
 
-    const showAggregateAge = plots.some(plot => 
+    const showAggregateAge = plots.some(plot =>
       (plot.plantYearBE && plot.plantYearBE > 0) || (plot.carbonProfile?.some(p => p.age != null) ?? false)
     );
 
@@ -1135,7 +1135,7 @@ function PlotCard({ plot, index, onDelete, onEdit, expanded, onToggle, isMobile 
   const ep = backendData.ep;
 
   const userEnteredYear = !!form?.plantYear;
-  const showPlotAge = !!form?.plantYear || (plot.carbonProfile?.some(p => p.age !== null) ?? false);
+  const showPlotAge = !!form?.plantYear || (plot.carbonProfile?.some(p => p.isAgeValid) ?? false);
   const yearParam = ep?.year_of_planting;
   const rawNotes: string[] = yearParam?.notes ?? yearParam?.note ?? [];
   const yearNotes = rawNotes.slice(0, 5);
@@ -1397,8 +1397,10 @@ function PlotCard({ plot, index, onDelete, onEdit, expanded, onToggle, isMobile 
               {/* Left side: Graph Section */}
               <div style={{ minWidth: 0, overflow: "hidden", height: "100%", display: "flex", flexDirection: "column", justifyContent: "center" }}>
                 {isProcessed && barPts.length > 0 ? (
-                  <div style={{ height: "100%", minHeight: 280 }}>
-                    <CarbonBarChart pts={barPts} isMobile={isMobile} showAge={showPlotAge} />
+                  <div style={{ height: "100%", minHeight: 280, display: "flex", justifyContent: "center", alignItems: "center" }}>
+                    <div style={{ width: "100%", maxWidth: 680 }}>
+                      <CarbonBarChart pts={barPts} isMobile={isMobile} narrowMode={!isMobile} showAge={showPlotAge} />
+                    </div>
                   </div>
                 ) : (
                   <div style={{ textAlign: "center", padding: "32px 20px", background: "linear-gradient(135deg, #fffbeb, #fef3c7)", borderRadius: 14, border: "1.5px dashed rgba(245,158,11,0.3)", color: "#92400e", fontSize: 14, height: "100%", display: "flex", flexDirection: "column", justifyContent: "center", minHeight: 280 }}>
@@ -1413,143 +1415,143 @@ function PlotCard({ plot, index, onDelete, onEdit, expanded, onToggle, isMobile 
 
               {/* Right side: Details Section — only shown after processing */}
               {isProcessed && (
-              <div style={{ display: "flex", flexDirection: "column", gap: 8, fontSize: 13, color: "#475569", height: "100%" }}>
-                <div style={{ padding: "12px 14px", background: "rgba(16,185,129,0.04)", borderRadius: 10, border: "1px solid rgba(16,185,129,0.15)", height: "100%" }}>
-                  {/* Header Section */}
-                  <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 12 }}>
-                    <span style={{ fontWeight: 700, color: "#047857", display: "flex", alignItems: "center", gap: 6, fontSize: 14 }}>
-                      <i className="bi bi-layers-fill" /> ข้อมูลที่ใช้ในการประมวลผล
-                    </span>
-                    {(plot.selectedAreaRai || plot.areaRai) > 0 && (
-                      <div style={{ fontSize: 12, color: "#475569", fontWeight: 600 }}>
-                        พื้นที่ที่เลือก: <strong style={{ color: "#0f172a" }}>{(plot.selectedAreaRai || plot.areaRai).toFixed(2)}</strong> ไร่
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Main Year Info (from user or value) */}
-                  <div style={{ marginBottom: yearNotes.length > 0 ? 12 : 0 }}>
-                    <div style={{ fontSize: 12, color: "#475569", fontWeight: 700, marginBottom: 8 }}>
-                      ปีที่เริ่มปลูกที่ใช้ในการคำนวณ{" "}
-                      {userEnteredYear ? (
-                        <span style={{ color: "#059669", fontWeight: 600 }}>
-                          (1 ปี:ข้อมูลที่ผู้ใช้ระบุ)
-                        </span>
-                      ) : yearBoxItems.length > 0 ? (
-                        <span style={{ color: "#059669", fontWeight: 600 }}>
-                          ({yearBoxItems.length} ปี:ข้อมูลอ้างอิงจากระบบ)
-                        </span>
-                      ) : (
-                        <span style={{ color: "#059669", fontWeight: 600 }}>
-                          (ข้อมูลอ้างอิงจากระบบ)
-                        </span>
+                <div style={{ display: "flex", flexDirection: "column", gap: 8, fontSize: 13, color: "#475569", height: "100%" }}>
+                  <div style={{ padding: "12px 14px", background: "rgba(16,185,129,0.04)", borderRadius: 10, border: "1px solid rgba(16,185,129,0.15)", height: "100%" }}>
+                    {/* Header Section */}
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 12 }}>
+                      <span style={{ fontWeight: 700, color: "#047857", display: "flex", alignItems: "center", gap: 6, fontSize: 14 }}>
+                        <i className="bi bi-layers-fill" /> ข้อมูลที่ใช้ในการประมวลผล
+                      </span>
+                      {(plot.selectedAreaRai || plot.areaRai) > 0 && (
+                        <div style={{ fontSize: 12, color: "#475569", fontWeight: 600 }}>
+                          พื้นที่ที่เลือก: <strong style={{ color: "#0f172a" }}>{(plot.selectedAreaRai || plot.areaRai).toFixed(2)}</strong> ไร่
+                        </div>
                       )}
                     </div>
-                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
-                      {userEnteredYear ? (
-                        <div style={{
-                          padding: "4px 10px",
-                          background: "rgba(100,116,139,0.06)",
-                          borderRadius: 8,
-                          border: "1px solid rgba(100,116,139,0.15)",
-                          fontWeight: 500,
-                          fontSize: 12,
-                          color: "#475569",
-                        }}>
-                          {displayYearBE ? `${displayYearBE}` : "—"}
+
+                    {/* Main Year Info (from user or value) */}
+                    <div style={{ marginBottom: yearNotes.length > 0 ? 12 : 0 }}>
+                      <div style={{ fontSize: 12, color: "#475569", fontWeight: 700, marginBottom: 8 }}>
+                        ปีที่เริ่มปลูกที่ใช้ในการคำนวณ{" "}
+                        {userEnteredYear ? (
+                          <span style={{ color: "#059669", fontWeight: 600 }}>
+                            (1 ปี:ข้อมูลที่ผู้ใช้ระบุ)
+                          </span>
+                        ) : yearBoxItems.length > 0 ? (
+                          <span style={{ color: "#059669", fontWeight: 600 }}>
+                            ({yearBoxItems.length} ปี:ข้อมูลอ้างอิงจากระบบ)
+                          </span>
+                        ) : (
+                          <span style={{ color: "#059669", fontWeight: 600 }}>
+                            (ข้อมูลอ้างอิงจากระบบ)
+                          </span>
+                        )}
+                      </div>
+                      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+                        {userEnteredYear ? (
+                          <div style={{
+                            padding: "4px 10px",
+                            background: "rgba(100,116,139,0.06)",
+                            borderRadius: 8,
+                            border: "1px solid rgba(100,116,139,0.15)",
+                            fontWeight: 500,
+                            fontSize: 12,
+                            color: "#475569",
+                          }}>
+                            {displayYearBE ? `${displayYearBE}` : "—"}
+                          </div>
+                        ) : yearBoxItems.length > 0 ? (
+                          <>
+                            {yearBoxItems.slice(0, expandYears ? yearBoxItems.length : 3).map((box, bi) => (
+                              <div key={bi} style={{
+                                padding: "4px 10px",
+                                background: "rgba(100,116,139,0.06)",
+                                borderRadius: 8,
+                                border: "1px solid rgba(100,116,139,0.15)",
+                                fontWeight: 500,
+                                fontSize: 12,
+                                color: "#475569",
+                              }}>
+                                {box.label.replace(/พ\.ศ\.\s*/g, '')}{box.pct > 0 ? ` (${box.pct}%)` : ""}
+                              </div>
+                            ))}
+                            {yearBoxItems.length > 3 && (
+                              <button
+                                onClick={() => setExpandYears(!expandYears)}
+                                style={{
+                                  border: "1px solid rgba(100,116,139,0.2)",
+                                  background: expandYears ? "rgba(226,232,240,0.8)" : "rgba(241,245,249,0.8)",
+                                  borderRadius: "50%",
+                                  width: 24, height: 24,
+                                  display: "flex", alignItems: "center", justifyContent: "center",
+                                  cursor: "pointer",
+                                  color: "#475569"
+                                }}
+                                title={expandYears ? "แสดงน้อยลง" : "แสดงทั้งหมด"}
+                              >
+                                <i className={`bi bi-${expandYears ? "dash" : "plus"}`} style={{ fontSize: 14, fontWeight: 800 }} />
+                              </button>
+                            )}
+                          </>
+                        ) : (
+                          <div style={{ fontSize: 12, color: "#475569" }}>—</div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Inner Box for yearNotes (สัดส่วนปีที่ปลูกที่ตรวจพบในแปลง) */}
+                    {yearNotes.length > 0 && (
+                      <div style={{ padding: "10px 12px", background: "rgba(255,255,255,0.6)", borderRadius: 8, border: "1px solid rgba(16,185,129,0.2)" }}>
+                        <div style={{ fontSize: 12, color: "#475569", fontWeight: 700, marginBottom: 6, display: "flex", alignItems: "center", gap: 6 }}>
+                          <i className="bi bi-pie-chart-fill" style={{ color: "#059669" }} /> สัดส่วนปีที่เริ่มปลูกที่ตรวจพบในแปลง:
                         </div>
-                      ) : yearBoxItems.length > 0 ? (
-                        <>
-                          {yearBoxItems.slice(0, expandYears ? yearBoxItems.length : 3).map((box, bi) => (
-                            <div key={bi} style={{
-                              padding: "4px 10px",
-                              background: "rgba(100,116,139,0.06)",
-                              borderRadius: 8,
-                              border: "1px solid rgba(100,116,139,0.15)",
-                              fontWeight: 500,
-                              fontSize: 12,
-                              color: "#475569",
-                            }}>
-                              {box.label.replace(/พ\.ศ\.\s*/g, '')}{box.pct > 0 ? ` (${box.pct}%)` : ""}
-                            </div>
-                          ))}
-                          {yearBoxItems.length > 3 && (
+                        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+                          {yearNotes.slice(0, expandNotes ? yearNotes.length : 3).map((note, ni) => {
+                            const beNote = convertYearNoteToBE(note);
+                            const displayNote = beNote;
+                            return (
+                              <div key={ni} style={{
+                                padding: "4px 8px",
+                                background: "rgba(100,116,139,0.04)",
+                                borderRadius: 6,
+                                border: "1px solid rgba(100,116,139,0.1)",
+                                fontWeight: 500,
+                                fontSize: 11,
+                                color: "#475569",
+                              }}>
+                                {displayNote.replace(/พ\.ศ\.\s*/g, '')}
+                              </div>
+                            );
+                          })}
+                          {yearNotes.length > 3 && (
                             <button
-                              onClick={() => setExpandYears(!expandYears)}
+                              onClick={() => setExpandNotes(!expandNotes)}
                               style={{
                                 border: "1px solid rgba(100,116,139,0.2)",
-                                background: expandYears ? "rgba(226,232,240,0.8)" : "rgba(241,245,249,0.8)",
+                                background: expandNotes ? "rgba(226,232,240,0.8)" : "rgba(241,245,249,0.8)",
                                 borderRadius: "50%",
-                                width: 24, height: 24,
+                                width: 22, height: 22,
                                 display: "flex", alignItems: "center", justifyContent: "center",
                                 cursor: "pointer",
                                 color: "#475569"
                               }}
-                              title={expandYears ? "แสดงน้อยลง" : "แสดงทั้งหมด"}
+                              title={expandNotes ? "แสดงน้อยลง" : "แสดงทั้งหมด"}
                             >
-                              <i className={`bi bi-${expandYears ? "dash" : "plus"}`} style={{ fontSize: 14, fontWeight: 800 }} />
+                              <i className={`bi bi-${expandNotes ? "dash" : "plus"}`} style={{ fontSize: 12, fontWeight: 800 }} />
                             </button>
                           )}
-                        </>
-                      ) : (
-                        <div style={{ fontSize: 12, color: "#475569" }}>—</div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Inner Box for yearNotes (สัดส่วนปีที่ปลูกที่ตรวจพบในแปลง) */}
-                  {yearNotes.length > 0 && (
-                    <div style={{ padding: "10px 12px", background: "rgba(255,255,255,0.6)", borderRadius: 8, border: "1px solid rgba(16,185,129,0.2)" }}>
-                      <div style={{ fontSize: 12, color: "#475569", fontWeight: 700, marginBottom: 6, display: "flex", alignItems: "center", gap: 6 }}>
-                        <i className="bi bi-pie-chart-fill" style={{ color: "#059669" }} /> สัดส่วนปีที่เริ่มปลูกที่ตรวจพบในแปลง:
+                        </div>
                       </div>
-                      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
-                        {yearNotes.slice(0, expandNotes ? yearNotes.length : 3).map((note, ni) => {
-                          const beNote = convertYearNoteToBE(note);
-                          const displayNote = beNote;
-                          return (
-                            <div key={ni} style={{
-                              padding: "4px 8px",
-                              background: "rgba(100,116,139,0.04)",
-                              borderRadius: 6,
-                              border: "1px solid rgba(100,116,139,0.1)",
-                              fontWeight: 500,
-                              fontSize: 11,
-                              color: "#475569",
-                            }}>
-                              {displayNote.replace(/พ\.ศ\.\s*/g, '')}
-                            </div>
-                          );
-                        })}
-                        {yearNotes.length > 3 && (
-                          <button
-                            onClick={() => setExpandNotes(!expandNotes)}
-                            style={{
-                              border: "1px solid rgba(100,116,139,0.2)",
-                              background: expandNotes ? "rgba(226,232,240,0.8)" : "rgba(241,245,249,0.8)",
-                              borderRadius: "50%",
-                              width: 22, height: 22,
-                              display: "flex", alignItems: "center", justifyContent: "center",
-                              cursor: "pointer",
-                              color: "#475569"
-                            }}
-                            title={expandNotes ? "แสดงน้อยลง" : "แสดงทั้งหมด"}
-                          >
-                            <i className={`bi bi-${expandNotes ? "dash" : "plus"}`} style={{ fontSize: 12, fontWeight: 800 }} />
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  )}
+                    )}
 
-                  {/* Common params: variety, spacing, tree count */}
-                  <div style={{ display: "flex", flexDirection: "column", gap: 3, marginTop: 8, paddingTop: 10, borderTop: "1px dashed rgba(16,185,129,0.2)" }}>
-                    {displayVariety && <div>• พันธุ์ยาง: <strong style={{ color: "#0f172a" }}>{displayVariety}</strong> {varietyDesc && <span style={{ color: "#64748b", fontSize: 12 }}>{varietyDesc}</span>}</div>}
-                    {displaySpacing && <div>• ระยะปลูก: <strong style={{ color: "#0f172a" }}>{displaySpacing}</strong> {spacingDesc && <span style={{ color: "#64748b", fontSize: 12 }}>{spacingDesc}</span>}</div>}
-                    {displayTreeCount > 0 && <div>• จำนวนต้น: <strong style={{ color: "#0f172a" }}>{displayTreeCount.toLocaleString("th-TH")}</strong> ต้น {treeCountDesc && <span style={{ color: "#64748b", fontSize: 12 }}>{treeCountDesc}</span>}</div>}
+                    {/* Common params: variety, spacing, tree count */}
+                    <div style={{ display: "flex", flexDirection: "column", gap: 3, marginTop: 8, paddingTop: 10, borderTop: "1px dashed rgba(16,185,129,0.2)" }}>
+                      {displayVariety && <div>• พันธุ์ยาง: <strong style={{ color: "#0f172a" }}>{displayVariety}</strong> {varietyDesc && <span style={{ color: "#64748b", fontSize: 12 }}>{varietyDesc}</span>}</div>}
+                      {displaySpacing && <div>• ระยะปลูก: <strong style={{ color: "#0f172a" }}>{displaySpacing}</strong> {spacingDesc && <span style={{ color: "#64748b", fontSize: 12 }}>{spacingDesc}</span>}</div>}
+                      {displayTreeCount > 0 && <div>• จำนวนต้น: <strong style={{ color: "#0f172a" }}>{displayTreeCount.toLocaleString("th-TH")}</strong> ต้น {treeCountDesc && <span style={{ color: "#64748b", fontSize: 12 }}>{treeCountDesc}</span>}</div>}
+                    </div>
                   </div>
                 </div>
-              </div>
               )}
             </div>
           )}
@@ -1664,37 +1666,36 @@ export default function MyPlotsPage() {
 
         const luFeatures = plot.backendData?.lu_polygon || [];
         const luChecked = plot.luChecked || { A: true, A302: true };
-        
+
         let combinedGeom = geom;
         if (luFeatures.length > 0) {
-            const allRings: GeoJSON.Position[][][] = [];
-            for (const feat of luFeatures) {
-                const code = (feat as any).lu_class as string | undefined;
-                const P = code ? code.charAt(0).toUpperCase() : "";
-                if (!code || luChecked[code] || luChecked[P] || code === "A302") {
-                    const fGeom = feat.geometry as GeoJSON.Polygon | GeoJSON.MultiPolygon;
-                    if (fGeom.type === "Polygon") allRings.push(fGeom.coordinates);
-                    else if (fGeom.type === "MultiPolygon") allRings.push(...fGeom.coordinates);
-                }
+          const allRings: GeoJSON.Position[][][] = [];
+          for (const feat of luFeatures) {
+            const code = (feat as any).lu_class as string | undefined;
+            const P = code ? code.charAt(0).toUpperCase() : "";
+            if (!code || luChecked[code] || luChecked[P] || code === "A302") {
+              const fGeom = feat.geometry as GeoJSON.Polygon | GeoJSON.MultiPolygon;
+              if (fGeom.type === "Polygon") allRings.push(fGeom.coordinates);
+              else if (fGeom.type === "MultiPolygon") allRings.push(...fGeom.coordinates);
             }
-            if (allRings.length > 0) {
-                combinedGeom = allRings.length === 1
-                    ? { type: "Polygon", coordinates: allRings[0] }
-                    : { type: "MultiPolygon", coordinates: allRings };
-            }
+          }
+          if (allRings.length > 0) {
+            combinedGeom = allRings.length === 1
+              ? { type: "Polygon", coordinates: allRings[0] }
+              : { type: "MultiPolygon", coordinates: allRings };
+          }
         }
 
         const userYearBE = plot.backendData?.form?.plantYear ? parseInt(plot.backendData.form.plantYear) : 0;
-        const backendYearBE = plot.plantYearBE || 0;
-        const finalPlantYearBE = userYearBE > 0 ? userYearBE : (backendYearBE > 0 ? backendYearBE : 0);
 
         return {
           id: plot.id,
           geometry: combinedGeom,
-          year_of_planting: finalPlantYearBE > 0 ? finalPlantYearBE - 543 : null,
-          rubber_clone: plot.variety || null,
-          tree_count: plot.trees || null,
-          spacing_system: plot.spacing || null,
+          // Only send to backend if the user EXPLICITLY filled it out in the form
+          year_of_planting: userYearBE > 0 ? userYearBE - 543 : null,
+          rubber_clone: plot.backendData?.form?.variety || null,
+          tree_count: plot.backendData?.form?.treeCount ? parseInt(plot.backendData.form.treeCount) : null,
+          spacing_system: plot.backendData?.form?.spacing || null,
           selected_lu_classes: Object.entries(plot.luChecked || {})
             .filter(([_, on]) => on)
             .map(([cls]) => cls),

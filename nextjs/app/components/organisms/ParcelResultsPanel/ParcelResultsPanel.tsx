@@ -976,15 +976,12 @@ export function ParcelResultsPanel({
             }
 
 
-            const backendYearBE = plots[idx]?.plantYearBE || 0;
             const userYearBE = form.plantYear ? parseInt(form.plantYear) : 0;
-
-            const finalPlantYearBE = userYearBE > 0 ? userYearBE : (backendYearBE > 0 ? backendYearBE : 0);
 
             polygons.push({
                 id: `plot-${idx}`,
                 geometry: combinedGeom,
-                year_of_planting: finalPlantYearBE > 0 ? finalPlantYearBE - 543 : null, // null = ให้ backend ดึงจาก raster
+                year_of_planting: userYearBE > 0 ? userYearBE - 543 : null, // null = ให้ backend ดึงจาก raster
                 rubber_clone: (form.variety && SUPPORTED_CLONES.includes(form.variety)) ? form.variety : null,
                 tree_count: form.treeCount ? (parseInt(form.treeCount) || null) : null,
                 spacing_system: form.spacing || null,
