@@ -1404,10 +1404,20 @@ function PlotCard({ plot, index, onDelete, onEdit, expanded, onToggle, isMobile 
                   {/* Main Year Info (from user or value) */}
                   <div style={{ marginBottom: yearNotes.length > 0 ? 12 : 0 }}>
                     <div style={{ fontSize: 12, color: "#475569", fontWeight: 700, marginBottom: 8 }}>
-                      ปีที่เริ่มปลูกที่ใช้ในการคำนวณ {userEnteredYear ? "(1 ปี)" : (yearBoxItems.length > 0 ? `(${yearBoxItems.length} ปี)` : "")} :{" "}
-                      <span style={{ color: "#059669", fontWeight: 600, marginLeft: 4 }}>
-                        {userEnteredYear ? "ข้อมูลที่ผู้ใช้ระบุ" : "ข้อมูลอ้างอิงจากระบบ"}
-                      </span>
+                      ปีที่เริ่มปลูกที่ใช้ในการคำนวณ{" "}
+                      {userEnteredYear ? (
+                        <span style={{ color: "#059669", fontWeight: 600 }}>
+                          (1 ปี:ข้อมูลที่ผู้ใช้ระบุ)
+                        </span>
+                      ) : yearBoxItems.length > 0 ? (
+                        <span style={{ color: "#059669", fontWeight: 600 }}>
+                          ({yearBoxItems.length} ปี:ข้อมูลอ้างอิงจากระบบ)
+                        </span>
+                      ) : (
+                        <span style={{ color: "#059669", fontWeight: 600 }}>
+                          (ข้อมูลอ้างอิงจากระบบ)
+                        </span>
+                      )}
                     </div>
                     <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
                       {userEnteredYear ? (
