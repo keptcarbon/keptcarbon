@@ -239,7 +239,8 @@ function getFriendlyErrorMessage(err: unknown, plots: PlotInfo[], plotForms: Plo
 
 function computePlot(feat: GeoJSON.Feature): PlotInfo {
     const p = (feat.properties ?? {}) as Record<string, unknown>;
-    const areaRai = parseRai(p.rai ?? p.grow_area ?? p.areaRai);
+    const rawM2 = (p.area_m2 as number) || 0;
+    const areaRai = rawM2 > 0 ? rawM2 / 1600 : parseRai(p.rai ?? p.grow_area ?? p.areaRai);
 
     let bPlantYear = Number(p.grow_year || 0);
     let bAge = Number(p.rubber_age || 0);
@@ -343,10 +344,12 @@ function PlotDetailCard({
     form,
     cr,
     ep,
+    areaRai,
 }: {
     form: PlotFormData | undefined;
     cr: CarbonResult;
     ep: EstimatedParameters | null | undefined;
+    areaRai?: number;
 }) {
     const [expandYears, setExpandYears] = useState(false);
     const [expandNotes, setExpandNotes] = useState(false);
@@ -398,6 +401,11 @@ function PlotDetailCard({
                     <span style={{ fontWeight: 700, color: "#047857", display: "flex", alignItems: "center", gap: 6, fontSize: 14 }}>
                         <i className="bi bi-layers-fill" /> ข้อมูลที่ใช้ในการประมวลผล
                     </span>
+                    {areaRai !== undefined && (
+                        <div style={{ fontSize: 12, color: "#475569", fontWeight: 600 }}>
+                            พื้นที่: <strong style={{ color: "#0f172a" }}>{areaRai.toFixed(2)}</strong> ไร่
+                        </div>
+                    )}
                 </div>
 
                 {/* Main Year Info (from user or value) */}
@@ -547,6 +555,7 @@ export function ParcelResultsPanel({
 }: Props) {
     const [expandedIdx, setExpandedIdx] = useState<number | null>(0);
     const [expandedResultIdx, setExpandedResultIdx] = useState<number | "total" | null>(null);
+    const [backendResponses, setBackendResponses] = useState<EstimationResponse[] | null>(null);
     const { user } = useAuth();
 
     const plots = useMemo(() => parcelFeatures.map(computePlot), [parcelFeatures]);
@@ -792,7 +801,6 @@ export function ParcelResultsPanel({
     // (removed auto-collapse: expanded content stays visible when selecting status)
 
     const [carbonResults, setCarbonResults] = useState<CarbonResult[]>([]);
-    const [backendResponses, setBackendResponses] = useState<EstimationResponse[] | null>(null);
     const [processingCarbon, setProcessingCarbon] = useState(false);
     const [carbonErr, setCarbonErr] = useState<string | null>(null);
     const [deleteConfirmIdx, setDeleteConfirmIdx] = useState<number | null>(null);
@@ -999,8 +1007,33 @@ export function ParcelResultsPanel({
                 const totalAreaRai = plotFeats.reduce((s, f) => s + (((f.properties ?? {}) as Record<string, unknown>).area_m2 as number || 0) / 1600, 0);
 
                 // --- Calculate real land use breakdown for this plot ---
-                const totalPlotSelectedM2 = plotFeats.reduce((s, f) => s + (((f.properties ?? {}) as Record<string, unknown>).area_m2 as number || 0), 0);
-                const totalPlotSelectedRai = totalPlotSelectedM2 / 1600;
+                const luData = plotsLuRealData[idx] || {};
+                const activeLeafIds: string[] = [];
+                const allFormKeys = Object.keys(form.luChecked || {});
+                const allDataKeys = Object.keys(luData);
+                const allKeys = new Set([...allDataKeys, ...allFormKeys]);
+
+                allKeys.forEach(k => {
+                    if (k === "A") return;
+                    const isSubA = k.startsWith("A") && k !== "A";
+                    const isTopLevel = !k.startsWith("A");
+
+                    if (isSubA) {
+                        const isChecked = k === "A302" || !!form.luChecked?.[k];
+                        if (isChecked) activeLeafIds.push(k);
+                    } else if (isTopLevel) {
+                        const isChecked = !!form.luChecked?.[k];
+                        if (isChecked) activeLeafIds.push(k);
+                    }
+                });
+
+                const hasCheckedA = activeLeafIds.some(id => id.startsWith("A"));
+                if (!hasCheckedA && luData["A"]) {
+                    activeLeafIds.push("A");
+                }
+
+                const totalPlotSelectedRai = activeLeafIds.reduce((sum, cls) => sum + (luData[cls]?.rai || 0), 0);
+                const totalPlotSelectedM2 = totalPlotSelectedRai * 1600;
 
                 const classM2s: Record<string, number> = {};
                 const classDescs: Record<string, string> = {};
@@ -2150,7 +2183,7 @@ export function ParcelResultsPanel({
 
                                         {/* Plot details */}
                                         <div style={{ padding: "8px 14px 14px" }}>
-                                            <PlotDetailCard form={form} cr={cr} ep={ep || null} />
+                                            <PlotDetailCard form={form} cr={cr} ep={ep || null} areaRai={cr.selectedAreaRai} />
                                         </div>
                                     </>
                                 )}

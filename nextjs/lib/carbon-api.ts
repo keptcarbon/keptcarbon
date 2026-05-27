@@ -51,6 +51,7 @@ export interface EstimatedParamSimple {
 }
 
 export interface EstimatedParameters {
+    area_m2?: number;
     year_of_planting: EstimatedParamYear;
     rubber_clone: EstimatedParamSimple;
     tree_count: EstimatedParamSimple;
