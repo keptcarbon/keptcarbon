@@ -158,6 +158,7 @@ export default function Header() {
                     <img
                       src={user.pictureUrl}
                       alt={user.fullname}
+                      referrerPolicy="no-referrer"
                       style={{
                         width: "38px",
                         height: "38px",

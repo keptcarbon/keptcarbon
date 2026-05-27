@@ -80,6 +80,7 @@ export default function ProfilePage() {
                             <img
                                 src={user.pictureUrl}
                                 alt={user.fullname}
+                                referrerPolicy="no-referrer"
                                 style={{ width: 80, height: 80, borderRadius: "50%", objectFit: "cover", flexShrink: 0, boxShadow: "0 4px 16px rgba(0,0,0,0.12)" }}
                             />
                         ) : (

@@ -360,7 +360,7 @@ function PlotDetailCard({
     if (yearParam) {
         if (typeof yearParam.value === "number" && yearParam.value > 0) {
             displayYearBE = yearParam.value + 543;
-            yearBoxItems = [{ label: `พ.ศ. ${displayYearBE}`, pct: 0 }];
+            yearBoxItems = [{ label: `${displayYearBE}`, pct: 0 }];
         } else if (Array.isArray(yearParam.value) && yearParam.value.length > 0) {
             const parsed = (yearParam.value as string[]).map(s => {
                 const yearMatch = s.match(/^(\d{4})/);
@@ -441,7 +441,7 @@ function PlotDetailCard({
                                         fontSize: 12,
                                         color: "#475569",
                                     }}>
-                                        {box.label}{box.pct > 0 ? ` (${box.pct}%)` : ""}
+                                        {box.label.replace(/พ\.ศ\.\s*/g, '')}{box.pct > 0 ? ` (${box.pct}%)` : ""}
                                     </div>
                                 ))}
                                 {yearBoxItems.length > 3 && (
@@ -474,7 +474,7 @@ function PlotDetailCard({
                                         fontSize: 11,
                                         color: "#475569",
                                     }}>
-                                        {displayNote}
+                                        {displayNote.replace(/พ\.ศ\.\s*/g, '')}
                                     </div>
                                 );
                             })}
@@ -2021,7 +2021,7 @@ export function ParcelResultsPanel({
 
                             {aggregatePts.length > 0 && (
                                 <div>
-                                    <CarbonBarChart pts={aggregatePts} isMobile={isMobile} narrowMode={!isMobile} showAge={showAggregateAge} />
+                                    <CarbonBarChart pts={aggregatePts} isMobile={isMobile} narrowMode={false} showAge={showAggregateAge} />
                                 </div>
                             )}
                         </div>
