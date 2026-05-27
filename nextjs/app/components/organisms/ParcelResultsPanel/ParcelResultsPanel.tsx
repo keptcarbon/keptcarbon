@@ -348,10 +348,13 @@ function PlotDetailCard({
     cr: CarbonResult;
     ep: EstimatedParameters | null | undefined;
 }) {
+    const [expandYears, setExpandYears] = useState(false);
+    const [expandNotes, setExpandNotes] = useState(false);
+
     const userEnteredYear = !!form?.plantYear;
     const yearParam = ep?.year_of_planting;
     const rawNotes = yearParam?.note ?? [];
-    const yearNotes = rawNotes.slice(0, 5);
+    const yearNotes = rawNotes;
 
     // Parse year boxes from value
     let yearBoxItems: Array<{ label: string; pct: number }> = [];
@@ -399,21 +402,10 @@ function PlotDetailCard({
 
                 {/* Main Year Info (from user or value) */}
                 <div style={{ marginBottom: yearNotes.length > 0 ? 12 : 0 }}>
-                    <div style={{ fontSize: 12, color: "#475569", fontWeight: 700, marginBottom: 6 }}>
-                        ปีที่เริ่มปลูกที่ใช้ในการคำนวณ {(!userEnteredYear && yearBoxItems.length > 0) ? `(${yearBoxItems.length} ปี):` : ":"}
-                    </div>
-                    <div style={{
-                        display: "flex", alignItems: "flex-start", gap: 6,
-                        fontSize: 11, color: "#059669", fontWeight: 600,
-                        background: "rgba(16,185,129,0.1)", padding: "6px 8px",
-                        borderRadius: 6, border: "1px dashed rgba(16,185,129,0.2)", width: "fit-content", lineHeight: 1.3,
-                        marginBottom: 8
-                    }}>
-                        <i className="bi bi-info-circle-fill" style={{ marginTop: 1, flexShrink: 0 }} />
-                        <span>
-                            {userEnteredYear
-                                ? "ข้อมูลที่ผู้ใช้ระบุ"
-                                : "ข้อมูลอ้างอิงจากระบบ"}
+                    <div style={{ fontSize: 12, color: "#475569", fontWeight: 700, marginBottom: 8 }}>
+                        ปีที่เริ่มปลูกที่ใช้ในการคำนวณ {(!userEnteredYear && yearBoxItems.length > 0) ? `(${yearBoxItems.length} ปี)` : ""} :{" "}
+                        <span style={{ color: "#059669", fontWeight: 600, marginLeft: 4 }}>
+                            {userEnteredYear ? "ข้อมูลที่ผู้ใช้ระบุ" : "ข้อมูลอ้างอิงจากระบบ"}
                         </span>
                     </div>
                     <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
@@ -431,7 +423,7 @@ function PlotDetailCard({
                             </div>
                         ) : yearBoxItems.length > 0 ? (
                             <>
-                                {yearBoxItems.slice(0, 3).map((box, bi) => (
+                                {yearBoxItems.slice(0, expandYears ? yearBoxItems.length : 3).map((box, bi) => (
                                     <div key={bi} style={{
                                         padding: "4px 10px",
                                         background: "rgba(100,116,139,0.06)",
@@ -445,7 +437,21 @@ function PlotDetailCard({
                                     </div>
                                 ))}
                                 {yearBoxItems.length > 3 && (
-                                    <span style={{ fontSize: 14, color: "#94a3b8", fontWeight: 600 }}>...</span>
+                                    <button
+                                        onClick={() => setExpandYears(!expandYears)}
+                                        style={{
+                                            border: "1px solid rgba(100,116,139,0.2)",
+                                            background: expandYears ? "rgba(226,232,240,0.8)" : "rgba(241,245,249,0.8)",
+                                            borderRadius: "50%",
+                                            width: 24, height: 24,
+                                            display: "flex", alignItems: "center", justifyContent: "center",
+                                            cursor: "pointer",
+                                            color: "#475569"
+                                        }}
+                                        title={expandYears ? "แสดงน้อยลง" : "แสดงทั้งหมด"}
+                                    >
+                                        <i className={`bi bi-${expandYears ? "dash" : "plus"}`} style={{ fontSize: 14, fontWeight: 800 }} />
+                                    </button>
                                 )}
                             </>
                         ) : (
@@ -461,7 +467,7 @@ function PlotDetailCard({
                             <i className="bi bi-pie-chart-fill" style={{ color: "#059669" }} /> สัดส่วนปีที่เริ่มปลูกที่ตรวจพบในแปลง:
                         </div>
                         <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
-                            {yearNotes.slice(0, 3).map((note, ni) => {
+                            {yearNotes.slice(0, expandNotes ? yearNotes.length : 3).map((note, ni) => {
                                 const beNote = convertYearNoteToBE(note);
                                 const displayNote = beNote;
                                 return (
@@ -479,18 +485,32 @@ function PlotDetailCard({
                                 );
                             })}
                             {yearNotes.length > 3 && (
-                                <span style={{ fontSize: 12, color: "#64748b", fontWeight: 700 }}>...</span>
+                                <button
+                                    onClick={() => setExpandNotes(!expandNotes)}
+                                    style={{
+                                        border: "1px solid rgba(100,116,139,0.2)",
+                                        background: expandNotes ? "rgba(226,232,240,0.8)" : "rgba(241,245,249,0.8)",
+                                        borderRadius: "50%",
+                                        width: 22, height: 22,
+                                        display: "flex", alignItems: "center", justifyContent: "center",
+                                        cursor: "pointer",
+                                        color: "#475569"
+                                    }}
+                                    title={expandNotes ? "แสดงน้อยลง" : "แสดงทั้งหมด"}
+                                >
+                                    <i className={`bi bi-${expandNotes ? "dash" : "plus"}`} style={{ fontSize: 12, fontWeight: 800 }} />
+                                </button>
                             )}
                         </div>
                     </div>
                 )}
-            </div>
 
-            {/* Common params: variety, spacing, tree count */}
-            <div style={{ display: "flex", flexDirection: "column", gap: 3, marginTop: 2 }}>
-                {variety && <div>• พันธุ์ยาง: <strong style={{ color: "#0f172a" }}>{variety}</strong> {!isVarietyFromUser && <span style={{ color: "#64748b", fontSize: 12 }}>(ค่าเริ่มต้น)</span>}</div>}
-                {spacing && <div>• ระยะปลูก: <strong style={{ color: "#0f172a" }}>{spacing}</strong> {!isSpacingFromUser && <span style={{ color: "#64748b", fontSize: 12 }}>(ค่าเริ่มต้น)</span>}</div>}
-                {treeCount > 0 && <div>• จำนวนต้น: <strong style={{ color: "#0f172a" }}>{treeCount.toLocaleString("th-TH")}</strong> ต้น {!isTreeCountFromUser && <span style={{ color: "#64748b", fontSize: 12 }}>(ประเมินโดยระบบ)</span>}</div>}
+                {/* Common params: variety, spacing, tree count */}
+                <div style={{ display: "flex", flexDirection: "column", gap: 3, marginTop: 8, paddingTop: 10, borderTop: "1px dashed rgba(16,185,129,0.2)" }}>
+                    {variety && <div>• พันธุ์ยาง: <strong style={{ color: "#0f172a" }}>{variety}</strong> {!isVarietyFromUser && <span style={{ color: "#64748b", fontSize: 12 }}>(ค่าเริ่มต้น)</span>}</div>}
+                    {spacing && <div>• ระยะปลูก: <strong style={{ color: "#0f172a" }}>{spacing}</strong> {!isSpacingFromUser && <span style={{ color: "#64748b", fontSize: 12 }}>(ค่าเริ่มต้น)</span>}</div>}
+                    {treeCount > 0 && <div>• จำนวนต้น: <strong style={{ color: "#0f172a" }}>{treeCount.toLocaleString("th-TH")}</strong> ต้น {!isTreeCountFromUser && <span style={{ color: "#64748b", fontSize: 12 }}>(ประเมินโดยระบบ)</span>}</div>}
+                </div>
             </div>
         </div>
     );
