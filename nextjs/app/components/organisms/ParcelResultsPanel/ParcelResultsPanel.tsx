@@ -275,50 +275,63 @@ function computePlot(feat: GeoJSON.Feature): PlotInfo {
 
 function aggregateProfiles(responses: EstimationResponse[], fallbackBaseAge: number = 0): BarPoint[] {
     const profiles = responses.map(r => r.carbon_profile ?? []);
-    if (!profiles.length || !profiles[0].length) return [];
-    const len = Math.min(...profiles.map(p => p.length));
-    const pts: BarPoint[] = [];
-    for (let j = 0; j < len; j++) {
-        const first = profiles[0][j];
-        const yearBE = first.year + 543;
-        const year_at = first.year_at;
-        let totalCo2 = 0;
-        let sumSqCI = 0;
-        let totalAge = 0;
-        let validAgeCount = 0;
-        let totalGain = 0;
-        let sumSqGainCI = 0;
+    if (!profiles.length || !profiles.some(p => p.length > 0)) return [];
 
-        for (let i = 0; i < profiles.length; i++) {
-            const item = profiles[i][j];
-            if (!item) continue;
-            totalCo2 += item.stocks.value;
-            sumSqCI += item.stocks.ci * item.stocks.ci;
-            if (item.age != null && !isNaN(item.age)) {
-                totalAge += item.age;
-                validAgeCount++;
+    const yearMap = new Map<number, {
+        totalCo2: number;
+        sumSqCI: number;
+        totalAge: number;
+        validAgeCount: number;
+        totalGain: number;
+        sumSqGainCI: number;
+        plotCount: number;
+    }>();
+
+    profiles.forEach(profile => {
+        profile.forEach(item => {
+            if (!item) return;
+            const year = item.year;
+            if (!yearMap.has(year)) {
+                yearMap.set(year, {
+                    totalCo2: 0, sumSqCI: 0, totalAge: 0, validAgeCount: 0, totalGain: 0, sumSqGainCI: 0, plotCount: 0
+                });
             }
-            totalGain += item.gain.value;
-            sumSqGainCI += item.gain.ci * item.gain.ci;
-        }
+            const data = yearMap.get(year)!;
+            data.totalCo2 += Math.floor(item.stocks.value);
+            data.sumSqCI += item.stocks.ci * item.stocks.ci;
+            if (item.age != null && !isNaN(item.age)) {
+                data.totalAge += item.age;
+                data.validAgeCount++;
+            }
+            data.totalGain += Math.floor(item.gain.value);
+            data.sumSqGainCI += item.gain.ci * item.gain.ci;
+            data.plotCount++;
+        });
+    });
 
-        const avgAge = validAgeCount > 0 ? Math.round(totalAge / validAgeCount) : fallbackBaseAge + j;
-        const totalCI = Math.sqrt(sumSqCI);
-        const totalGainCI = Math.sqrt(sumSqGainCI);
-
-        pts.push({
+    const sortedYears = Array.from(yearMap.keys())
+        .sort((a, b) => a - b);
+    
+    const pts: BarPoint[] = sortedYears.map((year, j) => {
+        const data = yearMap.get(year)!;
+        const avgAge = data.validAgeCount > 0 ? Math.round(data.totalAge / data.validAgeCount) : fallbackBaseAge + j;
+        const totalCI = Math.sqrt(data.sumSqCI);
+        const totalGainCI = Math.sqrt(data.sumSqGainCI);
+        
+        return {
             age: avgAge,
-            yearBE,
-            year_at,
-            co2: totalCo2,
+            yearBE: year + 543,
+            year_at: j,
+            co2: data.totalCo2,
             ci: totalCI,
-            gainValue: totalGain,
+            gainValue: data.totalGain,
             gainCi: totalGainCI,
-            cycle: Math.floor(year_at / 7),
+            cycle: Math.floor(j / 7),
             cycleAge: avgAge,
             errorMargin: totalCI,
-        });
-    }
+        };
+    });
+
     return pts;
 }
 
@@ -1875,9 +1888,6 @@ export function ParcelResultsPanel({
 
     // ── Step 3: Carbon Results & Save ────────────────────────────────
     if (currentStep === 3) {
-        const summaryTotalCo2 = carbonResults.reduce((sum, c) => sum + c.co2Now, 0);
-        const summaryTotalCo2Ci = Math.sqrt(carbonResults.reduce((sumSq, c) => sumSq + (c.co2NowCi || 0) ** 2, 0));
-
         // Build aggregate bar points
         let aggregatePts: BarPoint[] = [];
         if (backendResponses && backendResponses.length > 0) {
@@ -1894,7 +1904,7 @@ export function ParcelResultsPanel({
                 let totalCo2 = 0, totalContinuousAge = 0, sumSqMargin = 0;
                 plotStates.forEach((state, idx) => {
                     const plotCo2 = carbonCo2(state.continuousAge, carbonResults[idx].trees, carbonResults[idx].spacing);
-                    totalCo2 += plotCo2;
+                    totalCo2 += Math.floor(plotCo2);
                     if (i > 0) {
                         const growth = plotCo2 - initialPlotCarbons[idx];
                         const factor = 0.05 + 0.002 * i;
@@ -1908,6 +1918,13 @@ export function ParcelResultsPanel({
                 aggregatePts.push({ age: avgAge, yearBE, year_at: i, co2: totalCo2, ci: errorMargin, gainValue: 0, gainCi: 0, cycle: Math.floor(i / 7), cycleAge: avgAge, errorMargin });
             }
         }
+
+        const summaryTotalCo2 = aggregatePts.length > 0 
+            ? aggregatePts[0].co2 
+            : carbonResults.reduce((sum, c) => sum + c.co2Now, 0);
+        const summaryTotalCo2Ci = aggregatePts.length > 0 
+            ? aggregatePts[0].ci 
+            : Math.sqrt(carbonResults.reduce((sumSq, c) => sumSq + (c.co2NowCi || 0) ** 2, 0));
 
         const showAggregateAge = carbonResults.some((c, idx) => {
             const form = plotForms[idx];
