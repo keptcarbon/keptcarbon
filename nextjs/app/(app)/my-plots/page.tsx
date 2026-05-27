@@ -838,9 +838,12 @@ function PlotMiniMap({ plot, isMobile, index }: { plot: SavedPlot; isMobile: boo
           zIndex: 1, pointerEvents: "none",
           maxWidth: isMobile ? 170 : 210,
         }}>
-          <div style={{ fontWeight: 700, marginBottom: isMobile ? 4 : 5, color: "#1e293b", fontSize: isMobile ? 11 : 12, display: "flex", alignItems: "center", gap: 4 }}>
+          <div style={{ fontWeight: 700, marginBottom: 2, color: "#1e293b", fontSize: isMobile ? 11 : 12, display: "flex", alignItems: "center", gap: 4 }}>
             <i className="bi bi-layers" style={{ color: "#10b981", fontSize: isMobile ? 11 : 12 }} />
             คำอธิบาย (Land Use)
+          </div>
+          <div style={{ fontSize: isMobile ? 9 : 10, color: "#64748b", marginBottom: isMobile ? 4 : 6, lineHeight: 1.2 }}>
+            *พื้นที่ที่เลือกใช้ในการประมวลผล
           </div>
           {luLegendItems.map(item => (
             <div key={item.cls} style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: isMobile ? 2 : 3 }}>
