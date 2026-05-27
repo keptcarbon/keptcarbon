@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
-import { CarbonBarChart, buildBarPoints, profileToBarPoints, carbonCo2, type BarPoint } from "@/app/components/organisms/ParcelResultsPanel/CarbonBarChart";
+import { CarbonBarChart, buildBarPoints, profileToBarPoints, type BarPoint } from "@/app/components/organisms/ParcelResultsPanel/CarbonBarChart";
 import { estimateCarbon, type PlantationPolygon } from "@/lib/carbon-api";
 
 const HERO_BG =
@@ -467,15 +467,18 @@ function EditPlotModal({ plot, index, onClose, onSave, isMobile }: { plot: Saved
     const treesNum = parseInt(formData.trees) || plot.trees || 0;
     const sp = formData.spacing || plot.spacing || "";
 
-    const newCarbon = (treesNum > 0) ? carbonCo2(ageNum, treesNum, sp) : plot.carbonTotal;
-    const forecast = {
-      yr3: carbonCo2(ageNum + 3, treesNum, sp),
-      yr5: carbonCo2(ageNum + 5, treesNum, sp),
-      yr7: carbonCo2(ageNum + 7, treesNum, sp),
-    };
+    // Detect if any carbon-affecting fields have changed
+    const prevPlantYear = plot.plantYearBE || 0;
+    const newPlantYear = effectivePlantYear || 0;
+    const prevTrees = plot.trees || 0;
+    const prevSpacing = plot.spacing || "";
+    const prevStatus = plot.plantStatus || "";
 
-    const chartStartYearBE = effectivePlantYear ? effectivePlantYear + ageNum : currentBE;
-    const newProfile = (treesNum > 0) ? buildBarPoints(ageNum, chartStartYearBE, treesNum, sp) : (plot.carbonProfile || []);
+    const carbonFieldsChanged =
+      newPlantYear !== prevPlantYear ||
+      treesNum !== prevTrees ||
+      sp !== prevSpacing ||
+      formData.plantStatus !== prevStatus;
 
     const newForm = {
       ...(plot.backendData?.form || {}),
@@ -486,6 +489,9 @@ function EditPlotModal({ plot, index, onClose, onSave, isMobile }: { plot: Saved
       spacing: formData.spacing ? formData.spacing : undefined,
     };
 
+    // If carbon-affecting fields changed, mark as needing reprocessing.
+    // Do NOT recalculate locally — wait for the user to hit "ประมวลผล" to get
+    // accurate backend results.
     onSave({
       ...plot,
       name: formData.name,
@@ -498,12 +504,16 @@ function EditPlotModal({ plot, index, onClose, onSave, isMobile }: { plot: Saved
       plantStatus: formData.plantStatus,
       variety: formData.variety,
       spacing: formData.spacing,
-      carbonTotal: newCarbon,
-      carbonProfile: newProfile,
-      forecast,
+      // If carbon-affecting fields changed: clear results so the user must reprocess
+      carbonTotal: carbonFieldsChanged ? 0 : plot.carbonTotal,
+      carbonProfile: carbonFieldsChanged ? [] : (plot.carbonProfile || []),
+      forecast: carbonFieldsChanged ? undefined : plot.forecast,
+      processed: carbonFieldsChanged ? false : plot.processed,
       backendData: {
         ...(plot.backendData || {}),
-        form: newForm
+        form: newForm,
+        // Clear stale backend ep data so the details panel doesn't show old results
+        ep: carbonFieldsChanged ? null : (plot.backendData?.ep ?? null),
       }
     });
   };
@@ -1164,10 +1174,14 @@ function PlotCard({ plot, index, onDelete, onEdit, expanded, onToggle, isMobile 
   const infoItems = [
     { label: "พื้นที่ (ไร่)", val: plot.areaRai > 0 ? plot.areaRai.toFixed(2) : "", unit: "", icon: "bi-grid-3x3", color: "#0d9488", bg: "rgba(13,148,136,0.12)" },
     { label: "สถานะแปลง", val: plantStatusLabel || "", unit: "", icon: "bi-check2-circle", color: "#f59e0b", bg: "rgba(245,158,11,0.12)" },
-    { label: "ปีที่ปลูก", val: form?.plantYear ? String(form.plantYear) : "", unit: "", icon: "bi-calendar2-check", color: "#3b82f6", bg: "rgba(59,130,246,0.12)" },
-    { label: "พันธุ์ยาง", val: isVarietyFromUser ? form.variety : "", unit: "", icon: "bi-patch-check-fill", color: "#8b5cf6", bg: "rgba(139,92,246,0.12)" },
-    { label: "ระยะปลูก (ม.)", val: isSpacingFromUser ? form.spacing : "", unit: "", icon: "bi-arrows-fullscreen", color: "#f59e0b", bg: "rgba(245,158,11,0.12)" },
-    { label: "จำนวนต้น ", val: isTreeCountFromUser && form?.treeCount ? parseInt(form.treeCount).toLocaleString("th-TH") : "", unit: "", icon: "bi-tree-fill", color: "#10b981", bg: "rgba(16,185,129,0.12)" },
+    // ปีที่ปลูก: user input → ep year → plot.plantYearBE
+    { label: "ปีที่ปลูก", val: form?.plantYear ? String(form.plantYear) : (isProcessed && displayYearBE ? String(displayYearBE) : ""), unit: "", icon: "bi-calendar2-check", color: "#3b82f6", bg: "rgba(59,130,246,0.12)" },
+    // พันธุ์ยาง: user input → ep value (after processing)
+    { label: "พันธุ์ยาง", val: isVarietyFromUser ? form.variety : (isProcessed && displayVariety ? displayVariety : ""), unit: "", icon: "bi-patch-check-fill", color: "#8b5cf6", bg: "rgba(139,92,246,0.12)" },
+    // ระยะปลูก: user input → ep value (after processing)
+    { label: "ระยะปลูก (ม.)", val: isSpacingFromUser ? form.spacing : (isProcessed && displaySpacing ? displaySpacing : ""), unit: "", icon: "bi-arrows-fullscreen", color: "#f59e0b", bg: "rgba(245,158,11,0.12)" },
+    // จำนวนต้น: user input → ep value (after processing)
+    { label: "จำนวนต้น ", val: isTreeCountFromUser && form?.treeCount ? parseInt(form.treeCount).toLocaleString("th-TH") : (isProcessed && displayTreeCount > 0 ? displayTreeCount.toLocaleString("th-TH") : ""), unit: "", icon: "bi-tree-fill", color: "#10b981", bg: "rgba(16,185,129,0.12)" },
   ];
 
   return (
@@ -1368,7 +1382,7 @@ function PlotCard({ plot, index, onDelete, onEdit, expanded, onToggle, isMobile 
           {activeTab === "map" ? (
             <PlotMiniMap plot={plot} isMobile={isMobile} index={index} />
           ) : (
-            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "3fr 2fr", gap: 20, alignItems: "stretch", minWidth: 0 }}>
+            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : (isProcessed ? "3fr 2fr" : "1fr"), gap: 20, alignItems: "stretch", minWidth: 0 }}>
               {/* Left side: Graph Section */}
               <div style={{ minWidth: 0, overflow: "hidden", height: "100%", display: "flex", flexDirection: "column", justifyContent: "center" }}>
                 {isProcessed && barPts.length > 0 ? (
@@ -1381,12 +1395,13 @@ function PlotCard({ plot, index, onDelete, onEdit, expanded, onToggle, isMobile 
                       <i className="bi bi-clock-history" style={{ fontSize: 22, color: "#f59e0b" }} />
                     </div>
                     <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 4 }}>ยังไม่ได้ประมวลผลคาร์บอน</div>
-                    <div style={{ fontSize: 12, color: "#b45309", lineHeight: 1.5 }}>กรุณาไปที่หน้าวาดแปลงและกด "ประมวลผล" เพื่อดูกราฟการกักเก็บคาร์บอน</div>
+                    <div style={{ fontSize: 12, color: "#b45309", lineHeight: 1.5 }}>กรุณาไปที่หน้าวาดแปลงและกด &quot;ประมวลผล&quot; เพื่อดูกราฟการกักเก็บคาร์บอน</div>
                   </div>
                 )}
               </div>
 
-              {/* Right side: Details Section */}
+              {/* Right side: Details Section — only shown after processing */}
+              {isProcessed && (
               <div style={{ display: "flex", flexDirection: "column", gap: 8, fontSize: 13, color: "#475569" }}>
                 <div style={{ padding: "12px 14px", background: "rgba(16,185,129,0.04)", borderRadius: 10, border: "1px solid rgba(16,185,129,0.15)" }}>
                   {/* Header Section */}
@@ -1524,6 +1539,7 @@ function PlotCard({ plot, index, onDelete, onEdit, expanded, onToggle, isMobile 
                   </div>
                 </div>
               </div>
+              )}
             </div>
           )}
         </div>
@@ -1651,7 +1667,11 @@ export default function MyPlotsPage() {
         };
       });
 
+      console.log('[ประมวลผล] 📤 Polygons sent to backend:', JSON.stringify(polygons, null, 2));
+
       const responses = await estimateCarbon(polygons);
+
+      console.log('[ประมวลผล] 📥 Raw backend responses:', JSON.stringify(responses, null, 2));
 
       const CURRENT_BE_NOW = new Date().getFullYear() + 543;
       const updatedPlots: SavedPlot[] = [];
@@ -1659,28 +1679,40 @@ export default function MyPlotsPage() {
       for (let i = 0; i < projectPlots.length; i++) {
         const plot = projectPlots[i];
         const resp = responses.find(r => r.polygon_id === plot.id);
-        if (!resp) continue;
+        if (!resp) {
+          console.warn('[ประมวลผล] ⚠️ No response for plot id:', plot.id);
+          continue;
+        }
 
         const ep = resp.estimated_parameters;
+        console.log(`[ประมวลผล] 🔍 Plot "${plot.id}" ep:`, ep);
+        console.log(`[ประมวลผล] 🌱 carbon_profile (first 3):`, resp.carbon_profile?.slice(0, 3));
+
         const epPlantYearCE = typeof ep?.year_of_planting?.value === "number" ? ep.year_of_planting.value : 0;
         const epPlantYearBE = epPlantYearCE > 0 ? epPlantYearCE + 543 : 0;
         const epTrees = typeof ep?.tree_count?.value === "number" ? ep.tree_count.value : 0;
         const epVariety = typeof ep?.rubber_clone?.value === "string" ? ep.rubber_clone.value : "";
         const epSpacingRaw = typeof ep?.spacing_system?.value === "string" ? ep.spacing_system.value : "";
         const epSpacing = epSpacingRaw.replace(/\s*\([^)]*\)/, "").trim();
+        console.log(`[ประมวลผล] 📊 Parsed ep values → year(BE):${epPlantYearBE} trees:${epTrees} variety:"${epVariety}" spacing:"${epSpacing}"`);
 
-        // Calculate selected area based on saved LU features
-        const luFeatures = plot.backendData?.lu_polygon || [];
-        const luChecked = plot.luChecked || { A: true, A302: true };
-        const luAreaRai = luFeatures.reduce((acc: number, feat: any) => {
-          const code = feat.properties?.LU_CODE || feat.properties?.lu_code || "";
-          const P = code.charAt(0).toUpperCase();
-          if (luChecked[code] || luChecked[P]) {
-            return acc + (feat.properties?.areaRai || 0);
-          }
-          return acc;
-        }, 0);
-        const selectedAreaRai = luAreaRai > 0 ? luAreaRai : plot.areaRai;
+        // Use the already-saved selectedAreaRai (from original map-draw selection) as first priority.
+        // Only recalculate from LU features if it hasn't been set yet.
+        let selectedAreaRai = plot.selectedAreaRai && plot.selectedAreaRai > 0 ? plot.selectedAreaRai : 0;
+        if (selectedAreaRai <= 0) {
+          const luFeatures = plot.backendData?.lu_polygon || [];
+          const luChecked = plot.luChecked || { A: true, A302: true };
+          const luAreaRai = luFeatures.reduce((acc: number, feat: any) => {
+            const code = feat.properties?.LU_CODE || feat.properties?.lu_code || "";
+            const P = code.charAt(0).toUpperCase();
+            if (luChecked[code] || luChecked[P]) {
+              return acc + (feat.properties?.areaRai || 0);
+            }
+            return acc;
+          }, 0);
+          selectedAreaRai = luAreaRai > 0 ? luAreaRai : plot.areaRai;
+        }
+        console.log(`[ประมวลผล] 📐 selectedAreaRai: ${selectedAreaRai} (from: ${plot.selectedAreaRai && plot.selectedAreaRai > 0 ? 'saved selection' : 'LU recalc'})`);
 
         const formVariety = plot.backendData?.form?.variety || "";
         const formSpacing = plot.backendData?.form?.spacing || "";
@@ -1702,6 +1734,7 @@ export default function MyPlotsPage() {
         const rawProfile = resp.carbon_profile ?? [];
         const co2Now = rawProfile[0]?.stocks?.value ?? 0;
         const carbonProfile = rawProfile.length > 0 ? profileToBarPoints(rawProfile, age) : [];
+        console.log(`[ประมวลผล] 💚 Final values → plantYear:${finalPlantYear} age:${age} trees:${crTrees} variety:"${variety}" spacing:"${spacing}" co2Now:${co2Now} carbonProfileLen:${carbonProfile.length}`);
 
         const updatedPlot: SavedPlot = {
           ...plot,
@@ -1724,6 +1757,8 @@ export default function MyPlotsPage() {
 
         updatedPlots.push(updatedPlot);
       }
+
+      console.log('[ประมวลผล] ✅ updatedPlots:', updatedPlots.map(p => ({ id: p.id, carbonTotal: p.carbonTotal, plantYearBE: p.plantYearBE, trees: p.trees, variety: p.variety, spacing: p.spacing, carbonProfileLen: p.carbonProfile?.length })));
 
       // Update state locally
       setPlots(prev => prev.map(p => {
@@ -1767,6 +1802,12 @@ export default function MyPlotsPage() {
         province: updated.province,
         plantYearBE: updated.plantYearBE,
         backendData: updated.backendData,
+        // Persist carbon reset state so it survives page reload
+        processed: updated.processed ?? false,
+        carbonTotal: updated.carbonTotal ?? 0,
+        rubberAge: updated.rubberAge ?? 0,
+        carbonProfile: updated.carbonProfile ?? null,
+        forecast: updated.forecast ?? null,
       }),
     }).catch(console.error);
     setEditingPlot(null);

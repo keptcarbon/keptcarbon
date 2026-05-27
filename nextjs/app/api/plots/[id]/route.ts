@@ -49,11 +49,6 @@ export async function PATCH(
   try {
     const body = await request.json();
 
-    const allowed = [
-      "name", "variety", "spacing", "trees", "plant_status",
-      "owner_name", "province", "plant_year_be", "backend_data"
-    ];
-
     const setClauses: string[] = [];
     const values: unknown[] = [];
 
@@ -68,11 +63,29 @@ export async function PATCH(
       province: "province",
       plantYearBE: "plant_year_be",
       backendData: "backend_data",
+      // Carbon result fields (reset when carbon-affecting fields change)
+      processed: "processed",
+      carbonTotal: "carbon_total",
+      rubberAge: "rubber_age",
+      carbonProfile: "carbon_profile",
+      forecast: "forecast",
     };
 
+    // Fields that need JSON serialization
+    const jsonFields = new Set(["backendData", "carbonProfile", "forecast"]);
+    // Fields that should be set to NULL when value is null/undefined explicitly passed
+    const nullableFields = new Set(["carbonProfile", "forecast"]);
+
     for (const [camel, col] of Object.entries(keyMap)) {
-      if (body[camel] !== undefined && allowed.includes(col)) {
-        values.push(camel === "backendData" ? JSON.stringify(body[camel]) : body[camel]);
+      if (body[camel] !== undefined) {
+        const val = body[camel];
+        if (nullableFields.has(camel) && (val === null || (Array.isArray(val) && val.length === 0))) {
+          values.push(null);
+        } else if (jsonFields.has(camel) && val !== null) {
+          values.push(JSON.stringify(val));
+        } else {
+          values.push(val);
+        }
         setClauses.push(`${col} = $${values.length}`);
       }
     }
