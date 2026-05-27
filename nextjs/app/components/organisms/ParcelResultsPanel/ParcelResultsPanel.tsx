@@ -1730,10 +1730,13 @@ export function ParcelResultsPanel({
                                                         const isOld = form.plantStatus === "existing";
 
                                                         // Behavior differs by plantStatus:
-                                                        // replanting: A, M, W, F, A-sub checkable (U displayOnly, A302 fixed)
+                                                        // replanting: A, U, M, W, F, A-sub checkable (A302 fixed)
                                                         // existing:   A fixed, F checkable, A-sub checkable (U,W,M displayOnly, A302 fixed)
                                                         const baseLU = [
-                                                            { id: "U", label: "U พื้นที่ชุมชนและสิ่งปลูกสร้าง", color: "#ef4444", displayOnly: true },
+                                                            ...(isNew
+                                                                ? [{ id: "U", label: "U พื้นที่ชุมชนและสิ่งปลูกสร้าง", color: "#ef4444" }]
+                                                                : [{ id: "U", label: "U พื้นที่ชุมชนและสิ่งปลูกสร้าง", color: "#ef4444", displayOnly: true }]
+                                                            ),
                                                             { id: "A", label: "A พื้นที่เกษตรกรรม", color: "#84cc16", fixed: true },
                                                             { id: "F", label: "F พื้นที่ป่าไม้", color: "#166534" },
                                                             ...(isNew
