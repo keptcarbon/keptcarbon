@@ -225,19 +225,6 @@ function getFriendlyErrorMessage(err: unknown, plots: PlotInfo[], plotForms: Plo
 
     // Backend 500 errors
     if (msg.includes("Backend API error: 500")) {
-        // Check if any plot is "existing" with no planting data — likely cause
-        const missingPlots = [];
-        for (let i = 0; i < plots.length; i++) {
-            const form = plotForms[i];
-            const p = plots[i];
-            if (form?.plantStatus === "existing" && !form.plantYear && !p.plantYearBE) {
-                missingPlots.push(i + 1);
-            }
-        }
-        if (missingPlots.length > 0) {
-            const updatedSuffix = plotSuffix || ` (ที่แปลง ${missingPlots.join(", ")})`;
-            return `ไม่พบข้อมูลปีปลูกในฐานข้อมูล กรุณาระบุปีปลูก (พ.ศ.) ในช่องกรอกข้อมูล${updatedSuffix}`;
-        }
         return `กรุณาเลือกประเภทการใช้ที่ดินอย่างน้อย 1 ประเภทในแต่ละแปลงก่อนประมวลผล${plotSuffix}`;
     }
 
@@ -1329,9 +1316,8 @@ export function ParcelResultsPanel({
                         }}>
                             <i className="bi bi-exclamation-triangle-fill" style={{ fontSize: 14, color: "#dc2626" }} />
                         </div>
-                        <div style={{ flex: 1, lineHeight: 1.6 }}>
-                            <div style={{ fontWeight: 700, marginBottom: 2 }}>ไม่สามารถประมวลผลคาร์บอนเครดิตได้</div>
-                            <span style={{ color: "#b91c1c", opacity: 0.9 }}>{carbonErr}</span>
+                        <div style={{ flex: 1, lineHeight: 1.6, paddingTop: 2 }}>
+                            <span style={{ color: "#b91c1c", opacity: 0.9, fontWeight: 500 }}>{carbonErr}</span>
                         </div>
                         <button
                             onClick={() => setCarbonErr(null)}
@@ -1962,71 +1948,71 @@ export function ParcelResultsPanel({
                     background: "#fff",
                     borderRadius: 14,
                     border: "1px solid rgba(16,185,129,0.15)",
-                    overflow: "hidden",
-                    boxShadow: "0 2px 10px rgba(0,0,0,0.04)",
-                    marginBottom: 16
-                }}>
-                    <div
-                        onClick={() => {
-                            const willExpand = expandedResultIdx !== "total";
-                            setExpandedResultIdx(willExpand ? "total" : null);
-                            if (willExpand) {
-                                onMapPlotSelected?.("total");
-                            }
-                        }}
-                        style={{
-                            background: "linear-gradient(135deg,rgba(16,185,129,0.08),rgba(5,150,105,0.04))",
-                            padding: "10px 14px",
-                            display: "flex", alignItems: "center", gap: 10, cursor: "pointer",
-                            borderBottom: expandedResultIdx === "total" ? "1px solid rgba(16,185,129,0.1)" : "none"
-                        }}
-                    >
-                        <div style={{
-                            width: 32, height: 32, borderRadius: 10, flexShrink: 0,
-                            background: "linear-gradient(135deg,#0ea5e9,#0284c7)",
-                            color: "#fff", display: "flex", alignItems: "center",
-                            justifyContent: "center", fontWeight: 800, fontSize: 14
-                        }}>
-                            <i className="bi bi-folder-fill" />
-                        </div>
-                        <div style={{ flex: 1 }}>
-                            <div style={{ fontWeight: 700, fontSize: 14, color: "#0f172a" }}>{projectName ? `โครงการ ${projectName}` : "โครงการ"}</div>
-                            <div style={{ fontSize: 12, color: "#64748b" }}>
-                                {carbonResults.length} แปลง · {totalArea.toFixed(2)} ไร่
-                            </div>
-                        </div>
-                        <i className={`bi bi-chevron-${expandedResultIdx === "total" ? 'up' : 'down'}`} style={{ color: "#64748b", fontSize: 14 }} />
-                    </div>
-
-                    {expandedResultIdx === "total" && (
-                        <div style={{ padding: "14px 14px 16px" }}>
+                        overflow: "hidden",
+                        boxShadow: "0 2px 10px rgba(0,0,0,0.04)",
+                        marginBottom: 16
+                    }}>
+                        <div
+                            onClick={() => {
+                                const willExpand = expandedResultIdx !== "total";
+                                setExpandedResultIdx(willExpand ? "total" : null);
+                                if (willExpand) {
+                                    onMapPlotSelected?.("total");
+                                }
+                            }}
+                            style={{
+                                background: "linear-gradient(135deg,rgba(16,185,129,0.08),rgba(5,150,105,0.04))",
+                                padding: "10px 14px",
+                                display: "flex", alignItems: "center", gap: 10, cursor: "pointer",
+                                borderBottom: expandedResultIdx === "total" ? "1px solid rgba(16,185,129,0.1)" : "none"
+                            }}
+                        >
                             <div style={{
-                                background: "linear-gradient(to right, rgba(13,148,136,0.08), rgba(20,184,166,0.03))",
-                                border: "1px solid rgba(13,148,136,0.2)",
-                                borderRadius: 12,
-                                padding: "16px",
-                                marginBottom: 16,
-                                display: "flex",
-                                flexDirection: "column",
-                                justifyContent: "center",
-                                alignItems: "center"
+                                width: 32, height: 32, borderRadius: 10, flexShrink: 0,
+                                background: "linear-gradient(135deg,#0ea5e9,#0284c7)",
+                                color: "#fff", display: "flex", alignItems: "center",
+                                justifyContent: "center", fontWeight: 800, fontSize: 14
                             }}>
-                                <div style={{ fontSize: 13, color: "#0f766e", fontWeight: 700, marginBottom: 6, display: "flex", alignItems: "center", gap: 6 }}>
-                                    <i className="bi bi-cloud-arrow-down-fill" /> ปริมาณคาร์บอนเครดิตรวม ณ ปีปัจจุบัน
-                                </div>
-                                <div style={{ fontWeight: 800, color: "#0d9488", fontSize: isMobile ? 24 : 28, lineHeight: 1.1 }}>
-                                    {Math.floor(summaryTotalCo2).toLocaleString()} <span style={{ fontSize: isMobile ? 18 : 20, color: "#0f766e" }}>± {(Math.floor(summaryTotalCo2Ci * 10) / 10).toLocaleString("th-TH", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}</span> <span style={{ fontSize: 16, fontWeight: 600, opacity: 0.8 }}>tCO₂eq</span>
+                                <i className="bi bi-folder-fill" />
+                            </div>
+                            <div style={{ flex: 1 }}>
+                                <div style={{ fontWeight: 700, fontSize: 14, color: "#0f172a" }}>{projectName ? `โครงการ ${projectName}` : "โครงการ"}</div>
+                                <div style={{ fontSize: 12, color: "#64748b" }}>
+                                    {carbonResults.length} แปลง · {totalArea.toFixed(2)} ไร่
                                 </div>
                             </div>
-
-                            {aggregatePts.length > 0 && (
-                                <div>
-                                    <CarbonBarChart pts={aggregatePts} isMobile={isMobile} narrowMode={false} showAge={showAggregateAge} />
-                                </div>
-                            )}
+                            <i className={`bi bi-chevron-${expandedResultIdx === "total" ? 'up' : 'down'}`} style={{ color: "#64748b", fontSize: 14 }} />
                         </div>
-                    )}
-                </div>
+
+                        {expandedResultIdx === "total" && (
+                            <div style={{ padding: "14px 14px 16px" }}>
+                                <div style={{
+                                    background: "linear-gradient(to right, rgba(13,148,136,0.08), rgba(20,184,166,0.03))",
+                                    border: "1px solid rgba(13,148,136,0.2)",
+                                    borderRadius: 12,
+                                    padding: "16px",
+                                    marginBottom: 16,
+                                    display: "flex",
+                                    flexDirection: "column",
+                                    justifyContent: "center",
+                                    alignItems: "center"
+                                }}>
+                                    <div style={{ fontSize: 13, color: "#0f766e", fontWeight: 700, marginBottom: 6, display: "flex", alignItems: "center", gap: 6 }}>
+                                        <i className="bi bi-cloud-arrow-down-fill" /> ปริมาณคาร์บอนเครดิตรวม ณ ปีปัจจุบัน
+                                    </div>
+                                    <div style={{ fontWeight: 800, color: "#0d9488", fontSize: isMobile ? 24 : 28, lineHeight: 1.1 }}>
+                                        {Math.floor(summaryTotalCo2).toLocaleString()} <span style={{ fontSize: isMobile ? 18 : 20, color: "#0f766e" }}>± {(Math.floor(summaryTotalCo2Ci * 10) / 10).toLocaleString("th-TH", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}</span> <span style={{ fontSize: 16, fontWeight: 600, opacity: 0.8 }}>tCO₂eq</span>
+                                    </div>
+                                </div>
+
+                                {aggregatePts.length > 0 && (
+                                    <div>
+                                        <CarbonBarChart pts={aggregatePts} isMobile={isMobile} narrowMode={false} showAge={showAggregateAge} />
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </div>
 
                 {/* ── Per-Plot Cards ────────────────────────────── */}
                 <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>

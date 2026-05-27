@@ -35,7 +35,7 @@ REGION_CONFIG = {
         "biomass_estimation_method": "hytonen_2018",
         "biomass_estimation_tables": {
             ("RRIM 600", "cubic_poly", "hytonen_2018"): "rrim600_cubic_poly_hytonen_rayong.csv",
-            ("RRIT 251", "cubic_poly", "hytonen_2018"): "rrit251_cubic_poly_hytonen_rayong.csv"
+            ("RRIT 251", "cubic_poly", "hytonen_2018"): "rrim600_cubic_poly_hytonen_rayong.csv"
         }
     }#,
     #"SRT": {  # Surat Thani Province

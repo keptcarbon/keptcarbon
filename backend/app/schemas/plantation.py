@@ -74,6 +74,7 @@ class EstimatedParamSimple(BaseModel):
 
 
 class EstimatedParameters(BaseModel):
+    area_m2: float = Field(..., description="Area in square meters")
     year_of_planting: EstimatedParamYear
     rubber_clone: EstimatedParamSimple
     tree_count: EstimatedParamSimple
@@ -106,7 +107,7 @@ class PlantationEstimationResponse(BaseModel):
     polygon_id: str
     status: StatusMessage
     carbon_profile: Optional[List[YearlyEstimate]] = None
-    estimated_parameters: Optional[EstimationParameters] = None
+    estimated_parameters: Optional[EstimatedParameters] = None
 
 
 # ── Plantation-info endpoint (/api/v1/plantation-info) ────────────────────

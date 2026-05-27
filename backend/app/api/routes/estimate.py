@@ -18,6 +18,7 @@ async def estimate_carbon(polygons: List[PlantationEstimateRequest]):
             poly_data = poly.model_dump()
             # Run full workflow. Use the pre-loaded service instance
             report = await service.get_carbon_profile(poly_data)
+            
             results.append(report)
 
         except Exception as e:

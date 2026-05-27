@@ -74,6 +74,7 @@ class LanduseService:
             merged_gdf = selcted_lu_candidates.dissolve(by="group_key")
             
             poly_data["A302_geometry"] = mapping(unary_union(merged_gdf.geometry)) 
+            poly_data["A302_area_m2"] = round(merged_gdf.geometry.area.sum(), 4)
 
             return poly_data
 

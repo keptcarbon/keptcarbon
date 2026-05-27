@@ -2657,7 +2657,7 @@ function MapDrawContent() {
                 projectName={projectName}
                 autoProcessTrigger={autoProcessTrigger}
                 onBeforeProcess={() => {
-                  if (hiddenProjectPlots.length > 0 && !isEditingPlotParam) {
+                  if (hiddenProjectPlots.length > 0) {
                     const merged = [...drawnParcels, ...hiddenProjectPlots];
                     merged.sort((a, b) => {
                       const ia = parseInt((a.properties as any)?.plot_index) || 0;
