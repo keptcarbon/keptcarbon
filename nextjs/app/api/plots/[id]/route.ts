@@ -17,6 +17,70 @@ async function getUserIdentifier(payload: JwtPayload): Promise<string> {
 }
 
 // ---------------------------------------------------------------------------
+// Helper: merge raw JSON arrays — new items replace by index, extra old items preserved
+// ป้องกันข้อมูลแปลงที่ถูกลบออกจาก frontend_plots หายไปจาก polygons_payload / backend_responses
+// เมื่อมีการประมวลผลแปลงที่เหลืออยู่แค่บางส่วน array ใหม่จะสั้นกว่าเก่า
+// → ต่อข้อมูลดิบเก่าที่เกิน index ของ array ใหม่ไว้ท้าย
+// ---------------------------------------------------------------------------
+function mergeRawArray(oldArr: any[], newArr: any[]): any[] {
+  if (!Array.isArray(oldArr) || oldArr.length === 0) return newArr;
+  if (!Array.isArray(newArr) || newArr.length === 0) return oldArr;
+  
+  // Create a map of new items by ID
+  const newItemsMap = new Map();
+  let hasIds = false;
+  
+  newArr.forEach(item => {
+    if (item && typeof item === 'object') {
+      const key = item.id || item.polygon_id;
+      if (key) {
+        newItemsMap.set(key, item);
+        hasIds = true;
+      }
+    }
+  });
+
+  // If no items have IDs, fallback to original index-based logic (for backward compatibility if needed)
+  if (!hasIds) {
+    if (newArr.length >= oldArr.length) return newArr;
+    return [...newArr, ...oldArr.slice(newArr.length)];
+  }
+
+  // If we have stable IDs, merge properly:
+  // Start with all new items
+  const result = [...newArr];
+  
+  // Append old items that are NOT in the new payload
+  oldArr.forEach(oldItem => {
+    if (oldItem && typeof oldItem === 'object') {
+      const key = oldItem.id || oldItem.polygon_id;
+      if (key && !newItemsMap.has(key)) {
+        result.push(oldItem);
+      }
+    } else {
+      result.push(oldItem);
+    }
+  });
+  
+  return result;
+}
+
+function mergeRawField(oldValue: any, newValue: any): any {
+  if (Array.isArray(newValue) && Array.isArray(oldValue)) {
+    return mergeRawArray(oldValue, newValue);
+  }
+  // กรณีเป็น object ให้ merge key (new ทับ old)
+  if (
+    newValue !== null && typeof newValue === "object" &&
+    oldValue !== null && typeof oldValue === "object" &&
+    !Array.isArray(newValue) && !Array.isArray(oldValue)
+  ) {
+    return { ...oldValue, ...newValue };
+  }
+  return newValue;
+}
+
+// ---------------------------------------------------------------------------
 // Helper: แปลง DB row → API response object
 // ---------------------------------------------------------------------------
 function rowToProject(row: any) {
@@ -109,11 +173,6 @@ export async function PATCH(
 
     const body = await request.json();
 
-    // กำหนดว่าใครเป็นคนแก้
-    const changedBy = payload
-      ? await getUserIdentifier(payload)
-      : body.userId ?? "unknown";
-
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
@@ -136,10 +195,10 @@ export async function PATCH(
         const userId = payload
           ? await getUserIdentifier(payload)
           : body.userId;
-          
+
         // ถ้าโปรเจกต์นี้เป็นของ guest (user_id ขึ้นต้นด้วย guest_) อนุญาตให้อัปเดตได้สำหรับ session ปัจจุบัน
         const isGuestProject = oldRow.user_id?.startsWith("guest_");
-        
+
         if (!isGuestProject && userId !== oldRow.user_id) {
           await client.query("ROLLBACK");
           return NextResponse.json({ error: "Forbidden" }, { status: 403 });
@@ -147,8 +206,14 @@ export async function PATCH(
       }
 
       // สร้าง SET clauses จาก body ที่ส่งมา
-      const setClauses: string[] = [];
-      const values: unknown[] = [];
+      const finalValues: Record<string, any> = {};
+
+      // raw fields ที่ต้อง merge กับข้อมูลเดิม
+      const rawMergeMap: Record<string, string> = {
+        plantationInfo: "plantation_info",
+        polygonsPayload: "polygons_payload",
+        backendResponses: "backend_responses",
+      };
 
       const fieldMap: Record<string, { col: string; json: boolean }> = {
         projectId: { col: "project_id", json: false },
@@ -158,11 +223,30 @@ export async function PATCH(
         frontendPlots: { col: "frontend_plots", json: true },
       };
 
-      for (const [camel, { col, json }] of Object.entries(fieldMap)) {
+      for (const [camel, { col }] of Object.entries(fieldMap)) {
         if (body[camel] !== undefined) {
-          values.push(json ? JSON.stringify(body[camel]) : body[camel]);
-          setClauses.push(`${col} = $${values.length}`);
+          let valueToSave = body[camel];
+
+          // raw fields: merge กับข้อมูลเดิม
+          if (camel in rawMergeMap) {
+            const oldDbCol = rawMergeMap[camel];
+            const oldValue = oldRow[oldDbCol];
+            valueToSave = mergeRawField(oldValue, body[camel]);
+          }
+
+          finalValues[col] = valueToSave;
         }
+      }
+
+      // แปลงเป็น SET clauses สำหรับ SQL
+      const setClauses: string[] = [];
+      const values: unknown[] = [];
+      
+      for (const [, { col, json }] of Object.entries(fieldMap)) {
+         if (finalValues[col] !== undefined) {
+             values.push(json ? JSON.stringify(finalValues[col]) : finalValues[col]);
+             setClauses.push(`${col} = $${values.length}`);
+         }
       }
 
       if (setClauses.length === 0) {

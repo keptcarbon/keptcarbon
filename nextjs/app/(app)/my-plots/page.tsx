@@ -956,6 +956,7 @@ function PlotMiniMap({ plot, isMobile, index }: { plot: SavedPlot; isMobile: boo
 
 function ProjectCarbonSummary({ plots, isMobile }: { plots: SavedPlot[]; isMobile: boolean }) {
   const currentYearBE = new Date().getFullYear() + 543;
+  const [isExpanded, setIsExpanded] = useState(false);
 
   const { combinedPts, totalNow, ciNow } = useMemo(() => {
     let fallbackTotal = 0;
@@ -1061,10 +1062,45 @@ function ProjectCarbonSummary({ plots, isMobile }: { plots: SavedPlot[]; isMobil
       marginBottom: 20,
       boxShadow: "0 8px 32px rgba(0,0,0,0.05)"
     }}>
-      <div style={{
-        display: "grid",
-        gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr",
-      }}>
+      {/* Clickable Header */}
+      <div 
+        onClick={() => setIsExpanded(!isExpanded)}
+        style={{
+          padding: isMobile ? "16px" : "18px 24px",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          cursor: "pointer",
+          background: isExpanded ? "linear-gradient(to right, #f8fafc, #fff)" : "linear-gradient(to right, #f0fdf4, #fff)",
+          borderBottom: isExpanded ? "1px solid rgba(16,185,129,0.15)" : "none",
+          transition: "background 0.2s"
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <div style={{ width: 38, height: 38, borderRadius: 12, background: "linear-gradient(135deg,#10b981,#047857)", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 4px 12px rgba(16,185,129,0.35)", flexShrink: 0 }}>
+              <i className="bi bi-bar-chart-fill" style={{ color: "#fff", fontSize: 18 }} />
+            </div>
+            <div>
+              <div style={{ fontSize: isMobile ? 15 : 17, fontWeight: 800, color: "#064e3b", lineHeight: 1.2 }}>สรุปภาพรวมโครงการ</div>
+              <div style={{ fontSize: isMobile ? 11 : 12, color: "#6b7280", fontWeight: 500 }}>
+                {isExpanded ? "คลิกเพื่อย่อข้อมูล" : "คลิกเพื่อดูปริมาณคาร์บอนและพื้นที่รวมทั้งหมด"}
+              </div>
+            </div>
+        </div>
+        <div style={{ 
+          width: 32, height: 32, borderRadius: "50%", background: isExpanded ? "rgba(16,185,129,0.1)" : "#10b981",
+          display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.2s"
+        }}>
+          <i className={`bi bi-chevron-${isExpanded ? 'up' : 'down'}`} style={{ color: isExpanded ? "#064e3b" : "#fff", fontSize: 16, fontWeight: 'bold' }} />
+        </div>
+      </div>
+
+      {/* Expandable Content */}
+      {isExpanded && (
+        <div style={{
+          display: "grid",
+          gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr",
+        }}>
 
         {/* Left: Chart Panel */}
         <div style={{
@@ -1108,16 +1144,7 @@ function ProjectCarbonSummary({ plots, isMobile }: { plots: SavedPlot[]; isMobil
           <div style={{ position: "absolute", top: -30, right: -30, width: 120, height: 120, background: "rgba(16,185,129,0.08)", borderRadius: "50%", pointerEvents: "none" }} />
           <div style={{ position: "absolute", bottom: -20, left: -20, width: 80, height: 80, background: "rgba(5,150,105,0.06)", borderRadius: "50%", pointerEvents: "none" }} />
 
-          {/* Header */}
-          <div style={{ position: "relative", display: "flex", alignItems: "center", gap: 9 }}>
-            <div style={{ width: 34, height: 34, borderRadius: 10, background: "linear-gradient(135deg,#10b981,#047857)", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 4px 12px rgba(16,185,129,0.35)", flexShrink: 0 }}>
-              <i className="bi bi-bar-chart-fill" style={{ color: "#fff", fontSize: 15 }} />
-            </div>
-            <div>
-              <div style={{ fontSize: 14, fontWeight: 800, color: "#064e3b", lineHeight: 1.2 }}>สรุปภาพรวมโครงการ</div>
-              <div style={{ fontSize: 11, color: "#6b7280", fontWeight: 500 }}>ข้อมูลรวมทุกแปลงที่ประมวลผลแล้ว</div>
-            </div>
-          </div>
+
 
           {/* Main carbon metric */}
           <div style={{
@@ -1169,7 +1196,8 @@ function ProjectCarbonSummary({ plots, isMobile }: { plots: SavedPlot[]; isMobil
           )}
         </div>
 
-      </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1198,7 +1226,7 @@ function PlotCard({ plot, index, onDelete, onEdit, expanded, onToggle, isMobile,
         ? buildBarPoints(effectiveAge, chartStartYearBE, plot.trees ?? 0, plot.spacing || "2.5x8")
         : [])
     : [];
-  const limitedBarPts = maxYearBE && maxYearBE > 0 ? barPts.filter(p => p.yearBE <= maxYearBE) : barPts;
+  const limitedBarPts = barPts;
 
   const plantStatusLabel = plot.plantStatus === "replanting" ? "เริ่มปลูกใหม่" : plot.plantStatus === "existing" ? "ปลูกมาแล้ว" : "—";
 
@@ -1668,20 +1696,32 @@ export default function MyPlotsPage() {
 
   useEffect(() => {
     setMounted(true);
-    if (ready && user) {
-      const url = viewMode === "all" && isAdmin
-        ? "/api/plots?all=true"
-        : "/api/plots";
-      fetch(url)
-        .then(r => r.ok ? r.json() : { plots: [] })
-        .then(data => setPlots(Array.isArray(data.plots) ? data.plots : []))
-        .catch(() => setPlots([]));
+    if (ready) {
+      let url = "";
+      if (user) {
+        url = viewMode === "all" && isAdmin ? "/api/plots?all=true" : "/api/plots";
+      } else {
+        const guestId = localStorage.getItem("guest_user_id");
+        if (guestId) {
+          url = `/api/plots?guest_user_id=${guestId}`;
+        }
+      }
+
+      if (url) {
+        fetch(url)
+          .then(r => r.ok ? r.json() : { plots: [] })
+          .then(data => setPlots(Array.isArray(data.plots) ? data.plots : []))
+          .catch(() => setPlots([]));
+      } else {
+        setPlots([]);
+      }
     }
   }, [ready, user, viewMode, isAdmin]);
 
 
   const handleDelete = (id: string) => {
-    if (!user) return;
+    const isGuest = !user && typeof window !== "undefined" && !!localStorage.getItem("guest_user_id");
+    if (!user && !isGuest) return;
     
     // Find the plot to get its dbProjectId
     const plotToDelete = plots.find(p => p.id === id);
@@ -1695,9 +1735,11 @@ export default function MyPlotsPage() {
     
     const remainingInProject = remainingPlots.filter(p => p.dbProjectId === plotToDelete.dbProjectId);
     
+    const guestQuery = isGuest ? `?guest_user_id=${localStorage.getItem("guest_user_id")}` : "";
+
     if (remainingInProject.length === 0) {
         // If this was the last plot in the project, soft-delete the entire project row
-        fetch(`/api/plots/${plotToDelete.dbProjectId}`, { 
+        fetch(`/api/plots/${plotToDelete.dbProjectId}${guestQuery}`, { 
             method: "DELETE" 
         }).catch(console.error);
     } else {
@@ -1714,13 +1756,15 @@ export default function MyPlotsPage() {
 
 
   const handleDeleteAll = () => {
-    if (!user) return;
+    const isGuest = !user && typeof window !== "undefined" && !!localStorage.getItem("guest_user_id");
+    if (!user && !isGuest) return;
     if (viewMode === "all") {
       // Admin: ลบทีละแปลงที่แสดงอยู่
       plots.forEach(p => handleDelete(p.id));
     } else {
       setPlots([]);
-      fetch("/api/plots", { method: "DELETE" }).catch(console.error);
+      const guestQuery = isGuest ? `?guest_user_id=${localStorage.getItem("guest_user_id")}` : "";
+      fetch(`/api/plots${guestQuery}`, { method: "DELETE" }).catch(console.error);
     }
     setConfirmDeleteAll(false);
   };
@@ -1761,7 +1805,8 @@ export default function MyPlotsPage() {
   const [estimatingProject, setEstimatingProject] = useState<string | null>(null);
 
   const handleInlineEstimate = async (projectName: string, projectPlots: SavedPlot[]) => {
-    if (!user) return;
+    const isGuest = !user && typeof window !== "undefined" && !!localStorage.getItem("guest_user_id");
+    if (!user && !isGuest) return;
     setEstimatingProject(projectName);
 
     try {
@@ -1958,7 +2003,8 @@ export default function MyPlotsPage() {
   const [editingPlot, setEditingPlot] = useState<{ plot: SavedPlot; index: number } | null>(null);
 
   const handleUpdatePlot = (updated: SavedPlot) => {
-    if (!user) return;
+    const isGuest = !user && typeof window !== "undefined" && !!localStorage.getItem("guest_user_id");
+    if (!user && !isGuest) return;
     
     const newPlots = plots.map(p => p.id === updated.id ? updated : p);
     setPlots(newPlots);
@@ -2034,7 +2080,11 @@ export default function MyPlotsPage() {
       </div>
     );
 
-  if (!user) return null;
+  const isGuest = !user && typeof window !== "undefined" && !!localStorage.getItem("guest_user_id");
+  if (!user && !isGuest) {
+    // If not logged in and no guest data, still show the empty UI or redirect
+    // We'll show empty UI for them to see "start new project"
+  }
 
   return (
     <div style={{ minHeight: "100vh", background: "#f4fcf8", paddingTop: 140, paddingBottom: "60px", fontFamily: "'Inter','Noto Sans Thai',sans-serif" }}>

@@ -150,7 +150,7 @@ function parseRai(v: unknown): number {
     return parseFloat(s) || 0;
 }
 
-function getFriendlyErrorMessage(err: unknown, plots: PlotInfo[], plotForms: PlotFormData[]): string {
+function getFriendlyErrorMessage(err: unknown, plots: PlotInfo[], plotForms: PlotFormData[], plotIds: string[] = []): string {
     const msg = err instanceof Error ? err.message : String(err);
 
     // Try to parse backend error JSON if possible
@@ -170,9 +170,12 @@ function getFriendlyErrorMessage(err: unknown, plots: PlotInfo[], plotForms: Plo
     const polygonId = backendErrData?.polygon_id || backendErrData?.status?.polygon_id;
 
     let plotSuffix = "";
-    if (polygonId && typeof polygonId === "string" && polygonId.startsWith("plot-")) {
-        const plotIdx = parseInt(polygonId.replace("plot-", ""), 10);
-        if (!isNaN(plotIdx)) {
+    if (polygonId && typeof polygonId === "string") {
+        let plotIdx = plotIds.indexOf(polygonId);
+        if (plotIdx === -1 && polygonId.startsWith("plot-")) {
+            plotIdx = parseInt(polygonId.replace("plot-", ""), 10);
+        }
+        if (plotIdx !== -1 && !isNaN(plotIdx)) {
             plotSuffix = ` (ที่แปลง ${plotIdx + 1})`;
         }
     }
@@ -786,6 +789,11 @@ export function ParcelResultsPanel({
     const [guestUserId, setGuestUserId] = useState<string | null>(null);
     const [plotForms, setPlotForms] = useState<PlotFormData[]>([]);
 
+    // stable IDs ที่ใช้เชื่อม frontend_plots ↔ polygons_payload ↔ backend_responses
+    // ref เก็บไว้ให้ handleSave อ่านได้, state ให้ render อ่านได้
+    const stablePlotIdsRef = useRef<string[]>([]);
+    const [plotIds, setPlotIds] = useState<string[]>([]);
+
     // When plotForms grows (new parcel added), propagate initial luChecked to map
     const prevPlotFormsLen = useRef(0);
     useEffect(() => {
@@ -929,6 +937,15 @@ export function ParcelResultsPanel({
         setProcessingCarbon(true);
         const CURRENT_BE_NOW = new Date().getFullYear() + 543;
 
+        // คำนวณ stable ID ให้แต่ละแปลงก่อน — ใช้ props.id ถ้ามี (โหลดจาก DB), ไม่งั้นสร้างใหม่ 1 ครั้ง
+        // ID เดียวกันนี้จะถูกใช้ใน polygons_payload, backend_responses, และ frontend_plots
+        const stablePlotIds = parcelFeatures.map((feat) => {
+            const props = (feat?.properties || {}) as any;
+            return (props.id as string) || Math.random().toString(36).substring(7);
+        });
+        stablePlotIdsRef.current = stablePlotIds;
+        setPlotIds(stablePlotIds);
+
         // Build polygons array for the estimateCarbon backend API call, one polygon per plot!
         const polygons: PlantationPolygon[] = [];
         const featuresToUse = luFeatures.length > 0 ? luFeatures : parcelFeatures;
@@ -1008,7 +1025,7 @@ export function ParcelResultsPanel({
             const userYearBE = form.plantYear ? parseInt(form.plantYear) : 0;
 
             polygons.push({
-                id: `plot-${idx}`,
+                id: stablePlotIds[idx],
                 geometry: combinedGeom,
                 year_of_planting: userYearBE > 0 ? userYearBE - 543 : null, // null = ให้ backend ดึงจาก raster
                 rubber_clone: (form.variety && SUPPORTED_CLONES.includes(form.variety)) ? form.variety : null,
@@ -1113,8 +1130,8 @@ export function ParcelResultsPanel({
                 const backendYearBE = plots[idx]?.plantYearBE || 0;
                 const userYearBE = form.plantYear ? parseInt(form.plantYear) : 0;
 
-                // Find corresponding response by matching polygon ID
-                const resp = responses.find(r => r.polygon_id === `plot-${idx}`);
+                // Find corresponding response by matching stable polygon ID
+                const resp = responses.find(r => r.polygon_id === stablePlotIds[idx]);
                 const profile = resp?.carbon_profile ?? [];
 
                 let finalPlantYearBE = 0;
@@ -1204,7 +1221,7 @@ export function ParcelResultsPanel({
             // Auto-save to backend for both logged-in users and guests
             handleSave(results, responses, polygons).catch(console.error);
         } catch (err) {
-            setCarbonErr(getFriendlyErrorMessage(err, plots, plotForms));
+            setCarbonErr(getFriendlyErrorMessage(err, plots, plotForms, stablePlotIds));
         } finally {
             setProcessingCarbon(false);
         }
@@ -1236,9 +1253,17 @@ export function ParcelResultsPanel({
             const activeResponses = overrideResponses || backendResponses || [];
             const activePolygons = overridePolygons || [];
 
+            // ดึง stable IDs จาก ref (set ตอน process) หรือสร้างจาก props.id ถ้า save โดยไม่ผ่าน process
+            const stablePlotIds = stablePlotIdsRef.current.length === parcelFeatures.length
+                ? stablePlotIdsRef.current
+                : parcelFeatures.map((feat) => {
+                    const props = (feat?.properties || {}) as any;
+                    return (props.id as string) || Math.random().toString(36).substring(7);
+                });
+
             // Build plantation_info: ใช้ rawPlantationInfo ที่ส่งมาจาก API จริงๆ ถ้ามี
-            const plantationInfo = rawPlantationInfo && rawPlantationInfo.length > 0 
-                ? rawPlantationInfo 
+            const plantationInfo = rawPlantationInfo && rawPlantationInfo.length > 0
+                ? rawPlantationInfo
                 : parcelFeatures.map((feat, i) => {
                     const props = (feat?.properties || {}) as any;
                     const plotGeom = feat?.geometry || null;
@@ -1249,7 +1274,7 @@ export function ParcelResultsPanel({
                 });
 
                 return {
-                    polygon_id: `parcel-${i}-${Date.now()}`,
+                    polygon_id: stablePlotIds[i],
                     province_code: plots[i]?.province || props.province || "",
                     geometry: plotGeom,
                     area_m2: (plots[i]?.areaRai || 0) * 1600,
@@ -1275,7 +1300,7 @@ export function ParcelResultsPanel({
                     const form = plotForms[i] || {};
                     const userYearBE = form.plantYear ? parseInt(form.plantYear) : 0;
                     return {
-                        id: `plot-${i}`,
+                        id: stablePlotIds[i],
                         geometry: feat?.geometry || null,
                         year_of_planting: userYearBE > 0 ? userYearBE - 543 : null,
                         rubber_clone: (form.variety && SUPPORTED_CLONES.includes(form.variety)) ? form.variety : null,
@@ -1307,8 +1332,8 @@ export function ParcelResultsPanel({
             const frontendPlots = parcelFeatures.map((feat, i) => {
                 const props = (feat?.properties || {}) as any;
                 const form = plotForms[i] || {};
-                const ep = activeResponses.find((r: any) => r.polygon_id === `plot-${i}`)?.estimated_parameters;
-                const backendResp = activeResponses.find((r: any) => r.polygon_id === `plot-${i}`);
+                const ep = activeResponses.find((r: any) => r.polygon_id === stablePlotIds[i] || r.polygon_id === `plot-${i}`)?.estimated_parameters;
+                const backendResp = activeResponses.find((r: any) => r.polygon_id === stablePlotIds[i] || r.polygon_id === `plot-${i}`);
                 
                 const p = computePlot(feat);
                 const cr = overrideResults ? overrideResults[i] : carbonResults[i];
@@ -1355,7 +1380,7 @@ export function ParcelResultsPanel({
                 });
                 
                 return {
-                    id: props.id || Math.random().toString(36).substring(7),
+                    id: stablePlotIds[i],
                     name: projectName || props.farm_name || "แปลงยางใหม่",
                     areaRai: p.areaRai,
                     selectedAreaRai: hasNewResult ? cr.selectedAreaRai : (props.selectedAreaRai || p.areaRai),
@@ -1409,7 +1434,11 @@ export function ParcelResultsPanel({
                 frontendPlots: finalFrontendPlots,
             };
             if (userId) saveBody.userId = userId;
-            if (projectId) saveBody.projectId = projectId;
+            
+            // Only send projectId if it's a real name, so the backend can auto-generate for guests
+            if (projectId && projectId !== "Unnamed Project") {
+                saveBody.projectId = projectId;
+            }
 
             if (dbProjectId) {
                 res = await fetch(`/api/plots/${dbProjectId}`, {
@@ -1430,9 +1459,12 @@ export function ParcelResultsPanel({
                 if (data.project?.id) {
                     setDbProjectId(data.project.id);
                 }
-                // บันทึก guest userId ที่ server สร้างให้ เพื่อใช้กับ PATCH ครั้งถัดไป
+                // บันทึก guest userId ที่ server สร้างให้ เพื่อใช้กับ PATCH ครั้งถัดไป และหน้า My Plots
                 if (!user && data.project?.userId) {
                     setGuestUserId(data.project.userId);
+                    if (typeof window !== "undefined") {
+                        localStorage.setItem("guest_user_id", data.project.userId);
+                    }
                 }
             }
         } catch (e) { console.error("handleSave error:", e); }
@@ -2122,7 +2154,7 @@ export function ParcelResultsPanel({
 
         const showAggregateAge = carbonResults.some((c, idx) => {
             const form = plotForms[idx];
-            const resp = backendResponses?.find(r => r.polygon_id === `plot-${idx}`);
+            const resp = backendResponses?.find(r => r.polygon_id === plotIds[idx] || r.polygon_id === `plot-${idx}`);
             return !!form?.plantYear || (resp?.carbon_profile?.some(p => p.age !== null) ?? false);
         });
 
@@ -2245,7 +2277,7 @@ export function ParcelResultsPanel({
                     {carbonResults.map((cr, i) => {
                         const form = plotForms[i];
                         const plot = plots[i];
-                        const backendResp = backendResponses?.find(r => r.polygon_id === `plot-${i}`);
+                        const backendResp = backendResponses?.find(r => r.polygon_id === plotIds[i] || r.polygon_id === `plot-${i}`);
                         const ep = backendResp?.estimated_parameters;
 
                         const backendProfile = backendResp?.carbon_profile;
@@ -2253,7 +2285,7 @@ export function ParcelResultsPanel({
                         const plotPtsRaw = backendProfile && backendProfile.length > 0
                             ? profileToBarPoints(backendProfile, cr.age)
                             : buildBarPoints(cr.age, startYearBE, cr.trees, cr.spacing || "2.5x8");
-                        const plotPts = aggregatePts.length > 0 ? plotPtsRaw.slice(0, aggregatePts.length) : plotPtsRaw;
+                        const plotPts = plotPtsRaw;
 
                         const showPlotAge = !!form?.plantYear || (backendResp?.carbon_profile?.some(p => p.age !== null) ?? false);
 

@@ -75,3 +75,6 @@ CREATE INDEX IF NOT EXISTS idx_carbon_projects_active
 ALTER TABLE carbon_projects
   ADD CONSTRAINT chk_project_status
   CHECK (status IN ('active', 'deleted'));
+
+
+

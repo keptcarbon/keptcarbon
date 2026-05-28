@@ -273,8 +273,13 @@ export function CarbonBarChart({
         {displayPts.map((p, i) => {
           const isCycleEnd = p.year_at > 0 && p.year_at % 7 === 0;
           const isFirst = i === 0;
+          const isLast = i === displayPts.length - 1;
 
-          if (!isCycleEnd && !isFirst) return null;
+          // ถ้าเป็น cycle end แต่ดันอยู่ติดกับแท่งสุดท้ายมากเกินไป (ห่างไม่เกิน 2 แท่ง) ให้ซ่อน เพื่อไม่ให้ตัวเลขซ้อนกัน
+          const tooCloseToLast = (displayPts.length - 1 - i) <= 2;
+
+          // แสดง label ถัาเป็นอันแรก, วันครบรอบ 7 ปี (ที่ไม่ใกล้แท่งสุดท้ายเกินไป), หรืออันสุดท้าย
+          if (!isFirst && !isLast && (!isCycleEnd || tooCloseToLast)) return null;
 
           const x = startX + i * (barW + gap) + barW / 2;
           return (

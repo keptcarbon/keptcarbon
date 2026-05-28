@@ -135,8 +135,17 @@ function MapDrawContent() {
   const [existingProjectNames, setExistingProjectNames] = useState<Set<string>>(new Set());
 
   useEffect(() => {
-    if (!user) return;
-    fetch('/api/plots')
+    let url = "";
+    if (user) {
+      url = "/api/plots";
+    } else {
+      const guestId = typeof window !== "undefined" ? localStorage.getItem("guest_user_id") : null;
+      if (guestId) url = `/api/plots?guest_user_id=${guestId}`;
+    }
+
+    if (!url) return;
+
+    fetch(url)
       .then(res => res.ok ? res.json() : { plots: [] })
       .then(data => {
         const plots = Array.isArray(data.plots) ? data.plots : [];

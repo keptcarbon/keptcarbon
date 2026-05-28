@@ -126,6 +126,67 @@ export async function GET(request: NextRequest) {
 }
 
 // ---------------------------------------------------------------------------
+// Helper: merge raw JSON arrays — new items replace by index, extra old items preserved
+// (copy จาก [id]/route.ts — ป้องกัน raw data หายเมื่อบันทึกแค่บางแปลง)
+// ---------------------------------------------------------------------------
+function mergeRawArray(oldArr: any[], newArr: any[]): any[] {
+  if (!Array.isArray(oldArr) || oldArr.length === 0) return newArr;
+  if (!Array.isArray(newArr) || newArr.length === 0) return oldArr;
+  
+  // Create a map of new items by ID
+  const newItemsMap = new Map();
+  let hasIds = false;
+  
+  newArr.forEach(item => {
+    if (item && typeof item === 'object') {
+      const key = item.id || item.polygon_id;
+      if (key) {
+        newItemsMap.set(key, item);
+        hasIds = true;
+      }
+    }
+  });
+
+  // If no items have IDs, fallback to original index-based logic
+  if (!hasIds) {
+    if (newArr.length >= oldArr.length) return newArr;
+    return [...newArr, ...oldArr.slice(newArr.length)];
+  }
+
+  // If we have stable IDs, merge properly:
+  // Start with all new items
+  const result = [...newArr];
+  
+  // Append old items that are NOT in the new payload
+  oldArr.forEach(oldItem => {
+    if (oldItem && typeof oldItem === 'object') {
+      const key = oldItem.id || oldItem.polygon_id;
+      if (key && !newItemsMap.has(key)) {
+        result.push(oldItem);
+      }
+    } else {
+      result.push(oldItem);
+    }
+  });
+  
+  return result;
+}
+
+function mergeRawField(oldValue: any, newValue: any): any {
+  if (Array.isArray(newValue) && Array.isArray(oldValue)) {
+    return mergeRawArray(oldValue, newValue);
+  }
+  if (
+    newValue !== null && typeof newValue === "object" &&
+    oldValue !== null && typeof oldValue === "object" &&
+    !Array.isArray(newValue) && !Array.isArray(oldValue)
+  ) {
+    return { ...oldValue, ...newValue };
+  }
+  return newValue;
+}
+
+// ---------------------------------------------------------------------------
 // POST /api/plots — สร้าง project ใหม่ + บันทึก history (CREATE)
 // ---------------------------------------------------------------------------
 export async function POST(request: NextRequest) {
@@ -173,16 +234,27 @@ export async function POST(request: NextRequest) {
       let savedRow;
 
       if ((existing.rowCount ?? 0) > 0) {
+        // ดึงข้อมูลเดิมก่อน update เพื่อ merge raw fields
+        const oldResult = await client.query(
+          `SELECT plantation_info, polygons_payload, backend_responses FROM carbon_projects WHERE id = $1`,
+          [existing.rows[0].id]
+        );
+        const oldRow = oldResult.rows[0] ?? {};
+
         // Update existing record
+        let mergedPlantationInfo = mergeRawField(oldRow.plantation_info, plantationInfo);
+        let mergedPolygonsPayload = mergeRawField(oldRow.polygons_payload, polygonsPayload);
+        let mergedBackendResponses = mergeRawField(oldRow.backend_responses, backendResponses);
+
         const updateResult = await client.query(
           `UPDATE carbon_projects
            SET plantation_info = $1, polygons_payload = $2, backend_responses = $3, frontend_plots = $4, updated_at = NOW()
            WHERE id = $5
            RETURNING *`,
           [
-            JSON.stringify(plantationInfo),
-            JSON.stringify(polygonsPayload),
-            JSON.stringify(backendResponses),
+            JSON.stringify(mergedPlantationInfo),
+            JSON.stringify(mergedPolygonsPayload),
+            JSON.stringify(mergedBackendResponses),
             JSON.stringify(frontendPlots),
             existing.rows[0].id
           ]
