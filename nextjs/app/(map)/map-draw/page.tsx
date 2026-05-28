@@ -1611,37 +1611,39 @@ function MapDrawContent() {
     map.getCanvas().style.cursor = 'crosshair';
     setStatus("โหมดวาด — คลิกเพื่อเพิ่มจุด | คลิกขวา หรือ Double-click เพื่อปิดแปลง | Esc ยกเลิก");
 
-    if (selectedProvince) {
-      setSearchLoading(true);
-      try {
-        const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&countrycodes=th&limit=1&q=${encodeURIComponent("จังหวัด" + selectedProvince)}`);
-        const data = await res.json();
-        if (data && data.length > 0) {
-          map.flyTo({ 
-            center: [parseFloat(data[0].lon), parseFloat(data[0].lat)], 
-            zoom: 10, 
-            pitch: 0, 
-            bearing: 0, 
-            duration: 3000,
-            essential: true,
-            curve: 1.42
-          });
+    if (drawnParcels.length === 0) {
+      if (selectedProvince) {
+        setSearchLoading(true);
+        try {
+          const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&countrycodes=th&limit=1&q=${encodeURIComponent("จังหวัด" + selectedProvince)}`);
+          const data = await res.json();
+          if (data && data.length > 0) {
+            map.flyTo({ 
+              center: [parseFloat(data[0].lon), parseFloat(data[0].lat)], 
+              zoom: 10, 
+              pitch: 0, 
+              bearing: 0, 
+              duration: 3000,
+              essential: true,
+              curve: 1.42
+            });
+          }
+        } catch (err) {
+          console.error(err);
         }
-      } catch (err) {
-        console.error(err);
+        setSearchLoading(false);
+      } else if (map.getZoom() < 10) {
+        // Default to the center of Rayong province
+        map.flyTo({ 
+          center: [101.35, 12.80], 
+          zoom: 9.5, 
+          pitch: 0, 
+          bearing: 0, 
+          duration: 3000,
+          essential: true,
+          curve: 1.42
+        });
       }
-      setSearchLoading(false);
-    } else if (map.getZoom() < 10) {
-      // Default to the center of Rayong province
-      map.flyTo({ 
-        center: [101.35, 12.80], 
-        zoom: 9.5, 
-        pitch: 0, 
-        bearing: 0, 
-        duration: 3000,
-        essential: true,
-        curve: 1.42
-      });
     }
   };
 
