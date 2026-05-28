@@ -2463,39 +2463,11 @@ function MapDrawContent() {
                     </p>
                   </div>
                 </div>
-                {user && !drawing && (
+                {!drawing && (
                   <div style={{ marginBottom: 16 }}>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: "#059669", marginBottom: 6, display: "flex", alignItems: "center", gap: 6 }}>
-                      <i className="bi bi-folder2-open" /> ชื่อโครงการ <span style={{ color: "#ef4444" }}>*</span>
-                    </div>
-                    <input
-                      className="prp-input"
-                      style={{
-                        marginBottom: 0,
-                        width: "100%",
-                        padding: "10px 14px",
-                        borderRadius: "10px",
-                        border: "1px solid #cbd5e1",
-                        fontSize: "14px"
-                      }}
-                      placeholder="เช่น โครงการที่1"
-                      value={projectName}
-                      onChange={e => setProjectName(e.target.value)}
-                    />
-                    {isDuplicateProjectName && (
-                      <div style={{ color: "#dc2626", fontSize: 12, marginTop: 6, fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
-                        <i className="bi bi-exclamation-circle-fill" /> ชื่อโครงการนี้ถูกใช้งานแล้ว กรุณาใช้ชื่ออื่น
-                      </div>
-                    )}
-                    {!projectName.trim() && (
-                      <div style={{ color: "#f59e0b", fontSize: 12, marginTop: 6, fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
-                        <i className="bi bi-exclamation-circle-fill" /> กรุณากรอกชื่อโครงการเพื่อดำเนินการต่อ
-                      </div>
-                    )}
-
                     {/* Region / Province Selection */}
                     {drawnParcels.length === 0 && (
-                      <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 16 }}>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: user ? 16 : 0 }}>
                         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                           <label style={{ fontSize: 13, fontWeight: 700, color: "#059669", display: "flex", alignItems: "center", gap: 6 }}>
                             <i className="bi bi-geo-alt" /> ภูมิภาค
@@ -2546,7 +2518,44 @@ function MapDrawContent() {
                             ))}
                           </select>
                         </div>
+                        {(!selectedRegion || !selectedProvince) && (
+                          <div style={{ color: "#f59e0b", fontSize: 12, marginTop: 0, fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
+                            <i className="bi bi-exclamation-circle-fill" /> กรุณาเลือกภูมิภาคและจังหวัดเพื่อดำเนินการต่อ
+                          </div>
+                        )}
                       </div>
+                    )}
+
+                    {user && (
+                      <>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: "#059669", marginBottom: 6, display: "flex", alignItems: "center", gap: 6 }}>
+                          <i className="bi bi-folder2-open" /> ชื่อโครงการ <span style={{ color: "#ef4444" }}>*</span>
+                        </div>
+                        <input
+                          className="prp-input"
+                          style={{
+                            marginBottom: 0,
+                            width: "100%",
+                            padding: "10px 14px",
+                            borderRadius: "10px",
+                            border: "1px solid #cbd5e1",
+                            fontSize: "14px"
+                          }}
+                          placeholder="เช่น โครงการที่1"
+                          value={projectName}
+                          onChange={e => setProjectName(e.target.value)}
+                        />
+                        {isDuplicateProjectName && (
+                          <div style={{ color: "#dc2626", fontSize: 12, marginTop: 6, fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
+                            <i className="bi bi-exclamation-circle-fill" /> ชื่อโครงการนี้ถูกใช้งานแล้ว กรุณาใช้ชื่ออื่น
+                          </div>
+                        )}
+                        {!projectName.trim() && (
+                          <div style={{ color: "#f59e0b", fontSize: 12, marginTop: 6, fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
+                            <i className="bi bi-exclamation-circle-fill" /> กรุณากรอกชื่อโครงการเพื่อดำเนินการต่อ
+                          </div>
+                        )}
+                      </>
                     )}
                   </div>
                 )}
@@ -2649,13 +2658,13 @@ function MapDrawContent() {
                             className="mds-btn mds-btn-solid"
                             onClick={startDrawFlow}
                             style={{
-                              background: (user && (!projectName.trim() || isDuplicateProjectName)) || isEditingPlotParam ? "#cbd5e1" : undefined,
-                              cursor: (user && (!projectName.trim() || isDuplicateProjectName)) || isEditingPlotParam ? "not-allowed" : "pointer",
-                              boxShadow: (user && (!projectName.trim() || isDuplicateProjectName)) || isEditingPlotParam ? "none" : undefined,
-                              color: (user && (!projectName.trim() || isDuplicateProjectName)) || isEditingPlotParam ? "#fff" : undefined,
-                              border: (user && (!projectName.trim() || isDuplicateProjectName)) || isEditingPlotParam ? "none" : undefined
+                              background: ((user && (!projectName.trim() || isDuplicateProjectName)) || (drawnParcels.length === 0 && (!selectedRegion || !selectedProvince)) || isEditingPlotParam) ? "#cbd5e1" : undefined,
+                              cursor: ((user && (!projectName.trim() || isDuplicateProjectName)) || (drawnParcels.length === 0 && (!selectedRegion || !selectedProvince)) || isEditingPlotParam) ? "not-allowed" : "pointer",
+                              boxShadow: ((user && (!projectName.trim() || isDuplicateProjectName)) || (drawnParcels.length === 0 && (!selectedRegion || !selectedProvince)) || isEditingPlotParam) ? "none" : undefined,
+                              color: ((user && (!projectName.trim() || isDuplicateProjectName)) || (drawnParcels.length === 0 && (!selectedRegion || !selectedProvince)) || isEditingPlotParam) ? "#fff" : undefined,
+                              border: ((user && (!projectName.trim() || isDuplicateProjectName)) || (drawnParcels.length === 0 && (!selectedRegion || !selectedProvince)) || isEditingPlotParam) ? "none" : undefined
                             }}
-                            disabled={!!(user && (!projectName.trim() || isDuplicateProjectName)) || isEditingPlotParam}
+                            disabled={!!((user && (!projectName.trim() || isDuplicateProjectName)) || (drawnParcels.length === 0 && (!selectedRegion || !selectedProvince)) || isEditingPlotParam)}
                           >
                             <i className="bi bi-pencil" /> {drawnParcels.length > 0 ? "วาดแปลงเพิ่ม" : "เริ่มวาดแปลง"}
                           </button>

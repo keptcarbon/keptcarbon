@@ -958,12 +958,11 @@ function ProjectCarbonSummary({ plots, isMobile }: { plots: SavedPlot[]; isMobil
   const currentYearBE = new Date().getFullYear() + 543;
 
   const { combinedPts, totalNow, ciNow, showAggregateAge } = useMemo(() => {
-    const sumMap = new Map<number, { co2: number; sumLinearCi: number; totalValidAge: number; validAgeCount: number; fallbackAgeAccum: number; fallbackCount: number; }>();
     let fallbackTotal = 0;
     let fallbackLinearCi = 0;
-    let minLength = Infinity;
-    let shortestPts: BarPoint[] | null = null;
 
+    // Pass 1: collect each plot's BarPoint array
+    const allPtsArrays: BarPoint[][] = [];
     for (const plot of plots) {
       const isProcessed = plot.processed === true || (plot.carbonProfile && plot.carbonProfile.length > 0) || (plot.carbonTotal > 0);
       if (!isProcessed) continue;
@@ -973,32 +972,38 @@ function ProjectCarbonSummary({ plots, isMobile }: { plots: SavedPlot[]; isMobil
       const effectiveAge = plot.rubberAge > 0 ? plot.rubberAge : (plantYearBE > 0 ? currentYearBE - plantYearBE : 0);
       const chartStartYearBE = plantYearBE > 0 ? plantYearBE + effectiveAge : currentYearBE;
 
-      let pts: BarPoint[];
       if (plot.carbonProfile && plot.carbonProfile.length > 0) {
-        pts = plot.carbonProfile;
+        allPtsArrays.push(plot.carbonProfile);
       } else if (effectiveAge > 0 && (plot.trees ?? 0) > 0) {
-        pts = buildBarPoints(effectiveAge, chartStartYearBE, plot.trees ?? 0, plot.spacing || "2.5x8");
+        allPtsArrays.push(buildBarPoints(effectiveAge, chartStartYearBE, plot.trees ?? 0, plot.spacing || "2.5x8"));
       } else {
         if (plot.carbonTotal > 0) fallbackTotal += Math.floor(plot.carbonTotal);
-        // Approximation if CI is not available for fallback
         const approxCi = (plot.carbonTotal || 0) * 0.05;
         fallbackLinearCi += Math.floor(approxCi * 10) / 10;
-        continue;
       }
+    }
 
-      if (pts.length > 0) {
-        if (pts.length < minLength) {
-          minLength = pts.length;
-          shortestPts = pts;
-        }
-      }
+    if (allPtsArrays.length === 0) {
+      return { combinedPts: [], totalNow: fallbackTotal, ciNow: fallbackLinearCi, showAggregateAge: false };
+    }
 
+    // Pass 2: find the shortest profile — its yearBE sequence defines the x-axis
+    const shortestPts = allPtsArrays.reduce((a, b) => a.length <= b.length ? a : b);
+    const validYearBEs = shortestPts.map(p => p.yearBE);
+    const validYearBESet = new Set(validYearBEs);
+
+    // Pass 3: sum contributions from all plots, only for valid yearBEs
+    const sumMap = new Map<number, { co2: number; sumLinearCi: number; totalValidAge: number; validAgeCount: number; fallbackAgeAccum: number; fallbackCount: number; }>();
+    for (const yearBE of validYearBEs) {
+      sumMap.set(yearBE, { co2: 0, sumLinearCi: 0, totalValidAge: 0, validAgeCount: 0, fallbackAgeAccum: 0, fallbackCount: 0 });
+    }
+
+    for (const pts of allPtsArrays) {
       for (const p of pts) {
-        const e = sumMap.get(p.yearBE) ?? { co2: 0, sumLinearCi: 0, totalValidAge: 0, validAgeCount: 0, fallbackAgeAccum: 0, fallbackCount: 0 };
+        if (!validYearBESet.has(p.yearBE)) continue;
+        const e = sumMap.get(p.yearBE)!;
         e.co2 += Math.floor(p.co2 || 0);
-        // Avoid floating point precision issues by multiplying by 10 and rounding
         e.sumLinearCi = Math.round((e.sumLinearCi + Math.floor((p.ci || 0) * 10) / 10) * 10) / 10;
-
         if (p.isAgeValid) {
           e.totalValidAge += p.age;
           e.validAgeCount += 1;
@@ -1006,22 +1011,16 @@ function ProjectCarbonSummary({ plots, isMobile }: { plots: SavedPlot[]; isMobil
           e.fallbackAgeAccum += p.age;
           e.fallbackCount += 1;
         }
-        sumMap.set(p.yearBE, e);
       }
     }
 
-    const sorted = Array.from(sumMap.entries()).sort((a, b) => a[0] - b[0]);
-    
-    // Filter to only include the exact years present in the shortest plot's profile
-    const validYearsSet = new Set(shortestPts ? shortestPts.map(p => p.yearBE) : []);
-    const validSorted = shortestPts ? sorted.filter(([yearBE]) => validYearsSet.has(yearBE)) : sorted;
-
-    const combinedPts: BarPoint[] = validSorted.map(([yearBE, d], i) => {
+    const combinedPts: BarPoint[] = validYearBEs.map((yearBE, i) => {
+      const d = sumMap.get(yearBE)!;
       const avgAge = d.validAgeCount > 0 ? Math.round(d.totalValidAge / d.validAgeCount) : Math.round(d.fallbackAgeAccum / (d.fallbackCount || 1));
       return {
         age: avgAge, yearBE, year_at: i,
         co2: d.co2, ci: d.sumLinearCi,
-        gainValue: i > 0 ? d.co2 - validSorted[i - 1][1].co2 : 0,
+        gainValue: i > 0 ? d.co2 - (sumMap.get(validYearBEs[i - 1])?.co2 ?? 0) : 0,
         gainCi: 0, cycle: Math.floor(i / 7), cycleAge: avgAge, errorMargin: d.sumLinearCi,
         isAgeValid: d.validAgeCount > 0
       };
@@ -1094,7 +1093,7 @@ function ProjectCarbonSummary({ plots, isMobile }: { plots: SavedPlot[]; isMobil
   );
 }
 
-function PlotCard({ plot, index, onDelete, onEdit, expanded, onToggle, isMobile }: { plot: SavedPlot; index: number; onDelete: () => void; onEdit?: (p: SavedPlot, i: number) => void; expanded: boolean; onToggle: () => void; isMobile: boolean }) {
+function PlotCard({ plot, index, onDelete, onEdit, expanded, onToggle, isMobile, minBarCount }: { plot: SavedPlot; index: number; onDelete: () => void; onEdit?: (p: SavedPlot, i: number) => void; expanded: boolean; onToggle: () => void; isMobile: boolean; minBarCount?: number }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [activeTab, setActiveTab] = useState<"map" | "carbon">("map");
   const [expandYears, setExpandYears] = useState(false);
@@ -1118,6 +1117,7 @@ function PlotCard({ plot, index, onDelete, onEdit, expanded, onToggle, isMobile 
         ? buildBarPoints(effectiveAge, chartStartYearBE, plot.trees ?? 0, plot.spacing || "2.5x8")
         : [])
     : [];
+  const limitedBarPts = minBarCount && minBarCount > 0 ? barPts.slice(0, minBarCount) : barPts;
 
   const plantStatusLabel = plot.plantStatus === "replanting" ? "เริ่มปลูกใหม่" : plot.plantStatus === "existing" ? "ปลูกมาแล้ว" : "—";
 
@@ -1400,7 +1400,7 @@ function PlotCard({ plot, index, onDelete, onEdit, expanded, onToggle, isMobile 
                 {isProcessed && barPts.length > 0 ? (
                   <div style={{ height: "100%", minHeight: 280, display: "flex", justifyContent: "center", alignItems: "center" }}>
                     <div style={{ width: "100%", maxWidth: 680 }}>
-                      <CarbonBarChart pts={barPts} isMobile={isMobile} narrowMode={!isMobile} showAge={showPlotAge} />
+                      <CarbonBarChart pts={limitedBarPts} isMobile={isMobile} narrowMode={!isMobile} showAge={showPlotAge} />
                     </div>
                   </div>
                 ) : (
@@ -2109,25 +2109,32 @@ export default function MyPlotsPage() {
                   </div>
 
                   {/* Project Plots */}
-                  {expandedProjects[group.projectName] && (
-                    <div style={{ padding: isMobile ? "16px" : "24px", background: "#f8fafc", borderTop: "1px solid rgba(16,185,129,0.1)" }}>
-                      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-                        <ProjectCarbonSummary plots={group.plots} isMobile={isMobile} />
-                        {group.plots.map((plot, i) => (
-                          <PlotCard
-                            key={`${plot.id}-${i}`}
-                            plot={plot}
-                            index={i + 1}
-                            onDelete={() => handleDelete(plot.id)}
-                            onEdit={(p, idx) => setEditingPlot({ plot: p, index: idx })}
-                            expanded={expandedPlotId === plot.id}
-                            onToggle={() => setExpandedPlotId(prev => prev === plot.id ? null : plot.id)}
-                            isMobile={isMobile}
-                          />
-                        ))}
+                  {expandedProjects[group.projectName] && (() => {
+                    const profileLengths = group.plots
+                      .filter(p => p.carbonProfile && p.carbonProfile.length > 0)
+                      .map(p => p.carbonProfile!.length);
+                    const groupMinBarCount = profileLengths.length > 0 ? Math.min(...profileLengths) : 0;
+                    return (
+                      <div style={{ padding: isMobile ? "16px" : "24px", background: "#f8fafc", borderTop: "1px solid rgba(16,185,129,0.1)" }}>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                          <ProjectCarbonSummary plots={group.plots} isMobile={isMobile} />
+                          {group.plots.map((plot, i) => (
+                            <PlotCard
+                              key={`${plot.id}-${i}`}
+                              plot={plot}
+                              index={i + 1}
+                              onDelete={() => handleDelete(plot.id)}
+                              onEdit={(p, idx) => setEditingPlot({ plot: p, index: idx })}
+                              expanded={expandedPlotId === plot.id}
+                              onToggle={() => setExpandedPlotId(prev => prev === plot.id ? null : plot.id)}
+                              isMobile={isMobile}
+                              minBarCount={groupMinBarCount > 0 ? groupMinBarCount : undefined}
+                            />
+                          ))}
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    );
+                  })()}
                 </div>
               ))}
             </div>

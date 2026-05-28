@@ -276,9 +276,29 @@ function computePlot(feat: GeoJSON.Feature): PlotInfo {
 
 
 function aggregateProfiles(responses: EstimationResponse[], fallbackBaseAge: number = 0): BarPoint[] {
-    const profiles = responses.map(r => r.carbon_profile ?? []);
-    if (!profiles.length || !profiles.some(p => p.length > 0)) return [];
+    // Only keep non-empty profiles
+    const profiles = responses
+        .map(r => r.carbon_profile)
+        .filter((p): p is YearlyEstimate[] => Array.isArray(p) && p.length > 0);
 
+    if (profiles.length === 0) return [];
+
+    // Find the common year range: latest start year → earliest end year across all profiles.
+    // A longer-lived existing plot may have more data points yet still end earlier in calendar
+    // time, so comparing lengths alone is wrong — we must compare actual end years.
+    const minEndYear = Math.min(...profiles.map(p => p[p.length - 1].year));
+    const maxStartYear = Math.max(...profiles.map(p => p[0].year));
+
+    if (maxStartYear > minEndYear) return [];
+
+    // Use the profile that starts latest as the year-order reference, then cap at minEndYear.
+    const referenceProfile = profiles.reduce((a, b) => a[0].year >= b[0].year ? a : b);
+    const validYears = referenceProfile
+        .map(item => item.year)
+        .filter(y => y <= minEndYear);
+    const validYearsSet = new Set(validYears);
+
+    // Initialise the accumulator only for valid years
     const yearMap = new Map<number, {
         totalCo2: number;
         sumLinearCI: number;
@@ -286,19 +306,16 @@ function aggregateProfiles(responses: EstimationResponse[], fallbackBaseAge: num
         validAgeCount: number;
         totalGain: number;
         sumLinearGainCI: number;
-        plotCount: number;
     }>();
+    for (const year of validYears) {
+        yearMap.set(year, { totalCo2: 0, sumLinearCI: 0, totalAge: 0, validAgeCount: 0, totalGain: 0, sumLinearGainCI: 0 });
+    }
 
-    profiles.forEach(profile => {
-        profile.forEach(item => {
-            if (!item) return;
-            const year = item.year;
-            if (!yearMap.has(year)) {
-                yearMap.set(year, {
-                    totalCo2: 0, sumLinearCI: 0, totalAge: 0, validAgeCount: 0, totalGain: 0, sumLinearGainCI: 0, plotCount: 0
-                });
-            }
-            const data = yearMap.get(year)!;
+    // Sum each plot's contribution, skipping years outside the shortest profile's range
+    for (const profile of profiles) {
+        for (const item of profile) {
+            if (!item || !validYearsSet.has(item.year)) continue;
+            const data = yearMap.get(item.year)!;
             data.totalCo2 += Math.floor(item.stocks.value || 0);
             data.sumLinearCI = Math.round((data.sumLinearCI + Math.floor((item.stocks.ci || 0) * 10) / 10) * 10) / 10;
             if (item.age != null && !isNaN(item.age)) {
@@ -307,46 +324,25 @@ function aggregateProfiles(responses: EstimationResponse[], fallbackBaseAge: num
             }
             data.totalGain += Math.floor(item.gain.value || 0);
             data.sumLinearGainCI = Math.round((data.sumLinearGainCI + Math.floor((item.gain.ci || 0) * 10) / 10) * 10) / 10;
-            data.plotCount++;
-        });
-    });
-
-    const sortedYears = Array.from(yearMap.keys())
-        .sort((a, b) => a - b);
-
-    // Find the shortest profile and its years
-    let shortestProfile = profiles.find(p => p.length > 0) || [];
-    for (const p of profiles) {
-        if (p.length > 0 && p.length < shortestProfile.length) {
-            shortestProfile = p;
         }
     }
-    const validYearsSet = new Set(shortestProfile.map(item => item.year));
 
-    // Filter sortedYears to only include years present in the shortest profile
-    const validSortedYears = sortedYears.filter(y => validYearsSet.has(y));
-
-    const pts: BarPoint[] = validSortedYears.map((year, j) => {
+    return validYears.map((year, j) => {
         const data = yearMap.get(year)!;
         const avgAge = data.validAgeCount > 0 ? Math.round(data.totalAge / data.validAgeCount) : fallbackBaseAge + j;
-        const totalCI = data.sumLinearCI;
-        const totalGainCI = data.sumLinearGainCI;
-
         return {
             age: avgAge,
             yearBE: year + 543,
             year_at: j,
             co2: data.totalCo2,
-            ci: totalCI,
+            ci: data.sumLinearCI,
             gainValue: data.totalGain,
-            gainCi: totalGainCI,
+            gainCi: data.sumLinearGainCI,
             cycle: Math.floor(j / 7),
             cycleAge: avgAge,
-            errorMargin: totalCI,
+            errorMargin: data.sumLinearCI,
         };
     });
-
-    return pts;
 }
 
 function convertYearNoteToBE(note: string): string {
@@ -2174,9 +2170,10 @@ export function ParcelResultsPanel({
 
                         const backendProfile = backendResp?.carbon_profile;
                         const startYearBE = cr.plantYearBE > 0 ? cr.plantYearBE + cr.age : CURRENT_BE;
-                        const plotPts = backendProfile && backendProfile.length > 0
+                        const plotPtsRaw = backendProfile && backendProfile.length > 0
                             ? profileToBarPoints(backendProfile, cr.age)
                             : buildBarPoints(cr.age, startYearBE, cr.trees, cr.spacing || "2.5x8");
+                        const plotPts = aggregatePts.length > 0 ? plotPtsRaw.slice(0, aggregatePts.length) : plotPtsRaw;
 
                         const showPlotAge = !!form?.plantYear || (backendResp?.carbon_profile?.some(p => p.age !== null) ?? false);
 
