@@ -1885,8 +1885,20 @@ function MapDrawContent() {
           ?.setData({ type: "FeatureCollection", features: allFeatures });
         handleLandUseChange(allPlotsCheckedRef.current);
         if (allFeatures.length > 0) {
-          // Intentionally omitting fitBounds here so the camera remains focused
-          // on the newly drawn plot or user's current view.
+          // Zoom to perfectly fit the newly drawn plot (the last one in drawnParcels)
+          const lastParcel = drawnParcels[drawnParcels.length - 1];
+          if (lastParcel) {
+            const bounds = new maplibregl.LngLatBounds();
+            const geom = lastParcel.geometry as GeoJSON.Polygon | GeoJSON.MultiPolygon;
+            if (geom.type === 'Polygon') {
+              geom.coordinates[0].forEach((coord: any) => bounds.extend(coord));
+            } else if (geom.type === 'MultiPolygon') {
+              geom.coordinates[0][0].forEach((coord: any) => bounds.extend(coord));
+            }
+            if (!bounds.isEmpty()) {
+              map.fitBounds(bounds, { padding: 50, duration: 800 });
+            }
+          }
         }
       }
 
