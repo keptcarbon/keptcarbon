@@ -1062,7 +1062,7 @@ function ProjectCarbonSummary({ plots, isMobile }: { plots: SavedPlot[]; isMobil
       boxShadow: "0 8px 32px rgba(0,0,0,0.05)"
     }}>
       {/* Clickable Header */}
-      <div 
+      <div
         onClick={() => setIsExpanded(!isExpanded)}
         style={{
           padding: isMobile ? "16px" : "18px 24px",
@@ -1076,17 +1076,17 @@ function ProjectCarbonSummary({ plots, isMobile }: { plots: SavedPlot[]; isMobil
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <div style={{ width: 38, height: 38, borderRadius: 12, background: "linear-gradient(135deg,#10b981,#047857)", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 4px 12px rgba(16,185,129,0.35)", flexShrink: 0 }}>
-              <i className="bi bi-bar-chart-fill" style={{ color: "#fff", fontSize: 18 }} />
+          <div style={{ width: 38, height: 38, borderRadius: 12, background: "linear-gradient(135deg,#10b981,#047857)", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 4px 12px rgba(16,185,129,0.35)", flexShrink: 0 }}>
+            <i className="bi bi-bar-chart-fill" style={{ color: "#fff", fontSize: 18 }} />
+          </div>
+          <div>
+            <div style={{ fontSize: isMobile ? 15 : 17, fontWeight: 800, color: "#064e3b", lineHeight: 1.2 }}>สรุปภาพรวมโครงการ</div>
+            <div style={{ fontSize: isMobile ? 11 : 12, color: "#6b7280", fontWeight: 500 }}>
+              {isExpanded ? "คลิกเพื่อย่อข้อมูล" : "คลิกเพื่อดูปริมาณคาร์บอนและพื้นที่รวมทั้งหมด"}
             </div>
-            <div>
-              <div style={{ fontSize: isMobile ? 15 : 17, fontWeight: 800, color: "#064e3b", lineHeight: 1.2 }}>สรุปภาพรวมโครงการ</div>
-              <div style={{ fontSize: isMobile ? 11 : 12, color: "#6b7280", fontWeight: 500 }}>
-                {isExpanded ? "คลิกเพื่อย่อข้อมูล" : "คลิกเพื่อดูปริมาณคาร์บอนและพื้นที่รวมทั้งหมด"}
-              </div>
-            </div>
+          </div>
         </div>
-        <div style={{ 
+        <div style={{
           width: 32, height: 32, borderRadius: "50%", background: isExpanded ? "rgba(16,185,129,0.1)" : "#10b981",
           display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.2s"
         }}>
@@ -1101,102 +1101,102 @@ function ProjectCarbonSummary({ plots, isMobile }: { plots: SavedPlot[]; isMobil
           gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr",
         }}>
 
-        {/* Left: Chart Panel */}
-        <div style={{
-          padding: isMobile ? "16px" : "20px 24px",
-          display: "flex",
-          flexDirection: "column",
-          justifyContent: "center",
-          background: "#fff",
-          minHeight: isMobile ? 260 : 320,
-          borderRight: isMobile ? "none" : "1px solid rgba(16,185,129,0.15)",
-          borderBottom: isMobile ? "1px solid rgba(16,185,129,0.15)" : "none",
-        }}>
-          {combinedPts.length > 0 ? (
-            <>
-              <div style={{ fontSize: 13, fontWeight: 700, color: "#064e3b", marginBottom: 12, display: "flex", alignItems: "center", gap: 6 }}>
-                <i className="bi bi-activity" style={{ color: "#10b981" }} /> แนวโน้มคาร์บอนสะสมรวม
-              </div>
-              <CarbonBarChart pts={combinedPts} isMobile={true} narrowMode={false} showAge={false} title="ปริมาณคาร์บอนกักเก็บ (tCO₂eq)" />
-            </>
-          ) : (
-            <div style={{ textAlign: "center", color: "#94a3b8", padding: "32px 20px" }}>
-              <i className="bi bi-bar-chart" style={{ fontSize: 40, display: "block", marginBottom: 10, color: "#cbd5e1" }} />
-              <div style={{ fontSize: 14, fontWeight: 700, color: "#64748b" }}>ยังไม่มีข้อมูลกราฟ</div>
-              <div style={{ fontSize: 12, marginTop: 6, lineHeight: 1.5 }}>ประมวลผลแปลงเพื่อดูแนวโน้มคาร์บอน</div>
-            </div>
-          )}
-        </div>
-
-        {/* Right: Stats Panel */}
-        <div style={{
-          padding: isMobile ? "20px 18px" : "28px 28px",
-          background: "linear-gradient(145deg, #f0fdf4 0%, #dcfce7 60%, #d1fae5 100%)",
-          display: "flex",
-          flexDirection: "column",
-          gap: 16,
-          position: "relative",
-          overflow: "hidden",
-        }}>
-          {/* Background decoration */}
-          <div style={{ position: "absolute", top: -30, right: -30, width: 120, height: 120, background: "rgba(16,185,129,0.08)", borderRadius: "50%", pointerEvents: "none" }} />
-          <div style={{ position: "absolute", bottom: -20, left: -20, width: 80, height: 80, background: "rgba(5,150,105,0.06)", borderRadius: "50%", pointerEvents: "none" }} />
-
-
-
-          {/* Main carbon metric */}
+          {/* Left: Chart Panel */}
           <div style={{
-            position: "relative",
-            background: "rgba(255,255,255,0.85)",
-            borderRadius: 16,
-            padding: isMobile ? "14px 16px" : "18px 20px",
-            border: "1px solid rgba(16,185,129,0.2)",
-            backdropFilter: "blur(8px)",
-            boxShadow: "0 2px 12px rgba(16,185,129,0.08)"
+            padding: isMobile ? "16px" : "20px 24px",
+            display: "flex",
+            flexDirection: "column",
+            justifyContent: "center",
+            background: "#fff",
+            minHeight: isMobile ? 260 : 320,
+            borderRight: isMobile ? "none" : "1px solid rgba(16,185,129,0.15)",
+            borderBottom: isMobile ? "1px solid rgba(16,185,129,0.15)" : "none",
           }}>
-            <div style={{ fontSize: 11, color: "#059669", fontWeight: 700, marginBottom: 6, display: "flex", alignItems: "center", gap: 5 }}>
-              <i className="bi bi-cloud-arrow-down-fill" style={{ fontSize: 12 }} />
-              ปริมาณคาร์บอนสะสมรวม ณ ปีปัจจุบัน
-            </div>
-            <div style={{ display: "flex", alignItems: "baseline", gap: 6, flexWrap: "wrap" }}>
-              <span style={{ fontWeight: 900, color: "#064e3b", fontSize: isMobile ? 28 : 34, lineHeight: 1 }}>
-                {Math.floor(totalNow).toLocaleString("th-TH")}
-              </span>
-              <span style={{ fontSize: isMobile ? 15 : 19, color: "#0f766e", fontWeight: 700 }}>
-                ± {(Math.floor(ciNow * 10) / 10).toLocaleString("th-TH", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
-              </span>
-              <span style={{ fontSize: 13, fontWeight: 600, color: "#6b7280" }}>tCO₂eq</span>
-            </div>
+            {combinedPts.length > 0 ? (
+              <>
+                <div style={{ fontSize: 13, fontWeight: 700, color: "#064e3b", marginBottom: 12, display: "flex", alignItems: "center", gap: 6 }}>
+                  <i className="bi bi-activity" style={{ color: "#10b981" }} /> แนวโน้มคาร์บอนสะสมรวม
+                </div>
+                <CarbonBarChart pts={combinedPts} isMobile={true} narrowMode={false} showAge={false} title="ปริมาณคาร์บอนกักเก็บ (tCO₂eq)" />
+              </>
+            ) : (
+              <div style={{ textAlign: "center", color: "#94a3b8", padding: "32px 20px" }}>
+                <i className="bi bi-bar-chart" style={{ fontSize: 40, display: "block", marginBottom: 10, color: "#cbd5e1" }} />
+                <div style={{ fontSize: 14, fontWeight: 700, color: "#64748b" }}>ยังไม่มีข้อมูลกราฟ</div>
+                <div style={{ fontSize: 12, marginTop: 6, lineHeight: 1.5 }}>ประมวลผลแปลงเพื่อดูแนวโน้มคาร์บอน</div>
+              </div>
+            )}
           </div>
 
-          {/* 2×2 stat grid */}
-          <div style={{ position: "relative", display: "grid", gridTemplateColumns: "1fr 1fr", gap: isMobile ? 8 : 10 }}>
-            <StatCard icon="bi-check-circle-fill" iconColor="#10b981" label="ประมวลผลแล้ว" value={`${processedCount}/${plots.length}`} unit="แปลง" valueColor="#047857" />
-            <StatCard icon="bi-grid-fill" iconColor="#0d9488" label="พื้นที่รวม" value={totalAreaRai.toFixed(1)} unit="ไร่" valueColor="#0d9488" />
-            {cyclePts.map((pt, idx) => {
-              const isEven = idx % 2 === 0;
-              return (
-                <StatCard 
-                  key={pt.year_at}
-                  icon="bi-graph-up-arrow" 
-                  iconColor={isEven ? "#3b82f6" : "#8b5cf6"} 
-                  label={`ปีที่ ${pt.year_at} (พ.ศ. ${pt.yearBE})`} 
-                  value={Math.floor(pt.co2).toLocaleString("th-TH")} 
-                  unit="tCO₂" 
-                  valueColor={isEven ? "#1d4ed8" : "#6d28d9"} 
-                />
-              );
-            })}
-          </div>
+          {/* Right: Stats Panel */}
+          <div style={{
+            padding: isMobile ? "20px 18px" : "28px 28px",
+            background: "linear-gradient(145deg, #f0fdf4 0%, #dcfce7 60%, #d1fae5 100%)",
+            display: "flex",
+            flexDirection: "column",
+            gap: 16,
+            position: "relative",
+            overflow: "hidden",
+          }}>
+            {/* Background decoration */}
+            <div style={{ position: "absolute", top: -30, right: -30, width: 120, height: 120, background: "rgba(16,185,129,0.08)", borderRadius: "50%", pointerEvents: "none" }} />
+            <div style={{ position: "absolute", bottom: -20, left: -20, width: 80, height: 80, background: "rgba(5,150,105,0.06)", borderRadius: "50%", pointerEvents: "none" }} />
 
-          {/* Trees info */}
-          {totalTrees > 0 && (
-            <div style={{ position: "relative", display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#475569", background: "rgba(255,255,255,0.6)", borderRadius: 10, padding: "8px 12px", border: "1px solid rgba(16,185,129,0.1)" }}>
-              <i className="bi bi-tree-fill" style={{ color: "#16a34a", fontSize: 14, flexShrink: 0 }} />
-              <span>จำนวนต้นรวม <strong style={{ color: "#064e3b" }}>{totalTrees.toLocaleString("th-TH")}</strong> ต้น</span>
+
+
+            {/* Main carbon metric */}
+            <div style={{
+              position: "relative",
+              background: "rgba(255,255,255,0.85)",
+              borderRadius: 16,
+              padding: isMobile ? "14px 16px" : "18px 20px",
+              border: "1px solid rgba(16,185,129,0.2)",
+              backdropFilter: "blur(8px)",
+              boxShadow: "0 2px 12px rgba(16,185,129,0.08)"
+            }}>
+              <div style={{ fontSize: 11, color: "#059669", fontWeight: 700, marginBottom: 6, display: "flex", alignItems: "center", gap: 5 }}>
+                <i className="bi bi-cloud-arrow-down-fill" style={{ fontSize: 12 }} />
+                ปริมาณคาร์บอนสะสมรวม ณ ปีปัจจุบัน
+              </div>
+              <div style={{ display: "flex", alignItems: "baseline", gap: 6, flexWrap: "wrap" }}>
+                <span style={{ fontWeight: 900, color: "#064e3b", fontSize: isMobile ? 28 : 34, lineHeight: 1 }}>
+                  {Math.floor(totalNow).toLocaleString("th-TH")}
+                </span>
+                <span style={{ fontSize: isMobile ? 15 : 19, color: "#0f766e", fontWeight: 700 }}>
+                  ± {(Math.floor(ciNow * 10) / 10).toLocaleString("th-TH", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+                </span>
+                <span style={{ fontSize: 13, fontWeight: 600, color: "#6b7280" }}>tCO₂eq</span>
+              </div>
             </div>
-          )}
-        </div>
+
+            {/* 2×2 stat grid */}
+            <div style={{ position: "relative", display: "grid", gridTemplateColumns: "1fr 1fr", gap: isMobile ? 8 : 10 }}>
+              <StatCard icon="bi-check-circle-fill" iconColor="#10b981" label="ประมวลผลแล้ว" value={`${processedCount}/${plots.length}`} unit="แปลง" valueColor="#047857" />
+              <StatCard icon="bi-grid-fill" iconColor="#0d9488" label="พื้นที่รวม" value={totalAreaRai.toFixed(1)} unit="ไร่" valueColor="#0d9488" />
+              {cyclePts.map((pt, idx) => {
+                const isEven = idx % 2 === 0;
+                return (
+                  <StatCard
+                    key={pt.year_at}
+                    icon="bi-graph-up-arrow"
+                    iconColor={isEven ? "#3b82f6" : "#8b5cf6"}
+                    label={`ปีที่ ${pt.year_at} (พ.ศ. ${pt.yearBE})`}
+                    value={Math.floor(pt.co2).toLocaleString("th-TH")}
+                    unit="tCO₂"
+                    valueColor={isEven ? "#1d4ed8" : "#6d28d9"}
+                  />
+                );
+              })}
+            </div>
+
+            {/* Trees info */}
+            {totalTrees > 0 && (
+              <div style={{ position: "relative", display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#475569", background: "rgba(255,255,255,0.6)", borderRadius: 10, padding: "8px 12px", border: "1px solid rgba(16,185,129,0.1)" }}>
+                <i className="bi bi-tree-fill" style={{ color: "#16a34a", fontSize: 14, flexShrink: 0 }} />
+                <span>จำนวนต้นรวม <strong style={{ color: "#064e3b" }}>{totalTrees.toLocaleString("th-TH")}</strong> ต้น</span>
+              </div>
+            )}
+          </div>
 
         </div>
       )}
@@ -1536,7 +1536,7 @@ function PlotCard({ plot, index, onDelete, onEdit, expanded, onToggle, isMobile,
                       </span>
                       {(plot.selectedAreaRai || plot.areaRai) > 0 && (
                         <div style={{ fontSize: 12, color: "#475569", fontWeight: 600 }}>
-                          พื้นที่ที่เลือก: <strong style={{ color: "#0f172a" }}>{(plot.selectedAreaRai || plot.areaRai).toFixed(2)}</strong> ไร่
+                          พื้นที่: <strong style={{ color: "#0f172a" }}>{(plot.selectedAreaRai || plot.areaRai).toFixed(2)}</strong> ไร่
                         </div>
                       )}
                     </div>
@@ -1724,34 +1724,34 @@ export default function MyPlotsPage() {
   const handleDelete = (id: string) => {
     const isGuest = !user && typeof window !== "undefined" && !!localStorage.getItem("guest_user_id");
     if (!user && !isGuest) return;
-    
+
     // Find the plot to get its dbProjectId
     const plotToDelete = plots.find(p => p.id === id);
     if (!plotToDelete || !plotToDelete.dbProjectId) {
-        setPlots(prev => prev.filter(p => p.id !== id));
-        return;
+      setPlots(prev => prev.filter(p => p.id !== id));
+      return;
     }
 
     const remainingPlots = plots.filter(p => p.id !== id);
     setPlots(remainingPlots);
-    
+
     const remainingInProject = remainingPlots.filter(p => p.dbProjectId === plotToDelete.dbProjectId);
-    
+
     const guestQuery = isGuest ? `?guest_user_id=${localStorage.getItem("guest_user_id")}` : "";
 
     if (remainingInProject.length === 0) {
-        // If this was the last plot in the project, soft-delete the entire project row
-        fetch(`/api/plots/${plotToDelete.dbProjectId}${guestQuery}`, { 
-            method: "DELETE" 
-        }).catch(console.error);
+      // If this was the last plot in the project, soft-delete the entire project row
+      fetch(`/api/plots/${plotToDelete.dbProjectId}${guestQuery}`, {
+        method: "DELETE"
+      }).catch(console.error);
     } else {
-        // We only update the frontendPlots array of the same project to hide it
-        // The plantation_info in the DB is untouched, fulfilling "want the deleted data to still remain"
-        fetch(`/api/plots/${plotToDelete.dbProjectId}`, { 
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ frontendPlots: remainingInProject })
-        }).catch(console.error);
+      // We only update the frontendPlots array of the same project to hide it
+      // The plantation_info in the DB is untouched, fulfilling "want the deleted data to still remain"
+      fetch(`/api/plots/${plotToDelete.dbProjectId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ frontendPlots: remainingInProject })
+      }).catch(console.error);
     }
   };
 
@@ -1966,32 +1966,32 @@ export default function MyPlotsPage() {
       // Save to backend using PATCH if dbProjectId is available
       const dbProjectId = projectPlots[0]?.dbProjectId;
       if (dbProjectId) {
-          const allPlotsForProject = plots.map(p => {
-              const up = updatedPlots.find(u => u.id === p.id);
-              return up ? up : p;
-          }).filter(p => p.dbProjectId === dbProjectId);
+        const allPlotsForProject = plots.map(p => {
+          const up = updatedPlots.find(u => u.id === p.id);
+          return up ? up : p;
+        }).filter(p => p.dbProjectId === dbProjectId);
 
-          const plantationInfo: Record<string, any> = {};
-          allPlotsForProject.forEach(plot => {
-             plantationInfo[plot.id] = {
-                 polygon_id: plot.id,
-                 province_code: plot.province || "UNK",
-                 geometry: plot.geojson || plot.boundaryGeojson || null,
-                 form: plot.backendData?.form || {},
-                 lu_polygon: plot.backendData?.lu_polygon || []
-             };
-          });
+        const plantationInfo: Record<string, any> = {};
+        allPlotsForProject.forEach(plot => {
+          plantationInfo[plot.id] = {
+            polygon_id: plot.id,
+            province_code: plot.province || "UNK",
+            geometry: plot.geojson || plot.boundaryGeojson || null,
+            form: plot.backendData?.form || {},
+            lu_polygon: plot.backendData?.lu_polygon || []
+          };
+        });
 
-          await fetch(`/api/plots/${dbProjectId}`, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ 
-              frontendPlots: allPlotsForProject,
-              polygonsPayload: polygons,
-              backendResponses: responses,
-              plantationInfo: plantationInfo
-            }),
-          });
+        await fetch(`/api/plots/${dbProjectId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            frontendPlots: allPlotsForProject,
+            polygonsPayload: polygons,
+            backendResponses: responses,
+            plantationInfo: plantationInfo
+          }),
+        });
       }
 
     } catch (err) {
@@ -2007,70 +2007,70 @@ export default function MyPlotsPage() {
   const handleUpdatePlot = (updated: SavedPlot) => {
     const isGuest = !user && typeof window !== "undefined" && !!localStorage.getItem("guest_user_id");
     if (!user && !isGuest) return;
-    
+
     const newPlots = plots.map(p => p.id === updated.id ? updated : p);
     setPlots(newPlots);
-    
+
     const dbProjectId = updated.dbProjectId;
     if (dbProjectId) {
-        const allPlotsForProject = newPlots.filter(p => p.dbProjectId === dbProjectId);
-        
-        const plantationInfo: Record<string, any> = {};
-        allPlotsForProject.forEach(plot => {
-           plantationInfo[plot.id] = {
-               polygon_id: plot.id,
-               province_code: plot.province || "UNK",
-               geometry: plot.geojson || plot.boundaryGeojson || null,
-               form: plot.backendData?.form || {},
-               lu_polygon: plot.backendData?.lu_polygon || []
-           };
-        });
+      const allPlotsForProject = newPlots.filter(p => p.dbProjectId === dbProjectId);
 
-        const polygonsPayload = allPlotsForProject.map((plot) => {
-          let geom = plot.geojson as GeoJSON.Geometry;
-          if (!geom && plot.boundaryGeojson) {
-            geom = plot.boundaryGeojson as GeoJSON.Geometry;
-          }
-          const luFeatures = plot.backendData?.lu_polygon || [];
-          const luChecked = plot.luChecked || { A: true, A302: true };
-          let combinedGeom = geom;
-          if (luFeatures.length > 0) {
-            const allRings: GeoJSON.Position[][][] = [];
-            for (const feat of luFeatures) {
-              const code = (feat as any).properties?.lu_class as string | undefined;
-              const P = code ? code.charAt(0).toUpperCase() : "";
-              if (!code || luChecked[code] || luChecked[P] || code === "A302") {
-                const fGeom = feat.geometry as GeoJSON.Polygon | GeoJSON.MultiPolygon;
-                if (fGeom.type === "Polygon") allRings.push(fGeom.coordinates);
-                else if (fGeom.type === "MultiPolygon") allRings.push(...fGeom.coordinates);
-              }
-            }
-            if (allRings.length > 0) {
-              combinedGeom = allRings.length === 1 ? { type: "Polygon", coordinates: allRings[0] } : { type: "MultiPolygon", coordinates: allRings };
+      const plantationInfo: Record<string, any> = {};
+      allPlotsForProject.forEach(plot => {
+        plantationInfo[plot.id] = {
+          polygon_id: plot.id,
+          province_code: plot.province || "UNK",
+          geometry: plot.geojson || plot.boundaryGeojson || null,
+          form: plot.backendData?.form || {},
+          lu_polygon: plot.backendData?.lu_polygon || []
+        };
+      });
+
+      const polygonsPayload = allPlotsForProject.map((plot) => {
+        let geom = plot.geojson as GeoJSON.Geometry;
+        if (!geom && plot.boundaryGeojson) {
+          geom = plot.boundaryGeojson as GeoJSON.Geometry;
+        }
+        const luFeatures = plot.backendData?.lu_polygon || [];
+        const luChecked = plot.luChecked || { A: true, A302: true };
+        let combinedGeom = geom;
+        if (luFeatures.length > 0) {
+          const allRings: GeoJSON.Position[][][] = [];
+          for (const feat of luFeatures) {
+            const code = (feat as any).properties?.lu_class as string | undefined;
+            const P = code ? code.charAt(0).toUpperCase() : "";
+            if (!code || luChecked[code] || luChecked[P] || code === "A302") {
+              const fGeom = feat.geometry as GeoJSON.Polygon | GeoJSON.MultiPolygon;
+              if (fGeom.type === "Polygon") allRings.push(fGeom.coordinates);
+              else if (fGeom.type === "MultiPolygon") allRings.push(...fGeom.coordinates);
             }
           }
-          const userYearBE = plot.backendData?.form?.plantYear ? parseInt(plot.backendData.form.plantYear) : 0;
-          return {
-            id: plot.id,
-            geometry: combinedGeom,
-            year_of_planting: userYearBE > 0 ? userYearBE - 543 : null,
-            rubber_clone: plot.backendData?.form?.variety || null,
-            tree_count: plot.backendData?.form?.treeCount ? parseInt(plot.backendData.form.treeCount) : null,
-            spacing_system: plot.backendData?.form?.spacing || null,
-            selected_lu_classes: Object.entries(plot.luChecked || {}).filter(([_, on]) => on).map(([cls]) => cls),
-            project_type: (plot.plantStatus as "replanting" | "existing") || undefined,
-          };
-        });
+          if (allRings.length > 0) {
+            combinedGeom = allRings.length === 1 ? { type: "Polygon", coordinates: allRings[0] } : { type: "MultiPolygon", coordinates: allRings };
+          }
+        }
+        const userYearBE = plot.backendData?.form?.plantYear ? parseInt(plot.backendData.form.plantYear) : 0;
+        return {
+          id: plot.id,
+          geometry: combinedGeom,
+          year_of_planting: userYearBE > 0 ? userYearBE - 543 : null,
+          rubber_clone: plot.backendData?.form?.variety || null,
+          tree_count: plot.backendData?.form?.treeCount ? parseInt(plot.backendData.form.treeCount) : null,
+          spacing_system: plot.backendData?.form?.spacing || null,
+          selected_lu_classes: Object.entries(plot.luChecked || {}).filter(([_, on]) => on).map(([cls]) => cls),
+          project_type: (plot.plantStatus as "replanting" | "existing") || undefined,
+        };
+      });
 
-        fetch(`/api/plots/${dbProjectId}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ 
-            frontendPlots: allPlotsForProject,
-            plantationInfo: plantationInfo,
-            polygonsPayload: polygonsPayload
-          })
-        }).catch(console.error);
+      fetch(`/api/plots/${dbProjectId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          frontendPlots: allPlotsForProject,
+          plantationInfo: plantationInfo,
+          polygonsPayload: polygonsPayload
+        })
+      }).catch(console.error);
     }
     setEditingPlot(null);
   };

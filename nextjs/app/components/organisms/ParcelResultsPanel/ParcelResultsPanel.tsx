@@ -423,7 +423,7 @@ function PlotDetailCard({
                     </span>
                     {areaRai !== undefined && (
                         <div style={{ fontSize: 12, color: "#475569", fontWeight: 600 }}>
-                            พื้นที่ที่เลือก: <strong style={{ color: "#0f172a" }}>{areaRai.toFixed(2)}</strong> ไร่
+                            พื้นที่: <strong style={{ color: "#0f172a" }}>{areaRai.toFixed(2)}</strong> ไร่
                         </div>
                     )}
                 </div>
@@ -1268,30 +1268,30 @@ export function ParcelResultsPanel({
                     const props = (feat?.properties || {}) as any;
                     const plotGeom = feat?.geometry || null;
                     const plotLuFeats = (luFeatures || []).filter(lf => {
-                    const lfProps = (lf.properties ?? {}) as any;
-                    const lfPlotIdx = lfProps.plot_index !== undefined ? parseInt(String(lfProps.plot_index)) - 1 : -1;
-                    return lfPlotIdx === i;
-                });
+                        const lfProps = (lf.properties ?? {}) as any;
+                        const lfPlotIdx = lfProps.plot_index !== undefined ? parseInt(String(lfProps.plot_index)) - 1 : -1;
+                        return lfPlotIdx === i;
+                    });
 
-                return {
-                    polygon_id: stablePlotIds[i],
-                    province_code: plots[i]?.province || props.province || "",
-                    geometry: plotGeom,
-                    area_m2: (plots[i]?.areaRai || 0) * 1600,
-                    status: {
-                        status: "success",
-                        status_code: "S02",
-                        message: "LAND USE CLASSIFICATION AND AREA CALCULATION COMPLETED."
-                    },
-                    lu_polygon: plotLuFeats.map(lf => ({
-                        lu_class: (lf.properties as any)?.lu_class || null,
-                        lu_class_desc_th: (lf.properties as any)?.lu_class_desc_th || null,
-                        geometry: lf.geometry,
-                        area_m2: (lf.properties as any)?.area_m2 || 0,
-                        area_percent: (lf.properties as any)?.area_percent || 0,
-                    })),
-                };
-            });
+                    return {
+                        polygon_id: stablePlotIds[i],
+                        province_code: plots[i]?.province || props.province || "",
+                        geometry: plotGeom,
+                        area_m2: (plots[i]?.areaRai || 0) * 1600,
+                        status: {
+                            status: "success",
+                            status_code: "S02",
+                            message: "LAND USE CLASSIFICATION AND AREA CALCULATION COMPLETED."
+                        },
+                        lu_polygon: plotLuFeats.map(lf => ({
+                            lu_class: (lf.properties as any)?.lu_class || null,
+                            lu_class_desc_th: (lf.properties as any)?.lu_class_desc_th || null,
+                            geometry: lf.geometry,
+                            area_m2: (lf.properties as any)?.area_m2 || 0,
+                            area_percent: (lf.properties as any)?.area_percent || 0,
+                        })),
+                    };
+                });
 
             // Build polygons_payload: ข้อมูลที่ส่งไป backend สำหรับ estimateCarbon
             const polygonsPayload = activePolygons.length > 0
@@ -1327,25 +1327,25 @@ export function ParcelResultsPanel({
             }
 
             let res;
-            
+
             const CURRENT_BE_NOW = new Date().getFullYear() + 543;
             const frontendPlots = parcelFeatures.map((feat, i) => {
                 const props = (feat?.properties || {}) as any;
                 const form = plotForms[i] || {};
                 const ep = activeResponses.find((r: any) => r.polygon_id === stablePlotIds[i] || r.polygon_id === `plot-${i}`)?.estimated_parameters;
                 const backendResp = activeResponses.find((r: any) => r.polygon_id === stablePlotIds[i] || r.polygon_id === `plot-${i}`);
-                
+
                 const p = computePlot(feat);
                 const cr = overrideResults ? overrideResults[i] : carbonResults[i];
-                
+
                 const hasNewResult = cr && cr.co2Now !== undefined;
                 const co2 = hasNewResult ? cr.co2Now : 0;
-                
+
                 const epPlantYearBE = ep?.year_of_planting ? ep.year_of_planting + 543 : 0;
                 const epVariety = ep?.rubber_clone || "";
                 const epTrees = ep?.tree_count || 0;
                 const epSpacing = ep?.spacing_system || "";
-                
+
                 let finalPlantYear = epPlantYearBE;
                 if (form?.plantYear && parseInt(form.plantYear) > 0) {
                     finalPlantYear = parseInt(form.plantYear);
@@ -1353,17 +1353,17 @@ export function ParcelResultsPanel({
                     finalPlantYear = p.plantYearBE;
                 }
                 const age = finalPlantYear > 0 ? (CURRENT_BE_NOW - finalPlantYear) : 0;
-                
+
                 const trees = cr?.trees || form?.treeCount || props.trees || epTrees;
                 const variety = cr?.variety || form?.variety || props.variety || epVariety;
                 const spacing = cr?.spacing || form?.spacing || props.spacing || epSpacing;
-                
+
                 const rawProfile = backendResp?.carbon_profile ?? [];
                 let carbonProfile: any[] = [];
                 if (hasNewResult && rawProfile.length > 0) {
                     carbonProfile = profileToBarPoints(rawProfile, age);
                 }
-                
+
                 let forecast = { yr3: 0, yr5: 0, yr7: 0 };
                 if (hasNewResult) {
                     forecast = {
@@ -1378,7 +1378,7 @@ export function ParcelResultsPanel({
                     const lfPlotIdx = lfProps.plot_index !== undefined ? parseInt(String(lfProps.plot_index)) - 1 : -1;
                     return lfPlotIdx === i;
                 });
-                
+
                 return {
                     id: stablePlotIds[i],
                     name: projectName || props.farm_name || "แปลงยางใหม่",
@@ -1417,7 +1417,7 @@ export function ParcelResultsPanel({
                     }
                 };
             });
-            
+
             // When editing a single plot, preserve all other plots from the project
             let finalFrontendPlots = frontendPlots;
             if (existingProjectPlots && existingProjectPlots.length > 0 && editingPlotId) {
@@ -1434,7 +1434,7 @@ export function ParcelResultsPanel({
                 frontendPlots: finalFrontendPlots,
             };
             if (userId) saveBody.userId = userId;
-            
+
             // Only send projectId if it's a real name, so the backend can auto-generate for guests
             if (projectId && projectId !== "Unnamed Project") {
                 saveBody.projectId = projectId;
