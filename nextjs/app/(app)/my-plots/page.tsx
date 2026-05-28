@@ -1115,11 +1115,10 @@ function ProjectCarbonSummary({ plots, isMobile }: { plots: SavedPlot[]; isMobil
         }}>
           {combinedPts.length > 0 ? (
             <>
-              <div style={{ fontSize: 13, fontWeight: 700, color: "#064e3b", marginBottom: 4, display: "flex", alignItems: "center", gap: 6 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: "#064e3b", marginBottom: 12, display: "flex", alignItems: "center", gap: 6 }}>
                 <i className="bi bi-activity" style={{ color: "#10b981" }} /> แนวโน้มคาร์บอนสะสมรวม
               </div>
-              <div style={{ fontSize: 11, color: "#94a3b8", marginBottom: 8 }}>ปริมาณคาร์บอนกักเก็บ (tCO₂eq)</div>
-              <CarbonBarChart pts={combinedPts} isMobile={true} narrowMode={false} showAge={false} title="" />
+              <CarbonBarChart pts={combinedPts} isMobile={true} narrowMode={false} showAge={false} title="ปริมาณคาร์บอนกักเก็บ (tCO₂eq)" />
             </>
           ) : (
             <div style={{ textAlign: "center", color: "#94a3b8", padding: "32px 20px" }}>

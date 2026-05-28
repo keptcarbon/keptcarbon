@@ -177,7 +177,7 @@ export function CarbonBarChart({
       justifyContent: "center"
     }}>
       {title && (
-        <div style={{ textAlign: "center", fontSize: isMobile ? 13 : (narrowMode ? 14 : 16), fontWeight: 700, color: "#0f766e", marginBottom: 12 }}>
+        <div style={{ textAlign: "center", fontSize: isMobile ? 14 : (narrowMode ? 15 : 17), fontWeight: 800, color: "#0f766e", marginTop: isMobile ? 4 : 8, marginBottom: isMobile ? 16 : 20 }}>
           {title === "ปริมาณการกักเก็บคาร์บอนสะสม (tCO₂)" ? "ปริมาณการกักเก็บคาร์บอนสะสม (tCO₂eq)" : title}
         </div>
       )}
