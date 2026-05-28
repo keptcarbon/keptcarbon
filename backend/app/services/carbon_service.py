@@ -242,6 +242,7 @@ class CarbonService:
                 },
                 "carbon_profile": profile,
                 "estimated_parameters": {
+                    "area_m2": poly_data["A302_area_m2"],
                     "year_of_planting": {
                         "value": poly_data.get("year_of_planting"),
                         "note": planning_year_info,
@@ -364,6 +365,7 @@ class CarbonService:
                 },
                 "carbon_profile": profile,
                 "estimated_parameters": {
+                    "area_m2": poly_data["A302_area_m2"],
                     "year_of_planting": {
                         "value": formatted_years,
                         "note": planning_year_info,
