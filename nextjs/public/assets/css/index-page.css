@@ -80,7 +80,7 @@
         font-weight: 900;
         line-height: 1.05;
         color: #ffffff;
-        margin-bottom: 0;
+        margin-bottom: 28px;
         letter-spacing: -2px;
         position: relative;
         z-index: 1;
@@ -184,30 +184,16 @@
       }
 
       @media (max-width: 768px) {
-        .hero-beautiful::after {
-          content: '';
-          position: absolute;
-          inset: 0;
-          background: linear-gradient(
-            to bottom,
-            rgba(255, 255, 255, 0.45) 0%,
-            rgba(255, 255, 255, 0.3) 6%,
-            rgba(255, 255, 255, 0) 18%,
-            rgba(0, 0, 0, 0.25) 38%,
-            rgba(0, 0, 0, 0.6) 65%,
-            rgba(0, 0, 0, 0.75) 100%
-          );
-          z-index: 1;
-          pointer-events: none;
-        }
 
         .hero-beautiful {
           padding: 110px 0 60px 0;
+          background-attachment: scroll;
+          background-position: center center;
         }
 
         .hero-beautiful h1 {
           font-size: 44px;
-          margin-bottom: 0;
+          margin-bottom: 18px;
           text-shadow: 0 2px 16px rgba(0, 0, 0, 0.75), 0 4px 32px rgba(0, 0, 0, 0.55);
         }
 
