@@ -3,12 +3,24 @@ import { pool } from "@/lib/db";
 import { verifyToken, AUTH_COOKIE, JwtPayload } from "@/lib/jwt";
 
 // ---------------------------------------------------------------------------
-// Helper: สร้าง Guest ID ที่ไม่ซ้ำ (timestamp-random)
+// Helper: สร้าง Guest ID รูปแบบ Guest-XXXXXXXX (8 ตัวอักขระ ไม่ซ้ำ)
 // ---------------------------------------------------------------------------
-function generateGuestUserId(): string {
-  const ts = Math.floor(Date.now() / 1000);
-  const rand = Math.floor(1000 + Math.random() * 9000);
-  return `Guest-${ts}-${rand}`;
+const GUEST_ID_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // ตัดตัวที่อ่านสับสน (0/O, 1/I)
+
+async function generateGuestUserId(): Promise<string> {
+  for (let attempt = 0; attempt < 10; attempt++) {
+    const code = Array.from({ length: 8 }, () =>
+      GUEST_ID_CHARS[Math.floor(Math.random() * GUEST_ID_CHARS.length)]
+    ).join("");
+    const candidate = `Guest-${code}`;
+    const check = await pool.query(
+      `SELECT 1 FROM carbon_projects WHERE user_id = $1 LIMIT 1`,
+      [candidate]
+    );
+    if ((check.rowCount ?? 0) === 0) return candidate;
+  }
+  // fallback (แทบไม่เกิด)
+  return `Guest-${Date.now().toString(36).toUpperCase().padStart(8, "0").slice(-8)}`;
 }
 
 function generateGuestProjectId(): string {
@@ -203,7 +215,7 @@ export async function POST(request: NextRequest) {
     } else if (body.userId) {
       userId = body.userId;
     } else {
-      userId = generateGuestUserId();
+      userId = await generateGuestUserId();
     }
 
     // กำหนด project_id
