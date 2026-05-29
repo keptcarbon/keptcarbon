@@ -3120,7 +3120,7 @@ function MapDrawContent() {
               {user && !plotsSaved && (
                 <>
                   <br />
-                  <span style={{ color: "#dc6926ff", fontWeight: 700, display: "block", marginTop: 8 }}>
+                  <span style={{ color: "rgb(220, 50, 38)", fontWeight: 700, display: "block", marginTop: 8 }}>
                     คำเตือน:ไม่ได้ทำการบันทึกข้อมูลแปลงที่วาดไว้ในระบบ
                   </span>
                 </>
