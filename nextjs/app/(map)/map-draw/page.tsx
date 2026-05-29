@@ -113,6 +113,16 @@ function MapDrawContent() {
   // Toast
   const [toast, setToast] = useState<string | null>(null);
 
+  // Minimum-points warning popup
+  const [nodeWarningPopup, setNodeWarningPopup] = useState(false);
+
+  // Auto-dismiss success toast after 2.5 s
+  useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(() => setToast(null), 2500);
+    return () => clearTimeout(t);
+  }, [toast]);
+
   // Stepper state
   const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(1);
 
@@ -457,7 +467,7 @@ function MapDrawContent() {
         if (parcel && parcel.geometry.type === "Polygon") {
           const coords = parcel.geometry.coordinates[0];
           if (coords.length <= 4) {
-            setToast("แปลงที่ดินต้องมีอย่างน้อย 3 จุด");
+            setNodeWarningPopup(true);
             return;
           }
 
@@ -696,7 +706,7 @@ function MapDrawContent() {
       if (parcel && parcel.geometry.type === "Polygon") {
         const coords = parcel.geometry.coordinates[0];
         if (coords.length <= 4) {
-          setToast("แปลงที่ดินต้องมีอย่างน้อย 3 จุด");
+          setNodeWarningPopup(true);
           return;
         }
 
@@ -3294,11 +3304,30 @@ function MapDrawContent() {
         </div>
       </div>
 
-      {/* Toast notification */}
+      {/* Success Toast (auto-dismiss) */}
       {toast && (
         <div className="mds-toast">
-          <i className="bi bi-check-circle me-2" />
+          <i className="bi bi-check-circle-fill me-2" />
           {toast}
+        </div>
+      )}
+
+      {/* Minimum-points warning popup */}
+      {nodeWarningPopup && (
+        <div className="mds-node-warn-overlay" onClick={() => setNodeWarningPopup(false)}>
+          <div className="mds-node-warn-popup" onClick={(e) => e.stopPropagation()}>
+            <div className="mds-node-warn-icon">
+              <i className="bi bi-pentagon-fill" />
+              <span className="mds-node-warn-badge">3+</span>
+            </div>
+            <div className="mds-node-warn-content">
+              <h3>ไม่สามารถลบจุดได้</h3>
+              <p>แปลงที่วาดต้องมีอย่างน้อย 3 จุด<br />จึงจะสร้างพื้นที่แปลงได้</p>
+            </div>
+            <button className="mds-node-warn-btn" onClick={() => setNodeWarningPopup(false)}>
+              รับทราบ
+            </button>
+          </div>
         </div>
       )}
 
