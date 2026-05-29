@@ -1705,6 +1705,7 @@ export function ParcelResultsPanel({
                     {sortedPlotIndices.map((i) => {
                         const p = plots[i];
                         const form = plotForms[i] || { plantYear: "", treeCount: "", variety: "", spacing: "2.5*8" };
+                        const plotDisplayNum = parseInt((parcelFeatures[i]?.properties as any)?.plot_index) || (i + 1);
                         return (
                             <div key={i} style={{ background: "#fff", borderRadius: 14, border: "1px solid rgba(16,185,129,0.15)", overflow: "hidden", boxShadow: "0 2px 10px rgba(0,0,0,0.04)" }}>
                                 {/* Plot header */}
@@ -1730,10 +1731,10 @@ export function ParcelResultsPanel({
                                         userSelect: "none"
                                     }}
                                 >
-                                    <div style={{ pointerEvents: 'none', width: 28, height: 28, borderRadius: 8, background: "#10b981", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 13 }}>{i + 1}</div>
+                                    <div style={{ pointerEvents: 'none', width: 28, height: 28, borderRadius: 8, background: "#10b981", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 13 }}>{plotDisplayNum}</div>
                                     <div style={{ pointerEvents: 'none', flex: 1 }}>
                                         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                                            <div style={{ fontWeight: 700, fontSize: 15, color: "#0f172a" }}>แปลงที่ {i + 1}</div>
+                                            <div style={{ fontWeight: 700, fontSize: 15, color: "#0f172a" }}>แปลงที่ {plotDisplayNum}</div>
                                         </div>
                                         {p.areaRai > 0 && (
                                             <div style={{ fontSize: 13, color: "#64748b" }}>{p.areaRai.toFixed(2)} ไร่</div>
@@ -2083,7 +2084,7 @@ export function ParcelResultsPanel({
                                     <i className="bi bi-trash3-fill" style={{ color: "#ef4444", fontSize: 17 }} />
                                 </div>
                                 <div>
-                                    <div style={{ fontSize: 15, fontWeight: 800, color: "#0f172a" }}>แปลงที่ {deleteConfirmIdx + 1}</div>
+                                    <div style={{ fontSize: 15, fontWeight: 800, color: "#0f172a" }}>แปลงที่ {parseInt((parcelFeatures[deleteConfirmIdx]?.properties as any)?.plot_index) || (deleteConfirmIdx + 1)}</div>
                                     <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 1 }}>
                                         {plots[deleteConfirmIdx]?.areaRai ? `${plots[deleteConfirmIdx].areaRai.toFixed(2)} ไร่` : ""}
                                     </div>
@@ -2291,6 +2292,7 @@ export function ParcelResultsPanel({
                         const plot = plots[i];
                         const backendResp = backendResponses?.find(r => r.polygon_id === plotIds[i] || r.polygon_id === `plot-${i}`);
                         const ep = backendResp?.estimated_parameters;
+                        const plotDisplayNum = parseInt((parcelFeatures[i]?.properties as any)?.plot_index) || (i + 1);
 
                         const backendProfile = backendResp?.carbon_profile;
                         const startYearBE = cr.plantYearBE > 0 ? cr.plantYearBE + cr.age : CURRENT_BE;
@@ -2336,10 +2338,10 @@ export function ParcelResultsPanel({
                                         background: "linear-gradient(135deg,#10b981,#059669)",
                                         color: "#fff", display: "flex", alignItems: "center",
                                         justifyContent: "center", fontWeight: 800, fontSize: 14
-                                    }}>{i + 1}</div>
+                                    }}>{plotDisplayNum}</div>
                                     <div style={{ flex: 1 }}>
                                         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                                            <div style={{ fontWeight: 700, fontSize: 14, color: "#0f172a" }}>แปลงที่ {i + 1}</div>
+                                            <div style={{ fontWeight: 700, fontSize: 14, color: "#0f172a" }}>แปลงที่ {plotDisplayNum}</div>
                                             {form?.plantStatus === "replanting" && (
                                                 <span style={{ fontSize: 10, background: "#dcfce7", color: "#166534", padding: "2px 6px", borderRadius: 10, fontWeight: 700 }}>เริ่มปลูกใหม่</span>
                                             )}

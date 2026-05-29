@@ -1103,14 +1103,14 @@ function MapDrawContent() {
         id: "ref-project-plots-fill",
         type: "fill",
         source: "ref-project-plots",
-        paint: { "fill-color": "#3b82f6", "fill-opacity": 0.05 },
+        paint: { "fill-color": "#64748b", "fill-opacity": 0.05 },
       });
       map.addLayer({
         id: "ref-project-plots-line",
         type: "line",
         source: "ref-project-plots",
         layout: { "line-join": "round", "line-cap": "round" },
-        paint: { "line-color": "#3b82f6", "line-width": 2 },
+        paint: { "line-color": "#64748b", "line-width": 2 },
       });
 
       map.addSource("plot-verts", { type: "geojson", data: emptyFC() });
