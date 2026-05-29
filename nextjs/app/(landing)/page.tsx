@@ -339,13 +339,28 @@ export default function Home() {
                 <h3>ข้อมูลการติดต่อ</h3>
                 <div className="contact-divider"></div>
 
-                <div className="contact-info-row">
-                  <i className="bi bi-building"></i>
+                <div className="contact-info-row align-items-start">
+                  <i className="bi bi-building mt-1"></i>
                   <div>
-                    <strong>ที่อยู่มหาวิทยาลัย</strong>
-                    สาขาวิชาคณิตศาสตร์และสถิติ คณะวิทยาศาสตร์และเทคโนโลยี
-                    <br />
-                    มหาวิทยาลัยธรรมศาสตร์ (ศูนย์รังสิต) อ.คลองหลวง จ.ปทุมธานี
+                    <strong>ที่อยู่หน่วยงาน</strong>
+                    <ol className="contact-address-list">
+                      <li>
+                        <span className="contact-address-faculty">คณะวิทยาศาสตร์และเทคโนโลยี</span>
+                        <span className="contact-address-detail">มหาวิทยาลัยธรรมศาสตร์ (ศูนย์รังสิต) อ.คลองหลวง จ.ปทุมธานี</span>
+                      </li>
+                      <li>
+                        <span className="contact-address-faculty">คณะสังคมศาสตร์</span>
+                        <span className="contact-address-detail">มหาวิทยาลัยเชียงใหม่ อ.เมือง จ.เชียงใหม่</span>
+                      </li>
+                      <li>
+                        <span className="contact-address-faculty">วิทยาลัยศิลปะ สื่อ และเทคโนโลยี</span>
+                        <span className="contact-address-detail">มหาวิทยาลัยเชียงใหม่ อ.เมือง จ.เชียงใหม่</span>
+                      </li>
+                      <li>
+                        <span className="contact-address-faculty">คณะเทคโนโลยีและสิ่งแวดล้อม</span>
+                        <span className="contact-address-detail">มหาวิทยาลัยสงขลานครินทร์ วิทยาเขตภูเก็ต อ.กะทู้ จ.ภูเก็ต</span>
+                      </li>
+                    </ol>
                   </div>
                 </div>
 
