@@ -1522,11 +1522,11 @@
 
 .maplibregl-ctrl-group button {
   background-color: transparent !important;
-  border-bottom: 1px solid rgba(45, 158, 95, 0.1) !important;
+  border: none !important;
 }
 
 .maplibregl-ctrl-group button:last-child {
-  border-bottom: none !important;
+  border: none !important;
 }
 
 .maplibregl-ctrl-group button:hover {

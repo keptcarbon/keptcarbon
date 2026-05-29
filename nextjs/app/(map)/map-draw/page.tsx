@@ -926,7 +926,7 @@ function MapDrawContent() {
           "line-color": "#f97316",
           "line-width": ["interpolate", ["linear"], ["zoom"], 6, 6, 10, 12, 14, 20],
           "line-opacity": ["interpolate", ["linear"], ["zoom"], 6, 0.15, 14, 0.3],
-          "line-blur":    ["interpolate", ["linear"], ["zoom"], 6, 3,  14, 10],
+          "line-blur": ["interpolate", ["linear"], ["zoom"], 6, 3, 14, 10],
         },
       });
       // Main solid line — thickens on zoom
@@ -2378,7 +2378,7 @@ function MapDrawContent() {
         <div className="mds-map-controls">
           <button
             className="mds-map-ctrl-btn"
-            title="เปลี่ยนแผนที่ฐาน"
+            title="เปลี่ยนแผนที่"
             onClick={() => setBasemapOpen((v) => !v)}
           >
             <i className="bi bi-layers" />
@@ -2388,7 +2388,7 @@ function MapDrawContent() {
         {/* Basemap card */}
         <div className={`mds-basemap-card${basemapOpen ? " open" : ""}`}>
           <div className="mds-basemap-header">
-            <span><i className="bi bi-layers me-1" /> แผนที่ฐาน</span>
+            <span><i className="bi bi-layers me-1" /> แผนที่</span>
             <i className="bi bi-x" style={{ cursor: "pointer", fontSize: 18 }} onClick={() => setBasemapOpen(false)} />
           </div>
           {(["sat", "street", "topo"] as const).map((m) => (
@@ -2398,7 +2398,7 @@ function MapDrawContent() {
               onClick={() => switchBasemap(m)}
             >
               <i className={m === "sat" ? "bi bi-globe-asia-australia" : m === "street" ? "bi bi-map" : "bi bi-tree"} />
-              {m === "sat" ? "ดาวเทียม" : m === "street" ? "ถนน (Street)" : "ภูมิประเทศ"}
+              {m === "sat" ? "ดาวเทียม" : m === "street" ? "ถนน " : "ภูมิประเทศ"}
             </div>
           ))}
         </div>
