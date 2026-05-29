@@ -31,11 +31,33 @@ REGION_CONFIG = {
         "lu_vector": "LU_RYG_2567.gpkg",
         "plaining_year_map": "establishment_year_rayong.tif",
         "plaining_year_map_qa": "establishment_year_rayong_qa.tif",
-        "model_used": "cubic_poly",
+        "model_used": "weibull",
         "biomass_estimation_method": "hytonen_2018",
         "biomass_estimation_tables": {
             ("RRIM 600", "cubic_poly", "hytonen_2018"): "rrim600_cubic_poly_hytonen_rayong.csv",
-            ("RRIT 251", "cubic_poly", "hytonen_2018"): "rrit251_cubic_poly_hytonen_rayong.csv"
+            ("RRIT 251", "cubic_poly", "hytonen_2018"): "rrim600_cubic_poly_hytonen_rayong.csv",
+            ("RRIM 600", "cubic_poly", "chiarawipa_2012"): "rrim600_cubic_poly_chiarawipa_rayong.csv",
+            ("RRIT 251", "cubic_poly", "chiarawipa_20112"): "rrim600_cubic_poly_chiarawipa_rayong.csv",
+
+            ("RRIM 600", "chapman_richards", "hytonen_2018"): "rrim600_chapman_richards_hytonen_rayong.csv",
+            ("RRIT 251", "chapman_richards", "hytonen_2018"): "rrim600_chapman_richards_hytonen_rayong.csv",
+            ("RRIM 600", "chapman_richards", "chiarawipa_2012"): "rrim600_chapman_richards_chiarawipa_rayong.csv",
+            ("RRIT 251", "chapman_richards", "chiarawipa_20112"): "rrim600_chapman_richards_chiarawipa_rayong.csv",
+
+            ("RRIM 600", "gompertz", "hytonen_2018"): "rrim600_gompertz_hytonen_rayong.csv",
+            ("RRIT 251", "gompertz", "hytonen_2018"): "rrim600_gompertz_hytonen_rayong.csv",
+            ("RRIM 600", "gompertz", "chiarawipa_2012"): "rrim600_gompertz_chiarawipa_rayong.csv",
+            ("RRIT 251", "gompertz", "chiarawipa_20112"): "rrim600_gompertz_chiarawipa_rayong.csv",
+
+            ("RRIM 600", "schumacher", "hytonen_2018"): "rrim600_schumacher_hytonen_rayong.csv",
+            ("RRIT 251", "schumacher", "hytonen_2018"): "rrim600_schumacher_hytonen_rayong.csv",
+            ("RRIM 600", "schumacher", "chiarawipa_2012"): "rrim600_schumacher_chiarawipa_rayong.csv",
+            ("RRIT 251", "schumacher", "chiarawipa_20112"): "rrim600_schumacher_chiarawipa_rayong.csv",
+
+            ("RRIM 600", "weibull", "hytonen_2018"): "rrim600_weibull_hytonen_rayong.csv",
+            ("RRIT 251", "weibull", "hytonen_2018"): "rrim600_weibull_hytonen_rayong.csv",
+            ("RRIM 600", "weibull", "chiarawipa_2012"): "rrim600_weibull_chiarawipa_rayong.csv",
+            ("RRIT 251", "weibull", "chiarawipa_20112"): "rrim600_weibull_chiarawipa_rayong.csv"
         }
     }#,
     #"SRT": {  # Surat Thani Province
