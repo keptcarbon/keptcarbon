@@ -895,7 +895,7 @@ function MapDrawContent() {
     });
     mapRef.current = map;
 
-    map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "bottom-right");
+    map.addControl(new maplibregl.NavigationControl({ showCompass: false, showZoom: true }), "bottom-right");
     map.addControl(
       new maplibregl.GeolocateControl({
         positionOptions: { enableHighAccuracy: true },
@@ -903,6 +903,8 @@ function MapDrawContent() {
       }),
       "bottom-right",
     );
+    // เพิ่มปุ่มเข็มทิศแยกต่างหาก เพื่อให้อยู่ด้านบนสุด (ลำดับการแอดหลังสุดสำหรับ bottom-right จะอยู่บนสุด)
+    map.addControl(new maplibregl.NavigationControl({ showCompass: true, showZoom: false }), "bottom-right");
 
     map.on("load", () => {
       map.setProjection({ type: "globe" });
