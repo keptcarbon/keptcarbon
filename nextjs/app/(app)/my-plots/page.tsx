@@ -893,12 +893,12 @@ function PlotMiniMap({ plot, isMobile, index }: { plot: SavedPlot; isMobile: boo
         if (currentLuFeatures.length === 0) {
           map.addLayer({
             id: "parcel-fill", type: "fill", source: "plot-parcel",
-            paint: { "fill-color": "#10b981", "fill-opacity": 0.35 }
+            paint: { "fill-color": "#3b82f6", "fill-opacity": 0.05 }
           });
         }
         map.addLayer({
           id: "parcel-line", type: "line", source: "plot-parcel",
-          paint: { "line-color": "#059669", "line-width": 2.5 }
+          paint: { "line-color": "#3b82f6", "line-width": 2.5 }
         });
         processCoords((currentPlot.geojson as any).coordinates);
       }

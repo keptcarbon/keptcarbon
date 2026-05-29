@@ -46,6 +46,7 @@ function MapDrawContent() {
   const mapRef = useRef<MLMap | null>(null);
   const mapLoadedRef = useRef(false);
   const searchAbortRef = useRef<AbortController | null>(null);
+  const refPlotsLoadedRef = useRef(false);
 
   const searchParams = useSearchParams();
 
@@ -1096,6 +1097,22 @@ function MapDrawContent() {
         },
       });
 
+      // Reference layer: existing project plots shown when adding a new plot
+      map.addSource("ref-project-plots", { type: "geojson", data: emptyFC() });
+      map.addLayer({
+        id: "ref-project-plots-fill",
+        type: "fill",
+        source: "ref-project-plots",
+        paint: { "fill-color": "#3b82f6", "fill-opacity": 0.05 },
+      });
+      map.addLayer({
+        id: "ref-project-plots-line",
+        type: "line",
+        source: "ref-project-plots",
+        layout: { "line-join": "round", "line-cap": "round" },
+        paint: { "line-color": "#3b82f6", "line-width": 2 },
+      });
+
       map.addSource("plot-verts", { type: "geojson", data: emptyFC() });
       map.addLayer({
         id: "plot-verts-l",
@@ -1219,13 +1236,110 @@ function MapDrawContent() {
 
     console.log("[AUTO-LOAD] Effect triggered", { projName, action, plotId, currentDrawnCount: drawnParcels.length });
 
-    if (projName && drawnParcels.length === 0) {
+    // Add-plot mode: project specified but no action/plotId — load existing plots into step 2
+    if (projName && !action && !plotId && !refPlotsLoadedRef.current) {
+      refPlotsLoadedRef.current = true;
+      const loadForDisplay = async () => {
+        try {
+          const apiRes = await fetch(`/api/plots?name=${encodeURIComponent(projName!)}`);
+          const apiData = apiRes.ok ? await apiRes.json() : { plots: [] };
+          // Filter client-side by project name as safety net
+          const allProjectPlots: any[] = (Array.isArray(apiData.plots) ? apiData.plots : [])
+            .filter((p: any) => String(p.name || "").toLowerCase() === String(projName).toLowerCase());
+          if (allProjectPlots.length > 0) {
+            // Load with full properties so form data (plantStatus, plantYear, etc.) is pre-populated
+            const feats: GeoJSON.Feature[] = allProjectPlots.map((p: any, i: number) => ({
+              type: "Feature",
+              geometry: p.geojson,
+              properties: {
+                ...p,
+                plot_index: String(i + 1),
+                grow_area: p.areaRai,
+                grow_year: p.plantYearBE,
+                province: p.province,
+              },
+            }));
+
+            // Load into drawnParcels → existing plots appear in step 2 with form data intact
+            setDrawnParcels(feats);
+            setCurrentStep(2);
+            setIsPanelOpen(true);
+            setSearchCount(feats.length);
+            setStatus(`เตรียมประมวลผลคาร์บอนสำหรับโครงการ: ${projName}`);
+
+            const hasExistingLuData = allProjectPlots.some(p =>
+              Array.isArray(p.backendData?.lu_polygon) && p.backendData.lu_polygon.length > 0
+            );
+
+            const initialParcelFeatures: GeoJSON.Feature[] = [];
+            allProjectPlots.forEach((p: any, i: number) => {
+              const luPolys = p.backendData?.lu_polygon;
+              if (Array.isArray(luPolys) && luPolys.length > 0) {
+                luPolys.forEach((lf: any) => {
+                  if (lf && lf.geometry) {
+                    initialParcelFeatures.push({
+                      type: "Feature",
+                      geometry: lf.geometry,
+                      properties: { ...(lf.properties || {}), plot_index: String(i + 1) },
+                    });
+                  }
+                });
+              } else {
+                initialParcelFeatures.push(feats[i]);
+              }
+            });
+
+            if (hasExistingLuData) {
+              const initialChecked: Record<number, Record<string, boolean>> = {};
+              allProjectPlots.forEach((_: any, idx: number) => {
+                const savedLU = allProjectPlots[idx]?.luChecked;
+                initialChecked[idx] = (savedLU && typeof savedLU === "object" && !Array.isArray(savedLU))
+                  ? savedLU
+                  : { A: true, A302: true };
+              });
+              allPlotsCheckedRef.current = initialChecked;
+              handleLandUseChange(initialChecked);
+            } else {
+              needsPlantationSearchRef.current = true;
+            }
+
+            setParcelFeatures(initialParcelFeatures);
+
+            const refMap = mapRef.current;
+            if (refMap) {
+              if (refMap.getSource("matched-parcels")) {
+                const sourceFeats = hasExistingLuData ? initialParcelFeatures : feats;
+                (refMap.getSource("matched-parcels") as maplibregl.GeoJSONSource).setData({
+                  type: "FeatureCollection",
+                  features: sourceFeats,
+                });
+              }
+
+              const bounds = new maplibregl.LngLatBounds();
+              feats.forEach(f => {
+                const geom = f.geometry as any;
+                const coords = geom.type === "Polygon" ? geom.coordinates[0] : geom.coordinates[0][0];
+                coords.forEach((coord: any) => bounds.extend(coord));
+              });
+              if (!bounds.isEmpty()) refMap.fitBounds(bounds, { padding: 80 });
+            }
+          }
+        } catch (err) {
+          console.error("Failed to load project plots for add-plot mode", err);
+        }
+      };
+      loadForDisplay();
+    }
+
+    if (projName && (action || plotId) && drawnParcels.length === 0) {
       const load = async () => {
         try {
           const apiUrl = `/api/plots?name=${encodeURIComponent(projName!)}`;
           const apiRes = await fetch(apiUrl);
           const apiData = apiRes.ok ? await apiRes.json() : { plots: [] };
-          const allProjectPlots: any[] = Array.isArray(apiData.plots) ? apiData.plots : [];
+          // Filter client-side by project name as safety net
+          const allProjectPlots: any[] = (Array.isArray(apiData.plots) ? apiData.plots : [])
+            .filter((p: any) => String(p.name || "").toLowerCase() === String(projName).toLowerCase());
           console.log("[AUTO-LOAD] API plots for:", projName, allProjectPlots);
           const projectPlots = allProjectPlots;
           console.log("[AUTO-LOAD] projectPlots for:", projName, projectPlots);

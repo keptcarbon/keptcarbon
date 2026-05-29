@@ -117,9 +117,15 @@ export async function GET(request: NextRequest) {
     }
 
     const result = await pool.query(query, params);
-    
-    // Flatten frontend_plots from all projects into a single array of plots
-    const plots = result.rows.flatMap(row => {
+
+    // Filter by project name if ?name= is provided
+    const projName = searchParams.get("name");
+    const filteredRows = projName
+      ? result.rows.filter(row => row.project_id === projName)
+      : result.rows;
+
+    // Flatten frontend_plots from matching projects into a single array of plots
+    const plots = filteredRows.flatMap(row => {
       const p = row.frontend_plots;
       if (Array.isArray(p)) {
         return p.map(plot => ({ ...plot, dbProjectId: row.id }));

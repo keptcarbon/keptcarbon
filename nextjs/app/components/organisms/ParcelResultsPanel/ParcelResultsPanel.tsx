@@ -1339,7 +1339,8 @@ export function ParcelResultsPanel({
                 const cr = overrideResults ? overrideResults[i] : carbonResults[i];
 
                 const hasNewResult = cr && cr.co2Now !== undefined;
-                const co2 = hasNewResult ? cr.co2Now : 0;
+                // Preserve previously saved carbon data when plot wasn't re-processed this session
+                const co2 = hasNewResult ? cr.co2Now : (props.carbonTotal || 0);
 
                 const epPlantYearBE = ep?.year_of_planting ? ep.year_of_planting + 543 : 0;
                 const epVariety = ep?.rubber_clone || "";
@@ -1352,7 +1353,7 @@ export function ParcelResultsPanel({
                 } else if (!finalPlantYear && p.plantYearBE > 0) {
                     finalPlantYear = p.plantYearBE;
                 }
-                const age = finalPlantYear > 0 ? (CURRENT_BE_NOW - finalPlantYear) : 0;
+                const age = finalPlantYear > 0 ? (CURRENT_BE_NOW - finalPlantYear) : (props.rubberAge || 0);
 
                 const trees = cr?.trees || form?.treeCount || props.trees || epTrees;
                 const variety = cr?.variety || form?.variety || props.variety || epVariety;
@@ -1362,9 +1363,11 @@ export function ParcelResultsPanel({
                 let carbonProfile: any[] = [];
                 if (hasNewResult && rawProfile.length > 0) {
                     carbonProfile = profileToBarPoints(rawProfile, age);
+                } else if (!hasNewResult && Array.isArray(props.carbonProfile)) {
+                    carbonProfile = props.carbonProfile;
                 }
 
-                let forecast = { yr3: 0, yr5: 0, yr7: 0 };
+                let forecast = props.forecast || { yr3: 0, yr5: 0, yr7: 0 };
                 if (hasNewResult) {
                     forecast = {
                         yr3: carbonCo2(age + 3, trees, spacing),
@@ -1379,6 +1382,16 @@ export function ParcelResultsPanel({
                     return lfPlotIdx === i;
                 });
 
+                // Preserve saved lu_polygon when no new LU features came from this session
+                const savedLuPolygon = props.backendData?.lu_polygon;
+                const luPolygonToSave = plotLuFeats.length > 0
+                    ? plotLuFeats.map((lf: GeoJSON.Feature) => ({
+                        type: "Feature",
+                        properties: lf.properties,
+                        geometry: lf.geometry
+                    }))
+                    : (Array.isArray(savedLuPolygon) ? savedLuPolygon : []);
+
                 return {
                     id: stablePlotIds[i],
                     name: projectName || props.farm_name || "แปลงยางใหม่",
@@ -1386,45 +1399,44 @@ export function ParcelResultsPanel({
                     selectedAreaRai: hasNewResult ? cr.selectedAreaRai : (props.selectedAreaRai || p.areaRai),
                     carbonTotal: co2,
                     rubberAge: age,
-                    plantYearBE: finalPlantYear,
+                    plantYearBE: finalPlantYear || props.plantYearBE || 0,
                     trees,
                     variety,
                     spacing,
-                    luChecked: form?.luChecked || { A: true, A302: true },
-                    plantStatus: form?.plantStatus || "",
+                    luChecked: form?.luChecked || props.luChecked || { A: true, A302: true },
+                    plantStatus: form?.plantStatus || props.plantStatus || "",
                     confidence: p.confidence,
-                    ownerName: ownerName || props.owner_name || "",
+                    ownerName: ownerName || props.owner_name || props.ownerName || "",
                     province: province || plots[i]?.province || props.province || "",
                     date: new Date().toISOString(),
                     geojson: feat?.geometry || null,
                     boundaryGeojson: null,
                     carbonProfile,
-                    processed: !!hasNewResult,
+                    processed: hasNewResult ? true : (props.processed || false),
                     forecast,
                     backendData: {
-                        lu_polygon: plotLuFeats.map(lf => ({
-                            type: "Feature",
-                            properties: lf.properties,
-                            geometry: lf.geometry
-                        })),
-                        plantYearBE: epPlantYearBE,
-                        age: epPlantYearBE > 0 ? (CURRENT_BE_NOW - epPlantYearBE) : 0,
-                        variety: epVariety,
-                        spacing: epSpacing,
-                        trees: epTrees,
-                        ep: ep || null,
-                        form: form || null
+                        lu_polygon: luPolygonToSave,
+                        plantYearBE: epPlantYearBE || props.backendData?.plantYearBE || 0,
+                        age: epPlantYearBE > 0 ? (CURRENT_BE_NOW - epPlantYearBE) : (props.backendData?.age || 0),
+                        variety: epVariety || props.backendData?.variety || "",
+                        spacing: epSpacing || props.backendData?.spacing || "",
+                        trees: epTrees || props.backendData?.trees || 0,
+                        ep: ep || props.backendData?.ep || null,
+                        form: form || props.backendData?.form || null
                     }
                 };
             });
 
             // When editing a single plot, preserve all other plots from the project
+            // When adding a new plot, append it to the existing project plots
             let finalFrontendPlots = frontendPlots;
             if (existingProjectPlots && existingProjectPlots.length > 0 && editingPlotId) {
                 const updatedPlot = frontendPlots[0];
                 finalFrontendPlots = existingProjectPlots.map((p: any) =>
                     String(p.id) === String(editingPlotId) ? updatedPlot : p
                 );
+            } else if (existingProjectPlots && existingProjectPlots.length > 0 && !editingPlotId) {
+                finalFrontendPlots = [...existingProjectPlots, ...frontendPlots];
             }
 
             const saveBody: Record<string, unknown> = {
