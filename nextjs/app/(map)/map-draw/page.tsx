@@ -2866,6 +2866,23 @@ function MapDrawContent() {
             font-size: 10.5px !important;
             font-weight: 700 !important;
           }
+          /* Clickable steps */
+          .mds-stepper .mds-step.clickable {
+            cursor: pointer !important;
+          }
+          .mds-stepper .mds-step.clickable:hover .mds-step-circle {
+            box-shadow: 0 0 0 6px rgba(31,174,89,0.18) !important;
+            transform: scale(1.13) !important;
+          }
+          .mds-stepper .mds-step.clickable:hover .mds-step-label {
+            color: #16a34a !important;
+            text-decoration: underline !important;
+          }
+          /* Locked step (not yet reachable) */
+          .mds-stepper .mds-step.locked {
+            cursor: not-allowed !important;
+            opacity: 0.4 !important;
+          }
         `}</style>
 
 
@@ -2882,12 +2899,35 @@ function MapDrawContent() {
             ]).map(({ n, label }) => {
               const isActive = currentStep === n;
               const isDone = currentStep > n;
+
+              const step2Ready = drawnParcels.length > 0 && !(user && (!projectName.trim() || isDuplicateProjectName));
+              const isClickable =
+                (n === 1 && currentStep !== 1) ||
+                (n === 2 && (currentStep === 3 || (currentStep === 1 && step2Ready)));
+              const isLocked = n === 2 && currentStep === 1 && !step2Ready;
+
+              const tooltip =
+                n === 1
+                  ? currentStep === 1 ? "ขั้นตอนปัจจุบัน" : "กลับไปวาดแปลง (ข้อมูลที่วาดจะถูกลบ)"
+                  : n === 2
+                  ? currentStep === 3 ? "กลับไปกรอกข้อมูล"
+                    : step2Ready ? "ไปกรอกข้อมูลแปลง"
+                    : "วาดพื้นที่บนแผนที่ก่อน"
+                  : "กดปุ่ม 'ประเมินคาร์บอน' ในขั้นตอนที่ 2 เพื่อไปต่อ";
+
+              const cls = [
+                "mds-step",
+                isActive ? "active" : isDone ? "done" : "",
+                isClickable ? "clickable" : "",
+                isLocked ? "locked" : "",
+              ].filter(Boolean).join(" ");
+
               return (
                 <div
                   key={n}
-                  className={`mds-step${isActive ? " active" : isDone ? " done" : ""}`}
-                  style={{ cursor: "pointer" }}
-                  onClick={() => handleStepClick(n)}
+                  className={cls}
+                  title={tooltip}
+                  onClick={isClickable ? () => handleStepClick(n) : undefined}
                 >
                   <div className="mds-step-circle">
                     {isDone ? <i className="bi bi-check-lg" /> : n}
