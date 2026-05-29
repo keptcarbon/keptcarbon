@@ -2913,7 +2913,7 @@ function MapDrawContent() {
                   ? currentStep === 3 ? "กลับไปกรอกข้อมูล"
                     : step2Ready ? "ไปกรอกข้อมูลแปลง"
                     : "วาดพื้นที่บนแผนที่ก่อน"
-                  : "กดปุ่ม 'ประเมินคาร์บอน' ในขั้นตอนที่ 2 เพื่อไปต่อ";
+                  : undefined;
 
               const cls = [
                 "mds-step",
