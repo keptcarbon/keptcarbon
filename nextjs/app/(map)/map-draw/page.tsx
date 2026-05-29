@@ -29,6 +29,8 @@ const REGIONS_DATA = [
 
 const cursorAddNode = "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none'><circle cx='12' cy='12' r='6' fill='%23ffffff' stroke='%233b82f6' stroke-width='2.5'/><line x1='12' y1='8' x2='12' y2='16' stroke='%233b82f6' stroke-width='2' stroke-linecap='round'/><line x1='8' y1='12' x2='16' y2='12' stroke='%233b82f6' stroke-width='2' stroke-linecap='round'/></svg>\") 12 12, cell";
 
+const SNAP_PX = 15;
+
 function MapDrawContent() {
   const { user } = useAuth();
 
@@ -202,6 +204,37 @@ function MapDrawContent() {
   const [drawnParcels, setDrawnParcels] = useState<GeoJSON.Feature[]>([]);
   const drawnParcelsRef = useRef<GeoJSON.Feature[]>([]);
 
+  const findSnapTarget = useCallback((
+    screenPt: { x: number; y: number },
+    excludePIdx: number
+  ): [number, number] | null => {
+    const map = mapRef.current;
+    if (!map) return null;
+    let bestDist = SNAP_PX;
+    let snapCoord: [number, number] | null = null;
+    drawnParcelsRef.current.forEach((parcel, pIdx) => {
+      if (excludePIdx !== -1 && pIdx === excludePIdx) return;
+      if (parcel.geometry.type !== "Polygon") return;
+      const coords = parcel.geometry.coordinates[0];
+      for (let i = 0; i < coords.length - 1; i++) {
+        const sp = map.project(coords[i] as [number, number]);
+        const d = Math.hypot(screenPt.x - sp.x, screenPt.y - sp.y);
+        if (d < bestDist) { bestDist = d; snapCoord = coords[i] as [number, number]; }
+      }
+    });
+    return snapCoord;
+  }, []);
+
+  const setSnapIndicator = useCallback((coord: [number, number] | null) => {
+    const map = mapRef.current;
+    if (!map) return;
+    const src = map.getSource("snap-indicator") as maplibregl.GeoJSONSource | undefined;
+    if (!src) return;
+    src.setData(coord
+      ? { type: "FeatureCollection", features: [{ type: "Feature", geometry: { type: "Point", coordinates: coord }, properties: {} }] }
+      : { type: "FeatureCollection", features: [] });
+  }, []);
+
   const getVertFeatures = useCallback((parcels: GeoJSON.Feature[]) => {
     const vertFeatures: GeoJSON.Feature[] = [];
     parcels.forEach((p, pIdx) => {
@@ -269,13 +302,15 @@ function MapDrawContent() {
   }, [selectedProvince, mapLoaded]);
 
   // Hide vertex nodes when not on step 1 (not editable at step 2/3)
+  // Also hide existing polygon vertices while drawing to prevent accidental snapping
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !mapLoadedRef.current) return;
     const vis = currentStep >= 3 ? "none" : "visible";
-    if (map.getLayer("plot-verts-l")) map.setLayoutProperty("plot-verts-l", "visibility", vis);
+    const plotVertsVis = (currentStep >= 3 || drawing) ? "none" : "visible";
+    if (map.getLayer("plot-verts-l")) map.setLayoutProperty("plot-verts-l", "visibility", plotVertsVis);
     if (map.getLayer("draw-verts-l")) map.setLayoutProperty("draw-verts-l", "visibility", vis);
-  }, [currentStep]);
+  }, [currentStep, drawing]);
 
   const totalDrawnArea = useMemo(() => {
     return drawnParcels.reduce((acc, p) => {
@@ -363,9 +398,13 @@ function MapDrawContent() {
       const parcel = parcels[activePIdx];
       if (parcel && parcel.geometry.type === "Polygon") {
         const coords = [...parcel.geometry.coordinates[0]];
-        coords[activeVIdx] = [touch.lng, touch.lat];
+        const screenPt = map.project([touch.lng, touch.lat] as [number, number]);
+        const snapCoord = findSnapTarget(screenPt, activePIdx);
+        const newCoord: [number, number] = snapCoord ?? [touch.lng, touch.lat];
+        setSnapIndicator(snapCoord);
+        coords[activeVIdx] = newCoord;
         if (activeVIdx === 0) {
-          coords[coords.length - 1] = [touch.lng, touch.lat];
+          coords[coords.length - 1] = newCoord;
         }
         parcel.geometry.coordinates[0] = coords;
 
@@ -388,6 +427,7 @@ function MapDrawContent() {
       map.off('touchend', onVertsTouchEnd);
 
       map.dragPan.enable();
+      setSnapIndicator(null);
 
       const parcels = [...drawnParcelsRef.current];
       const parcel = parcels[activePIdx];
@@ -476,9 +516,12 @@ function MapDrawContent() {
         const parcel = { ...originalParcel };
         const geom = parcel.geometry as GeoJSON.Polygon;
         const coords = [...geom.coordinates[0]];
-        coords[activeVIdx] = [e.lngLat.lng, e.lngLat.lat];
+        const snapCoord = findSnapTarget(e.point, activePIdx);
+        const newCoord: [number, number] = snapCoord ?? [e.lngLat.lng, e.lngLat.lat];
+        setSnapIndicator(snapCoord);
+        coords[activeVIdx] = newCoord;
         if (activeVIdx === 0) {
-          coords[coords.length - 1] = [e.lngLat.lng, e.lngLat.lat];
+          coords[coords.length - 1] = newCoord;
         }
         parcel.geometry = { ...geom, type: "Polygon", coordinates: [coords] };
         parcel.properties = { ...parcel.properties };
@@ -505,6 +548,7 @@ function MapDrawContent() {
         map.getCanvas().style.cursor = 'grab';
         map.off('mousemove', onVertsMove);
         map.off('mouseup', onVertsUp);
+        setSnapIndicator(null);
         const parcels = [...drawnParcelsRef.current];
         const parcel = parcels[activePIdx];
         if (parcel && parcel.geometry.type === "Polygon") {
@@ -1190,6 +1234,33 @@ function MapDrawContent() {
         },
       });
 
+      // Snap indicator — shown when dragging a vertex near another polygon's vertex
+      map.addSource("snap-indicator", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+      map.addLayer({
+        id: "snap-indicator-glow",
+        type: "circle",
+        source: "snap-indicator",
+        paint: {
+          "circle-color": "rgba(245, 158, 11, 0.22)",
+          "circle-radius": 20,
+          "circle-blur": 0.7,
+          "circle-stroke-width": 0,
+        },
+      });
+      map.addLayer({
+        id: "snap-indicator-ring",
+        type: "circle",
+        source: "snap-indicator",
+        paint: {
+          "circle-color": "rgba(0,0,0,0)",
+          "circle-radius": 12,
+          "circle-stroke-color": "#f59e0b",
+          "circle-stroke-width": 2.5,
+          "circle-opacity": 0,
+          "circle-stroke-opacity": 1,
+        },
+      });
+
       const fmt = (v: unknown) => (v == null || v === "" ? "—" : String(v));
       map.on("click", "matched-parcels-fill", (e) => {
         if (drawingRef.current) return;
@@ -1707,7 +1778,10 @@ function MapDrawContent() {
       const touch = (e.lngLats && e.lngLats.length > 0) ? e.lngLats[0] : e.lngLat;
       if (!touch) return;
       drawTouchWasDragging = true;
-      vertsRef.current[drawTouchDragIdx] = [touch.lng, touch.lat];
+      const screenPt = map.project([touch.lng, touch.lat] as [number, number]);
+      const snapCoord = findSnapTarget(screenPt, -1);
+      vertsRef.current[drawTouchDragIdx] = snapCoord ?? [touch.lng, touch.lat];
+      setSnapIndicator(snapCoord);
       previewDraw();
     };
 
@@ -1717,6 +1791,7 @@ function MapDrawContent() {
         map.off('touchmove', onDrawTouchMove);
         map.off('touchend', onDrawTouchEnd);
         drawTouchDragIdx = -1;
+        setSnapIndicator(null);
       }
     };
 
@@ -1725,7 +1800,9 @@ function MapDrawContent() {
       if (dragIdx !== -1) {
         // actively dragging
         wasDragging = true;
-        vertsRef.current[dragIdx] = [ev.lngLat.lng, ev.lngLat.lat];
+        const snapCoord = findSnapTarget(ev.point, -1);
+        vertsRef.current[dragIdx] = snapCoord ?? [ev.lngLat.lng, ev.lngLat.lat];
+        setSnapIndicator(snapCoord);
         previewDraw();
         return;
       }
@@ -1797,6 +1874,7 @@ function MapDrawContent() {
         dragIdx = -1;
         map.getCanvas().style.cursor = 'grab';
         map.dragPan.enable();
+        setSnapIndicator(null);
       }
     };
 
