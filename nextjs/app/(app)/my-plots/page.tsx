@@ -840,7 +840,7 @@ function PlotMiniMap({ plot, isMobile, index }: { plot: SavedPlot; isMobile: boo
         });
         map.addLayer({
           id: "lu-line", type: "line", source: "lu-polygons",
-          paint: { "line-color": ["get", "color"], "line-width": 1, "line-opacity": 0.9 }
+          paint: { "line-color": "#334155", "line-width": 1, "line-opacity": 0.9 }
         });
         for (const feat of currentLuFeatures) {
           processCoords((feat.geometry as any).coordinates);
@@ -898,7 +898,7 @@ function PlotMiniMap({ plot, isMobile, index }: { plot: SavedPlot; isMobile: boo
         }
         map.addLayer({
           id: "parcel-line", type: "line", source: "plot-parcel",
-          paint: { "line-color": "#64748b", "line-width": 2.5 }
+          paint: { "line-color": "#334155", "line-width": 1.5 }
         });
         processCoords((currentPlot.geojson as any).coordinates);
       }

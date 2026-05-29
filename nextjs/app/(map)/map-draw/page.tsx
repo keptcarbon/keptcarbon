@@ -789,15 +789,11 @@ function MapDrawContent() {
       "rgba(0,0,0,0)"
     ] as unknown as maplibregl.ExpressionSpecification;
 
-    const lineColorMap = [
-      "case",
-      ["==", ["to-string", ["coalesce", ["get", "lu_class"], ""]], "A302"], "#84cc16",
-      "#64748b"
-    ] as unknown as maplibregl.ExpressionSpecification;
+    const lineColorMap = "#334155" as unknown as maplibregl.ExpressionSpecification;
 
     map.setPaintProperty("matched-parcels-fill", "fill-color", fillColorMap);
     map.setPaintProperty("matched-parcels-line", "line-color", lineColorMap);
-    map.setPaintProperty("matched-parcels-line", "line-width", 2.2);
+    map.setPaintProperty("matched-parcels-line", "line-width", 1.5);
 
     // A302 must always show fill+line when detected, regardless of checkbox state.
     const isA302 = ["==", ["to-string", ["coalesce", ["get", "lu_class"], ""]], "A302"];
@@ -1110,7 +1106,7 @@ function MapDrawContent() {
         type: "line",
         source: "ref-project-plots",
         layout: { "line-join": "round", "line-cap": "round" },
-        paint: { "line-color": "#64748b", "line-width": 2 },
+        paint: { "line-color": "#334155", "line-width": 1.5 },
       });
 
       map.addSource("plot-verts", { type: "geojson", data: emptyFC() });
