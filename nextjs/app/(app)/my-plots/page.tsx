@@ -994,9 +994,9 @@ function ProjectCarbonSummary({ plots, isMobile }: { plots: SavedPlot[]; isMobil
     for (let y = minStartYearBE; y <= minEndYearBE; y++) validYearBEs.push(y);
     const validYearBESet = new Set(validYearBEs);
 
-    const sumMap = new Map<number, { co2: number; sumLinearCi: number; totalValidAge: number; validAgeCount: number; fallbackAgeAccum: number; fallbackCount: number; }>();
+    const sumMap = new Map<number, { co2: number; sumLinearCi: number; totalValidAge: number; validAgeCount: number; fallbackAgeAccum: number; fallbackCount: number; gainValue: number; gainCi: number; }>();
     for (const yearBE of validYearBEs) {
-      sumMap.set(yearBE, { co2: 0, sumLinearCi: 0, totalValidAge: 0, validAgeCount: 0, fallbackAgeAccum: 0, fallbackCount: 0 });
+      sumMap.set(yearBE, { co2: 0, sumLinearCi: 0, totalValidAge: 0, validAgeCount: 0, fallbackAgeAccum: 0, fallbackCount: 0, gainValue: 0, gainCi: 0 });
     }
 
     for (const pts of allPtsArrays) {
@@ -1005,6 +1005,8 @@ function ProjectCarbonSummary({ plots, isMobile }: { plots: SavedPlot[]; isMobil
         const e = sumMap.get(p.yearBE)!;
         e.co2 += Math.floor(p.co2 || 0);
         e.sumLinearCi = Math.round((e.sumLinearCi + Math.floor((p.ci || 0) * 10) / 10) * 10) / 10;
+        e.gainValue += Math.floor(p.gainValue || 0);
+        e.gainCi = Math.round((e.gainCi + Math.floor((p.gainCi || 0) * 10) / 10) * 10) / 10;
         if (p.isAgeValid) { e.totalValidAge += p.age; e.validAgeCount += 1; }
         else { e.fallbackAgeAccum += p.age; e.fallbackCount += 1; }
       }
@@ -1016,8 +1018,9 @@ function ProjectCarbonSummary({ plots, isMobile }: { plots: SavedPlot[]; isMobil
       return {
         age: avgAge, yearBE, year_at: i,
         co2: d.co2, ci: d.sumLinearCi,
-        gainValue: i > 0 ? d.co2 - (sumMap.get(validYearBEs[i - 1])?.co2 ?? 0) : 0,
-        gainCi: 0, cycle: Math.floor(i / 7), cycleAge: avgAge, errorMargin: d.sumLinearCi,
+        gainValue: d.gainValue,
+        gainCi: d.gainCi,
+        cycle: Math.floor(i / 7), cycleAge: avgAge, errorMargin: d.sumLinearCi,
         isAgeValid: d.validAgeCount > 0
       };
     });
@@ -1040,14 +1043,14 @@ function ProjectCarbonSummary({ plots, isMobile }: { plots: SavedPlot[]; isMobil
 
   if (combinedPts.length === 0 && totalNow === 0) return null;
 
-  const StatCard = ({ icon, iconColor, label, value, unit, valueColor }: { icon: string; iconColor: string; label: string; value: string; unit: string; valueColor: string }) => (
-    <div style={{ background: "rgba(255,255,255,0.75)", borderRadius: 12, padding: isMobile ? "10px 12px" : "12px 14px", border: "1px solid rgba(16,185,129,0.12)", backdropFilter: "blur(4px)" }}>
+  const StatCard = ({ icon, iconColor, label, value, unit, valueColor, style = {} }: { icon: string; iconColor: string; label: string; value: React.ReactNode; unit?: string; valueColor: string; style?: React.CSSProperties }) => (
+    <div style={{ background: "rgba(255,255,255,0.75)", borderRadius: 12, padding: isMobile ? "10px 12px" : "12px 14px", border: "1px solid rgba(16,185,129,0.12)", backdropFilter: "blur(4px)", ...style }}>
       <div style={{ fontSize: 11, color: "#64748b", fontWeight: 600, marginBottom: 5, display: "flex", alignItems: "center", gap: 4 }}>
         <i className={`bi ${icon}`} style={{ color: iconColor, fontSize: 11 }} /> {label}
       </div>
       <div style={{ display: "flex", alignItems: "baseline", gap: 3 }}>
-        <span style={{ fontSize: isMobile ? 18 : 20, fontWeight: 800, color: valueColor, lineHeight: 1 }}>{value}</span>
-        <span style={{ fontSize: 11, color: "#94a3b8", fontWeight: 500 }}>{unit}</span>
+        <div style={{ fontSize: isMobile ? 18 : 20, fontWeight: 800, color: valueColor, lineHeight: 1, width: "100%" }}>{value}</div>
+        {unit && <span style={{ fontSize: 11, color: "#94a3b8", fontWeight: 500 }}>{unit}</span>}
       </div>
     </div>
   );
@@ -1080,10 +1083,7 @@ function ProjectCarbonSummary({ plots, isMobile }: { plots: SavedPlot[]; isMobil
             <i className="bi bi-bar-chart-fill" style={{ color: "#fff", fontSize: 18 }} />
           </div>
           <div>
-            <div style={{ fontSize: isMobile ? 15 : 17, fontWeight: 800, color: "#064e3b", lineHeight: 1.2 }}>สรุปภาพรวมโครงการ</div>
-            <div style={{ fontSize: isMobile ? 11 : 12, color: "#6b7280", fontWeight: 500 }}>
-              {isExpanded ? "คลิกเพื่อย่อข้อมูล" : "คลิกเพื่อดูปริมาณคาร์บอนและพื้นที่รวมทั้งหมด"}
-            </div>
+            <div style={{ fontSize: isMobile ? 15 : 17, fontWeight: 800, color: "#064e3b", lineHeight: 1.2 }}>สรุปคาร์บอนสะสม</div>
           </div>
         </div>
         <div style={{
@@ -1169,31 +1169,44 @@ function ProjectCarbonSummary({ plots, isMobile }: { plots: SavedPlot[]; isMobil
               </div>
             </div>
 
-            {/* 2×2 stat grid */}
-            <div style={{ position: "relative", display: "grid", gridTemplateColumns: "1fr 1fr", gap: isMobile ? 8 : 10 }}>
+            {/* Top 3 Stats grid */}
+            <div style={{ position: "relative", display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(3, 1fr)", gap: isMobile ? 8 : 10 }}>
               <StatCard icon="bi-check-circle-fill" iconColor="#10b981" label="ประมวลผลแล้ว" value={`${processedCount}/${plots.length}`} unit="แปลง" valueColor="#047857" />
               <StatCard icon="bi-grid-fill" iconColor="#0d9488" label="พื้นที่รวม" value={totalAreaRai.toFixed(1)} unit="ไร่" valueColor="#0d9488" />
-              {cyclePts.map((pt, idx) => {
-                const isEven = idx % 2 === 0;
-                return (
-                  <StatCard
-                    key={pt.year_at}
-                    icon="bi-graph-up-arrow"
-                    iconColor={isEven ? "#3b82f6" : "#8b5cf6"}
-                    label={`ปีที่ ${pt.year_at} (พ.ศ. ${pt.yearBE})`}
-                    value={Math.floor(pt.co2).toLocaleString("th-TH")}
-                    unit="tCO₂"
-                    valueColor={isEven ? "#1d4ed8" : "#6d28d9"}
-                  />
-                );
-              })}
+              {totalTrees > 0 && (
+                <StatCard icon="bi-tree-fill" iconColor="#16a34a" label="จำนวนต้นรวม" value={totalTrees.toLocaleString("th-TH")} unit="ต้น" valueColor="#064e3b" style={isMobile ? { gridColumn: "1 / -1" } : {}} />
+              )}
             </div>
 
-            {/* Trees info */}
-            {totalTrees > 0 && (
-              <div style={{ position: "relative", display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#475569", background: "rgba(255,255,255,0.6)", borderRadius: 10, padding: "8px 12px", border: "1px solid rgba(16,185,129,0.1)" }}>
-                <i className="bi bi-tree-fill" style={{ color: "#16a34a", fontSize: 14, flexShrink: 0 }} />
-                <span>จำนวนต้นรวม <strong style={{ color: "#064e3b" }}>{totalTrees.toLocaleString("th-TH")}</strong> ต้น</span>
+            {/* Cycle years grid */}
+            {cyclePts.length > 0 && (
+              <div style={{ position: "relative", display: "grid", gridTemplateColumns: "1fr 1fr", gap: isMobile ? 8 : 10 }}>
+                {cyclePts.map((pt, idx) => {
+                  const isEven = idx % 2 === 0;
+                  return (
+                    <StatCard
+                      key={pt.year_at}
+                      icon="bi-graph-up-arrow"
+                      iconColor={isEven ? "#3b82f6" : "#8b5cf6"}
+                      label={`ปีที่ ${pt.year_at} (พ.ศ. ${pt.yearBE})`}
+                      value={
+                        <div style={{ display: "flex", flexDirection: "column", gap: 4, marginTop: 4 }}>
+                          <div style={{ fontSize: 12, color: "#64748b", fontWeight: 600, lineHeight: 1 }}>คาร์บอนเครดิต</div>
+                          <div style={{ display: "flex", alignItems: "baseline", gap: 3 }}>
+                            <span style={{ fontSize: isMobile ? 18 : 20, fontWeight: 800, color: isEven ? "#1d4ed8" : "#6d28d9" }}>
+                              {Math.floor(pt.gainValue).toLocaleString("th-TH")}
+                            </span>
+                            <span style={{ fontSize: 13, color: isEven ? "#1d4ed8" : "#6d28d9", opacity: 0.8, fontWeight: 700 }}>
+                              ± {(Math.floor(pt.gainCi * 10) / 10).toLocaleString("th-TH", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+                            </span>
+                            <span style={{ fontSize: 11, color: "#94a3b8", fontWeight: 500 }}>tCO₂eq</span>
+                          </div>
+                        </div>
+                      }
+                      valueColor={isEven ? "#1d4ed8" : "#6d28d9"}
+                    />
+                  );
+                })}
               </div>
             )}
           </div>
