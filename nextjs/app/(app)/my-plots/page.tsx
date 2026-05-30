@@ -958,7 +958,7 @@ function ProjectCarbonSummary({ plots, isMobile }: { plots: SavedPlot[]; isMobil
   const currentYearBE = new Date().getFullYear() + 543;
   const [isExpanded, setIsExpanded] = useState(false);
 
-  const { combinedPts, totalNow, ciNow } = useMemo(() => {
+  const { combinedPts, totalNow, ciNow, initialMaxYearBE } = useMemo(() => {
     let fallbackTotal = 0;
     let fallbackLinearCi = 0;
 
@@ -973,7 +973,7 @@ function ProjectCarbonSummary({ plots, isMobile }: { plots: SavedPlot[]; isMobil
       const chartStartYearBE = plantYearBE > 0 ? plantYearBE + effectiveAge : currentYearBE;
 
       if (plot.carbonProfile && plot.carbonProfile.length > 0) {
-        allPtsArrays.push(plot.carbonProfile.filter(p => p.age == null || isNaN(p.age) || p.age <= 28));
+        allPtsArrays.push(plot.carbonProfile);
       } else {
         if (plot.carbonTotal > 0) fallbackTotal += Math.floor(plot.carbonTotal);
         const approxCi = (plot.carbonTotal || 0) * 0.05;
@@ -982,7 +982,7 @@ function ProjectCarbonSummary({ plots, isMobile }: { plots: SavedPlot[]; isMobil
     }
 
     if (allPtsArrays.length === 0) {
-      return { combinedPts: [], totalNow: fallbackTotal, ciNow: fallbackLinearCi };
+      return { combinedPts: [], totalNow: fallbackTotal, ciNow: fallbackLinearCi, initialMaxYearBE: undefined };
     }
 
     const minEndYearBE = Math.min(...allPtsArrays.map(pts => pts[pts.length - 1].yearBE));
@@ -991,6 +991,12 @@ function ProjectCarbonSummary({ plots, isMobile }: { plots: SavedPlot[]; isMobil
     const validYearBEs: number[] = [];
     for (let y = minStartYearBE; y <= minEndYearBE; y++) validYearBEs.push(y);
     const validYearBESet = new Set(validYearBEs);
+
+    const age28Years = allPtsArrays.map(pts => {
+        const item28 = pts.find(p => p.age === 28 && p.isAgeValid);
+        return item28 ? item28.yearBE : pts[pts.length - 1].yearBE;
+    });
+    const initialMaxYearBE = Math.min(...age28Years);
 
     const sumMap = new Map<number, { co2: number; sumLinearCi: number; totalValidAge: number; validAgeCount: number; fallbackAgeAccum: number; fallbackCount: number; gainValue: number; gainCi: number; }>();
     for (const yearBE of validYearBEs) {
@@ -1028,6 +1034,7 @@ function ProjectCarbonSummary({ plots, isMobile }: { plots: SavedPlot[]; isMobil
       combinedPts,
       totalNow: (currentPt?.co2 ?? 0) + fallbackTotal,
       ciNow: currentPt ? currentPt.ci : fallbackLinearCi,
+      initialMaxYearBE,
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [plots]);
@@ -1115,7 +1122,7 @@ function ProjectCarbonSummary({ plots, isMobile }: { plots: SavedPlot[]; isMobil
                 <div style={{ fontSize: 13, fontWeight: 700, color: "#064e3b", marginBottom: 12, display: "flex", alignItems: "center", gap: 6 }}>
                   <i className="bi bi-activity" style={{ color: "#10b981" }} /> แนวโน้มคาร์บอนสะสมรวม
                 </div>
-                <CarbonBarChart pts={combinedPts} isMobile={true} narrowMode={false} showAge={false} title="ปริมาณคาร์บอนกักเก็บ (tCO₂eq)" />
+                <CarbonBarChart pts={combinedPts} isMobile={true} narrowMode={false} showAge={false} title="ปริมาณคาร์บอนกักเก็บ (tCO₂eq)" initialMaxYearBE={initialMaxYearBE} />
               </>
             ) : (
               <div style={{ textAlign: "center", color: "#94a3b8", padding: "32px 20px" }}>
@@ -1317,12 +1324,12 @@ function PlotCard({ plot, index, onDelete, onEdit, expanded, onToggle, isMobile,
   const convertYearNoteToBE = (note: string) => note.replace(/^(\d{4})/, (_, y) => String(parseInt(y) + 543));
 
   const infoItems = [
-    { label: "พื้นที่ (ไร่)", val: plot.areaRai > 0 ? plot.areaRai.toFixed(2) : "", unit: "", icon: "bi-grid-3x3", color: "#0d9488", bg: "rgba(13,148,136,0.12)" },
-    { label: "สถานะแปลง", val: plantStatusLabel || "", unit: "", icon: "bi-check2-circle", color: "#f59e0b", bg: "rgba(245,158,11,0.12)" },
-    { label: "ปีที่ปลูก", val: form?.plantYear ? String(form.plantYear) : "", unit: "", icon: "bi-calendar2-check", color: "#3b82f6", bg: "rgba(59,130,246,0.12)" },
-    { label: "พันธุ์ยาง", val: isVarietyFromUser ? form.variety : "", unit: "", icon: "bi-patch-check-fill", color: "#8b5cf6", bg: "rgba(139,92,246,0.12)" },
-    { label: "ระยะปลูก (ม.)", val: isSpacingFromUser ? form.spacing : "", unit: "", icon: "bi-arrows-fullscreen", color: "#f59e0b", bg: "rgba(245,158,11,0.12)" },
-    { label: "จำนวนต้น ", val: isTreeCountFromUser && form?.treeCount ? parseInt(form.treeCount).toLocaleString("th-TH") : "", unit: "", icon: "bi-tree-fill", color: "#10b981", bg: "rgba(16,185,129,0.12)" },
+    { label: "พื้นที่ (ไร่)", val: plot.areaRai > 0 ? plot.areaRai.toFixed(2) : "", unit: "", icon: "bi-grid-fill", color: "#10b981", bg: "rgba(16,185,129,0.12)" },
+    { label: "สถานะแปลง", val: plantStatusLabel || "", unit: "", icon: "bi-info-circle", color: "#10b981", bg: "rgba(16,185,129,0.12)" },
+    { label: "ปีที่ปลูก", val: form?.plantYear ? String(form.plantYear) : "", unit: "", icon: "bi-calendar-event", color: "#10b981", bg: "rgba(16,185,129,0.12)" },
+    { label: "พันธุ์ยาง", val: isVarietyFromUser ? form.variety : "", unit: "", icon: "bi-tags", color: "#10b981", bg: "rgba(16,185,129,0.12)" },
+    { label: "ระยะปลูก (ม.)", val: isSpacingFromUser ? form.spacing : "", unit: "", icon: "bi-arrows-expand", color: "#10b981", bg: "rgba(16,185,129,0.12)" },
+    { label: "จำนวนต้น", val: isTreeCountFromUser && form?.treeCount ? parseInt(form.treeCount).toLocaleString("th-TH") : "", unit: "", icon: "bi-tree-fill", color: "#10b981", bg: "rgba(16,185,129,0.12)" },
   ];
 
   return (
@@ -1708,6 +1715,7 @@ export default function MyPlotsPage() {
   const [selectDeleteMode, setSelectDeleteMode] = useState(false);
   const [selectedProjectNames, setSelectedProjectNames] = useState<Set<string>>(new Set());
   const [confirmDeleteSelected, setConfirmDeleteSelected] = useState(false);
+  const [errorModalMsg, setErrorModalMsg] = useState<string | null>(null);
 
   const isAdmin = user?.role === "admin";
 
@@ -2050,8 +2058,7 @@ export default function MyPlotsPage() {
       }
 
     } catch (err) {
-      console.error("Inline estimate error:", err);
-      alert("เกิดข้อผิดพลาดในการประมวลผลคาร์บอนเครดิต");
+      setErrorModalMsg("เกิดข้อผิดพลาดในการประมวลผลคาร์บอนเครดิต");
     } finally {
       setEstimatingProject(null);
     }
@@ -2269,9 +2276,9 @@ export default function MyPlotsPage() {
         {plots.length > 0 && (
           <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(3, 1fr)" : "repeat(auto-fit, minmax(190px, 1fr))", gap: isMobile ? 8 : 14, marginBottom: 24 }}>
             {([
-              { label: "โครงการทั้งหมด", val: new Set(plots.map(p => p.name || "ไม่มีชื่อโครงการ")).size.toLocaleString("th-TH"), unit: "โครงการ", icon: "bi-folder-fill", color: "#3b82f6", bg: "rgba(59,130,246,0.08)" },
-              { label: "แปลงทั้งหมด", val: plots.length.toLocaleString("th-TH"), unit: "แปลง", icon: "bi-map", color: "#16a34a", bg: "rgba(22,163,74,0.08)" },
-              { label: "พื้นที่รวม", val: totalArea.toFixed(2), unit: "ไร่", icon: "bi-grid-fill", color: "#0d9488", bg: "rgba(13,148,136,0.08)" },
+              { label: "โครงการทั้งหมด", val: new Set(plots.map(p => p.name || "ไม่มีชื่อโครงการ")).size.toLocaleString("th-TH"), unit: "โครงการ", icon: "bi-folder-fill", color: "#10b981", bg: "rgba(16,185,129,0.10)" },
+              { label: "แปลงทั้งหมด", val: plots.length.toLocaleString("th-TH"), unit: "แปลง", icon: "bi-map-fill", color: "#059669", bg: "rgba(5,150,105,0.10)" },
+              { label: "พื้นที่รวม", val: totalArea.toFixed(2), unit: "ไร่", icon: "bi-grid-fill", color: "#047857", bg: "rgba(4,120,87,0.10)" },
             ] as { label: string; val: string; unit: string; icon: string; color: string; bg: string }[]).map(({ label, val, unit, icon, color, bg }) => (
               <div key={label} style={{ background: "#fff", borderRadius: isMobile ? 12 : 14, padding: isMobile ? "8px 9px" : "12px 14px", border: "1px solid rgba(0,0,0,0.05)", boxShadow: "0 2px 8px rgba(0,0,0,0.02)" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: isMobile ? 3 : 4 }}>
@@ -2489,6 +2496,29 @@ export default function MyPlotsPage() {
           )}
         </div>
       </div>
+      {/* Error Modal */}
+      {errorModalMsg && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 20, animation: "fadeIn 0.2s" }}>
+          <div style={{ background: "#fff", padding: "24px", borderRadius: 20, maxWidth: 360, width: "100%", textAlign: "center", boxShadow: "0 20px 40px rgba(0,0,0,0.2)", animation: "scaleUp 0.2s" }}>
+            <div style={{ width: 60, height: 60, borderRadius: "50%", background: "#fee2e2", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
+              <i className="bi bi-exclamation-triangle" style={{ fontSize: 30, color: "#ef4444" }} />
+            </div>
+            <h3 style={{ margin: "0 0 10px 0", fontSize: 18, fontWeight: 800, color: "#1e293b" }}>เกิดข้อผิดพลาด</h3>
+            <p style={{ margin: "0 0 20px 0", fontSize: 14, color: "#64748b", lineHeight: 1.5 }}>
+              {errorModalMsg}
+            </p>
+            <button
+              onClick={() => setErrorModalMsg(null)}
+              style={{ width: "100%", padding: "12px", background: "#ef4444", color: "#fff", border: "none", borderRadius: 12, fontSize: 15, fontWeight: 700, cursor: "pointer", transition: "all 0.2s" }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = "#dc2626"; e.currentTarget.style.transform = "translateY(-1px)"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = "#ef4444"; e.currentTarget.style.transform = "none"; }}
+            >
+              ตกลง
+            </button>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

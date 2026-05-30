@@ -283,21 +283,20 @@ function computePlot(feat: GeoJSON.Feature): PlotInfo {
 
 
 function aggregateProfiles(responses: EstimationResponse[], fallbackBaseAge: number = 0): BarPoint[] {
-    // Only keep non-empty profiles and filter by age <= 28 to match visual graph cutoff
+    // Only keep non-empty profiles and filter by age <= 35 to match visual graph cutoff
     const profiles = responses
         .map(r => r.carbon_profile)
-        .filter((p): p is YearlyEstimate[] => Array.isArray(p) && p.length > 0)
-        .map(p => p.filter(item => item.age == null || isNaN(item.age) || item.age <= 28));
+        .filter((p): p is YearlyEstimate[] => Array.isArray(p) && p.length > 0);
 
     if (profiles.length === 0) return [];
 
-    // Find the common year range: earliest start year → earliest end year across all profiles.
-    // This allows Existing plots to show before Replanting plots in the combined view.
-    const minEndYear = Math.min(...profiles.map(p => p[p.length - 1].year));
+    // Find the total year range: earliest start year → shortest end year across all profiles.
+    // 'พศที่สั้นที่สุด' means we stop the aggregate graph entirely when the shortest plot ends.
+    const limitEndYear = Math.min(...profiles.map(p => p[p.length - 1].year));
     const minStartYear = Math.min(...profiles.map(p => p[0].year));
 
     const validYears: number[] = [];
-    for (let y = minStartYear; y <= minEndYear; y++) {
+    for (let y = minStartYear; y <= limitEndYear; y++) {
         validYears.push(y);
     }
     const validYearsSet = new Set(validYears);
@@ -2120,11 +2119,23 @@ export function ParcelResultsPanel({
     if (currentStep === 3) {
         // Build aggregate bar points
         let aggregatePts: BarPoint[] = [];
+        let aggregateMinEndYearBE = 0;
         if (backendResponses && backendResponses.length > 0) {
             const avgStartAge = carbonResults.length > 0
                 ? Math.round(carbonResults.reduce((s, c) => s + c.age, 0) / carbonResults.length)
                 : 0;
             aggregatePts = aggregateProfiles(backendResponses, avgStartAge);
+            
+            const profiles = backendResponses
+                .map(r => r.carbon_profile)
+                .filter((p): p is YearlyEstimate[] => Array.isArray(p) && p.length > 0);
+            if (profiles.length > 0) {
+                const age28Years = profiles.map(p => {
+                    const item28 = p.find(item => item.age === 28);
+                    return item28 ? item28.year : p[p.length - 1].year;
+                });
+                aggregateMinEndYearBE = Math.min(...age28Years) + 543;
+            }
         }
 
         const summaryTotalCo2 = aggregatePts.length > 0
@@ -2247,7 +2258,7 @@ export function ParcelResultsPanel({
 
                             {aggregatePts.length > 0 && (
                                 <div>
-                                    <CarbonBarChart pts={aggregatePts} isMobile={isMobile} narrowMode={!isMobile} showAge={false} />
+                                    <CarbonBarChart pts={aggregatePts} isMobile={isMobile} narrowMode={!isMobile} showAge={false} initialMaxYearBE={aggregateMinEndYearBE > 0 ? aggregateMinEndYearBE : undefined} />
                                 </div>
                             )}
                         </div>
