@@ -1042,7 +1042,7 @@ function ProjectCarbonSummary({ plots, isMobile }: { plots: SavedPlot[]; isMobil
   if (combinedPts.length === 0 && totalNow === 0) return null;
 
   const StatCard = ({ icon, iconColor, label, value, unit, valueColor, style = {} }: { icon: string; iconColor: string; label: string; value: React.ReactNode; unit?: string; valueColor: string; style?: React.CSSProperties }) => (
-    <div style={{ background: "rgba(255,255,255,0.75)", borderRadius: 12, padding: isMobile ? "10px 12px" : "12px 14px", border: "1px solid rgba(16,185,129,0.12)", backdropFilter: "blur(4px)", ...style }}>
+    <div style={{ background: "rgba(255,255,255,0.7)", borderRadius: 12, padding: isMobile ? "10px 12px" : "12px 14px", border: "1px solid rgba(16,185,129,0.15)", backdropFilter: "blur(8px)", boxShadow: "0 4px 12px rgba(16,185,129,0.03)", ...style }}>
       <div style={{ fontSize: 11, color: "#64748b", fontWeight: 600, marginBottom: 5, display: "flex", alignItems: "center", gap: 4 }}>
         <i className={`bi ${icon}`} style={{ color: iconColor, fontSize: 11 }} /> {label}
       </div>
@@ -1126,44 +1126,38 @@ function ProjectCarbonSummary({ plots, isMobile }: { plots: SavedPlot[]; isMobil
             )}
           </div>
 
-          {/* Right: Stats Panel */}
           <div style={{
-            padding: isMobile ? "20px 18px" : "28px 28px",
-            background: "linear-gradient(145deg, #f0fdf4 0%, #dcfce7 60%, #d1fae5 100%)",
+            padding: isMobile ? "20px 18px" : "24px 24px",
+            background: "linear-gradient(135deg, #ffffff 0%, #f2fcf5 100%)",
             display: "flex",
             flexDirection: "column",
             gap: 16,
             position: "relative",
             overflow: "hidden",
           }}>
-            {/* Background decoration */}
-            <div style={{ position: "absolute", top: -30, right: -30, width: 120, height: 120, background: "rgba(16,185,129,0.08)", borderRadius: "50%", pointerEvents: "none" }} />
-            <div style={{ position: "absolute", bottom: -20, left: -20, width: 80, height: 80, background: "rgba(5,150,105,0.06)", borderRadius: "50%", pointerEvents: "none" }} />
-
-
-
+            {/* Premium subtle glow decoration */}
+            <div style={{ position: "absolute", top: -50, right: -50, width: 200, height: 200, background: "radial-gradient(circle, rgba(16,185,129,0.06) 0%, transparent 70%)", borderRadius: "50%", pointerEvents: "none" }} />
+            <div style={{ position: "absolute", bottom: -50, left: -50, width: 150, height: 150, background: "radial-gradient(circle, rgba(13,148,136,0.05) 0%, transparent 70%)", borderRadius: "50%", pointerEvents: "none" }} />
             {/* Main carbon metric */}
             <div style={{
-              position: "relative",
-              background: "rgba(255,255,255,0.85)",
-              borderRadius: 16,
-              padding: isMobile ? "14px 16px" : "18px 20px",
-              border: "1px solid rgba(16,185,129,0.2)",
-              backdropFilter: "blur(8px)",
-              boxShadow: "0 2px 12px rgba(16,185,129,0.08)"
+              background: "linear-gradient(to right, rgba(13,148,136,0.08), rgba(20,184,166,0.03))",
+              border: "1px solid rgba(13,148,136,0.2)",
+              borderRadius: 12,
+              padding: "16px",
+              display: "flex",
+              flexDirection: "column",
+              justifyContent: "center",
+              alignItems: "center",
+              position: "relative"
             }}>
-              <div style={{ fontSize: 11, color: "#059669", fontWeight: 700, marginBottom: 6, display: "flex", alignItems: "center", gap: 5 }}>
-                <i className="bi bi-cloud-arrow-down-fill" style={{ fontSize: 12 }} />
+              <div style={{ fontSize: 13, color: "#0f766e", fontWeight: 700, marginBottom: 6, display: "flex", alignItems: "center", gap: 6 }}>
+                <i className="bi bi-cloud-arrow-down-fill" />
                 ปริมาณคาร์บอนสะสมรวม ณ ปีปัจจุบัน
               </div>
-              <div style={{ display: "flex", alignItems: "baseline", gap: 6, flexWrap: "wrap" }}>
-                <span style={{ fontWeight: 900, color: "#064e3b", fontSize: isMobile ? 28 : 34, lineHeight: 1 }}>
-                  {Math.floor(totalNow).toLocaleString("th-TH")}
-                </span>
-                <span style={{ fontSize: isMobile ? 15 : 19, color: "#0f766e", fontWeight: 700 }}>
-                  ± {(Math.floor(ciNow * 10) / 10).toLocaleString("th-TH", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
-                </span>
-                <span style={{ fontSize: 13, fontWeight: 600, color: "#6b7280" }}>tCO₂eq</span>
+              <div style={{ fontWeight: 800, color: "#0d9488", fontSize: isMobile ? 24 : 28, lineHeight: 1.1 }}>
+                {Math.floor(totalNow).toLocaleString("th-TH")}{" "}
+                <span style={{ fontSize: isMobile ? 18 : 20, color: "#0f766e" }}>± {(Math.floor(ciNow * 10) / 10).toLocaleString("th-TH", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}</span>{" "}
+                <span style={{ fontSize: 16, fontWeight: 600, opacity: 0.8 }}>tCO₂eq</span>
               </div>
             </div>
 
