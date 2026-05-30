@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
-import { CarbonBarChart, buildBarPoints, profileToBarPoints, type BarPoint } from "@/app/components/organisms/ParcelResultsPanel/CarbonBarChart";
+import { CarbonBarChart, profileToBarPoints, type BarPoint } from "@/app/components/organisms/ParcelResultsPanel/CarbonBarChart";
 import { estimateCarbon, type PlantationPolygon } from "@/lib/carbon-api";
 
 const HERO_BG =
@@ -65,7 +65,7 @@ type SavedPlot = {
   date: string;
   geojson?: unknown;
   boundaryGeojson?: unknown;
-  forecast?: { yr3: number; yr5: number; yr7: number };
+
   carbonProfile?: BarPoint[];
   plantStatus?: string;
   processed?: boolean;
@@ -508,7 +508,7 @@ function EditPlotModal({ plot, index, onClose, onSave, isMobile }: { plot: Saved
       // If carbon-affecting fields changed: clear results so the user must reprocess
       carbonTotal: carbonFieldsChanged ? 0 : plot.carbonTotal,
       carbonProfile: carbonFieldsChanged ? [] : (plot.carbonProfile || []),
-      forecast: carbonFieldsChanged ? undefined : plot.forecast,
+
       processed: carbonFieldsChanged ? false : plot.processed,
       backendData: {
         ...(plot.backendData || {}),
@@ -974,8 +974,6 @@ function ProjectCarbonSummary({ plots, isMobile }: { plots: SavedPlot[]; isMobil
 
       if (plot.carbonProfile && plot.carbonProfile.length > 0) {
         allPtsArrays.push(plot.carbonProfile.filter(p => p.age == null || isNaN(p.age) || p.age <= 28));
-      } else if (effectiveAge > 0 && (plot.trees ?? 0) > 0) {
-        allPtsArrays.push(buildBarPoints(effectiveAge, chartStartYearBE, plot.trees ?? 0, plot.spacing || "2.5x8").filter(p => p.age == null || isNaN(p.age) || p.age <= 28));
       } else {
         if (plot.carbonTotal > 0) fallbackTotal += Math.floor(plot.carbonTotal);
         const approxCi = (plot.carbonTotal || 0) * 0.05;
@@ -1252,9 +1250,7 @@ function PlotCard({ plot, index, onDelete, onEdit, expanded, onToggle, isMobile,
   const barPts: BarPoint[] = isProcessed
     ? ((plot.carbonProfile && plot.carbonProfile.length > 0)
       ? plot.carbonProfile
-      : (effectiveAge > 0 && (plot.trees ?? 0) > 0)
-        ? buildBarPoints(effectiveAge, chartStartYearBE, plot.trees ?? 0, plot.spacing || "2.5x8")
-        : [])
+      : [])
     : [];
   const limitedBarPts = barPts;
 

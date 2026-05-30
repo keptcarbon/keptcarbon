@@ -2,7 +2,7 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
-import { CarbonBarChart, buildBarPoints, profileToBarPoints, carbonCo2, type BarPoint } from "./CarbonBarChart";
+import { CarbonBarChart, profileToBarPoints, type BarPoint } from "./CarbonBarChart";
 import { estimateCarbon, type PlantationPolygon, type EstimationResponse, type YearlyEstimate, type EstimatedParameters } from "@/lib/carbon-api";
 
 
@@ -1367,14 +1367,6 @@ export function ParcelResultsPanel({
                     carbonProfile = props.carbonProfile;
                 }
 
-                let forecast = props.forecast || { yr3: 0, yr5: 0, yr7: 0 };
-                if (hasNewResult) {
-                    forecast = {
-                        yr3: carbonCo2(age + 3, trees, spacing),
-                        yr5: carbonCo2(age + 5, trees, spacing),
-                        yr7: carbonCo2(age + 7, trees, spacing),
-                    };
-                }
 
                 const plotLuFeats = (luFeatures || []).filter(lf => {
                     const lfProps = (lf.properties ?? {}) as any;
@@ -1413,7 +1405,6 @@ export function ParcelResultsPanel({
                     boundaryGeojson: null,
                     carbonProfile,
                     processed: hasNewResult ? true : (props.processed || false),
-                    forecast,
                     backendData: {
                         lu_polygon: luPolygonToSave,
                         plantYearBE: epPlantYearBE || props.backendData?.plantYearBE || 0,
@@ -2134,28 +2125,6 @@ export function ParcelResultsPanel({
                 ? Math.round(carbonResults.reduce((s, c) => s + c.age, 0) / carbonResults.length)
                 : 0;
             aggregatePts = aggregateProfiles(backendResponses, avgStartAge);
-        } else if (carbonResults.length > 0) {
-            const initialPlotCarbons = carbonResults.map(c => carbonCo2(c.age, c.trees, c.spacing));
-            const plotStates = carbonResults.map(c => ({ continuousAge: c.age }));
-            const N = plotStates.length;
-            for (let i = 0; i < 35; i++) {
-                const yearBE = CURRENT_BE + i;
-                let totalCo2 = 0, totalContinuousAge = 0, sumLinearMargin = 0;
-                plotStates.forEach((state, idx) => {
-                    const plotCo2 = carbonCo2(state.continuousAge, carbonResults[idx].trees, carbonResults[idx].spacing);
-                    totalCo2 += Math.floor(plotCo2);
-                    if (i > 0) {
-                        const growth = plotCo2 - initialPlotCarbons[idx];
-                        const factor = 0.05 + 0.002 * i;
-                        sumLinearMargin = Math.round((sumLinearMargin + Math.floor(Math.max(0, growth * factor) * 10) / 10) * 10) / 10;
-                    }
-                    totalContinuousAge += state.continuousAge;
-                    state.continuousAge++;
-                });
-                const avgAge = Math.round(totalContinuousAge / N);
-                const errorMargin = sumLinearMargin;
-                aggregatePts.push({ age: avgAge, yearBE, year_at: i, co2: totalCo2, ci: errorMargin, gainValue: 0, gainCi: 0, cycle: Math.floor(i / 7), cycleAge: avgAge, errorMargin });
-            }
         }
 
         const summaryTotalCo2 = aggregatePts.length > 0
@@ -2298,7 +2267,7 @@ export function ParcelResultsPanel({
                         const startYearBE = cr.plantYearBE > 0 ? cr.plantYearBE + cr.age : CURRENT_BE;
                         const plotPtsRaw = backendProfile && backendProfile.length > 0
                             ? profileToBarPoints(backendProfile, cr.age)
-                            : buildBarPoints(cr.age, startYearBE, cr.trees, cr.spacing || "2.5x8");
+                            : [];
                         const plotPts = plotPtsRaw;
 
                         const showPlotAge = !!form?.plantYear || (backendResp?.carbon_profile?.some(p => p.age !== null) ?? false);

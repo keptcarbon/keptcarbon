@@ -14,20 +14,6 @@ const GREEN_THEME_COLORS = [
 const getCycleColor = (cycle: number) =>
   GREEN_THEME_COLORS[Math.min(Math.max(0, cycle), GREEN_THEME_COLORS.length - 1)];
 
-export const TOTAL_PROJ_YEARS = 35;
-
-export function carbonCo2(age: number, trees: number, spacing: string): number {
-  const spacingMap: Record<string, number> = {
-    "2.5*8": 80, "3*7": 76, "2.5*7": 91, "3*6": 89,
-  };
-  const treesPerRai = spacingMap[spacing] || 80;
-  const effectiveTrees = trees > 0 ? trees : treesPerRai;
-  const H = Math.min(2.0 + 1.8 * age, 28);
-  const D = Math.min(3 + 4.5 * age, 60);
-  const AGB = 0.1284 * D * D * H * 0.001;
-  return (AGB + AGB * 0.26) * 0.47 * 3.67 * effectiveTrees;
-}
-
 export type BarPoint = {
   age: number;
   yearBE: number;
@@ -62,45 +48,7 @@ export function profileToBarPoints(profile: YearlyEstimate[], baseAge: number = 
   });
 }
 
-export function buildBarPoints(
-  startAge: number,
-  startYearBE: number,
-  trees: number,
-  spacing: string
-): BarPoint[] {
-  const pts: BarPoint[] = [];
-  let continuousAge = startAge;
-  const v0 = carbonCo2(startAge, trees, spacing);
 
-  for (let i = 0; i < TOTAL_PROJ_YEARS; i++) {
-    const period = Math.floor(i / 7);
-    const co2 = carbonCo2(continuousAge, trees, spacing);
-    const prevCo2 = i > 0 ? carbonCo2(continuousAge - 1, trees, spacing) : co2;
-    const gainValue = i > 0 ? co2 - prevCo2 : 0;
-
-    let errorMargin = 0;
-    if (i > 0) {
-      const growth = co2 - v0;
-      const factor = 0.05 + 0.002 * i;
-      errorMargin = Math.max(0, growth * factor);
-    }
-
-    pts.push({
-      age: continuousAge,
-      yearBE: startYearBE + i,
-      year_at: i,
-      co2,
-      ci: errorMargin,
-      gainValue,
-      gainCi: 0,
-      cycle: period,
-      cycleAge: continuousAge,
-      errorMargin,
-    });
-    continuousAge++;
-  }
-  return pts;
-}
 
 export function CarbonBarChart({
   pts,
