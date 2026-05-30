@@ -2679,7 +2679,8 @@ function MapDrawContent() {
               }}>
                 <i className="bi bi-clipboard2-data-fill" />
               </span>{" "}
-              <strong style={{ color: "#059669" }}>สีเขียว</strong> ด้านบนขวา เพื่อเปิดแผงและเริ่มวาดแปลง
+              <strong style={{ color: "#059669" }}>สีเขียว</strong> ด้านบนขวา<br />
+              เพื่อเปิดแผงและเริ่มวาดแปลง
             </p>
 
             <button
