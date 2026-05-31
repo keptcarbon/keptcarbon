@@ -1401,7 +1401,17 @@ function MapDrawContent() {
                 const coords = geom.type === "Polygon" ? geom.coordinates[0] : geom.coordinates[0][0];
                 coords.forEach((coord: any) => bounds.extend(coord));
               });
-              if (!bounds.isEmpty()) refMap.fitBounds(bounds, { padding: 80 });
+              if (!bounds.isEmpty()) {
+                const isMob = typeof window !== "undefined" && window.innerWidth < 768;
+                const pad = isMob
+                  ? { top: 60, bottom: 350, left: 60, right: 60 }
+                  : { top: 80, bottom: 80, left: 80, right: 420 };
+                try {
+                  refMap.fitBounds(bounds, { padding: pad, duration: 700, maxZoom: 17 });
+                } catch (e) {
+                  refMap.fitBounds(bounds, { padding: 60, duration: 700, maxZoom: 17 });
+                }
+              }
             }
           }
         } catch (err) {
@@ -1504,13 +1514,16 @@ function MapDrawContent() {
               setDrawnGeometry(projectPlots[0].boundaryGeojson as GeoJSON.Geometry);
             }
             setCurrentStep(2);
+            setIsPanelOpen(true);
             setStatus(`เตรียมประมวลผลคาร์บอนสำหรับโครงการ: ${projName}`);
 
             const map = mapRef.current;
-            if (map && map.getSource("matched-parcels")) {
-              // Use LU features (with lu_class) when cached data exists, else plot boundaries
-              const sourceFeats = hasExistingLuData ? initialParcelFeatures : visibleFeats;
-              (map.getSource("matched-parcels") as maplibregl.GeoJSONSource).setData({ type: "FeatureCollection", features: sourceFeats });
+            if (map) {
+              if (map.getSource("matched-parcels")) {
+                // Use LU features (with lu_class) when cached data exists, else plot boundaries
+                const sourceFeats = hasExistingLuData ? initialParcelFeatures : visibleFeats;
+                (map.getSource("matched-parcels") as maplibregl.GeoJSONSource).setData({ type: "FeatureCollection", features: sourceFeats });
+              }
 
               const bounds = new maplibregl.LngLatBounds();
               visibleFeats.forEach(f => {
@@ -1521,7 +1534,15 @@ function MapDrawContent() {
                 coords.forEach((coord: any) => bounds.extend(coord));
               });
               if (!bounds.isEmpty()) {
-                map.fitBounds(bounds, { padding: 50 });
+                const isMob = typeof window !== "undefined" && window.innerWidth < 768;
+                const pad = isMob
+                  ? { top: 60, bottom: 350, left: 60, right: 60 }
+                  : { top: 80, bottom: 80, left: 80, right: 420 };
+                try {
+                  map.fitBounds(bounds, { padding: pad, duration: 700, maxZoom: 17 });
+                } catch (e) {
+                  map.fitBounds(bounds, { padding: 60, duration: 700, maxZoom: 17 });
+                }
               }
             }
           }

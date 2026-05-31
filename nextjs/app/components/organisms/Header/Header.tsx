@@ -91,7 +91,7 @@ export default function Header() {
                   </Link>
                 </li>
                 <li>
-                  <Link href="/map-draw" onClick={closeNav}>
+                  <Link href="/map-draw" className={pathname.startsWith("/map-draw") ? "active" : ""} onClick={closeNav}>
                     คำนวณคาร์บอน
                   </Link>
                 </li>
@@ -131,7 +131,7 @@ export default function Header() {
                   </Link>
                 </li>
                 <li>
-                  <Link href="/map-draw" onClick={closeNav}>
+                  <Link href="/map-draw" className={pathname.startsWith("/map-draw") ? "active" : ""} onClick={closeNav}>
                     คำนวณคาร์บอน
                   </Link>
                 </li>
@@ -289,7 +289,7 @@ export default function Header() {
               <Link href="/dashboard" className={`drawer-nav-item ${pathname === '/dashboard' ? 'active' : ''}`} onClick={closeNav}>
                 <i className="bi bi-grid"></i> แดชบอร์ด
               </Link>
-              <Link href="/map-draw" className={`drawer-nav-item ${pathname === '/map-draw' ? 'active' : ''}`} onClick={closeNav}>
+              <Link href="/map-draw" className={`drawer-nav-item ${pathname.startsWith('/map-draw') ? 'active' : ''}`} onClick={closeNav}>
                 <i className="bi bi-map"></i> คำนวณคาร์บอน
               </Link>
 
