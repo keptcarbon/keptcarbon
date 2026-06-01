@@ -3257,7 +3257,7 @@ function MapDrawContent() {
                                 <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
                                   <label style={{ fontSize: 10.5, fontWeight: 600, color: "#64748b" }}>จังหวัด</label>
                                   <select className="prp-input" style={{ padding: "8px 5px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: 11.5, background: selectedRegion ? "#fff" : "#f8fafc", color: selectedRegion ? "#0f172a" : "#94a3b8", width: "100%" }} value={selectedProvince} onChange={(e) => { setSelectedProvince(e.target.value); setSelectedAmphoe(""); setSelectedTambon(""); }} disabled={!selectedRegion}>
-                                    <option value="">เลือก...</option>
+                                    <option value="">เลือกจังหวัด...</option>
                                     {selectedRegion && REGIONS_DATA.find(r => r.name === selectedRegion)?.provinces.map(p => <option key={p} value={p}>{p}</option>)}
                                   </select>
                                 </div>
@@ -3265,16 +3265,16 @@ function MapDrawContent() {
                                   <label style={{ fontSize: 10.5, fontWeight: 600, color: "#64748b" }}>อำเภอ</label>
                                   {amphoesFromDb.length > 0 ? (
                                     <select className="prp-input" style={{ padding: "8px 5px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: 11.5, background: selectedProvince ? "#fff" : "#f8fafc", color: selectedProvince ? "#0f172a" : "#94a3b8", width: "100%" }} value={selectedAmphoe} onChange={(e) => { setSelectedAmphoe(e.target.value); setSelectedTambon(""); }} disabled={!selectedProvince}>
-                                      <option value="">เลือก...</option>
+                                      <option value="">เลือกอำเภอ...</option>
                                       {amphoesFromDb.map(a => <option key={a} value={a}>{a}</option>)}
                                     </select>
                                   ) : AMPHOE_DATA[selectedProvince] ? (
                                     <select className="prp-input" style={{ padding: "8px 5px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: 11.5, background: selectedProvince ? "#fff" : "#f8fafc", color: selectedProvince ? "#0f172a" : "#94a3b8", width: "100%" }} value={selectedAmphoe} onChange={(e) => { setSelectedAmphoe(e.target.value); setSelectedTambon(""); }} disabled={!selectedProvince}>
-                                      <option value="">เลือก...</option>
+                                      <option value="">เลือกอำเภอ...</option>
                                       {AMPHOE_DATA[selectedProvince].map(a => <option key={a} value={a}>{a}</option>)}
                                     </select>
                                   ) : (
-                                    <input className="prp-input" style={{ padding: "8px 5px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: 11.5, width: "100%", boxSizing: "border-box" }} placeholder="อำเภอ..." value={selectedAmphoe} onChange={e => setSelectedAmphoe(e.target.value)} />
+                                    <input className="prp-input" style={{ padding: "8px 5px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: 11.5, width: "100%", boxSizing: "border-box" }} placeholder="เลือกอำเภอ..." value={selectedAmphoe} onChange={e => setSelectedAmphoe(e.target.value)} />
                                   )}
                                 </div>
                                 <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
@@ -3285,7 +3285,7 @@ function MapDrawContent() {
                                     </select>
                                   ) : tambonsFromDb.length > 0 ? (
                                     <select className="prp-input" style={{ padding: "8px 5px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: 11.5, background: selectedAmphoe ? "#fff" : "#f8fafc", color: selectedAmphoe ? "#0f172a" : "#94a3b8", width: "100%" }} value={selectedTambon} onChange={e => setSelectedTambon(e.target.value)} disabled={!selectedAmphoe}>
-                                      <option value="">เลือก...</option>
+                                      <option value="">เลือกตำบล...</option>
                                       {tambonsFromDb.map(t => <option key={t} value={t}>{t}</option>)}
                                     </select>
                                   ) : selectedAmphoe ? (
