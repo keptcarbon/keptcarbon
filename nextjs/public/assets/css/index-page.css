@@ -263,10 +263,12 @@
           overflow-wrap: break-word;
         }
 
-        /* Mobile: ทุก span ขึ้นบรรทัดใหม่ */
+        /* Mobile: ทุก span ขึ้นบรรทัดใหม่ — !important เพื่อ override desktop specificity */
         .hero-subtitle-th span,
+        .hero-subtitle-th span:first-child,
+        .hero-subtitle-th span:not(:first-child),
         .hero-subtitle-en span {
-          display: block;
+          display: block !important;
           white-space: normal;
           text-align: center;
         }
