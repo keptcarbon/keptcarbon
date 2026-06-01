@@ -37,6 +37,11 @@ export default function Header() {
   }, [scrolled]);
 
   useEffect(() => {
+    document.body.classList.toggle("on-home", pathname === "/");
+    return () => document.body.classList.remove("on-home");
+  }, [pathname]);
+
+  useEffect(() => {
     document.body.classList.toggle("kc-mobile-nav-active", navOpen);
   }, [navOpen]);
 
@@ -52,7 +57,7 @@ export default function Header() {
       <header id="header" className="header d-flex align-items-center fixed-top">
         <div className="container-fluid container-xl position-relative d-flex align-items-center">
           <Link href="/" className="logo d-flex align-items-center me-auto">
-            <img src="/assets/img/keptcarbon-logo.png" alt="Kept Carbon Logo" style={{ height: "52px", width: "auto" }} />
+            <img src="/assets/img/keptcarbon-logo.png" alt="Kept Carbon Logo" className="header-logo-img" />
           </Link>
 
           <nav id="navmenu" className="navmenu">

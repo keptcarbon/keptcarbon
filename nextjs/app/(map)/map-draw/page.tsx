@@ -27,6 +27,65 @@ const REGIONS_DATA = [
   { name: "ภาคใต้", provinces: ["สุราษฎร์ธานี"] }
 ];
 
+
+const THAI_PROVINCES = [
+  "กระบี่", "กรุงเทพมหานคร", "กาญจนบุรี", "กาฬสินธุ์", "กำแพงเพชร",
+  "ขอนแก่น", "จันทบุรี", "ฉะเชิงเทรา", "ชลบุรี", "ชัยนาท",
+  "ชัยภูมิ", "ชุมพร", "เชียงราย", "เชียงใหม่", "ตรัง",
+  "ตราด", "ตาก", "นครนายก", "นครปฐม", "นครพนม",
+  "นครราชสีมา", "นครศรีธรรมราช", "นครสวรรค์", "นนทบุรี", "นราธิวาส",
+  "น่าน", "บึงกาฬ", "บุรีรัมย์", "ปทุมธานี", "ประจวบคีรีขันธ์",
+  "ปราจีนบุรี", "ปัตตานี", "พระนครศรีอยุธยา", "พะเยา", "พังงา",
+  "พัทลุง", "พิจิตร", "พิษณุโลก", "เพชรบุรี", "เพชรบูรณ์",
+  "แพร่", "ภูเก็ต", "มหาสารคาม", "มุกดาหาร", "แม่ฮ่องสอน",
+  "ยโสธร", "ยะลา", "ร้อยเอ็ด", "ระนอง", "ระยอง",
+  "ราชบุรี", "ลพบุรี", "ลำปาง", "ลำพูน", "เลย",
+  "ศรีสะเกษ", "สกลนคร", "สงขลา", "สตูล", "สมุทรปราการ",
+  "สมุทรสงคราม", "สมุทรสาคร", "สระแก้ว", "สระบุรี", "สิงห์บุรี",
+  "สุโขทัย", "สุพรรณบุรี", "สุราษฎร์ธานี", "สุรินทร์", "หนองคาย",
+  "หนองบัวลำภู", "อ่างทอง", "อำนาจเจริญ", "อุดรธานี", "อุตรดิตถ์",
+  "อุทัยธานี", "อุบลราชธานี"
+].sort((a, b) => a.localeCompare(b, "th"));
+
+const AMPHOE_DATA: Record<string, string[]> = {
+  "บึงกาฬ": ["เมืองบึงกาฬ", "พรเจริญ", "โซ่พิสัย", "เซกา", "ปากคาด", "บึงโขงหลง", "ศรีวิไล", "บุ้งคล้า"],
+  "ระยอง": ["เมืองระยอง", "บ้านฉาง", "แกลง", "วังจันทร์", "บ้านค่าย", "ปลวกแดง", "เขาชะเมา", "นิคมพัฒนา"],
+  "สุราษฎร์ธานี": ["เมืองสุราษฎร์ธานี", "กาญจนดิษฐ์", "ดอนสัก", "เกาะสมุย", "เกาะพะงัน", "ไชยา", "ท่าชนะ", "คีรีรัฐนิคม", "บ้านตาขุน", "พนม", "ท่าฉาง", "บ้านนาสาร", "บ้านนาเดิม", "เคียนซา", "เวียงสระ", "พระแสง", "พุนพิน", "ชัยบุรี", "วิภาวดี"],
+  "สงขลา": ["เมืองสงขลา", "สทิงพระ", "จะนะ", "นาทวี", "เทพา", "สะบ้าย้อย", "ระโนด", "กระแสสินธุ์", "รัตภูมิ", "สะเดา", "หาดใหญ่", "นาหม่อม", "ควนเนียง", "บางกล่ำ", "สิงหนคร", "คลองหอยโข่ง"],
+  "นครศรีธรรมราช": ["เมืองนครศรีธรรมราช", "พรหมคีรี", "ลานสกา", "ฉวาง", "พิปูน", "เชียรใหญ่", "ชะอวด", "ท่าศาลา", "ทุ่งสง", "นาบอน", "ทุ่งใหญ่", "ปากพนัง", "ร่อนพิบูลย์", "สิชล", "ขนอม", "หัวไทร", "บางขัน", "ถ้ำพรรณรา", "จุฬาภรณ์", "พระพรหม", "นบพิตำ", "ช้างกลาง", "เฉลิมพระเกียรติ"],
+  "กระบี่": ["เมืองกระบี่", "เขาพนม", "เกาะลันตา", "คลองท่อม", "อ่าวลึก", "ปลายพระยา", "ลำทับ", "เหนือคลอง"],
+  "พัทลุง": ["เมืองพัทลุง", "กงหรา", "เขาชัยสน", "ตะโหมด", "ควนขนุน", "ปากพะยูน", "ศรีบรรพต", "ป่าบอน", "บางแก้ว", "ป่าพะยอม", "ศรีนครินทร์"],
+  "ตรัง": ["เมืองตรัง", "กันตัง", "ย่านตาขาว", "ปะเหลียน", "สิเกา", "ห้วยยอด", "วังวิเศษ", "นาโยง", "รัษฎา", "หาดสำราญ"],
+  "ชุมพร": ["เมืองชุมพร", "ท่าแซะ", "ปะทิว", "หลังสวน", "ละแม", "พะโต๊ะ", "สวี", "ทุ่งตะโก"],
+  "ระนอง": ["เมืองระนอง", "ละอุ่น", "กะเปอร์", "กระบุรี", "สุขสำราญ"],
+};
+
+// UTM Zone 47N/48N → WGS84
+function utmToLatLng(easting: number, northing: number, zone: number, isNorth = true) {
+  const a = 6378137.0, f = 1 / 298.257223563;
+  const b = a * (1 - f);
+  const e2 = 1 - (b * b) / (a * a);
+  const ep2 = e2 / (1 - e2);
+  const k0 = 0.9996, E0 = 500000, N0 = isNorth ? 0 : 10000000;
+  const lam0 = ((zone - 1) * 6 - 180 + 3) * (Math.PI / 180);
+  const x = easting - E0, y = northing - N0;
+  const M = y / k0;
+  const mu = M / (a * (1 - e2 / 4 - (3 * e2 * e2) / 64 - (5 * e2 * e2 * e2) / 256));
+  const e1 = (1 - Math.sqrt(1 - e2)) / (1 + Math.sqrt(1 - e2));
+  const phi1 = mu
+    + (3 * e1 / 2 - 27 * e1 ** 3 / 32) * Math.sin(2 * mu)
+    + (21 * e1 ** 2 / 16 - 55 * e1 ** 4 / 32) * Math.sin(4 * mu)
+    + (151 * e1 ** 3 / 96) * Math.sin(6 * mu);
+  const sp = Math.sin(phi1), cp = Math.cos(phi1), tp = Math.tan(phi1);
+  const N1 = a / Math.sqrt(1 - e2 * sp * sp);
+  const T1 = tp * tp, C1 = ep2 * cp * cp;
+  const R1 = a * (1 - e2) / (1 - e2 * sp * sp) ** 1.5;
+  const D = x / (N1 * k0);
+  const lat = phi1 - (N1 * tp / R1) * (D * D / 2 - (5 + 3 * T1 + 10 * C1 - 4 * C1 * C1 - 9 * ep2) * D ** 4 / 24 + (61 + 90 * T1 + 298 * C1 + 45 * T1 * T1 - 252 * ep2 - 3 * C1 * C1) * D ** 6 / 720);
+  const lon = lam0 + (D - (1 + 2 * T1 + C1) * D ** 3 / 6 + (5 - 2 * C1 + 28 * T1 - 3 * C1 * C1 + 8 * ep2 + 24 * T1 * T1) * D ** 5 / 120) / cp;
+  return { lat: lat * 180 / Math.PI, lng: lon * 180 / Math.PI };
+}
+
 const cursorAddNode = "cell";
 
 const SNAP_PX = 15;
@@ -36,6 +95,18 @@ function MapDrawContent() {
 
   const [selectedRegion, setSelectedRegion] = useState("");
   const [selectedProvince, setSelectedProvince] = useState("");
+  const [selectedAmphoe, setSelectedAmphoe] = useState("");
+  const [selectedTambon, setSelectedTambon] = useState("");
+  const [locationMethod, setLocationMethod] = useState<"area" | "coord">("area");
+  const [amphoesFromDb, setAmphoesFromDb] = useState<string[]>([]);
+  const [tambonsFromDb, setTambonsFromDb] = useState<string[]>([]);
+  const [tambonsLoading, setTambonsLoading] = useState(false);
+  const [coordMode, setCoordMode] = useState<"latlng" | "utm">("latlng");
+  const [coordLat, setCoordLat] = useState("");
+  const [coordLng, setCoordLng] = useState("");
+  const [coordUtmZone, setCoordUtmZone] = useState<47 | 48>(47);
+  const [coordE, setCoordE] = useState("");
+  const [coordN, setCoordN] = useState("");
   const boundaryAnimRef = useRef<number>(0);
 
   useEffect(() => {
@@ -310,6 +381,63 @@ function MapDrawContent() {
       .then(fc => src.setData(fc))
       .catch(console.error);
   }, [selectedProvince, mapLoaded]);
+
+  // Fetch amphoe list from DB when province changes
+  useEffect(() => {
+    if (!selectedProvince) { setAmphoesFromDb([]); setTambonsFromDb([]); return; }
+    fetch(`/api/geojson/districts?province=${encodeURIComponent(selectedProvince)}`)
+      .then(r => r.json())
+      .then((fc: GeoJSON.FeatureCollection) => {
+        const names = Array.from(new Set(
+          (fc.features || []).map((f: GeoJSON.Feature) => f.properties?.amphoe_t as string).filter(Boolean)
+        )).sort((a, b) => a.localeCompare(b, 'th'));
+        setAmphoesFromDb(names);
+      })
+      .catch(console.error);
+  }, [selectedProvince]);
+
+  // Fetch tambon list from DB when amphoe changes
+  useEffect(() => {
+    if (!selectedAmphoe) { setTambonsFromDb([]); setTambonsLoading(false); return; }
+    setTambonsLoading(true);
+    setTambonsFromDb([]);
+    fetch(`/api/geojson/tambon?district=${encodeURIComponent(selectedAmphoe)}`)
+      .then(r => r.json())
+      .then((fc: GeoJSON.FeatureCollection) => {
+        const names = Array.from(new Set(
+          (fc.features || []).map((f: GeoJSON.Feature) => f.properties?.tambon_t as string).filter(Boolean)
+        )).sort((a, b) => a.localeCompare(b, 'th'));
+        setTambonsFromDb(names);
+      })
+      .catch(console.error)
+      .finally(() => setTambonsLoading(false));
+  }, [selectedAmphoe]);
+
+  // Update district boundary layer when amphoe changes
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapLoadedRef.current) return;
+    const src = map.getSource("district-boundary") as maplibregl.GeoJSONSource | undefined;
+    if (!src) return;
+    if (!selectedAmphoe || !selectedProvince) { src.setData({ type: "FeatureCollection", features: [] }); return; }
+    fetch(`/api/geojson/districts?district=${encodeURIComponent(selectedAmphoe)}&province=${encodeURIComponent(selectedProvince)}`)
+      .then(r => r.json())
+      .then(fc => src.setData(fc))
+      .catch(console.error);
+  }, [selectedAmphoe, selectedProvince, mapLoaded]);
+
+  // Update tambon boundary layer when tambon changes
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapLoadedRef.current) return;
+    const src = map.getSource("tambon-boundary") as maplibregl.GeoJSONSource | undefined;
+    if (!src) return;
+    if (!selectedTambon || !selectedAmphoe) { src.setData({ type: "FeatureCollection", features: [] }); return; }
+    fetch(`/api/geojson/tambon?tambon=${encodeURIComponent(selectedTambon)}&district=${encodeURIComponent(selectedAmphoe)}`)
+      .then(r => r.json())
+      .then(fc => src.setData(fc))
+      .catch(console.error);
+  }, [selectedTambon, selectedAmphoe, mapLoaded]);
 
   // Hide vertex nodes when not on step 1 (not editable at step 2/3)
   // Also hide existing polygon vertices while drawing to prevent accidental snapping
@@ -990,6 +1118,54 @@ function MapDrawContent() {
         source: "province-boundary",
         paint: {
           "line-color": "#f97316",
+          "line-width": ["interpolate", ["linear"], ["zoom"], 6, 1.5, 10, 2.5, 14, 5],
+          "line-opacity": 0.95,
+        },
+      });
+
+      // ── District Boundaries ───────────────────────────────────────────────
+      map.addSource("district-boundary", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+      map.addLayer({
+        id: "district-boundary-glow",
+        type: "line",
+        source: "district-boundary",
+        paint: {
+          "line-color": "#06b6d4",
+          "line-width": ["interpolate", ["linear"], ["zoom"], 6, 6, 10, 12, 14, 20],
+          "line-opacity": ["interpolate", ["linear"], ["zoom"], 6, 0.15, 14, 0.3],
+          "line-blur": ["interpolate", ["linear"], ["zoom"], 6, 3, 14, 10],
+        },
+      });
+      map.addLayer({
+        id: "district-boundary-line",
+        type: "line",
+        source: "district-boundary",
+        paint: {
+          "line-color": "#06b6d4",
+          "line-width": ["interpolate", ["linear"], ["zoom"], 6, 1.5, 10, 2.5, 14, 5],
+          "line-opacity": 0.95,
+        },
+      });
+
+      // ── Tambon Boundaries ─────────────────────────────────────────────────
+      map.addSource("tambon-boundary", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+      map.addLayer({
+        id: "tambon-boundary-glow",
+        type: "line",
+        source: "tambon-boundary",
+        paint: {
+          "line-color": "#a855f7",
+          "line-width": ["interpolate", ["linear"], ["zoom"], 6, 6, 10, 12, 14, 20],
+          "line-opacity": ["interpolate", ["linear"], ["zoom"], 6, 0.15, 14, 0.3],
+          "line-blur": ["interpolate", ["linear"], ["zoom"], 6, 3, 14, 10],
+        },
+      });
+      map.addLayer({
+        id: "tambon-boundary-line",
+        type: "line",
+        source: "tambon-boundary",
+        paint: {
+          "line-color": "#a855f7",
           "line-width": ["interpolate", ["linear"], ["zoom"], 6, 1.5, 10, 2.5, 14, 5],
           "line-opacity": 0.95,
         },
@@ -1963,44 +2139,97 @@ function MapDrawContent() {
     setStatus("โหมดวาด — คลิกเพื่อเพิ่มจุด | คลิกขวา หรือ Double-click เพื่อปิดแปลง | Esc ยกเลิก");
 
     if (drawnParcels.length === 0) {
-      if (selectedProvince) {
-        setSearchLoading(true);
-        try {
-          const res = await fetch(`/api/geojson/boundary?province=${encodeURIComponent(selectedProvince)}`);
-          const fc = await res.json();
-          if (fc?.features?.length > 0) {
-            const geom = fc.features[0].geometry as GeoJSON.MultiPolygon | GeoJSON.Polygon;
-            let minLng = Infinity, minLat = Infinity, maxLng = -Infinity, maxLat = -Infinity;
-            const walk = (coords: number[]) => {
-              if (typeof coords[0] === "number") {
-                if (coords[0] < minLng) minLng = coords[0];
-                if (coords[0] > maxLng) maxLng = coords[0];
-                if (coords[1] < minLat) minLat = coords[1];
-                if (coords[1] > maxLat) maxLat = coords[1];
-              } else {
-                (coords as unknown as number[][]).forEach(walk);
-              }
-            };
-            walk(geom.coordinates as unknown as number[]);
-            map.fitBounds(
-              [[minLng, minLat], [maxLng, maxLat]],
-              { padding: 60, duration: 2500, pitch: 0, bearing: 0, essential: true }
-            );
+      if (locationMethod === "coord") {
+        if (coordMode === "latlng") {
+          const la = parseFloat(coordLat.replace(/,/g, '')), lo = parseFloat(coordLng.replace(/,/g, ''));
+          if (!isNaN(la) && !isNaN(lo) && la >= -90 && la <= 90 && lo >= -180 && lo <= 180) {
+            map.flyTo({ center: [lo, la], zoom: 15, duration: 1800, essential: true });
           }
-        } catch (err) {
-          console.error(err);
+        } else {
+          const ev = parseFloat(coordE.replace(/,/g, '')), nv = parseFloat(coordN.replace(/,/g, ''));
+          if (!isNaN(ev) && !isNaN(nv)) {
+            try {
+              const { lat: la, lng: lo } = utmToLatLng(ev, nv, coordUtmZone, true);
+              if (la >= -90 && la <= 90 && lo >= -180 && lo <= 180) {
+                map.flyTo({ center: [lo, la], zoom: 15, duration: 1800, essential: true });
+              }
+            } catch { /* ignore invalid coords */ }
+          }
         }
-        setSearchLoading(false);
-      } else if (map.getZoom() < 10) {
-        map.flyTo({
-          center: [101.35, 12.80],
-          zoom: 9.5,
-          pitch: 0,
-          bearing: 0,
-          duration: 3000,
-          essential: true,
-          curve: 1.42
-        });
+      } else {
+        if (selectedTambon) {
+          // Zoom to tambon boundary
+          setSearchLoading(true);
+          try {
+            const res = await fetch(`/api/geojson/tambon?tambon=${encodeURIComponent(selectedTambon)}&district=${encodeURIComponent(selectedAmphoe)}`);
+            const fc = await res.json();
+            if (fc?.features?.length > 0) {
+              let minLng = Infinity, minLat = Infinity, maxLng = -Infinity, maxLat = -Infinity;
+              const walk = (coords: number[]) => {
+                if (typeof coords[0] === "number") {
+                  if (coords[0] < minLng) minLng = coords[0];
+                  if (coords[0] > maxLng) maxLng = coords[0];
+                  if (coords[1] < minLat) minLat = coords[1];
+                  if (coords[1] > maxLat) maxLat = coords[1];
+                } else { (coords as unknown as number[][]).forEach(walk); }
+              };
+              fc.features.forEach((f: GeoJSON.Feature) => walk((f.geometry as GeoJSON.MultiPolygon).coordinates as unknown as number[]));
+              map.fitBounds([[minLng, minLat], [maxLng, maxLat]], { padding: 80, duration: 2200, pitch: 0, bearing: 0, essential: true });
+            }
+          } catch (err) { console.error(err); }
+          setSearchLoading(false);
+        } else if (selectedAmphoe) {
+          // Zoom to district boundary
+          setSearchLoading(true);
+          try {
+            const res = await fetch(`/api/geojson/districts?district=${encodeURIComponent(selectedAmphoe)}&province=${encodeURIComponent(selectedProvince)}`);
+            const fc = await res.json();
+            if (fc?.features?.length > 0) {
+              let minLng = Infinity, minLat = Infinity, maxLng = -Infinity, maxLat = -Infinity;
+              const walk = (coords: number[]) => {
+                if (typeof coords[0] === "number") {
+                  if (coords[0] < minLng) minLng = coords[0];
+                  if (coords[0] > maxLng) maxLng = coords[0];
+                  if (coords[1] < minLat) minLat = coords[1];
+                  if (coords[1] > maxLat) maxLat = coords[1];
+                } else { (coords as unknown as number[][]).forEach(walk); }
+              };
+              fc.features.forEach((f: GeoJSON.Feature) => walk((f.geometry as GeoJSON.MultiPolygon).coordinates as unknown as number[]));
+              map.fitBounds([[minLng, minLat], [maxLng, maxLat]], { padding: 60, duration: 2200, pitch: 0, bearing: 0, essential: true });
+            }
+          } catch (err) { console.error(err); }
+          setSearchLoading(false);
+        } else if (selectedProvince) {
+          setSearchLoading(true);
+          try {
+            const res = await fetch(`/api/geojson/boundary?province=${encodeURIComponent(selectedProvince)}`);
+            const fc = await res.json();
+            if (fc?.features?.length > 0) {
+              const geom = fc.features[0].geometry as GeoJSON.MultiPolygon | GeoJSON.Polygon;
+              let minLng = Infinity, minLat = Infinity, maxLng = -Infinity, maxLat = -Infinity;
+              const walk = (coords: number[]) => {
+                if (typeof coords[0] === "number") {
+                  if (coords[0] < minLng) minLng = coords[0];
+                  if (coords[0] > maxLng) maxLng = coords[0];
+                  if (coords[1] < minLat) minLat = coords[1];
+                  if (coords[1] > maxLat) maxLat = coords[1];
+                } else {
+                  (coords as unknown as number[][]).forEach(walk);
+                }
+              };
+              walk(geom.coordinates as unknown as number[]);
+              map.fitBounds(
+                [[minLng, minLat], [maxLng, maxLat]],
+                { padding: 60, duration: 2500, pitch: 0, bearing: 0, essential: true }
+              );
+            }
+          } catch (err) {
+            console.error(err);
+          }
+          setSearchLoading(false);
+        } else if (map.getZoom() < 10) {
+          map.flyTo({ center: [101.35, 12.80], zoom: 9.5, pitch: 0, bearing: 0, duration: 3000, essential: true, curve: 1.42 });
+        }
       }
     }
   };
@@ -2041,7 +2270,7 @@ function MapDrawContent() {
   const deleteParcel = useCallback((idx: number) => {
     setDrawnParcels(prev => {
       const featToDelete = prev[idx];
-      const dbId = featToDelete?.properties?.id;
+      const dbId = featToDelete?.properties?.dbProjectId;
       if (dbId) {
         fetch(`/api/plots/${dbId}`, { method: 'DELETE' }).catch(console.error);
       }
@@ -2979,64 +3208,154 @@ function MapDrawContent() {
                 </div>
                 {!drawing && (
                   <div style={{ marginBottom: 16 }}>
-                    {/* Region / Province Selection */}
+                    {/* Province / Amphoe / Tambon + Coordinate */}
                     {drawnParcels.length === 0 && (
-                      <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: user ? 16 : 0 }}>
-                        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                          <label style={{ fontSize: 13, fontWeight: 700, color: "#059669", display: "flex", alignItems: "center", gap: 6 }}>
-                            <i className="bi bi-geo-alt" /> ภูมิภาค
-                          </label>
-                          <select
-                            className="prp-input"
-                            style={{
-                              padding: "10px 12px",
-                              borderRadius: 10,
-                              border: "1px solid #cbd5e1",
-                              fontSize: 14,
-                              background: "#fff"
-                            }}
-                            value={selectedRegion}
-                            onChange={(e) => {
-                              setSelectedRegion(e.target.value);
-                              setSelectedProvince("");
-                            }}
-                          >
-                            <option value="">-- เลือกภาค --</option>
-                            {REGIONS_DATA.map(r => (
-                              <option key={r.name} value={r.name}>{r.name}</option>
-                            ))}
-                          </select>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: user ? 16 : 0 }}>
+
+                        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                          {/* Tabs for Location Method */}
+                          <div style={{ display: "flex", background: "#f1f5f9", borderRadius: 10, padding: 4 }}>
+                            <button
+                              onClick={() => setLocationMethod("area")}
+                              style={{
+                                flex: 1, padding: "8px", borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: "pointer", border: "none",
+                                background: locationMethod === "area" ? "#fff" : "transparent",
+                                color: locationMethod === "area" ? "#059669" : "#64748b",
+                                boxShadow: locationMethod === "area" ? "0 2px 5px rgba(0,0,0,0.05)" : "none",
+                                transition: "all 0.2s"
+                              }}
+                            >
+                              <i className="bi bi-pin-map me-1" /> ค้นหาจากพื้นที่
+                            </button>
+                            <button
+                              onClick={() => setLocationMethod("coord")}
+                              style={{
+                                flex: 1, padding: "8px", borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: "pointer", border: "none",
+                                background: locationMethod === "coord" ? "#fff" : "transparent",
+                                color: locationMethod === "coord" ? "#059669" : "#64748b",
+                                boxShadow: locationMethod === "coord" ? "0 2px 5px rgba(0,0,0,0.05)" : "none",
+                                transition: "all 0.2s"
+                              }}
+                            >
+                              <i className="bi bi-crosshair2 me-1" /> กรอกค่าพิกัด
+                            </button>
+                          </div>
+
+                          {locationMethod === "area" ? (
+                            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                              {/* ภาค (Region) */}
+                              <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                                <label style={{ fontSize: 10.5, fontWeight: 600, color: "#64748b" }}>ภาค</label>
+                                <select className="prp-input" style={{ padding: "8px 5px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: 11.5, background: "#fff", width: "100%" }} value={selectedRegion} onChange={(e) => { setSelectedRegion(e.target.value); setSelectedProvince(""); setSelectedAmphoe(""); setSelectedTambon(""); }}>
+                                  <option value="">เลือกภาค...</option>
+                                  {REGIONS_DATA.map(r => <option key={r.name} value={r.name}>{r.name}</option>)}
+                                </select>
+                              </div>
+
+                              {/* 3-column: Province / Amphoe / Tambon */}
+                              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6 }}>
+                                <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                                  <label style={{ fontSize: 10.5, fontWeight: 600, color: "#64748b" }}>จังหวัด</label>
+                                  <select className="prp-input" style={{ padding: "8px 5px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: 11.5, background: selectedRegion ? "#fff" : "#f8fafc", color: selectedRegion ? "#0f172a" : "#94a3b8", width: "100%" }} value={selectedProvince} onChange={(e) => { setSelectedProvince(e.target.value); setSelectedAmphoe(""); setSelectedTambon(""); }} disabled={!selectedRegion}>
+                                    <option value="">เลือก...</option>
+                                    {selectedRegion && REGIONS_DATA.find(r => r.name === selectedRegion)?.provinces.map(p => <option key={p} value={p}>{p}</option>)}
+                                  </select>
+                                </div>
+                                <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                                  <label style={{ fontSize: 10.5, fontWeight: 600, color: "#64748b" }}>อำเภอ</label>
+                                  {amphoesFromDb.length > 0 ? (
+                                    <select className="prp-input" style={{ padding: "8px 5px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: 11.5, background: selectedProvince ? "#fff" : "#f8fafc", color: selectedProvince ? "#0f172a" : "#94a3b8", width: "100%" }} value={selectedAmphoe} onChange={(e) => { setSelectedAmphoe(e.target.value); setSelectedTambon(""); }} disabled={!selectedProvince}>
+                                      <option value="">เลือก...</option>
+                                      {amphoesFromDb.map(a => <option key={a} value={a}>{a}</option>)}
+                                    </select>
+                                  ) : AMPHOE_DATA[selectedProvince] ? (
+                                    <select className="prp-input" style={{ padding: "8px 5px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: 11.5, background: selectedProvince ? "#fff" : "#f8fafc", color: selectedProvince ? "#0f172a" : "#94a3b8", width: "100%" }} value={selectedAmphoe} onChange={(e) => { setSelectedAmphoe(e.target.value); setSelectedTambon(""); }} disabled={!selectedProvince}>
+                                      <option value="">เลือก...</option>
+                                      {AMPHOE_DATA[selectedProvince].map(a => <option key={a} value={a}>{a}</option>)}
+                                    </select>
+                                  ) : (
+                                    <input className="prp-input" style={{ padding: "8px 5px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: 11.5, width: "100%", boxSizing: "border-box" }} placeholder="อำเภอ..." value={selectedAmphoe} onChange={e => setSelectedAmphoe(e.target.value)} />
+                                  )}
+                                </div>
+                                <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                                  <label style={{ fontSize: 10.5, fontWeight: 600, color: "#64748b" }}>ตำบล</label>
+                                  {tambonsLoading ? (
+                                    <select className="prp-input" style={{ padding: "8px 5px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: 11.5, background: "#f8fafc", color: "#94a3b8", width: "100%" }} disabled>
+                                      <option value="">กำลังโหลด...</option>
+                                    </select>
+                                  ) : tambonsFromDb.length > 0 ? (
+                                    <select className="prp-input" style={{ padding: "8px 5px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: 11.5, background: selectedAmphoe ? "#fff" : "#f8fafc", color: selectedAmphoe ? "#0f172a" : "#94a3b8", width: "100%" }} value={selectedTambon} onChange={e => setSelectedTambon(e.target.value)} disabled={!selectedAmphoe}>
+                                      <option value="">เลือก...</option>
+                                      {tambonsFromDb.map(t => <option key={t} value={t}>{t}</option>)}
+                                    </select>
+                                  ) : selectedAmphoe ? (
+                                    <input className="prp-input" style={{ padding: "8px 5px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: 11.5, width: "100%", boxSizing: "border-box" }} placeholder="ตำบล..." value={selectedTambon} onChange={e => setSelectedTambon(e.target.value)} />
+                                  ) : (
+                                    <select className="prp-input" style={{ padding: "8px 5px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: 11.5, background: "#f8fafc", color: "#94a3b8", width: "100%" }} disabled>
+                                      <option value="">เลือกอำเภอก่อน</option>
+                                    </select>
+                                  )}
+                                </div>
+                              </div>
+                              {!selectedRegion || !selectedProvince ? (
+                                <div style={{ color: "#f59e0b", fontSize: 11, fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
+                                  <i className="bi bi-exclamation-circle-fill" /> กรุณาเลือกภาคและจังหวัดเพื่อดำเนินการต่อ
+                                </div>
+                              ) : null}
+                            </div>
+                          ) : (
+                            <div style={{ padding: "10px 12px", background: "linear-gradient(135deg,rgba(5,150,105,0.05),rgba(13,148,136,0.04))", border: "1px solid rgba(5,150,105,0.18)", borderRadius: 10, display: "flex", flexDirection: "column", gap: 8 }}>
+                              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                                <div style={{ fontSize: 11.5, fontWeight: 700, color: "#059669", display: "flex", alignItems: "center", gap: 5 }}>
+                                  ระบบพิกัด
+                                </div>
+                                <div style={{ display: "flex", gap: 4 }}>
+                                  {(["latlng", "utm"] as const).map(m => (
+                                    <button key={m} onClick={() => setCoordMode(m)} style={{ padding: "3px 9px", borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: "pointer", border: "none", background: coordMode === m ? "linear-gradient(135deg,#059669,#0d9488)" : "#f1f5f9", color: coordMode === m ? "#fff" : "#64748b", transition: "all 0.15s" }}>
+                                      {m === "latlng" ? "Lat/Lng" : "UTM"}
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                              {coordMode === "latlng" ? (
+                                <div style={{ display: "flex", gap: 6 }}>
+                                  <div style={{ flex: 1 }}>
+                                    <div style={{ fontSize: 10.5, color: "#64748b", fontWeight: 600, marginBottom: 3 }}>Latitude</div>
+                                    <input className="prp-input" style={{ padding: "7px 8px", borderRadius: 7, border: "1px solid #cbd5e1", fontSize: 12.5, width: "100%", boxSizing: "border-box" }} placeholder="เช่น 15.8700" value={coordLat} onChange={e => setCoordLat(e.target.value)} />
+                                  </div>
+                                  <div style={{ flex: 1 }}>
+                                    <div style={{ fontSize: 10.5, color: "#64748b", fontWeight: 600, marginBottom: 3 }}>Longitude</div>
+                                    <input className="prp-input" style={{ padding: "7px 8px", borderRadius: 7, border: "1px solid #cbd5e1", fontSize: 12.5, width: "100%", boxSizing: "border-box" }} placeholder="เช่น 100.9925" value={coordLng} onChange={e => setCoordLng(e.target.value)} />
+                                  </div>
+                                </div>
+                              ) : (
+                                <>
+                                  <div style={{ display: "flex", gap: 5, alignItems: "center" }}>
+                                    <span style={{ fontSize: 10.5, color: "#64748b", fontWeight: 600 }}>Zone:</span>
+                                    {([47, 48] as const).map(z => (
+                                      <button key={z} onClick={() => setCoordUtmZone(z)} style={{ padding: "3px 11px", borderRadius: 6, fontSize: 11.5, fontWeight: 700, cursor: "pointer", border: "none", background: coordUtmZone === z ? "linear-gradient(135deg,#059669,#0d9488)" : "#f1f5f9", color: coordUtmZone === z ? "#fff" : "#64748b", transition: "all 0.15s" }}>{z}N</button>
+                                    ))}
+                                    <span style={{ fontSize: 10, color: "#94a3b8" }}>{coordUtmZone === 47 ? "(ตะวันตก)" : "(ตะวันออก)"}</span>
+                                  </div>
+                                  <div style={{ display: "flex", gap: 6 }}>
+                                    <div style={{ flex: 1 }}>
+                                      <div style={{ fontSize: 10.5, color: "#64748b", fontWeight: 600, marginBottom: 3 }}>Easting (m)</div>
+                                      <input className="prp-input" style={{ padding: "7px 8px", borderRadius: 7, border: "1px solid #cbd5e1", fontSize: 12.5, width: "100%", boxSizing: "border-box" }} placeholder="เช่น 560000" value={coordE} onChange={e => setCoordE(e.target.value)} />
+                                    </div>
+                                    <div style={{ flex: 1 }}>
+                                      <div style={{ fontSize: 10.5, color: "#64748b", fontWeight: 600, marginBottom: 3 }}>Northing (m)</div>
+                                      <input className="prp-input" style={{ padding: "7px 8px", borderRadius: 7, border: "1px solid #cbd5e1", fontSize: 12.5, width: "100%", boxSizing: "border-box" }} placeholder="เช่น 1750000" value={coordN} onChange={e => setCoordN(e.target.value)} />
+                                    </div>
+                                  </div>
+                                </>
+                              )}
+                              <div style={{ fontSize: 10.5, color: "#94a3b8", fontStyle: "italic" }}>
+                                <i className="bi bi-info-circle me-1" />กรอกพิกัด แล้วกด "เริ่มวาดแปลง" ได้เลย
+                              </div>
+                            </div>
+                          )}
                         </div>
 
-                        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                          <label style={{ fontSize: 13, fontWeight: 700, color: "#059669", display: "flex", alignItems: "center", gap: 6 }}>
-                            <i className="bi bi-pin-map" /> จังหวัด
-                          </label>
-                          <select
-                            className="prp-input"
-                            style={{
-                              padding: "10px 12px",
-                              borderRadius: 10,
-                              border: "1px solid #cbd5e1",
-                              fontSize: 14,
-                              background: selectedRegion ? "#fff" : "#f1f5f9",
-                              color: selectedRegion ? "#0f172a" : "#94a3b8"
-                            }}
-                            value={selectedProvince}
-                            onChange={(e) => setSelectedProvince(e.target.value)}
-                            disabled={!selectedRegion}
-                          >
-                            <option value="">-- เลือกจังหวัด --</option>
-                            {selectedRegion && REGIONS_DATA.find(r => r.name === selectedRegion)?.provinces.map(p => (
-                              <option key={p} value={p}>{p}</option>
-                            ))}
-                          </select>
-                        </div>
-                        {(!selectedRegion || !selectedProvince) && (
-                          <div style={{ color: "#f59e0b", fontSize: 12, marginTop: 0, fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
-                            <i className="bi bi-exclamation-circle-fill" /> กรุณาเลือกภูมิภาคพื่อดำเนินการต่อ
-                          </div>
-                        )}
                       </div>
                     )}
 
@@ -3172,13 +3491,13 @@ function MapDrawContent() {
                             className="mds-btn mds-btn-solid"
                             onClick={startDrawFlow}
                             style={{
-                              background: ((user && (!projectName.trim() || isDuplicateProjectName)) || (drawnParcels.length === 0 && (!selectedRegion || !selectedProvince)) || isEditingPlotParam) ? "#cbd5e1" : undefined,
-                              cursor: ((user && (!projectName.trim() || isDuplicateProjectName)) || (drawnParcels.length === 0 && (!selectedRegion || !selectedProvince)) || isEditingPlotParam) ? "not-allowed" : "pointer",
-                              boxShadow: ((user && (!projectName.trim() || isDuplicateProjectName)) || (drawnParcels.length === 0 && (!selectedRegion || !selectedProvince)) || isEditingPlotParam) ? "none" : undefined,
-                              color: ((user && (!projectName.trim() || isDuplicateProjectName)) || (drawnParcels.length === 0 && (!selectedRegion || !selectedProvince)) || isEditingPlotParam) ? "#fff" : undefined,
-                              border: ((user && (!projectName.trim() || isDuplicateProjectName)) || (drawnParcels.length === 0 && (!selectedRegion || !selectedProvince)) || isEditingPlotParam) ? "none" : undefined
+                              background: ((user && (!projectName.trim() || isDuplicateProjectName)) || (drawnParcels.length === 0 && locationMethod === "area" && (!selectedRegion || !selectedProvince)) || (drawnParcels.length === 0 && locationMethod === "coord" && ((coordMode === "latlng" && (!coordLat || !coordLng)) || (coordMode === "utm" && (!coordE || !coordN)))) || isEditingPlotParam) ? "#cbd5e1" : undefined,
+                              cursor: ((user && (!projectName.trim() || isDuplicateProjectName)) || (drawnParcels.length === 0 && locationMethod === "area" && (!selectedRegion || !selectedProvince)) || (drawnParcels.length === 0 && locationMethod === "coord" && ((coordMode === "latlng" && (!coordLat || !coordLng)) || (coordMode === "utm" && (!coordE || !coordN)))) || isEditingPlotParam) ? "not-allowed" : "pointer",
+                              boxShadow: ((user && (!projectName.trim() || isDuplicateProjectName)) || (drawnParcels.length === 0 && locationMethod === "area" && (!selectedRegion || !selectedProvince)) || (drawnParcels.length === 0 && locationMethod === "coord" && ((coordMode === "latlng" && (!coordLat || !coordLng)) || (coordMode === "utm" && (!coordE || !coordN)))) || isEditingPlotParam) ? "none" : undefined,
+                              color: ((user && (!projectName.trim() || isDuplicateProjectName)) || (drawnParcels.length === 0 && locationMethod === "area" && (!selectedRegion || !selectedProvince)) || (drawnParcels.length === 0 && locationMethod === "coord" && ((coordMode === "latlng" && (!coordLat || !coordLng)) || (coordMode === "utm" && (!coordE || !coordN)))) || isEditingPlotParam) ? "#fff" : undefined,
+                              border: ((user && (!projectName.trim() || isDuplicateProjectName)) || (drawnParcels.length === 0 && locationMethod === "area" && (!selectedRegion || !selectedProvince)) || (drawnParcels.length === 0 && locationMethod === "coord" && ((coordMode === "latlng" && (!coordLat || !coordLng)) || (coordMode === "utm" && (!coordE || !coordN)))) || isEditingPlotParam) ? "none" : undefined
                             }}
-                            disabled={!!((user && (!projectName.trim() || isDuplicateProjectName)) || (drawnParcels.length === 0 && (!selectedRegion || !selectedProvince)) || isEditingPlotParam)}
+                            disabled={!!((user && (!projectName.trim() || isDuplicateProjectName)) || (drawnParcels.length === 0 && locationMethod === "area" && (!selectedRegion || !selectedProvince)) || (drawnParcels.length === 0 && locationMethod === "coord" && ((coordMode === "latlng" && (!coordLat || !coordLng)) || (coordMode === "utm" && (!coordE || !coordN)))) || isEditingPlotParam)}
                           >
                             <i className="bi bi-pencil" /> {drawnParcels.length > 0 ? "วาดแปลงเพิ่ม" : "เริ่มวาดแปลง"}
                           </button>

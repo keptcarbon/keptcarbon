@@ -83,7 +83,6 @@ export function LoginModal() {
         <img
           src="/assets/img/keptcarbon-logo.png"
           alt="Kept Carbon Logo"
-          style={{ maxWidth: 180, height: "auto" }}
         />
       </div>
       <div className="modal-auth-heading text-center">เข้าสู่ระบบ</div>
@@ -249,7 +248,6 @@ export function RegisterModal() {
         <img
           src="/assets/img/keptcarbon-logo.png"
           alt="Kept Carbon Logo"
-          style={{ maxWidth: 180, height: "auto", marginBottom: 12 }}
         />
       </div>
       <div className="modal-auth-heading text-center">สมัครสมาชิก</div>

@@ -37,12 +37,17 @@
 /* ── Logo ──────────────────────────────────────── */
 .modal-auth-logo {
   text-align: center;
-  margin-bottom: 8px;
+  margin-bottom: 4px;
+}
+
+.modal-auth-logo img {
+  max-width: 120px;
+  height: auto;
 }
 
 /* ── Heading & subtitle ────────────────────────── */
 .modal-auth-heading {
-  font-size: 28px;
+  font-size: 26px;
   font-weight: 800;
   color: var(--kc-ink, #1a3d2b);
   letter-spacing: -0.4px;
@@ -50,15 +55,15 @@
 }
 
 .modal-auth-sub {
-  font-size: 15px;
+  font-size: 14px;
   color: var(--kc-sage, #5a7a65);
-  line-height: 1.6;
-  margin-bottom: 20px;
+  line-height: 1.5;
+  margin-bottom: 16px;
 }
 
 /* ── Form groups ───────────────────────────────── */
 .modal-auth-form-group {
-  margin-bottom: 14px;
+  margin-bottom: 12px;
 }
 
 .modal-auth-form-group label {
@@ -234,7 +239,7 @@
   letter-spacing: 1.6px;
   text-transform: uppercase;
   font-weight: 700;
-  margin: 22px 0 18px;
+  margin: 16px 0 14px;
 }
 
 .modal-divider::before,
@@ -399,5 +404,81 @@
 
   .modal-auth-logo img {
     max-width: 140px !important;
+  }
+}
+
+@media (max-width: 420px) {
+  .modal-auth-card {
+    padding: 28px 16px 20px;
+    border-radius: 18px;
+  }
+
+  .modal-auth-logo {
+    margin-bottom: 4px;
+  }
+
+  .modal-auth-logo img {
+    max-width: 110px !important;
+  }
+
+  .modal-auth-heading {
+    font-size: 20px;
+    margin-bottom: 2px;
+  }
+
+  .modal-auth-sub {
+    font-size: 13px;
+    margin-bottom: 14px;
+  }
+
+  .modal-auth-form-group {
+    margin-bottom: 10px;
+  }
+
+  .modal-auth-form-group label {
+    font-size: 11px;
+    margin-bottom: 5px;
+  }
+
+  .modal-inp-wrap input {
+    padding: 10px 12px 10px 38px;
+    font-size: 14px;
+    border-radius: 10px;
+  }
+
+  .modal-inp-wrap > i {
+    left: 12px;
+    font-size: 14px;
+  }
+
+  .modal-btn-submit {
+    padding: 12px 20px;
+    font-size: 15px;
+    border-radius: 12px;
+    margin-top: 4px;
+  }
+
+  .modal-divider {
+    margin: 14px 0 12px;
+    font-size: 12px;
+  }
+
+  .modal-btn-line,
+  .modal-btn-google,
+  .modal-btn-facebook {
+    padding: 11px 20px;
+    font-size: 14px;
+    border-radius: 12px;
+  }
+
+  .modal-auth-links {
+    font-size: 13px;
+    margin-top: 12px !important;
+  }
+
+  .modal-auth-alert {
+    font-size: 13px;
+    padding: 10px 12px;
+    margin-bottom: 12px;
   }
 }

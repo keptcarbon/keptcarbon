@@ -15,14 +15,13 @@ export default function Home() {
                   Kept<span className="gradient-text">Carbon</span>
                 </h1>
                 <p className="hero-subtitle-th">
-                  แพลตฟอร์มภูมิสารสนเทศและปัญญาประดิษฐ์ <br />
-                  เพื่อการจัดการสวนยางพาราอย่างยืดหยุ่น
-                  <br className="d-block d-md-none" />
-                  ต่อการเปลี่ยนแปลงสภาพภูมิอากาศ
+                  <span>แพลตฟอร์มภูมิสารสนเทศและปัญญาประดิษฐ์</span>
+                  <span>เพื่อการจัดการสวนยางพาราอย่างยืดหยุ่น</span>
+                  <span>ต่อการเปลี่ยนแปลงสภาพภูมิอากาศ</span>
                 </p>
                 <p className="hero-subtitle-en">
-                  A GeoAI-Driven Platform for Climate-Resilient
-                  <br className="d-block d-md-none" /> Rubber Plantation Management
+                  <span>A GeoAI-Driven Platform for Climate-Resilient</span>{" "}
+                  <span>Rubber Plantation Management</span>
                 </p>
               </div>
             </div>

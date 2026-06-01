@@ -37,14 +37,14 @@ export default function ModalShell({
         background: "rgba(0,0,0,0.55)",
         zIndex: 1080,
         display: "flex",
-        alignItems: "center",
+        alignItems: "flex-start",
         justifyContent: "center",
-        padding: 16,
+        padding: "16px",
         overflowY: "auto",
       }}
     >
       <div
-        style={{ width: "100%", maxWidth: width, position: "relative" }}
+        style={{ width: "100%", maxWidth: width, position: "relative", margin: "auto" }}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="modal-auth-card">

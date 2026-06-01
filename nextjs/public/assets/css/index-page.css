@@ -14,8 +14,8 @@
         position: absolute;
         inset: 0;
         background:
-          linear-gradient(to bottom, rgba(255, 255, 255, 0.75) 0%, rgba(255, 255, 255, 0) 18%),
-          linear-gradient(to bottom, rgba(0, 0, 0, 0.18) 0%, rgba(0, 0, 0, 0.22) 100%);
+          linear-gradient(to bottom, rgba(0, 0, 0, 0.52) 0%, rgba(0, 0, 0, 0) 22%),
+          linear-gradient(to bottom, rgba(0, 0, 0, 0.12) 0%, rgba(0, 0, 0, 0.22) 100%);
         pointer-events: none;
         z-index: 0;
       }
@@ -107,6 +107,17 @@
         text-shadow: 0 2px 12px rgba(0, 0, 0, 0.7), 0 1px 4px rgba(0, 0, 0, 0.5);
       }
 
+      /* Desktop: บรรทัดที่ 1 ของ Thai ขึ้นบรรทัดใหม่, บรรทัดที่ 2+3 ต่อกัน, English บรรทัดเดียว */
+      .hero-subtitle-th span:first-child {
+        display: block;
+      }
+      .hero-subtitle-th span:not(:first-child) {
+        display: inline;
+      }
+      .hero-subtitle-en span {
+        display: inline;
+      }
+
       .hero-subtitle-en {
         font-size: 13px;
         font-weight: 700;
@@ -186,15 +197,48 @@
       @media (max-width: 768px) {
 
         .hero-beautiful {
-          padding: 110px 0 60px 0;
+          min-height: 100dvh;
+          padding: 0;
           background-attachment: scroll;
           background-position: center center;
+          background-size: cover;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+
+        .hero-beautiful::before {
+          background:
+            linear-gradient(to bottom, rgba(0, 0, 0, 0.45) 0%, rgba(0, 0, 0, 0.05) 20%),
+            linear-gradient(to bottom, rgba(0, 0, 0, 0.1) 0%, rgba(0, 0, 0, 0.45) 100%);
+        }
+
+        .hero-beautiful .container {
+          padding-top: 80px;
+          padding-bottom: 40px;
+          width: 100%;
+          max-width: 100%;
+          overflow: hidden;
+        }
+
+        .hero-content-frame {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          width: 100%;
+          max-width: 100%;
+          padding: 0 24px;
+          box-sizing: border-box;
         }
 
         .hero-beautiful h1 {
-          font-size: 44px;
-          margin-bottom: 18px;
-          text-shadow: 0 2px 16px rgba(0, 0, 0, 0.75), 0 4px 32px rgba(0, 0, 0, 0.55);
+          font-size: clamp(38px, 12vw, 56px);
+          margin-bottom: 16px;
+          letter-spacing: -1px;
+          text-shadow: 0 2px 16px rgba(0, 0, 0, 0.8), 0 4px 32px rgba(0, 0, 0, 0.6);
+          white-space: nowrap;
+          width: 100%;
+          text-align: center;
         }
 
         .hero-beautiful h1 .gradient-text {
@@ -206,21 +250,39 @@
         }
 
         .hero-subtitle-th {
-          font-size: 18px;
-          line-height: 1.7;
+          font-size: clamp(13px, 3.8vw, 16px);
+          line-height: 2;
+          width: 100%;
           max-width: 100%;
-          margin: 0 auto 12px auto;
+          margin: 0 0 14px 0;
           font-weight: 600;
-          text-shadow: 0 2px 12px rgba(0, 0, 0, 0.75), 0 1px 4px rgba(0, 0, 0, 0.6);
+          text-align: center;
+          text-shadow: 0 2px 12px rgba(0, 0, 0, 0.8), 0 1px 4px rgba(0, 0, 0, 0.6);
+          white-space: normal;
+          word-break: keep-all;
+          overflow-wrap: break-word;
+        }
+
+        /* Mobile: ทุก span ขึ้นบรรทัดใหม่ */
+        .hero-subtitle-th span,
+        .hero-subtitle-en span {
+          display: block;
+          white-space: normal;
+          text-align: center;
         }
 
         .hero-subtitle-en {
-          font-size: 11px;
-          line-height: 1.6;
-          letter-spacing: 1.5px;
+          font-size: clamp(9px, 2.4vw, 11px);
+          line-height: 2;
+          letter-spacing: 1px;
+          width: 100%;
           max-width: 100%;
+          text-align: center;
           color: rgba(226, 232, 240, 0.9);
-          text-shadow: 0 2px 8px rgba(0, 0, 0, 0.7);
+          text-shadow: 0 2px 8px rgba(0, 0, 0, 0.75);
+          white-space: normal;
+          word-break: keep-all;
+          overflow-wrap: break-word;
         }
 
         .hero-actions {
