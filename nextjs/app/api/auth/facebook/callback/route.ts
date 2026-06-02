@@ -31,13 +31,6 @@ export async function GET(request: NextRequest) {
 
   try {
     // Exchange code for access token
-    const tokenRes = await fetch(FACEBOOK_CONFIG.tokenUrl, {
-      method: "GET",
-      headers: { "Content-Type": "application/json" },
-      // Facebook expects query parameters
-      // Build using URLSearchParams for clarity
-    });
-    // Build token request with proper params
     const tokenUrl = `${FACEBOOK_CONFIG.tokenUrl}?` + new URLSearchParams({
       client_id: FACEBOOK_CONFIG.clientId,
       redirect_uri: FACEBOOK_CONFIG.redirectUri,

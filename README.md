@@ -16,7 +16,7 @@ See [api.http](api.http) for runnable request examples.
 
 ---
 
-### Backend — FastAPI (`http://localhost:8080`)
+### Backend — FastAPI (`http://localhost:8000`)
 
 | Method | Path | Description |
 |---|---|---|
