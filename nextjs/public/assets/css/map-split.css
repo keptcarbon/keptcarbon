@@ -2926,6 +2926,7 @@ nextjs-portal,
   padding: 0 !important;
   margin-top: 0 !important;
   border-top: none !important;
+  border-bottom: none !important;
 }
 
 /* ── Mobile v3 ─────────────────────────────────────────────────────────── */

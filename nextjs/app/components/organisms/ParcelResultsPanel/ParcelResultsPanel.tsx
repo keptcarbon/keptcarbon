@@ -828,7 +828,7 @@ export function ParcelResultsPanel({
                 // Auto-check A and any class containing A302 if not explicitly unchecked
                 if (newChecked["A"] === undefined) { newChecked["A"] = true; needUpdate = true; }
                 if (newChecked["A302"] === undefined) { newChecked["A302"] = true; needUpdate = true; }
-                
+
                 Object.keys(realData).forEach(k => {
                     if (k.includes("A302") && newChecked[k] === undefined) {
                         newChecked[k] = true;
@@ -1560,17 +1560,26 @@ export function ParcelResultsPanel({
             setPlotForms(prev => prev.map((f, i) => i === idx ? { ...f, [field]: val } : f));
         };
         return (
-            <div className="prp-shell">
+            <div className="prp-shell" style={{ borderTop: "none", marginTop: 0, paddingTop: 0 }}>
 
 
-                <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 14 }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
                     <div className="prp-header-block" style={{ marginBottom: 0 }}>
-                        <div className="prp-main-title" style={{ fontSize: isMobile ? 16 : 18 }}>
+                        <div className="prp-main-title" style={{ fontSize: isMobile ? 16 : 18, marginBottom: 0 }}>
                             <i className="bi bi-pencil-square me-2" style={{ color: "#10b981" }} />
                             {projectName?.trim() ? `โครงการ ${projectName}` : "กรอกข้อมูลแปลง"}
                         </div>
-                        <div className="prp-subtitle">เพื่อนำไปประเมินคาร์บอนเครดิต</div>
                     </div>
+                    <button
+                        onClick={() => onBack?.()}
+                        title="ย้อนกลับขั้นตอนที่ 1"
+                        style={{ flexShrink: 0, padding: "4px 11px", fontSize: 12, fontWeight: 600, borderRadius: 999, display: "inline-flex", alignItems: "center", gap: 4, color: "#059669", border: "1px solid rgba(16,185,129,0.55)", background: "rgba(16,185,129,0.04)", cursor: "pointer", whiteSpace: "nowrap", transition: "all 0.18s", lineHeight: 1.5 }}
+                        onMouseEnter={e => { e.currentTarget.style.background = "rgba(16,185,129,0.1)"; e.currentTarget.style.borderColor = "#10b981"; }}
+                        onMouseLeave={e => { e.currentTarget.style.background = "rgba(16,185,129,0.04)"; e.currentTarget.style.borderColor = "rgba(16,185,129,0.55)"; }}
+                    >
+                        <i className="bi bi-chevron-left" style={{ fontSize: 11 }} />
+                        <span>ย้อนกลับ</span>
+                    </button>
                 </div>
 
                 {/* Action buttons (Moved to top) */}
@@ -1906,7 +1915,7 @@ export function ParcelResultsPanel({
                                                         className="prp-input"
                                                         style={{ marginBottom: 0, height: 46, borderRadius: 10, border: "1.5px solid #e2e8f0", padding: "0 12px" }}
                                                         type="number"
-                                                        placeholder="ระบุจำนวนต้น เช่น 70"
+                                                        placeholder="ระบุจำนวนต้น"
                                                         value={form.treeCount}
                                                         onChange={e => updateForm(i, "treeCount", e.target.value)}
                                                         disabled={!form.plantStatus}
@@ -2225,6 +2234,16 @@ export function ParcelResultsPanel({
                             แสดงผลรวมและรายแปลง
                         </div>
                     </div>
+                    <button
+                        onClick={() => onStepChange(2)}
+                        title="ย้อนกลับขั้นตอนที่ 2"
+                        style={{ flexShrink: 0, padding: "4px 11px", fontSize: 12, fontWeight: 600, borderRadius: 999, display: "inline-flex", alignItems: "center", gap: 4, color: "#059669", border: "1px solid rgba(16,185,129,0.55)", background: "rgba(16,185,129,0.04)", cursor: "pointer", whiteSpace: "nowrap", transition: "all 0.18s", lineHeight: 1.5 }}
+                        onMouseEnter={e => { e.currentTarget.style.background = "rgba(16,185,129,0.1)"; e.currentTarget.style.borderColor = "#10b981"; }}
+                        onMouseLeave={e => { e.currentTarget.style.background = "rgba(16,185,129,0.04)"; e.currentTarget.style.borderColor = "rgba(16,185,129,0.55)"; }}
+                    >
+                        <i className="bi bi-chevron-left" style={{ fontSize: 11 }} />
+                        <span>ย้อนกลับ</span>
+                    </button>
                 </div>
 
 

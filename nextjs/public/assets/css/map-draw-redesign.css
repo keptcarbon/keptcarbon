@@ -2772,9 +2772,10 @@ body.map-draw-active.scrolled .header {
 
 /* Reset prp-shell borders when inside MDS */
 .mds-results-container .prp-shell {
-  border-top: none;
-  margin-top: 0;
-  padding-top: 0;
+  border-top: none !important;
+  border-bottom: none !important;
+  margin-top: 0 !important;
+  padding-top: 0 !important;
 }
 
 /* ── Toast ─────────────────────────────────────────────────── */
@@ -3312,9 +3313,7 @@ body.map-draw-active.scrolled .header {
 }
 
 .prp-header-block {
-  margin-bottom: 18px;
-  padding-bottom: 16px;
-  border-bottom: 1px solid rgba(16, 185, 129, 0.1);
+  margin-bottom: 14px;
 }
 
 .prp-main-title {

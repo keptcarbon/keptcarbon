@@ -314,7 +314,6 @@ function MapDrawContent() {
     clearDraw();
     setCurrentStep(1);
     setProjectName("");
-    window.location.href = "/map-draw";
   };
 
   // Multi-parcel support
@@ -2489,7 +2488,11 @@ function MapDrawContent() {
               geom.coordinates[0][0].forEach((coord: any) => bounds.extend(coord));
             }
             if (!bounds.isEmpty()) {
-              map.fitBounds(bounds, { padding: 50, duration: 800 });
+              map.fitBounds(bounds, {
+                padding: 60,
+                duration: 1600,
+                easing: (t) => t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t
+              });
             }
           }
         }
@@ -2770,7 +2773,7 @@ function MapDrawContent() {
     const lats = coords.map(([, y]) => y);
     map.fitBounds(
       [[Math.min(...lngs), Math.min(...lats)], [Math.max(...lngs), Math.max(...lats)]],
-      { padding: 80, duration: 600, maxZoom: 18 },
+      { padding: 80, duration: 1800, maxZoom: 18, easing: (t) => t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t },
     );
   }, []);
 
@@ -3600,7 +3603,14 @@ function MapDrawContent() {
                 drawnGeometry={drawnGeometry}
                 onFlyTo={flyToFeature}
                 onReset={clearDraw}
-                onBack={clearDraw}
+                onBack={() => {
+                  if (drawnParcels.length > 0) {
+                    setStepWarningPopup(true);
+                  } else {
+                    setCurrentStep(1);
+                    setIsPanelOpen(true);
+                  }
+                }}
                 onCancel={cancelSearch}
                 currentStep={currentStep}
                 onStepChange={setCurrentStep}
