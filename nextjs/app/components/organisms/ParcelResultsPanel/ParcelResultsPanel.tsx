@@ -820,16 +820,23 @@ export function ParcelResultsPanel({
     useEffect(() => {
         setPlotForms(prev => {
             let changed = false;
-            const next = prev.map((form) => {
-                if (form.plantStatus === "replanting") {
-                    // replanting: A and A302 are auto-checked, other classes must be checked manually
-                    if (form.luChecked.A && form.luChecked.A302) return form;
-                    changed = true;
-                    return { ...form, luChecked: { ...form.luChecked, A: true, A302: true } };
-                } else if (form.plantStatus === "existing") {
-                    // existing: only A302 is auto-checked, other sub-types must be checked manually
-                    const newChecked: Record<string, boolean> = { ...form.luChecked, A: true, A302: true };
-                    if (newChecked.A === form.luChecked.A && newChecked.A302 === form.luChecked.A302) return form;
+            const next = prev.map((form, i) => {
+                const realData = plotsLuRealData[i] || {};
+                const newChecked = { ...form.luChecked };
+                let needUpdate = false;
+
+                // Auto-check A and any class containing A302 if not explicitly unchecked
+                if (newChecked["A"] === undefined) { newChecked["A"] = true; needUpdate = true; }
+                if (newChecked["A302"] === undefined) { newChecked["A302"] = true; needUpdate = true; }
+                
+                Object.keys(realData).forEach(k => {
+                    if (k.includes("A302") && newChecked[k] === undefined) {
+                        newChecked[k] = true;
+                        needUpdate = true;
+                    }
+                });
+
+                if (needUpdate) {
                     changed = true;
                     return { ...form, luChecked: newChecked };
                 }
@@ -1785,12 +1792,20 @@ export function ParcelResultsPanel({
                                             </div>
                                             <div style={{ display: "flex", gap: 16 }}>
                                                 <div onClick={() => {
-                                                    setPlotForms(prev => prev.map((f, idx) => idx === i ? {
-                                                        ...f,
-                                                        plantStatus: "replanting",
-                                                        plantYear: String(CURRENT_BE),
-                                                        luChecked: { A: true, A302: true },
-                                                    } : f));
+                                                    setPlotForms(prev => prev.map((f, idx) => {
+                                                        if (idx !== i) return f;
+                                                        const realData = plotsLuRealData[i] || {};
+                                                        const newChecked: Record<string, boolean> = { ...f.luChecked, A: true, A302: true };
+                                                        Object.keys(realData).forEach(k => {
+                                                            if (k.includes("A302")) newChecked[k] = true;
+                                                        });
+                                                        return {
+                                                            ...f,
+                                                            plantStatus: "replanting",
+                                                            plantYear: String(CURRENT_BE),
+                                                            luChecked: newChecked,
+                                                        };
+                                                    }));
                                                     onProjectTypeChange?.("replanting");
                                                 }} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 15, cursor: "pointer", userSelect: "none" }}>
                                                     <div style={{ width: 18, height: 18, borderRadius: "50%", border: "2px solid", borderColor: form.plantStatus === "replanting" ? "#10b981" : "#cbd5e1", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "all 0.2s" }}>
@@ -1800,12 +1815,20 @@ export function ParcelResultsPanel({
                                                 </div>
                                                 <div onClick={() => {
                                                     // Auto-check A sub-types and F detected by backend for existing plots
-                                                    setPlotForms(prev => prev.map((f, idx) => idx === i ? {
-                                                        ...f,
-                                                        plantStatus: "existing",
-                                                        plantYear: "",
-                                                        luChecked: { A: true, A302: true },
-                                                    } : f));
+                                                    setPlotForms(prev => prev.map((f, idx) => {
+                                                        if (idx !== i) return f;
+                                                        const realData = plotsLuRealData[i] || {};
+                                                        const newChecked: Record<string, boolean> = { ...f.luChecked, A: true, A302: true };
+                                                        Object.keys(realData).forEach(k => {
+                                                            if (k.includes("A302")) newChecked[k] = true;
+                                                        });
+                                                        return {
+                                                            ...f,
+                                                            plantStatus: "existing",
+                                                            plantYear: "",
+                                                            luChecked: newChecked,
+                                                        };
+                                                    }));
                                                     onProjectTypeChange?.("existing");
                                                 }} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 15, cursor: "pointer", userSelect: "none" }}>
                                                     <div style={{ width: 18, height: 18, borderRadius: "50%", border: "2px solid", borderColor: form.plantStatus === "existing" ? "#10b981" : "#cbd5e1", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "all 0.2s" }}>
