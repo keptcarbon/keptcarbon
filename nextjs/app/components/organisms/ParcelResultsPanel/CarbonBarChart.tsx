@@ -112,7 +112,7 @@ export function CarbonBarChart({
   const H = isMobile ? 280 : (narrowMode ? 320 : 340);
   const PL = isMobile ? 40 : (narrowMode ? 50 : 60);
   const PT = 15;
-  const PB = showAge ? 72 : 36;
+  const PB = showAge ? 82 : 44;
   const PR = isMobile ? 25 : 30;
   const iW = W - PL - PR;
   const iH = H - PT - PB;
@@ -267,12 +267,12 @@ export function CarbonBarChart({
               <g key={p.year_at}>
                 {/* อายุ — แถวแรกใส่คำว่า "อายุ" นำหน้า */}
                 {showAge && (
-                  <text x={x} y={PT + iH + 26} textAnchor="middle" fontSize={isMobile ? 14 : 18} fill="#475569" fontWeight={700}>
+                  <text x={x} y={PT + iH + 28} textAnchor="middle" fontSize={isMobile ? 16 : 22} fill="#475569" fontWeight={700}>
                     {isFirst ? `อายุ ${p.age}` : p.age}
                   </text>
                 )}
                 {/* พ.ศ. — แถวแรกใส่คำว่า "พ.ศ." นำหน้า */}
-                <text x={x} y={PT + iH + (showAge ? 54 : 28)} textAnchor="middle" fontSize={isMobile ? 14 : 18} fill="#94a3b8" fontWeight={500}>
+                <text x={x} y={PT + iH + (showAge ? 58 : 30)} textAnchor="middle" fontSize={isMobile ? 16 : 22} fill="#94a3b8" fontWeight={500}>
                   {isFirst ? `พ.ศ. ${p.yearBE}` : p.yearBE}
                 </text>
               </g>
