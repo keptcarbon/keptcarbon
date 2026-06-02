@@ -2294,10 +2294,10 @@ export default function MyPlotsPage() {
                   {!deleteMode ? (
                     <button
                       onClick={() => setDeleteMode(true)}
-                      style={{ padding: isMobile ? "6px 10px" : "8px 12px", background: "rgba(239,68,68,0.1)", color: "#ef4444", border: "1px solid rgba(239,68,68,0.2)", borderRadius: 10, cursor: "pointer", fontSize: 15, fontWeight: 700, display: "flex", alignItems: "center", gap: 5, transition: "all 0.2s" }}
+                      style={{ width: 38, height: 38, padding: 0, background: "rgba(239,68,68,0.1)", color: "#ef4444", border: "1px solid rgba(239,68,68,0.2)", borderRadius: 10, cursor: "pointer", fontSize: 16, display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.2s" }}
+                      title="ลบโครงการ"
                     >
-                      <i className="bi bi-trash3-fill" style={{ fontSize: 14 }} />
-                      {!isMobile && <span>ลบโครงการ</span>}
+                      <i className="bi bi-trash3-fill" />
                     </button>
                   ) : (
                     <>
