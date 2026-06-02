@@ -784,6 +784,10 @@ export function ParcelResultsPanel({
     const [ownerName, setOwnerName] = useState(userDisplayName);
     const [province, setProvince] = useState("");
     const [saveState, setSaveState] = useState<"idle" | "saving" | "done">("idle");
+
+    useEffect(() => {
+        setSaveState("idle");
+    }, [projectName]);
     const [dbProjectId, setDbProjectId] = useState<number | null>(null);
     const [guestUserId, setGuestUserId] = useState<string | null>(null);
     const [plotForms, setPlotForms] = useState<PlotFormData[]>([]);
@@ -1558,6 +1562,7 @@ export function ParcelResultsPanel({
     if (currentStep === 2) {
         const updateForm = (idx: number, field: keyof PlotFormData, val: string) => {
             setPlotForms(prev => prev.map((f, i) => i === idx ? { ...f, [field]: val } : f));
+            setSaveState("idle");
         };
         return (
             <div className="prp-shell" style={{ borderTop: "none", marginTop: 0, paddingTop: 0 }}>
@@ -1670,14 +1675,14 @@ export function ParcelResultsPanel({
                         </span>
                     </div>
                 )}
-                <div style={{ display: "flex", gap: isMobile ? 6 : 8, marginBottom: 16, flexWrap: "wrap", justifyContent: "stretch" }}>
+                <div style={{ display: "flex", gap: isMobile ? 6 : 8, marginBottom: 16, flexWrap: "wrap", alignItems: "stretch" }}>
                     {onDrawMore && !isDrawing && (
-                        <button className="prp-btn-ghost" disabled={drawMoreDisabled} style={{ flex: "1 1 calc(33% - 8px)", minWidth: 100, padding: isMobile ? "8px 6px" : "10px 12px", fontSize: isMobile ? 12 : 14, display: "flex", flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 6, background: drawMoreDisabled ? "rgba(0,0,0,0.04)" : "rgba(16,185,129,0.1)", color: drawMoreDisabled ? "#b0bec5" : "#059669", border: `1px solid ${drawMoreDisabled ? "rgba(0,0,0,0.08)" : "rgba(16,185,129,0.2)"}`, borderRadius: isMobile ? 10 : 12, cursor: drawMoreDisabled ? "not-allowed" : "pointer", opacity: drawMoreDisabled ? 0.6 : 1 }} onClick={drawMoreDisabled ? undefined : onDrawMore}>
+                        <button className="prp-btn-ghost" disabled={drawMoreDisabled} style={{ flex: isMobile ? "1 1 100%" : "1 1 calc(33% - 8px)", minWidth: 100, padding: isMobile ? "8px 6px" : "10px 12px", fontSize: isMobile ? 12 : 14, display: "flex", flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 6, background: drawMoreDisabled ? "rgba(0,0,0,0.04)" : "rgba(16,185,129,0.1)", color: drawMoreDisabled ? "#b0bec5" : "#059669", border: `1px solid ${drawMoreDisabled ? "rgba(0,0,0,0.08)" : "rgba(16,185,129,0.2)"}`, borderRadius: isMobile ? 10 : 12, cursor: drawMoreDisabled ? "not-allowed" : "pointer", opacity: drawMoreDisabled ? 0.6 : 1 }} onClick={drawMoreDisabled ? undefined : onDrawMore}>
                             <i className="bi bi-pencil-square" style={{ fontSize: isMobile ? 14 : 16 }} /> <span style={{ fontWeight: 600, textAlign: "center", whiteSpace: "nowrap" }}>วาดแปลงเพิ่ม</span>
                         </button>
                     )}
                     {onCancelDraw && isDrawing && (
-                        <button className="prp-btn-ghost" style={{ flex: "1 1 calc(33% - 8px)", minWidth: 100, padding: isMobile ? "8px 6px" : "10px 12px", fontSize: isMobile ? 12 : 14, display: "flex", flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 6, background: "rgba(239,68,68,0.1)", color: "#ef4444", border: "1px solid rgba(239,68,68,0.2)", borderRadius: isMobile ? 10 : 12 }} onClick={onCancelDraw}>
+                        <button className="prp-btn-ghost" style={{ flex: isMobile ? "1 1 100%" : "1 1 calc(33% - 8px)", minWidth: 100, padding: isMobile ? "8px 6px" : "10px 12px", fontSize: isMobile ? 12 : 14, display: "flex", flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 6, background: "rgba(239,68,68,0.1)", color: "#ef4444", border: "1px solid rgba(239,68,68,0.2)", borderRadius: isMobile ? 10 : 12 }} onClick={onCancelDraw}>
                             <i className="bi bi-x-circle" style={{ fontSize: isMobile ? 14 : 16 }} /> <span style={{ fontWeight: 600, textAlign: "center", whiteSpace: "nowrap" }}>ยกเลิกการวาด</span>
                         </button>
                     )}
@@ -1686,9 +1691,9 @@ export function ParcelResultsPanel({
                         onClick={() => handleSave([])}
                         disabled={!user || !projectName.trim() || isDuplicateProjectName || saveState === "saving"}
                         style={{
-                            flex: "1 1 calc(33% - 8px)", minWidth: 110, padding: isMobile ? "8px 6px" : "10px 12px", fontSize: isMobile ? 12 : 14, display: "flex", flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 6,
+                            flex: isMobile ? "1 1 calc(50% - 4px)" : "1 1 calc(33% - 8px)", minWidth: 110, padding: isMobile ? "8px 6px" : "10px 12px", fontSize: isMobile ? 12 : 14, display: "flex", flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 6,
                             background: !user ? "#cbd5e1" : (saveState === "done" ? "#94a3b8" : ((projectName.trim() && !isDuplicateProjectName && !hasEmptyStatus) ? "linear-gradient(135deg,#0ea5e9,#0284c7)" : "#cbd5e1")),
-                            color: "#fff", border: "none", borderRadius: isMobile ? 10 : 12,
+                            color: "#fff", border: "1px solid transparent", borderRadius: isMobile ? 10 : 12,
                             cursor: !user ? "not-allowed" : (saveState !== "idle" ? "not-allowed" : ((projectName.trim() && !isDuplicateProjectName && !hasEmptyStatus) ? "pointer" : "not-allowed")),
                             boxShadow: !user ? "none" : (saveState === "done" ? "none" : ((projectName.trim() && !isDuplicateProjectName && !hasEmptyStatus) ? "0 4px 10px rgba(2,132,199,0.2)" : "none")),
                             opacity: !user ? 0.5 : (saveState === "done" ? 0.6 : 1),
@@ -1713,9 +1718,9 @@ export function ParcelResultsPanel({
                         }}
                         disabled={(!!user && (!projectName.trim() || isDuplicateProjectName)) || hasEmptyStatus || processingCarbon}
                         style={{
-                            flex: "1 1 calc(33% - 8px)", minWidth: 110, padding: isMobile ? "8px 6px" : "10px 12px", fontSize: isMobile ? 12 : 14, display: "flex", flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 6,
+                            flex: isMobile ? "1 1 calc(50% - 4px)" : "1 1 calc(33% - 8px)", minWidth: 110, padding: isMobile ? "8px 6px" : "10px 12px", fontSize: isMobile ? 12 : 14, display: "flex", flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 6,
                             background: ((!user || (projectName.trim() && !isDuplicateProjectName)) && !hasEmptyStatus && !processingCarbon) ? "linear-gradient(135deg,#10b981,#059669)" : "#cbd5e1",
-                            color: "#fff", border: "none", borderRadius: isMobile ? 10 : 12,
+                            color: "#fff", border: "1px solid transparent", borderRadius: isMobile ? 10 : 12,
                             cursor: ((!user || (projectName.trim() && !isDuplicateProjectName)) && !hasEmptyStatus && !processingCarbon) ? "pointer" : "not-allowed",
                             boxShadow: ((!user || (projectName.trim() && !isDuplicateProjectName)) && !hasEmptyStatus && !processingCarbon) ? "0 4px 10px rgba(16,185,129,0.2)" : "none"
                         }}
@@ -1915,9 +1920,11 @@ export function ParcelResultsPanel({
                                                         className="prp-input"
                                                         style={{ marginBottom: 0, height: 46, borderRadius: 10, border: "1.5px solid #e2e8f0", padding: "0 12px" }}
                                                         type="number"
+                                                        step="1"
+                                                        min="0"
                                                         placeholder="ระบุจำนวนต้น"
                                                         value={form.treeCount}
-                                                        onChange={e => updateForm(i, "treeCount", e.target.value)}
+                                                        onChange={e => updateForm(i, "treeCount", e.target.value.replace(/\D/g, ''))}
                                                         disabled={!form.plantStatus}
                                                     />
                                                 </div>
@@ -2235,7 +2242,10 @@ export function ParcelResultsPanel({
                         </div>
                     </div>
                     <button
-                        onClick={() => onStepChange(2)}
+                        onClick={() => {
+                            setSaveState("idle");
+                            onStepChange(2);
+                        }}
                         title="ย้อนกลับขั้นตอนที่ 2"
                         style={{ flexShrink: 0, padding: "4px 11px", fontSize: 12, fontWeight: 600, borderRadius: 999, display: "inline-flex", alignItems: "center", gap: 4, color: "#059669", border: "1px solid rgba(16,185,129,0.55)", background: "rgba(16,185,129,0.04)", cursor: "pointer", whiteSpace: "nowrap", transition: "all 0.18s", lineHeight: 1.5 }}
                         onMouseEnter={e => { e.currentTarget.style.background = "rgba(16,185,129,0.1)"; e.currentTarget.style.borderColor = "#10b981"; }}

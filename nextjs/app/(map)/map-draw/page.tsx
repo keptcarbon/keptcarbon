@@ -631,7 +631,11 @@ function MapDrawContent() {
       // Detect Right-Click (button === 2) -> Delete Node
       if (e.originalEvent && e.originalEvent.button === 2) {
         e.preventDefault();
-        const features = map.queryRenderedFeatures(e.point, { layers: ['plot-verts-l'] });
+        const bbox: [maplibregl.PointLike, maplibregl.PointLike] = [
+          [e.point.x - 8, e.point.y - 8],
+          [e.point.x + 8, e.point.y + 8]
+        ];
+        const features = map.queryRenderedFeatures(bbox, { layers: ['plot-verts-l'] });
         if (!features.length) return;
         const pIdx = features[0].properties.pIdx;
         const vIdx = features[0].properties.vIdx;
@@ -870,7 +874,11 @@ function MapDrawContent() {
     const onVertsContextMenu = (e: maplibregl.MapMouseEvent) => {
       if (drawingRef.current) return;
       e.preventDefault();
-      const features = map.queryRenderedFeatures(e.point, { layers: ['plot-verts-l'] });
+      const bbox: [maplibregl.PointLike, maplibregl.PointLike] = [
+        [e.point.x - 8, e.point.y - 8],
+        [e.point.x + 8, e.point.y + 8]
+      ];
+      const features = map.queryRenderedFeatures(bbox, { layers: ['plot-verts-l'] });
       if (!features.length) return;
       const pIdx = features[0].properties.pIdx;
       const vIdx = features[0].properties.vIdx;
@@ -2002,7 +2010,29 @@ function MapDrawContent() {
 
     const onContextMenu = (e: maplibregl.MapMouseEvent) => {
       e.preventDefault();
-      if (!drawingRef.current || vertsRef.current.length < 3) return;
+      if (!drawingRef.current) return;
+
+      const bbox: [maplibregl.PointLike, maplibregl.PointLike] = [
+        [e.point.x - 8, e.point.y - 8],
+        [e.point.x + 8, e.point.y + 8]
+      ];
+      const features = map.queryRenderedFeatures(bbox, { layers: ['draw-verts-l'] });
+      if (features.length) {
+        const f = features[0];
+        const isMid = f.properties?.isMid;
+        const vIdx = f.properties?.vIdx;
+
+        if (!isMid && vIdx !== undefined && vertsRef.current.length > 0) {
+          const newPts = [...vertsRef.current];
+          newPts.splice(vIdx, 1);
+          vertsRef.current = newPts;
+          setVertCount(newPts.length);
+          previewDraw();
+          return;
+        }
+      }
+
+      if (vertsRef.current.length < 3) return;
       finishDraw();
     };
 
@@ -2099,7 +2129,11 @@ function MapDrawContent() {
     const onDrawMouseDown = (e: maplibregl.MapMouseEvent) => {
       if (!drawingRef.current) return;
 
-      const features = map.queryRenderedFeatures(e.point, { layers: ['draw-verts-l'] });
+      const bbox: [maplibregl.PointLike, maplibregl.PointLike] = [
+        [e.point.x - 8, e.point.y - 8],
+        [e.point.x + 8, e.point.y + 8]
+      ];
+      const features = map.queryRenderedFeatures(bbox, { layers: ['draw-verts-l'] });
       if (features.length) {
         const f = features[0];
         const isMid = f.properties?.isMid;
