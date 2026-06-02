@@ -993,8 +993,8 @@ function ProjectCarbonSummary({ plots, isMobile }: { plots: SavedPlot[]; isMobil
     const validYearBESet = new Set(validYearBEs);
 
     const age28Years = allPtsArrays.map(pts => {
-        const item28 = pts.find(p => p.age === 28 && p.isAgeValid);
-        return item28 ? item28.yearBE : pts[pts.length - 1].yearBE;
+      const item28 = pts.find(p => p.age === 28 && p.isAgeValid);
+      return item28 ? item28.yearBE : pts[pts.length - 1].yearBE;
     });
     const initialMaxYearBE = Math.min(...age28Years);
 
@@ -1305,10 +1305,10 @@ function PlotCard({ plot, index, onDelete, onEdit, expanded, onToggle, isMobile,
   const isTreeCountFromUser = !!form?.treeCount;
 
   const getSourceText = (source?: string | null, isFromUserFallback?: boolean) => {
-    if (!source) return isFromUserFallback ? "" : "(ประเมินโดยระบบ)";
+    if (!source) return isFromUserFallback ? "" : "(คำนวณจากระบบ)";
     if (source.includes("default")) return "(ค่าเริ่มต้น)";
     if (source.includes("user input") || source.includes("user_input")) return "";
-    return "(ประเมินโดยระบบ)";
+    return "(คำนวณจากระบบ)";
   };
 
   const displayVariety = ep?.rubber_clone?.value ? String(ep.rubber_clone.value) : (form?.variety || plot.variety || "");
@@ -1572,11 +1572,11 @@ function PlotCard({ plot, index, onDelete, onEdit, expanded, onToggle, isMobile,
                         ปีที่เริ่มปลูกที่ใช้ในการคำนวณ{" "}
                         {userEnteredYear ? (
                           <span style={{ color: "#059669", fontWeight: 600 }}>
-                            (1 ปี:ข้อมูลที่ผู้ใช้ระบุ)
+                            (1 ปี: ข้อมูลที่ผู้ใช้ระบุ)
                           </span>
                         ) : yearBoxItems.length > 0 ? (
                           <span style={{ color: "#059669", fontWeight: 600 }}>
-                            ({yearBoxItems.length} ปี:ข้อมูลอ้างอิงจากระบบ)
+                            ({yearBoxItems.length} ปี: ข้อมูลอ้างอิงจากระบบ)
                           </span>
                         ) : (
                           <span style={{ color: "#059669", fontWeight: 600 }}>

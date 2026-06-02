@@ -396,10 +396,10 @@ function PlotDetailCard({
     if (!displayYearBE && cr.plantYearBE > 0) displayYearBE = cr.plantYearBE;
 
     const getSourceText = (source?: string | null, isFromUserFallback?: boolean) => {
-        if (!source) return isFromUserFallback ? "" : "(ประเมินโดยระบบ)";
+        if (!source) return isFromUserFallback ? "" : "(คำนวณจากระบบ)";
         if (source.includes("default")) return "(ค่าเริ่มต้น)";
         if (source.includes("user input") || source.includes("user_input")) return "";
-        return "(ประเมินโดยระบบ)";
+        return "(คำนวณจากระบบ)";
     };
 
     const variety = ep?.rubber_clone?.value ? String(ep.rubber_clone.value) : (form?.variety || "");
@@ -433,11 +433,11 @@ function PlotDetailCard({
                         ปีที่เริ่มปลูกที่ใช้ในการคำนวณ{" "}
                         {userEnteredYear ? (
                             <span style={{ color: "#059669", fontWeight: 600 }}>
-                                (1 ปี:ข้อมูลที่ผู้ใช้ระบุ)
+                                (1 ปี: ข้อมูลที่ผู้ใช้ระบุ)
                             </span>
                         ) : yearBoxItems.length > 0 ? (
                             <span style={{ color: "#059669", fontWeight: 600 }}>
-                                ({yearBoxItems.length} ปี:ข้อมูลอ้างอิงจากระบบ)
+                                ({yearBoxItems.length} ปี: ข้อมูลอ้างอิงจากระบบ)
                             </span>
                         ) : (
                             <span style={{ color: "#059669", fontWeight: 600 }}>
@@ -980,12 +980,23 @@ export function ParcelResultsPanel({
         for (let idx = 0; idx < parcelFeatures.length; idx++) {
             const form = plotForms[idx];
             const checkedClasses = new Set<string>();
-            Object.entries(form?.luChecked || {}).forEach(([cls, on]) => { if (on) checkedClasses.add(cls); });
+            const formChecked = form?.luChecked || {};
+
+            allFeatsByPlot[idx].forEach(feat => {
+                const cls = ((feat.properties ?? {}) as Record<string, unknown>).lu_class as string | undefined;
+                if (cls) {
+                    let isOn = false;
+                    if (cls === "A") isOn = formChecked[cls] ?? true;
+                    else if (cls.startsWith("A")) isOn = formChecked[cls] ?? cls.includes("A302");
+                    else isOn = formChecked[cls] ?? false;
+                    if (isOn) checkedClasses.add(cls);
+                }
+            });
 
             const plotFeats = allFeatsByPlot[idx].filter(feat => {
                 const luClass = ((feat.properties ?? {}) as Record<string, unknown>).lu_class as string | undefined;
                 if (!luClass) return true; // include non-lu features as-is
-                return checkedClasses.has(luClass) || luClass === "A302"; // Force A302 just in case
+                return checkedClasses.has(luClass);
             });
             featsByPlot[idx] = plotFeats;
             // Count as valid if we have LU features OR can fall back to the drawn parcel
@@ -1030,14 +1041,23 @@ export function ParcelResultsPanel({
                 rubber_clone: (form.variety && SUPPORTED_CLONES.includes(form.variety)) ? form.variety : null,
                 tree_count: form.treeCount ? (parseInt(form.treeCount) || null) : null,
                 spacing_system: form.spacing || null,
-                selected_lu_classes: Object.entries(form?.luChecked || {})
-                    .filter(([cls, on]) => {
-                        if (!on) return false;
-                        const hasRealData = Object.keys(plotsLuRealData[idx] || {}).length > 0;
-                        if (!hasRealData) return true; // Trust the form if we have no real data
-                        return (plotsLuRealData[idx]?.[cls]?.rai ?? 0) > 0;
-                    })
-                    .map(([cls]) => cls),
+                selected_lu_classes: (() => {
+                    const luData = plotsLuRealData[idx] || {};
+                    const hasRealData = Object.keys(luData).length > 0;
+                    const formChecked = form?.luChecked || {};
+                    const allClasses = new Set([...Object.keys(formChecked), ...Object.keys(luData)]);
+                    const finalClasses: string[] = [];
+                    allClasses.forEach(cls => {
+                        let isOn = false;
+                        if (cls === "A") isOn = formChecked[cls] ?? true;
+                        else if (cls.startsWith("A")) isOn = formChecked[cls] ?? cls.includes("A302");
+                        else isOn = formChecked[cls] ?? false;
+                        if (isOn && (!hasRealData || (luData[cls]?.rai ?? 0) > 0)) {
+                            finalClasses.push(cls);
+                        }
+                    });
+                    return finalClasses;
+                })(),
                 project_type: form?.plantStatus || undefined,
             });
         }
@@ -2132,7 +2152,7 @@ export function ParcelResultsPanel({
                 ? Math.round(carbonResults.reduce((s, c) => s + c.age, 0) / carbonResults.length)
                 : 0;
             aggregatePts = aggregateProfiles(backendResponses, avgStartAge);
-            
+
             const profiles = backendResponses
                 .map(r => r.carbon_profile)
                 .filter((p): p is YearlyEstimate[] => Array.isArray(p) && p.length > 0);
