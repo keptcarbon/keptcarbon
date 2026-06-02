@@ -27,6 +27,42 @@ const REGIONS_DATA = [
   { name: "ภาคใต้", provinces: ["สุราษฎร์ธานี"] }
 ];
 
+const zoomToGeoJSONFeatures = (features: GeoJSON.Feature[], map: maplibregl.Map) => {
+  if (!features || !features.length || !map) return;
+  let minLng = 180, maxLng = -180, minLat = 90, maxLat = -90;
+  let hasCoords = false;
+
+  const updateBounds = (ring: number[][]) => {
+    ring.forEach(([lng, lat]) => {
+      if (lng < minLng) minLng = lng;
+      if (lng > maxLng) maxLng = lng;
+      if (lat < minLat) minLat = lat;
+      if (lat > maxLat) maxLat = lat;
+      hasCoords = true;
+    });
+  };
+
+  features.forEach(feature => {
+    if (!feature.geometry) return;
+    if (feature.geometry.type === "Polygon") {
+      (feature.geometry as GeoJSON.Polygon).coordinates.forEach(updateBounds);
+    } else if (feature.geometry.type === "MultiPolygon") {
+      (feature.geometry as GeoJSON.MultiPolygon).coordinates.forEach(poly => poly.forEach(updateBounds));
+    }
+  });
+
+  if (hasCoords) {
+    // Adding checks to prevent identical bounds error
+    if (minLng === maxLng) { minLng -= 0.01; maxLng += 0.01; }
+    if (minLat === maxLat) { minLat -= 0.01; maxLat += 0.01; }
+    map.fitBounds([[minLng, minLat], [maxLng, maxLat]], { 
+      padding: 60, 
+      duration: 2500, // Slower, smoother animation
+      essential: true 
+    });
+  }
+};
+
 
 const THAI_PROVINCES = [
   "กระบี่", "กรุงเทพมหานคร", "กาญจนบุรี", "กาฬสินธุ์", "กำแพงเพชร",
@@ -366,21 +402,26 @@ function MapDrawContent() {
     }
   }, [drawnParcels, getVertFeatures]);
 
+
+
   // Update province boundary to show only the selected province
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !mapLoadedRef.current) return;
     const src = map.getSource("province-boundary") as maplibregl.GeoJSONSource | undefined;
     if (!src) return;
-    if (!selectedProvince) {
+    if (!selectedProvince || selectedAmphoe) {
       src.setData({ type: "FeatureCollection", features: [] });
       return;
     }
     fetch(`/api/geojson/boundary?province=${encodeURIComponent(selectedProvince)}`)
       .then(r => r.json())
-      .then(fc => src.setData(fc))
+      .then(fc => {
+        src.setData(fc);
+        if (fc.features) zoomToGeoJSONFeatures(fc.features, map);
+      })
       .catch(console.error);
-  }, [selectedProvince, mapLoaded]);
+  }, [selectedProvince, selectedAmphoe, mapLoaded]);
 
   // Fetch amphoe list from DB when province changes
   useEffect(() => {
@@ -419,12 +460,15 @@ function MapDrawContent() {
     if (!map || !mapLoadedRef.current) return;
     const src = map.getSource("district-boundary") as maplibregl.GeoJSONSource | undefined;
     if (!src) return;
-    if (!selectedAmphoe || !selectedProvince) { src.setData({ type: "FeatureCollection", features: [] }); return; }
+    if (!selectedAmphoe || !selectedProvince || selectedTambon) { src.setData({ type: "FeatureCollection", features: [] }); return; }
     fetch(`/api/geojson/districts?district=${encodeURIComponent(selectedAmphoe)}&province=${encodeURIComponent(selectedProvince)}`)
       .then(r => r.json())
-      .then(fc => src.setData(fc))
+      .then(fc => {
+        src.setData(fc);
+        if (fc.features) zoomToGeoJSONFeatures(fc.features, map);
+      })
       .catch(console.error);
-  }, [selectedAmphoe, selectedProvince, mapLoaded]);
+  }, [selectedAmphoe, selectedProvince, selectedTambon, mapLoaded]);
 
   // Update tambon boundary layer when tambon changes
   useEffect(() => {
@@ -435,7 +479,10 @@ function MapDrawContent() {
     if (!selectedTambon || !selectedAmphoe) { src.setData({ type: "FeatureCollection", features: [] }); return; }
     fetch(`/api/geojson/tambon?tambon=${encodeURIComponent(selectedTambon)}&district=${encodeURIComponent(selectedAmphoe)}`)
       .then(r => r.json())
-      .then(fc => src.setData(fc))
+      .then(fc => {
+        src.setData(fc);
+        if (fc.features) zoomToGeoJSONFeatures(fc.features, map);
+      })
       .catch(console.error);
   }, [selectedTambon, selectedAmphoe, mapLoaded]);
 
@@ -2164,80 +2211,6 @@ function MapDrawContent() {
               }
             } catch { /* ignore invalid coords */ }
           }
-        }
-      } else {
-        if (selectedTambon) {
-          // Zoom to tambon boundary
-          setSearchLoading(true);
-          try {
-            const res = await fetch(`/api/geojson/tambon?tambon=${encodeURIComponent(selectedTambon)}&district=${encodeURIComponent(selectedAmphoe)}`);
-            const fc = await res.json();
-            if (fc?.features?.length > 0) {
-              let minLng = Infinity, minLat = Infinity, maxLng = -Infinity, maxLat = -Infinity;
-              const walk = (coords: number[]) => {
-                if (typeof coords[0] === "number") {
-                  if (coords[0] < minLng) minLng = coords[0];
-                  if (coords[0] > maxLng) maxLng = coords[0];
-                  if (coords[1] < minLat) minLat = coords[1];
-                  if (coords[1] > maxLat) maxLat = coords[1];
-                } else { (coords as unknown as number[][]).forEach(walk); }
-              };
-              fc.features.forEach((f: GeoJSON.Feature) => walk((f.geometry as GeoJSON.MultiPolygon).coordinates as unknown as number[]));
-              map.fitBounds([[minLng, minLat], [maxLng, maxLat]], { padding: 80, duration: 2200, pitch: 0, bearing: 0, essential: true });
-            }
-          } catch (err) { console.error(err); }
-          setSearchLoading(false);
-        } else if (selectedAmphoe) {
-          // Zoom to district boundary
-          setSearchLoading(true);
-          try {
-            const res = await fetch(`/api/geojson/districts?district=${encodeURIComponent(selectedAmphoe)}&province=${encodeURIComponent(selectedProvince)}`);
-            const fc = await res.json();
-            if (fc?.features?.length > 0) {
-              let minLng = Infinity, minLat = Infinity, maxLng = -Infinity, maxLat = -Infinity;
-              const walk = (coords: number[]) => {
-                if (typeof coords[0] === "number") {
-                  if (coords[0] < minLng) minLng = coords[0];
-                  if (coords[0] > maxLng) maxLng = coords[0];
-                  if (coords[1] < minLat) minLat = coords[1];
-                  if (coords[1] > maxLat) maxLat = coords[1];
-                } else { (coords as unknown as number[][]).forEach(walk); }
-              };
-              fc.features.forEach((f: GeoJSON.Feature) => walk((f.geometry as GeoJSON.MultiPolygon).coordinates as unknown as number[]));
-              map.fitBounds([[minLng, minLat], [maxLng, maxLat]], { padding: 60, duration: 2200, pitch: 0, bearing: 0, essential: true });
-            }
-          } catch (err) { console.error(err); }
-          setSearchLoading(false);
-        } else if (selectedProvince) {
-          setSearchLoading(true);
-          try {
-            const res = await fetch(`/api/geojson/boundary?province=${encodeURIComponent(selectedProvince)}`);
-            const fc = await res.json();
-            if (fc?.features?.length > 0) {
-              const geom = fc.features[0].geometry as GeoJSON.MultiPolygon | GeoJSON.Polygon;
-              let minLng = Infinity, minLat = Infinity, maxLng = -Infinity, maxLat = -Infinity;
-              const walk = (coords: number[]) => {
-                if (typeof coords[0] === "number") {
-                  if (coords[0] < minLng) minLng = coords[0];
-                  if (coords[0] > maxLng) maxLng = coords[0];
-                  if (coords[1] < minLat) minLat = coords[1];
-                  if (coords[1] > maxLat) maxLat = coords[1];
-                } else {
-                  (coords as unknown as number[][]).forEach(walk);
-                }
-              };
-              walk(geom.coordinates as unknown as number[]);
-              map.fitBounds(
-                [[minLng, minLat], [maxLng, maxLat]],
-                { padding: 60, duration: 2500, pitch: 0, bearing: 0, essential: true }
-              );
-            }
-          } catch (err) {
-            console.error(err);
-          }
-          setSearchLoading(false);
-        } else if (map.getZoom() < 10) {
-          map.flyTo({ center: [101.35, 12.80], zoom: 9.5, pitch: 0, bearing: 0, duration: 3000, essential: true, curve: 1.42 });
         }
       }
     }
