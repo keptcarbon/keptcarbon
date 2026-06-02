@@ -3234,6 +3234,7 @@ function MapDrawContent() {
 
                         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                           {/* Tabs for Location Method */}
+                          {/*
                           <div style={{ display: "flex", background: "#f1f5f9", borderRadius: 10, padding: 4 }}>
                             <button
                               onClick={() => setLocationMethod("area")}
@@ -3260,6 +3261,7 @@ function MapDrawContent() {
                               <i className="bi bi-crosshair2 me-1" /> กรอกค่าพิกัด
                             </button>
                           </div>
+                          */}
 
                           {locationMethod === "area" ? (
                             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
