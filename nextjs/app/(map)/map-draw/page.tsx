@@ -3218,7 +3218,7 @@ function MapDrawContent() {
                             <button
                               onClick={() => setLocationMethod("area")}
                               style={{
-                                flex: 1, padding: "8px", borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: "pointer", border: "none",
+                                flex: 1, padding: "8px", borderRadius: 8, fontSize: 15, fontWeight: 700, cursor: "pointer", border: "none",
                                 background: locationMethod === "area" ? "#fff" : "transparent",
                                 color: locationMethod === "area" ? "#059669" : "#64748b",
                                 boxShadow: locationMethod === "area" ? "0 2px 5px rgba(0,0,0,0.05)" : "none",
@@ -3230,7 +3230,7 @@ function MapDrawContent() {
                             <button
                               onClick={() => setLocationMethod("coord")}
                               style={{
-                                flex: 1, padding: "8px", borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: "pointer", border: "none",
+                                flex: 1, padding: "8px", borderRadius: 8, fontSize: 15, fontWeight: 700, cursor: "pointer", border: "none",
                                 background: locationMethod === "coord" ? "#fff" : "transparent",
                                 color: locationMethod === "coord" ? "#059669" : "#64748b",
                                 boxShadow: locationMethod === "coord" ? "0 2px 5px rgba(0,0,0,0.05)" : "none",
@@ -3245,8 +3245,8 @@ function MapDrawContent() {
                             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                               {/* ภาค (Region) */}
                               <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-                                <label style={{ fontSize: 10.5, fontWeight: 600, color: "#64748b" }}>ภาค</label>
-                                <select className="prp-input" style={{ padding: "8px 5px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: 11.5, background: "#fff", width: "100%" }} value={selectedRegion} onChange={(e) => { setSelectedRegion(e.target.value); setSelectedProvince(""); setSelectedAmphoe(""); setSelectedTambon(""); }}>
+                                <label style={{ fontSize: 14, fontWeight: 600, color: "#64748b" }}>ภาค</label>
+                                <select className="prp-input" style={{ padding: "8px 5px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: 15, background: "#fff", width: "100%" }} value={selectedRegion} onChange={(e) => { setSelectedRegion(e.target.value); setSelectedProvince(""); setSelectedAmphoe(""); setSelectedTambon(""); }}>
                                   <option value="">เลือกภาค...</option>
                                   {REGIONS_DATA.map(r => <option key={r.name} value={r.name}>{r.name}</option>)}
                                 </select>
@@ -3255,43 +3255,45 @@ function MapDrawContent() {
                               {/* 3-column: Province / Amphoe / Tambon */}
                               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6 }}>
                                 <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-                                  <label style={{ fontSize: 10.5, fontWeight: 600, color: "#64748b" }}>จังหวัด</label>
-                                  <select className="prp-input" style={{ padding: "8px 5px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: 11.5, background: selectedRegion ? "#fff" : "#f8fafc", color: selectedRegion ? "#0f172a" : "#94a3b8", width: "100%" }} value={selectedProvince} onChange={(e) => { setSelectedProvince(e.target.value); setSelectedAmphoe(""); setSelectedTambon(""); }} disabled={!selectedRegion}>
+                                  <label style={{ fontSize: 14, fontWeight: 600, color: "#64748b" }}>จังหวัด</label>
+                                  <select className="prp-input" style={{ padding: "8px 5px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: 15, background: selectedRegion ? "#fff" : "#f8fafc", color: selectedRegion ? "#0f172a" : "#94a3b8", width: "100%" }} value={selectedProvince} onChange={(e) => { setSelectedProvince(e.target.value); setSelectedAmphoe(""); setSelectedTambon(""); }} disabled={!selectedRegion}>
                                     <option value="">เลือกจังหวัด...</option>
                                     {selectedRegion && REGIONS_DATA.find(r => r.name === selectedRegion)?.provinces.map(p => <option key={p} value={p}>{p}</option>)}
                                   </select>
                                 </div>
                                 <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-                                  <label style={{ fontSize: 10.5, fontWeight: 600, color: "#64748b" }}>อำเภอ</label>
+                                  <label style={{ fontSize: 14, fontWeight: 600, color: "#64748b" }}>อำเภอ</label>
                                   {amphoesFromDb.length > 0 ? (
-                                    <select className="prp-input" style={{ padding: "8px 5px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: 11.5, background: selectedProvince ? "#fff" : "#f8fafc", color: selectedProvince ? "#0f172a" : "#94a3b8", width: "100%" }} value={selectedAmphoe} onChange={(e) => { setSelectedAmphoe(e.target.value); setSelectedTambon(""); }} disabled={!selectedProvince}>
+                                    <select className="prp-input" style={{ padding: "8px 5px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: 15, background: selectedProvince ? "#fff" : "#f8fafc", color: selectedProvince ? "#0f172a" : "#94a3b8", width: "100%" }} value={selectedAmphoe} onChange={(e) => { setSelectedAmphoe(e.target.value); setSelectedTambon(""); }} disabled={!selectedProvince}>
                                       <option value="">เลือกอำเภอ...</option>
                                       {amphoesFromDb.map(a => <option key={a} value={a}>{a}</option>)}
                                     </select>
                                   ) : AMPHOE_DATA[selectedProvince] ? (
-                                    <select className="prp-input" style={{ padding: "8px 5px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: 11.5, background: selectedProvince ? "#fff" : "#f8fafc", color: selectedProvince ? "#0f172a" : "#94a3b8", width: "100%" }} value={selectedAmphoe} onChange={(e) => { setSelectedAmphoe(e.target.value); setSelectedTambon(""); }} disabled={!selectedProvince}>
+                                    <select className="prp-input" style={{ padding: "8px 5px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: 15, background: selectedProvince ? "#fff" : "#f8fafc", color: selectedProvince ? "#0f172a" : "#94a3b8", width: "100%" }} value={selectedAmphoe} onChange={(e) => { setSelectedAmphoe(e.target.value); setSelectedTambon(""); }} disabled={!selectedProvince}>
                                       <option value="">เลือกอำเภอ...</option>
                                       {AMPHOE_DATA[selectedProvince].map(a => <option key={a} value={a}>{a}</option>)}
                                     </select>
                                   ) : (
-                                    <input className="prp-input" style={{ padding: "8px 5px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: 11.5, width: "100%", boxSizing: "border-box" }} placeholder="เลือกอำเภอ..." value={selectedAmphoe} onChange={e => setSelectedAmphoe(e.target.value)} />
+                                    <select className="prp-input" style={{ padding: "8px 5px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: 15, background: "#f8fafc", color: "#94a3b8", width: "100%" }} disabled>
+                                      <option value="">{selectedProvince ? "กำลังโหลด..." : "เลือกจังหวัดก่อน"}</option>
+                                    </select>
                                   )}
                                 </div>
                                 <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-                                  <label style={{ fontSize: 10.5, fontWeight: 600, color: "#64748b" }}>ตำบล</label>
+                                  <label style={{ fontSize: 14, fontWeight: 600, color: "#64748b" }}>ตำบล</label>
                                   {tambonsLoading ? (
-                                    <select className="prp-input" style={{ padding: "8px 5px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: 11.5, background: "#f8fafc", color: "#94a3b8", width: "100%" }} disabled>
+                                    <select className="prp-input" style={{ padding: "8px 5px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: 15, background: "#f8fafc", color: "#94a3b8", width: "100%" }} disabled>
                                       <option value="">กำลังโหลด...</option>
                                     </select>
                                   ) : tambonsFromDb.length > 0 ? (
-                                    <select className="prp-input" style={{ padding: "8px 5px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: 11.5, background: selectedAmphoe ? "#fff" : "#f8fafc", color: selectedAmphoe ? "#0f172a" : "#94a3b8", width: "100%" }} value={selectedTambon} onChange={e => setSelectedTambon(e.target.value)} disabled={!selectedAmphoe}>
+                                    <select className="prp-input" style={{ padding: "8px 5px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: 15, background: selectedAmphoe ? "#fff" : "#f8fafc", color: selectedAmphoe ? "#0f172a" : "#94a3b8", width: "100%" }} value={selectedTambon} onChange={e => setSelectedTambon(e.target.value)} disabled={!selectedAmphoe}>
                                       <option value="">เลือกตำบล...</option>
                                       {tambonsFromDb.map(t => <option key={t} value={t}>{t}</option>)}
                                     </select>
                                   ) : selectedAmphoe ? (
-                                    <input className="prp-input" style={{ padding: "8px 5px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: 11.5, width: "100%", boxSizing: "border-box" }} placeholder="ตำบล..." value={selectedTambon} onChange={e => setSelectedTambon(e.target.value)} />
+                                    <input className="prp-input" style={{ padding: "8px 5px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: 15, width: "100%", boxSizing: "border-box" }} placeholder="ตำบล..." value={selectedTambon} onChange={e => setSelectedTambon(e.target.value)} />
                                   ) : (
-                                    <select className="prp-input" style={{ padding: "8px 5px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: 11.5, background: "#f8fafc", color: "#94a3b8", width: "100%" }} disabled>
+                                    <select className="prp-input" style={{ padding: "8px 5px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: 15, background: "#f8fafc", color: "#94a3b8", width: "100%" }} disabled>
                                       <option value="">เลือกอำเภอก่อน</option>
                                     </select>
                                   )}
@@ -3306,12 +3308,12 @@ function MapDrawContent() {
                           ) : (
                             <div style={{ padding: "10px 12px", background: "linear-gradient(135deg,rgba(5,150,105,0.05),rgba(13,148,136,0.04))", border: "1px solid rgba(5,150,105,0.18)", borderRadius: 10, display: "flex", flexDirection: "column", gap: 8 }}>
                               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                                <div style={{ fontSize: 11.5, fontWeight: 700, color: "#059669", display: "flex", alignItems: "center", gap: 5 }}>
+                                <div style={{ fontSize: 14, fontWeight: 700, color: "#059669", display: "flex", alignItems: "center", gap: 5 }}>
                                   ระบบพิกัด
                                 </div>
                                 <div style={{ display: "flex", gap: 4 }}>
                                   {(["latlng", "utm"] as const).map(m => (
-                                    <button key={m} onClick={() => setCoordMode(m)} style={{ padding: "3px 9px", borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: "pointer", border: "none", background: coordMode === m ? "linear-gradient(135deg,#059669,#0d9488)" : "#f1f5f9", color: coordMode === m ? "#fff" : "#64748b", transition: "all 0.15s" }}>
+                                    <button key={m} onClick={() => setCoordMode(m)} style={{ padding: "3px 9px", borderRadius: 6, fontSize: 15, fontWeight: 700, cursor: "pointer", border: "none", background: coordMode === m ? "linear-gradient(135deg,#059669,#0d9488)" : "#f1f5f9", color: coordMode === m ? "#fff" : "#64748b", transition: "all 0.15s" }}>
                                       {m === "latlng" ? "Lat/Lng" : "UTM"}
                                     </button>
                                   ))}
@@ -3320,36 +3322,36 @@ function MapDrawContent() {
                               {coordMode === "latlng" ? (
                                 <div style={{ display: "flex", gap: 6 }}>
                                   <div style={{ flex: 1 }}>
-                                    <div style={{ fontSize: 10.5, color: "#64748b", fontWeight: 600, marginBottom: 3 }}>Latitude</div>
-                                    <input className="prp-input" style={{ padding: "7px 8px", borderRadius: 7, border: "1px solid #cbd5e1", fontSize: 12.5, width: "100%", boxSizing: "border-box" }} placeholder="เช่น 15.8700" value={coordLat} onChange={e => setCoordLat(e.target.value)} />
+                                    <div style={{ fontSize: 14, color: "#64748b", fontWeight: 600, marginBottom: 3 }}>Latitude</div>
+                                    <input className="prp-input" style={{ padding: "7px 8px", borderRadius: 7, border: "1px solid #cbd5e1", fontSize: 15, width: "100%", boxSizing: "border-box" }} placeholder="เช่น 15.8700" value={coordLat} onChange={e => setCoordLat(e.target.value)} />
                                   </div>
                                   <div style={{ flex: 1 }}>
-                                    <div style={{ fontSize: 10.5, color: "#64748b", fontWeight: 600, marginBottom: 3 }}>Longitude</div>
-                                    <input className="prp-input" style={{ padding: "7px 8px", borderRadius: 7, border: "1px solid #cbd5e1", fontSize: 12.5, width: "100%", boxSizing: "border-box" }} placeholder="เช่น 100.9925" value={coordLng} onChange={e => setCoordLng(e.target.value)} />
+                                    <div style={{ fontSize: 14, color: "#64748b", fontWeight: 600, marginBottom: 3 }}>Longitude</div>
+                                    <input className="prp-input" style={{ padding: "7px 8px", borderRadius: 7, border: "1px solid #cbd5e1", fontSize: 15, width: "100%", boxSizing: "border-box" }} placeholder="เช่น 100.9925" value={coordLng} onChange={e => setCoordLng(e.target.value)} />
                                   </div>
                                 </div>
                               ) : (
                                 <>
                                   <div style={{ display: "flex", gap: 5, alignItems: "center" }}>
-                                    <span style={{ fontSize: 10.5, color: "#64748b", fontWeight: 600 }}>Zone:</span>
+                                    <span style={{ fontSize: 14, color: "#64748b", fontWeight: 600 }}>Zone:</span>
                                     {([47, 48] as const).map(z => (
-                                      <button key={z} onClick={() => setCoordUtmZone(z)} style={{ padding: "3px 11px", borderRadius: 6, fontSize: 11.5, fontWeight: 700, cursor: "pointer", border: "none", background: coordUtmZone === z ? "linear-gradient(135deg,#059669,#0d9488)" : "#f1f5f9", color: coordUtmZone === z ? "#fff" : "#64748b", transition: "all 0.15s" }}>{z}N</button>
+                                      <button key={z} onClick={() => setCoordUtmZone(z)} style={{ padding: "3px 11px", borderRadius: 6, fontSize: 15, fontWeight: 700, cursor: "pointer", border: "none", background: coordUtmZone === z ? "linear-gradient(135deg,#059669,#0d9488)" : "#f1f5f9", color: coordUtmZone === z ? "#fff" : "#64748b", transition: "all 0.15s" }}>{z}N</button>
                                     ))}
-                                    <span style={{ fontSize: 10, color: "#94a3b8" }}>{coordUtmZone === 47 ? "(ตะวันตก)" : "(ตะวันออก)"}</span>
+                                    <span style={{ fontSize: 13, color: "#94a3b8" }}>{coordUtmZone === 47 ? "(ตะวันตก)" : "(ตะวันออก)"}</span>
                                   </div>
                                   <div style={{ display: "flex", gap: 6 }}>
                                     <div style={{ flex: 1 }}>
-                                      <div style={{ fontSize: 10.5, color: "#64748b", fontWeight: 600, marginBottom: 3 }}>Easting (m)</div>
-                                      <input className="prp-input" style={{ padding: "7px 8px", borderRadius: 7, border: "1px solid #cbd5e1", fontSize: 12.5, width: "100%", boxSizing: "border-box" }} placeholder="เช่น 560000" value={coordE} onChange={e => setCoordE(e.target.value)} />
+                                      <div style={{ fontSize: 14, color: "#64748b", fontWeight: 600, marginBottom: 3 }}>Easting (m)</div>
+                                      <input className="prp-input" style={{ padding: "7px 8px", borderRadius: 7, border: "1px solid #cbd5e1", fontSize: 15, width: "100%", boxSizing: "border-box" }} placeholder="เช่น 560000" value={coordE} onChange={e => setCoordE(e.target.value)} />
                                     </div>
                                     <div style={{ flex: 1 }}>
-                                      <div style={{ fontSize: 10.5, color: "#64748b", fontWeight: 600, marginBottom: 3 }}>Northing (m)</div>
-                                      <input className="prp-input" style={{ padding: "7px 8px", borderRadius: 7, border: "1px solid #cbd5e1", fontSize: 12.5, width: "100%", boxSizing: "border-box" }} placeholder="เช่น 1750000" value={coordN} onChange={e => setCoordN(e.target.value)} />
+                                      <div style={{ fontSize: 14, color: "#64748b", fontWeight: 600, marginBottom: 3 }}>Northing (m)</div>
+                                      <input className="prp-input" style={{ padding: "7px 8px", borderRadius: 7, border: "1px solid #cbd5e1", fontSize: 15, width: "100%", boxSizing: "border-box" }} placeholder="เช่น 1750000" value={coordN} onChange={e => setCoordN(e.target.value)} />
                                     </div>
                                   </div>
                                 </>
                               )}
-                              <div style={{ fontSize: 10.5, color: "#94a3b8", fontStyle: "italic" }}>
+                              <div style={{ fontSize: 13, color: "#94a3b8", fontStyle: "italic" }}>
                                 <i className="bi bi-info-circle me-1" />กรอกพิกัด แล้วกด "เริ่มวาดแปลง" ได้เลย
                               </div>
                             </div>
