@@ -87,7 +87,7 @@ export function LoginModal() {
       </div>
       <div className="modal-auth-heading text-center">เข้าสู่ระบบ</div>
       <div className="modal-auth-sub text-center">
-        ยินดีต้อนรับกลับ! กรุณากรอกข้อมูลเพื่อดำเนินการต่อ
+        ยินดีต้อนรับ! กรุณากรอกข้อมูลเพื่อดำเนินการต่อ
       </div>
 
       <AlertBox alert={alert} />
