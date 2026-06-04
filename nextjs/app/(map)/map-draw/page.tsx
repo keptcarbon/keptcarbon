@@ -24,7 +24,7 @@ type Tab = "draw" | "shp";
 const REGIONS_DATA = [
   { name: "ภาคตะวันออกเฉียงเหนือ", provinces: ["บึงกาฬ"] },
   { name: "ภาคตะวันออก", provinces: ["ระยอง"] },
-  { name: "ภาคใต้", provinces: ["สุราษฎร์ธานี"] }
+  { name: "ภาคใต้", provinces: ["สุราษฎร์ธานี"] },
 ];
 
 const zoomToGeoJSONFeatures = (features: GeoJSON.Feature[], map: maplibregl.Map) => {
@@ -64,36 +64,10 @@ const zoomToGeoJSONFeatures = (features: GeoJSON.Feature[], map: maplibregl.Map)
 };
 
 
-const THAI_PROVINCES = [
-  "กระบี่", "กรุงเทพมหานคร", "กาญจนบุรี", "กาฬสินธุ์", "กำแพงเพชร",
-  "ขอนแก่น", "จันทบุรี", "ฉะเชิงเทรา", "ชลบุรี", "ชัยนาท",
-  "ชัยภูมิ", "ชุมพร", "เชียงราย", "เชียงใหม่", "ตรัง",
-  "ตราด", "ตาก", "นครนายก", "นครปฐม", "นครพนม",
-  "นครราชสีมา", "นครศรีธรรมราช", "นครสวรรค์", "นนทบุรี", "นราธิวาส",
-  "น่าน", "บึงกาฬ", "บุรีรัมย์", "ปทุมธานี", "ประจวบคีรีขันธ์",
-  "ปราจีนบุรี", "ปัตตานี", "พระนครศรีอยุธยา", "พะเยา", "พังงา",
-  "พัทลุง", "พิจิตร", "พิษณุโลก", "เพชรบุรี", "เพชรบูรณ์",
-  "แพร่", "ภูเก็ต", "มหาสารคาม", "มุกดาหาร", "แม่ฮ่องสอน",
-  "ยโสธร", "ยะลา", "ร้อยเอ็ด", "ระนอง", "ระยอง",
-  "ราชบุรี", "ลพบุรี", "ลำปาง", "ลำพูน", "เลย",
-  "ศรีสะเกษ", "สกลนคร", "สงขลา", "สตูล", "สมุทรปราการ",
-  "สมุทรสงคราม", "สมุทรสาคร", "สระแก้ว", "สระบุรี", "สิงห์บุรี",
-  "สุโขทัย", "สุพรรณบุรี", "สุราษฎร์ธานี", "สุรินทร์", "หนองคาย",
-  "หนองบัวลำภู", "อ่างทอง", "อำนาจเจริญ", "อุดรธานี", "อุตรดิตถ์",
-  "อุทัยธานี", "อุบลราชธานี"
-].sort((a, b) => a.localeCompare(b, "th"));
-
 const AMPHOE_DATA: Record<string, string[]> = {
   "บึงกาฬ": ["เมืองบึงกาฬ", "พรเจริญ", "โซ่พิสัย", "เซกา", "ปากคาด", "บึงโขงหลง", "ศรีวิไล", "บุ้งคล้า"],
   "ระยอง": ["เมืองระยอง", "บ้านฉาง", "แกลง", "วังจันทร์", "บ้านค่าย", "ปลวกแดง", "เขาชะเมา", "นิคมพัฒนา"],
   "สุราษฎร์ธานี": ["เมืองสุราษฎร์ธานี", "กาญจนดิษฐ์", "ดอนสัก", "เกาะสมุย", "เกาะพะงัน", "ไชยา", "ท่าชนะ", "คีรีรัฐนิคม", "บ้านตาขุน", "พนม", "ท่าฉาง", "บ้านนาสาร", "บ้านนาเดิม", "เคียนซา", "เวียงสระ", "พระแสง", "พุนพิน", "ชัยบุรี", "วิภาวดี"],
-  "สงขลา": ["เมืองสงขลา", "สทิงพระ", "จะนะ", "นาทวี", "เทพา", "สะบ้าย้อย", "ระโนด", "กระแสสินธุ์", "รัตภูมิ", "สะเดา", "หาดใหญ่", "นาหม่อม", "ควนเนียง", "บางกล่ำ", "สิงหนคร", "คลองหอยโข่ง"],
-  "นครศรีธรรมราช": ["เมืองนครศรีธรรมราช", "พรหมคีรี", "ลานสกา", "ฉวาง", "พิปูน", "เชียรใหญ่", "ชะอวด", "ท่าศาลา", "ทุ่งสง", "นาบอน", "ทุ่งใหญ่", "ปากพนัง", "ร่อนพิบูลย์", "สิชล", "ขนอม", "หัวไทร", "บางขัน", "ถ้ำพรรณรา", "จุฬาภรณ์", "พระพรหม", "นบพิตำ", "ช้างกลาง", "เฉลิมพระเกียรติ"],
-  "กระบี่": ["เมืองกระบี่", "เขาพนม", "เกาะลันตา", "คลองท่อม", "อ่าวลึก", "ปลายพระยา", "ลำทับ", "เหนือคลอง"],
-  "พัทลุง": ["เมืองพัทลุง", "กงหรา", "เขาชัยสน", "ตะโหมด", "ควนขนุน", "ปากพะยูน", "ศรีบรรพต", "ป่าบอน", "บางแก้ว", "ป่าพะยอม", "ศรีนครินทร์"],
-  "ตรัง": ["เมืองตรัง", "กันตัง", "ย่านตาขาว", "ปะเหลียน", "สิเกา", "ห้วยยอด", "วังวิเศษ", "นาโยง", "รัษฎา", "หาดสำราญ"],
-  "ชุมพร": ["เมืองชุมพร", "ท่าแซะ", "ปะทิว", "หลังสวน", "ละแม", "พะโต๊ะ", "สวี", "ทุ่งตะโก"],
-  "ระนอง": ["เมืองระนอง", "ละอุ่น", "กะเปอร์", "กระบุรี", "สุขสำราญ"],
 };
 
 // UTM Zone 47N/48N → WGS84
@@ -194,8 +168,10 @@ function MapDrawContent() {
   const [tab, setTab] = useState<Tab>("draw");
   const [basemapOpen, setBasemapOpen] = useState(false);
   const [basemap, setBasemap] = useState<"hybrid" | "sat" | "street" | "topo">("hybrid");
-  const [status, setStatus] = useState("🌍 แผนที่ลูกโลก — กด \"เริ่มวาดแปลง\" เพื่อบินไปยังประเทศไทย");
+  const [status, setStatus] = useState("🇹🇭 แผนที่ประเทศไทย — เลือกภาค จังหวัด อำเภอ หรือตำบล แล้วกด \"เริ่มวาดแปลง\"");
   const [mapLoaded, setMapLoaded] = useState(false);
+
+
 
   // SHP state
   const [shpFile, setShpFile] = useState<File | null>(null);
@@ -402,6 +378,45 @@ function MapDrawContent() {
   }, [drawnParcels, getVertFeatures]);
 
 
+
+  // Thailand boundary: show when no region/province selected, hide otherwise
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapLoadedRef.current) return;
+    const src = map.getSource("th-boundary") as maplibregl.GeoJSONSource | undefined;
+    if (!src) return;
+    if (selectedRegion || selectedProvince) {
+      src.setData({ type: "FeatureCollection", features: [] });
+      return;
+    }
+    fetch('/api/geojson/th-boundary')
+      .then(r => r.json())
+      .then(fc => { src.setData(fc); })
+      .catch(console.error);
+  }, [selectedRegion, selectedProvince, mapLoaded]);
+
+  // Region boundary: show only the selected region, hide when province chosen
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapLoadedRef.current) return;
+    const src = map.getSource("region-boundary") as maplibregl.GeoJSONSource | undefined;
+    if (!src) return;
+    if (!selectedRegion || selectedProvince) {
+      src.setData({ type: "FeatureCollection", features: [] });
+      return;
+    }
+    fetch('/api/geojson/regions')
+      .then(r => r.json())
+      .then((fc: GeoJSON.FeatureCollection) => {
+        const filtered: GeoJSON.FeatureCollection = {
+          type: "FeatureCollection",
+          features: (fc.features || []).filter(f => f.properties?.name_th === selectedRegion),
+        };
+        src.setData(filtered);
+        if (filtered.features.length) zoomToGeoJSONFeatures(filtered.features, map);
+      })
+      .catch(console.error);
+  }, [selectedRegion, selectedProvince, mapLoaded]);
 
   // Update province boundary to show only the selected province
   useEffect(() => {
@@ -1127,8 +1142,8 @@ function MapDrawContent() {
           { id: "topo", type: "raster", source: "topo", layout: { visibility: "none" } },
         ],
       },
-      center: typeof window !== "undefined" && window.innerWidth < 768 ? [101.258, 10.0] : [101.258, 13.5],
-      zoom: typeof window !== "undefined" && window.innerWidth < 768 ? 1.0 : 2,
+      center: [101.258, 13.0],
+      zoom: typeof window !== "undefined" ? (window.innerWidth < 768 ? 1.5 : 2.2) : 2.2,
       minZoom: 0.5,
       maxZoom: 19,
       pitch: 0,
@@ -1156,6 +1171,82 @@ function MapDrawContent() {
       map.setProjection({ type: "globe" });
       mapLoadedRef.current = true;
       setMapLoaded(true);
+
+
+      // ── Thailand Country Boundary (shown on load, before any selection) ───
+      map.addSource("th-boundary", {
+        type: "geojson",
+        data: { type: "FeatureCollection", features: [] },
+      });
+      map.addLayer({
+        id: "th-boundary-fill",
+        type: "fill",
+        source: "th-boundary",
+        paint: { "fill-color": "#22c55e", "fill-opacity": 0.04 },
+      });
+      map.addLayer({
+        id: "th-boundary-glow",
+        type: "line",
+        source: "th-boundary",
+        paint: {
+          "line-color": "#22c55e",
+          "line-width": ["interpolate", ["linear"], ["zoom"], 4, 6, 8, 12, 12, 20],
+          "line-opacity": ["interpolate", ["linear"], ["zoom"], 4, 0.2, 12, 0.35],
+          "line-blur": ["interpolate", ["linear"], ["zoom"], 4, 4, 12, 10],
+        },
+      });
+      map.addLayer({
+        id: "th-boundary-line",
+        type: "line",
+        source: "th-boundary",
+        paint: {
+          "line-color": "#16a34a",
+          "line-width": ["interpolate", ["linear"], ["zoom"], 4, 1.5, 8, 2.5, 12, 4],
+          "line-opacity": 0.9,
+        },
+      });
+
+      // ── Region Boundaries (shown when region is selected) ──────────────────
+      map.addSource("region-boundary", {
+        type: "geojson",
+        data: { type: "FeatureCollection", features: [] },
+      });
+      map.addLayer({
+        id: "region-boundary-fill",
+        type: "fill",
+        source: "region-boundary",
+        paint: { "fill-color": "#f59e0b", "fill-opacity": 0.06 },
+      });
+      map.addLayer({
+        id: "region-boundary-glow",
+        type: "line",
+        source: "region-boundary",
+        paint: {
+          "line-color": "#f59e0b",
+          "line-width": ["interpolate", ["linear"], ["zoom"], 5, 6, 9, 12, 13, 20],
+          "line-opacity": ["interpolate", ["linear"], ["zoom"], 5, 0.15, 13, 0.3],
+          "line-blur": ["interpolate", ["linear"], ["zoom"], 5, 3, 13, 10],
+        },
+      });
+      map.addLayer({
+        id: "region-boundary-line",
+        type: "line",
+        source: "region-boundary",
+        paint: {
+          "line-color": "#d97706",
+          "line-width": ["interpolate", ["linear"], ["zoom"], 5, 1.5, 9, 2.5, 13, 5],
+          "line-opacity": 0.95,
+        },
+      });
+
+      // Fetch Thailand boundary on initial load
+      fetch('/api/geojson/th-boundary')
+        .then(r => r.json())
+        .then(fc => {
+          const src = map.getSource("th-boundary") as maplibregl.GeoJSONSource | undefined;
+          if (src) src.setData(fc);
+        })
+        .catch(console.error);
 
       // ── Province Boundaries ───────────────────────────────────────────────
       map.addSource("province-boundary", {
@@ -3896,6 +3987,7 @@ function MapDrawContent() {
           </div>
         </div>
       )}
+
 
     </div>
   );

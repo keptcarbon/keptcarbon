@@ -165,7 +165,7 @@ export async function GET(request: NextRequest) {
             ST_Y(ST_Centroid(d.geom))::float AS lat,
             ST_X(ST_Centroid(d.geom))::float AS lng
           FROM district_totals dt
-          LEFT JOIN districts d ON dt.amphoe_t = REPLACE(d.amphoe_t, 'อ.', '')
+          LEFT JOIN geo_district d ON dt.amphoe_t = d.name_th
           ORDER BY dt.total_carbon DESC
         `)
       ]);
