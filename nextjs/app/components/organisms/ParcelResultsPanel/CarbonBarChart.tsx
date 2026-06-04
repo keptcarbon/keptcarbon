@@ -209,6 +209,7 @@ export function CarbonBarChart({
 
             return (
               <g key={p.year_at} onMouseEnter={() => setHoverIdx(i)} onMouseLeave={() => setHoverIdx(null)} style={{ cursor: "pointer" }}>
+                <rect x={x - gap / 2} y={PT} width={barW + gap} height={iH} fill="transparent" />
                 {isHov && !isYearZero && <rect x={x - 2} y={PT} width={barW + 4} height={iH} rx={4} fill={col.top} opacity={0.10} />}
                 <rect
                   x={x} y={y} width={barW} height={bh}
@@ -303,28 +304,29 @@ export function CarbonBarChart({
           const gainVal = Math.floor(p.gainValue || 0).toLocaleString("th-TH");
           const gainCiVal = (Math.floor((p.gainCi || 0) * 10) / 10).toLocaleString("th-TH", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 
+          const tooltipBottomY = yFixed - 10;
+
           return createPortal(
-            <div style={{
-              position: "fixed",
-              left: xFixed,
-              top: yFixed,
-              transform: `translate(${translateX}, calc(-100% - 8px))`,
-              background: "#082f20",
-              borderRadius: 8,
-              borderTop: `3px solid ${col.top}`,
-              boxShadow: "0 4px 16px rgba(0,0,0,0.45)",
-              color: "#fff",
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              padding: "8px 12px 10px",
-              boxSizing: "border-box",
-              fontFamily: "inherit",
-              gap: 5,
-              pointerEvents: "none",
-              zIndex: 9999,
-              minWidth: 148,
-            }}>
+            <div style={{ zIndex: 9999, pointerEvents: "none" }}>
+              <div style={{
+                position: "fixed",
+                left: xFixed,
+                top: tooltipBottomY,
+                transform: `translate(${translateX}, -100%)`,
+                background: "#082f20",
+                borderRadius: 8,
+                borderTop: `3px solid ${col.top}`,
+                boxShadow: "0 4px 16px rgba(0,0,0,0.45)",
+                color: "#fff",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                padding: "8px 12px 10px",
+                boxSizing: "border-box",
+                fontFamily: "inherit",
+                gap: 5,
+                minWidth: 148,
+              }}>
               <div style={{ color: col.top, fontSize: 12, fontWeight: 700, letterSpacing: "0.02em" }}>
                 ปีที่ {p.year_at}
               </div>
@@ -358,6 +360,18 @@ export function CarbonBarChart({
                   tCO₂eq
                 </div>
               </div>
+              </div>
+              <div style={{
+                position: "fixed",
+                left: xFixed,
+                top: tooltipBottomY + 1,
+                transform: "translate(-50%, 0)",
+                width: 0,
+                height: 0,
+                borderLeft: "7px solid transparent",
+                borderRight: "7px solid transparent",
+                borderTop: "7px solid #082f20",
+              }} />
             </div>,
             document.body
           );
