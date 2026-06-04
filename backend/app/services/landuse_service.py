@@ -76,7 +76,7 @@ class LanduseService:
             poly_data["A302_geometry"] = mapping(unary_union(merged_gdf.geometry)) 
             poly_data["A302_area_m2"] = round(merged_gdf.geometry.area.sum(),4)
             area = poly_data["A302_area_m2"]
-            print(f"A320_area (m2): {area}")
+            # print(f"A320_area (m2): {area}")
 
             return poly_data
 

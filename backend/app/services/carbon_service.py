@@ -193,7 +193,7 @@ class CarbonService:
         # Step 3: Check user input year of planting and tree count for reliability
         # Cache the counts for later use in age cohort extraction to avoid duplicate raster I/O
         poly_data = self.age_map_svc.get_plantation_year_count(poly_data)
-        print(f"Year counts for polygon {poly_data['id']}: {poly_data['_cached_year_counts']}")
+        # print(f"Year counts for polygon {poly_data['id']}: {poly_data['_cached_year_counts']}")
 
         if poly_data.get("year_of_planting") is not None:
 
@@ -202,7 +202,7 @@ class CarbonService:
                 age = current_calendar_year - poly_data["year_of_planting"]
 
                 planning_year_info = self.age_map_svc.get_plantation_year_of_planting_info(poly_data)
-                print(f"Planning year info: {planning_year_info}")
+                # print(f"Planning year info: {planning_year_info}")
 
                 tree_info = self.tree_svc.get_tree_count_user_input(poly_data)
                 
@@ -266,18 +266,18 @@ class CarbonService:
             
 
         else:
-            print("Error: No user input year of planting found.")
+            # print("Error: No user input year of planting found.")
             
             cohorts = self.age_map_svc.get_plantation_age_cohorts(poly_data)
-            print(f"Extracted age cohorts: {cohorts}")
+            # print(f"Extracted age cohorts: {cohorts}")
 
             # Find the dictionary containing the maximum proportion value
             dominant_cohort = max(cohorts, key=lambda c: c['proportion'])
             
             highest_proportion = dominant_cohort['proportion']
-            print(f"highest_proportion: {highest_proportion}")
+            # print(f"highest_proportion: {highest_proportion}")
             highest_proportion_age = dominant_cohort['age']
-            print(f"highest_proportion_age age cohorts: {highest_proportion_age}")
+            # print(f"highest_proportion_age age cohorts: {highest_proportion_age}")
 
             # Unknow year of planting is highest propotion
             if highest_proportion_age > MAX_TREE_AGE: 
@@ -310,7 +310,7 @@ class CarbonService:
             else: # High age VARIABILITY found
                 # Identify undetermined entries where age equates to the current calendar year
                 cohorts_with_null_age = [c for c in cohorts if c['age'] > MAX_TREE_AGE]
-                print(f"Cohorts with null age: {cohorts_with_null_age}")
+                # print(f"Cohorts with null age: {cohorts_with_null_age}")
 
                 reliable_mgs_add = ""
                 if cohorts_with_null_age:
@@ -327,7 +327,7 @@ class CarbonService:
                     ]
                 
             
-            print(f"Final cohorts used for profile generation: {cohorts}")
+            # print(f"Final cohorts used for profile generation: {cohorts}")
             # Sum the 'tree_count' from all cohorts
             # Safe calculation that falls back to 0 if 'tree_count' is None or missing
             total_tree_count = sum((cohort.get('tree_count') or 0) for cohort in cohorts)
