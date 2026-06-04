@@ -195,6 +195,7 @@ function MapDrawContent() {
 
   // Toast
   const [toast, setToast] = useState<string | null>(null);
+  const toastTimeRef = useRef<number>(0);
 
   // Minimum-points warning popup
   const [nodeWarningPopup, setNodeWarningPopup] = useState(false);
@@ -600,6 +601,20 @@ function MapDrawContent() {
         const screenPt = map.project([touch.lng, touch.lat] as [number, number]);
         const snapCoord = findSnapTarget(screenPt, activePIdx);
         const newCoord: [number, number] = snapCoord ?? [touch.lng, touch.lat];
+        
+        const testCoords = [...coords];
+        testCoords[activeVIdx] = newCoord;
+        if (activeVIdx === 0) {
+          testCoords[testCoords.length - 1] = newCoord;
+        }
+        const oldRai = polygonAreaM2(coords as LngLat[]) / 1600;
+        const newRai = polygonAreaM2(testCoords as LngLat[]) / 1600;
+        if (newRai > 500 && newRai > oldRai) {
+           setAreaError({ rai: newRai, sqm: newRai * 1600 });
+           onVertsTouchEnd();
+           return;
+        }
+
         setSnapIndicator(snapCoord);
         coords[activeVIdx] = newCoord;
         if (activeVIdx === 0) {
@@ -647,8 +662,8 @@ function MapDrawContent() {
       if (e.originalEvent && e.originalEvent.button === 2) {
         e.preventDefault();
         const bbox: [maplibregl.PointLike, maplibregl.PointLike] = [
-          [e.point.x - 8, e.point.y - 8],
-          [e.point.x + 8, e.point.y + 8]
+          [e.point.x - 15, e.point.y - 15],
+          [e.point.x + 15, e.point.y + 15]
         ];
         const features = map.queryRenderedFeatures(bbox, { layers: ['plot-verts-l'] });
         if (!features.length) return;
@@ -721,6 +736,20 @@ function MapDrawContent() {
         const coords = [...geom.coordinates[0]];
         const snapCoord = findSnapTarget(e.point, activePIdx);
         const newCoord: [number, number] = snapCoord ?? [e.lngLat.lng, e.lngLat.lat];
+        
+        const testCoords = [...coords];
+        testCoords[activeVIdx] = newCoord;
+        if (activeVIdx === 0) {
+          testCoords[testCoords.length - 1] = newCoord;
+        }
+        const oldRai = polygonAreaM2(coords as LngLat[]) / 1600;
+        const newRai = polygonAreaM2(testCoords as LngLat[]) / 1600;
+        if (newRai > 500 && newRai > oldRai) {
+           setAreaError({ rai: newRai, sqm: newRai * 1600 });
+           onVertsUp();
+           return;
+        }
+
         setSnapIndicator(snapCoord);
         coords[activeVIdx] = newCoord;
         if (activeVIdx === 0) {
@@ -890,8 +919,8 @@ function MapDrawContent() {
       if (drawingRef.current) return;
       e.preventDefault();
       const bbox: [maplibregl.PointLike, maplibregl.PointLike] = [
-        [e.point.x - 8, e.point.y - 8],
-        [e.point.x + 8, e.point.y + 8]
+        [e.point.x - 15, e.point.y - 15],
+        [e.point.x + 15, e.point.y + 15]
       ];
       const features = map.queryRenderedFeatures(bbox, { layers: ['plot-verts-l'] });
       if (!features.length) return;
@@ -918,7 +947,6 @@ function MapDrawContent() {
         setDrawnParcels(parcels);
         needsPlantationSearchRef.current = true;
         if (runPlantationInfoRef.current) runPlantationInfoRef.current();
-        setToast("ลบจุด Node สำเร็จ");
       }
     };
 
@@ -2104,8 +2132,8 @@ function MapDrawContent() {
       if (!drawingRef.current) return;
 
       const bbox: [maplibregl.PointLike, maplibregl.PointLike] = [
-        [e.point.x - 8, e.point.y - 8],
-        [e.point.x + 8, e.point.y + 8]
+        [e.point.x - 15, e.point.y - 15],
+        [e.point.x + 15, e.point.y + 15]
       ];
       const features = map.queryRenderedFeatures(bbox, { layers: ['draw-verts-l'] });
       if (features.length) {
@@ -2119,6 +2147,16 @@ function MapDrawContent() {
           vertsRef.current = newPts;
           setVertCount(newPts.length);
           previewDraw();
+
+          // Check if area is now <= 500 rai, if so, clear area error
+          if (newPts.length >= 3) {
+            const sqm = polygonAreaM2([...newPts, newPts[0]]);
+            if ((sqm / 1600) <= 500) {
+              setAreaError(null);
+            }
+          } else {
+            setAreaError(null);
+          }
           return;
         }
       }
@@ -2163,7 +2201,21 @@ function MapDrawContent() {
       drawTouchWasDragging = true;
       const screenPt = map.project([touch.lng, touch.lat] as [number, number]);
       const snapCoord = findSnapTarget(screenPt, -1);
-      vertsRef.current[drawTouchDragIdx] = snapCoord ?? [touch.lng, touch.lat];
+      const newCoord = snapCoord ?? [touch.lng, touch.lat];
+
+      if (vertsRef.current.length >= 3) {
+         const oldRai = polygonAreaM2([...vertsRef.current, vertsRef.current[0]]) / 1600;
+         const testPts = [...vertsRef.current];
+         testPts[drawTouchDragIdx] = newCoord as [number, number];
+         const newRai = polygonAreaM2([...testPts, testPts[0]]) / 1600;
+         if (newRai > 500 && newRai > oldRai) {
+            setAreaError({ rai: newRai, sqm: newRai * 1600 });
+            onDrawTouchEnd();
+            return;
+         }
+      }
+
+      vertsRef.current[drawTouchDragIdx] = newCoord as [number, number];
       setSnapIndicator(snapCoord);
       previewDraw();
     };
@@ -2184,7 +2236,21 @@ function MapDrawContent() {
         // actively dragging
         wasDragging = true;
         const snapCoord = findSnapTarget(ev.point, -1);
-        vertsRef.current[dragIdx] = snapCoord ?? [ev.lngLat.lng, ev.lngLat.lat];
+        const newCoord = snapCoord ?? [ev.lngLat.lng, ev.lngLat.lat];
+
+        if (vertsRef.current.length >= 3) {
+           const oldRai = polygonAreaM2([...vertsRef.current, vertsRef.current[0]]) / 1600;
+           const testPts = [...vertsRef.current];
+           testPts[dragIdx] = newCoord as [number, number];
+           const newRai = polygonAreaM2([...testPts, testPts[0]]) / 1600;
+           if (newRai > 500 && newRai > oldRai) {
+              setAreaError({ rai: newRai, sqm: newRai * 1600 });
+              onDrawMouseUp();
+              return;
+           }
+        }
+
+        vertsRef.current[dragIdx] = newCoord as [number, number];
         setSnapIndicator(snapCoord);
         previewDraw();
         return;
@@ -2220,9 +2286,12 @@ function MapDrawContent() {
     const onDrawMouseDown = (e: maplibregl.MapMouseEvent) => {
       if (!drawingRef.current) return;
 
+      // Only allow Left-Click (button === 0) for dragging in drawing mode
+      if (e.originalEvent && e.originalEvent.button !== 0) return;
+
       const bbox: [maplibregl.PointLike, maplibregl.PointLike] = [
-        [e.point.x - 8, e.point.y - 8],
-        [e.point.x + 8, e.point.y + 8]
+        [e.point.x - 15, e.point.y - 15],
+        [e.point.x + 15, e.point.y + 15]
       ];
       const features = map.queryRenderedFeatures(bbox, { layers: ['draw-verts-l'] });
       if (features.length) {
