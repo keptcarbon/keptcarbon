@@ -1016,6 +1016,18 @@
         margin-bottom: 3px;
       }
 
+      .contact-info-row a {
+        color: #2d9e5f;
+        text-decoration: none;
+        font-size: 0.95rem;
+        transition: color 0.2s;
+      }
+
+      .contact-info-row a:hover {
+        color: #1a6e3c;
+        text-decoration: underline;
+      }
+
       .contact-address-list {
         list-style: none;
         padding: 0;
@@ -1138,6 +1150,69 @@
         height: 1px;
         background: rgba(45, 158, 95, 0.1);
         margin: 14px 0;
+      }
+
+      .contact-recipient-row {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+
+      .contact-recipient-label {
+        font-size: 0.9rem;
+        font-weight: 700;
+        color: #1a3d2b;
+        white-space: nowrap;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin-bottom: 0;
+      }
+
+      .contact-recipient-select {
+        flex: 1;
+        min-width: 220px;
+        padding: 9px 36px 9px 14px;
+        border: 2px solid #d1fae5;
+        border-radius: 10px;
+        background: #f0fdf4 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 16 16'%3E%3Cpath fill='%232d9e5f' d='M7.247 11.14 2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z'/%3E%3C/svg%3E") no-repeat right 14px center;
+        appearance: none;
+        font-size: 0.9rem;
+        font-weight: 600;
+        color: #1a3d2b;
+        cursor: pointer;
+        transition: border-color 0.2s, box-shadow 0.2s;
+      }
+
+      .contact-recipient-select:focus {
+        outline: none;
+        border-color: #2d9e5f;
+        box-shadow: 0 0 0 3px rgba(45, 158, 95, 0.15);
+      }
+
+      .contact-success-msg {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        background: #d1fae5;
+        color: #065f46;
+        padding: 12px 24px;
+        border-radius: 999px;
+        font-weight: 600;
+        font-size: 0.95rem;
+      }
+
+      .contact-error-msg {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        background: #fee2e2;
+        color: #991b1b;
+        padding: 8px 16px;
+        border-radius: 8px;
+        font-size: 0.875rem;
+        margin-bottom: 10px;
       }
 
       @media (min-width: 992px) {

@@ -216,7 +216,7 @@ function DistrictCarbonChart({
                 fontWeight={isActive ? 800 : 700}
                 fill={isActive ? "#059669" : "#64748b"}>
                 {fmtC(d.carbon)}
-                <tspan fontSize={10} fill="#94a3b8" fontWeight={500} dx={3}>tCO₂</tspan>
+                <tspan fontSize={10} fill="#94a3b8" fontWeight={500} dx={3}>tCO₂eq</tspan>
               </text>
             </g>
           );
@@ -247,7 +247,7 @@ function DistrictCarbonChart({
               <text x={ttX + ttW - pad} y={ttY + 22}
                 textAnchor="end" fontSize={isMobile ? 14 : 15} fontWeight={800} fill="#4ade80">
                 {fmtC(d.carbon)}
-                <tspan fontSize={10} fill="#64748b" dx={3}>tCO₂</tspan>
+                <tspan fontSize={10} fill="#64748b" dx={3}>tCO₂eq</tspan>
               </text>
 
               {/* Divider */}
@@ -270,7 +270,7 @@ function DistrictCarbonChart({
                     <text x={ttX + ttW - pad} y={rowY + 8}
                       textAnchor="end" fontSize={isMobile ? 12 : 13} fill="#e2e8f0" fontWeight={700}>
                       {fmtC(carbon)}
-                      <tspan fontSize={10} fill="#475569" dx={2}>tCO₂</tspan>
+                      <tspan fontSize={10} fill="#475569" dx={2}>tCO₂eq</tspan>
                     </text>
                   </g>
                 );
@@ -633,7 +633,7 @@ export default function DashboardPage() {
         {/* ── Stat cards ───────────────────────────────────────────────────── */}
         <div className="db2-stat-row">
           <StatCard icon="bi-map-fill" label="พื้นที่รวม" value={effectiveProvinceTotal.areaRai} unit="ไร่" color="#0d9488" />
-          <StatCard icon="bi-cloud-arrow-up-fill" label="คาร์บอนรวม" value={effectiveProvinceTotal.carbon} unit="tCO₂" color="#065f46" />
+          <StatCard icon="bi-cloud-arrow-up-fill" label="คาร์บอนรวม" value={effectiveProvinceTotal.carbon} unit="tCO₂eq" color="#065f46" />
         </div>
 
         {/* ── District dropdown ────────────────────────────────────────────── */}
@@ -734,7 +734,7 @@ export default function DashboardPage() {
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
                 {[
                   { label: "พื้นที่รวม", value: fmt(selected.areaRai), unit: "ไร่", color: "#0d9488" },
-                  { label: "คาร์บอนรวม", value: fmtC(selected.carbon), unit: "tCO₂", color: "#065f46" },
+                  { label: "คาร์บอนรวม", value: fmtC(selected.carbon), unit: "tCO₂eq", color: "#065f46" },
                 ].map(m => (
                   <div key={m.label} style={{ background: "#fff", borderRadius: 11, padding: "12px 14px", border: "1px solid rgba(16,185,129,0.12)" }}>
                     <div style={{ fontSize: 14, color: "#64748b", fontWeight: 600, marginBottom: 4 }}>{m.label}</div>
@@ -751,7 +751,7 @@ export default function DashboardPage() {
                   <div style={{ fontSize: 15, color: "rgba(255,255,255,0.65)", fontWeight: 600, marginBottom: 2 }}>คาร์บอนสะสมทั้งหมด</div>
                   <div style={{ fontSize: 32, fontWeight: 900, color: "#fff", letterSpacing: -1.5, lineHeight: 1 }}>
                     {fmtC(selected.carbon)}
-                    <span style={{ fontSize: 17, fontWeight: 600, color: "rgba(255,255,255,0.65)", marginLeft: 8 }}>tCO₂</span>
+                    <span style={{ fontSize: 17, fontWeight: 600, color: "rgba(255,255,255,0.65)", marginLeft: 8 }}>tCO₂eq</span>
                   </div>
                 </div>
               </div>
@@ -784,7 +784,7 @@ export default function DashboardPage() {
                         <div style={{ height: "100%", width: `${barPct}%`, background: `linear-gradient(90deg,${cfg.color}88,${cfg.color})`, borderRadius: 4, transition: "width 0.7s cubic-bezier(.16,1,.3,1)", minWidth: 4 }} />
                       </div>
                       <div style={{ textAlign: "right", fontSize: 14, color: "#94a3b8", fontWeight: 500 }}>
-                        {fmtC(a.carbon)} tCO₂
+                        {fmtC(a.carbon)} tCO₂eq
                       </div>
                     </div>
                   );

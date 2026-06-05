@@ -1,3 +1,5 @@
+import ContactForm from "./ContactForm";
+
 export default function Home() {
   return (
     <>
@@ -325,16 +327,21 @@ export default function Home() {
             <div className="dash"></div>
             <div className="line"></div>
           </div>
+          <p className="text-center text-muted mt-2" style={{ fontSize: "0.95rem" }}>
+            สามารถติดต่อพวกเราได้ที่
+          </p>
         </div>
 
+        {/* Two contact cards */}
         <div className="container" data-aos="fade-up" data-aos-delay="100">
-          <div className="row gy-4 align-items-stretch">
+          <div className="row gy-4 mb-4">
+            {/* KeptCarbon Project */}
             <div className="col-lg-6" data-aos="fade-right" data-aos-delay="150">
-              <div className="contact-card">
+              <div className="contact-card h-100">
                 <div className="contact-card-icon">
                   <i className="bi bi-building-fill"></i>
                 </div>
-                <h3>ข้อมูลการติดต่อ</h3>
+                <h3>โครงการวิจัย KeptCarbon</h3>
                 <div className="contact-divider"></div>
 
                 <div className="contact-info-row align-items-start">
@@ -368,54 +375,73 @@ export default function Home() {
                   <i className="bi bi-envelope-at"></i>
                   <div>
                     <strong>อีเมล</strong>
-                    keptcarbon@gmail.com
+                    <a href="mailto:keptcarbon@gmail.com">keptcarbon@gmail.com</a>
                   </div>
                 </div>
               </div>
             </div>
 
+            {/* EnGRIDs Developer */}
             <div className="col-lg-6" data-aos="fade-left" data-aos-delay="150">
-              <div className="contact-card">
+              <div className="contact-card h-100">
                 <div className="contact-card-icon">
-                  <i className="bi bi-send-fill"></i>
+                  <i className="bi bi-laptop-fill"></i>
                 </div>
-                <h3>ส่งข้อความถึงเรา</h3>
+                <h3>ผู้พัฒนาระบบ EnGRIDs</h3>
                 <div className="contact-divider"></div>
 
-                <form className="php-email-form">
-                  <div className="contact-form-grid">
-                    <div className="contact-form-field">
-                      <label>ชื่อ-นามสกุล</label>
-                      <input type="text" name="name" placeholder="กรอกชื่อ-นามสกุล" required />
-                    </div>
-                    <div className="contact-form-field">
-                      <label>อีเมล</label>
-                      <input type="email" name="email" placeholder="example@email.com" required />
-                    </div>
+                <div className="contact-info-row align-items-start">
+                  <i className="bi bi-geo-alt mt-1"></i>
+                  <div>
+                    <strong>ที่อยู่</strong>
+                    <p className="mb-0 mt-1" style={{ fontSize: "0.9rem", color: "#555" }}>
+                      สตูดิโอวิจัยและพัฒนานวัตกรรมเชิงพื้นที่ด้านสิ่งแวดล้อม<br />
+                      ภาควิชาภูมิศาสตร์ คณะสังคมศาสตร์<br />
+                      มหาวิทยาลัยเชียงใหม่ อ.เมือง จ.เชียงใหม่ 50200
+                    </p>
                   </div>
+                </div>
 
-                  <div className="contact-form-field">
-                    <label>หัวข้อติดต่อ</label>
-                    <input type="text" name="subject" placeholder="ระบุหัวข้อที่ต้องการติดต่อ" required />
-                  </div>
+                <div className="contact-divider"></div>
 
-                  <div className="contact-form-field">
-                    <label>ข้อความถึงเรา</label>
-                    <textarea
-                      name="message"
-                      rows={4}
-                      placeholder="เขียนข้อความของคุณที่นี่..."
-                      required
-                    />
+                <div className="contact-info-row">
+                  <i className="bi bi-telephone"></i>
+                  <div>
+                    <strong>โทรศัพท์</strong>
+                    <a href="tel:053943526">053-943526</a>
                   </div>
+                </div>
 
-                  <div className="text-center mt-2">
-                    <button type="submit" className="contact-submit-btn">
-                      <i className="bi bi-send"></i> ส่งข้อความ
-                    </button>
+                <div className="contact-divider"></div>
+
+                <div className="contact-info-row">
+                  <i className="bi bi-envelope-at"></i>
+                  <div>
+                    <strong>อีเมล</strong>
+                    <a href="mailto:engrids2025@gmail.com">engrids2025@gmail.com</a>
                   </div>
-                </form>
+                </div>
+
+                <div className="contact-divider"></div>
+
+                <div className="contact-info-row">
+                  <i className="bi bi-globe2"></i>
+                  <div>
+                    <strong>เว็บไซต์</strong>
+                    <a href="https://engrids.soc.cmu.ac.th/" target="_blank" rel="noopener noreferrer">
+                      engrids.soc.cmu.ac.th
+                    </a>
+                  </div>
+                </div>
+
               </div>
+            </div>
+          </div>
+
+          {/* Send Message Form */}
+          <div className="row" data-aos="fade-up" data-aos-delay="200">
+            <div className="col-12">
+              <ContactForm />
             </div>
           </div>
         </div>

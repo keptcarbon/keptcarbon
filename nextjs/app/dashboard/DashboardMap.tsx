@@ -337,7 +337,7 @@ export default function DashboardMap({
               el.style.cssText = "text-align:center;pointer-events:none;";
               el.innerHTML = `
                 <div style="font-size:11px;font-weight:800;color:#fff;text-shadow:0 1px 4px rgba(0,0,0,0.95),0 0 10px rgba(0,0,0,0.6);white-space:nowrap;line-height:1.4">${d.name}</div>
-                <div style="font-size:9.5px;font-weight:700;color:#86efac;text-shadow:0 1px 3px rgba(0,0,0,0.95);white-space:nowrap">${(d.carbon / 1000).toFixed(0)}k tCO₂</div>
+                <div style="font-size:9.5px;font-weight:700;color:#86efac;text-shadow:0 1px 3px rgba(0,0,0,0.95);white-space:nowrap">${(d.carbon / 1000).toFixed(0)}k tCO₂eq</div>
               `;
               new maplibregl.Marker({ element: el, anchor: "top", offset: [0, radius + 5] })
                 .setLngLat([d.lng, d.lat])
@@ -426,7 +426,7 @@ export default function DashboardMap({
               el.style.cssText = "text-align:center;pointer-events:none;";
               el.innerHTML = `
                 <div style="font-size:11px;font-weight:800;color:#fff;text-shadow:0 1px 4px rgba(0,0,0,0.95),0 0 10px rgba(0,0,0,0.6);white-space:nowrap;line-height:1.4">${d.name}</div>
-                <div style="font-size:9.5px;font-weight:700;color:#86efac;text-shadow:0 1px 3px rgba(0,0,0,0.95);white-space:nowrap">${(d.carbon / 1000).toFixed(0)}k tCO₂</div>
+                <div style="font-size:9.5px;font-weight:700;color:#86efac;text-shadow:0 1px 3px rgba(0,0,0,0.95);white-space:nowrap">${(d.carbon / 1000).toFixed(0)}k tCO₂eq</div>
               `;
               new maplibregl.Marker({ element: el, anchor: "top", offset: [0, radius + 5] })
                 .setLngLat([d.lng, d.lat])
@@ -487,7 +487,7 @@ export default function DashboardMap({
           fontFamily: "'Noto Sans Thai','Inter',sans-serif", minWidth: 168,
         }}>
           <div style={{ fontSize: 10, fontWeight: 800, color: "#6ee7b7", marginBottom: 8, letterSpacing: 0.6 }}>
-            ระดับคาร์บอนต่อแปลง (tCO₂)
+            ระดับคาร์บอนต่อแปลง (tCO₂eq)
           </div>
           {([
             { color: "#d1fae5", label: "ต่ำมาก",  range: "< 30" },
@@ -538,7 +538,7 @@ export default function DashboardMap({
               animation: "fadeIn 0.2s ease-out",
             }}>
               <div style={{ fontSize: 10, fontWeight: 700, color: "#a7f3d0", marginBottom: 8, letterSpacing: 0.3 }}>
-                คาร์บอนต่อแปลง (tCO₂)
+                คาร์บอนต่อแปลง (tCO₂eq)
               </div>
 
               <div style={{ display: "flex", height: 6, borderRadius: 3, overflow: "hidden", marginBottom: 5 }}>
