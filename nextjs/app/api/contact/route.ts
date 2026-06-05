@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Resend } from "resend";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
-
 const RECIPIENTS: Record<string, { label: string; email: string }> = {
   keptcarbon: {
     label: "โครงการวิจัย KeptCarbon",
@@ -16,6 +14,7 @@ const RECIPIENTS: Record<string, { label: string; email: string }> = {
 
 export async function POST(req: NextRequest) {
   try {
+    const resend = new Resend(process.env.RESEND_API_KEY);
     const { name, email, subject, message, recipient } = await req.json();
 
     if (!name || !email || !subject || !message || !recipient) {
