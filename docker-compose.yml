@@ -28,7 +28,8 @@ services:
       - FACEBOOK_APP_ID=${FACEBOOK_APP_ID}
       - FACEBOOK_APP_SECRET=${FACEBOOK_APP_SECRET}
       - FACEBOOK_CALLBACK_URL=${FACEBOOK_CALLBACK_URL}
-      - RESEND_API_KEY=${RESEND_API_KEY}
+      - GMAIL_USER=${GMAIL_USER}
+      - GMAIL_APP_PASSWORD=${GMAIL_APP_PASSWORD}
     depends_on:
       postgis:
         condition: service_healthy
