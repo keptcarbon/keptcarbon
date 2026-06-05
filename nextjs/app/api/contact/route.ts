@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import nodemailer from "nodemailer";
+import { Resend } from "resend";
+
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 const RECIPIENTS: Record<string, { label: string; email: string }> = {
   keptcarbon: {
@@ -31,16 +33,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const transporter = nodemailer.createTransport({
-      service: "gmail",
-      auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS,
-      },
-    });
-
-    await transporter.sendMail({
-      from: `"KeptCarbon Contact" <${process.env.SMTP_USER}>`,
+    await resend.emails.send({
+      from: "KeptCarbon Contact <onboarding@resend.dev>",
       to: target.email,
       replyTo: email,
       subject: `[${target.label}] ${subject}`,
