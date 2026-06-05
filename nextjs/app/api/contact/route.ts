@@ -13,11 +13,16 @@ const RECIPIENTS: Record<string, { label: string; email: string }> = {
 };
 
 const transporter = nodemailer.createTransport({
-  service: "gmail",
+  host: "smtp.gmail.com",
+  port: 587,
+  secure: false,
   auth: {
     user: process.env.GMAIL_USER,
-    pass: process.env.GMAIL_APP_PASSWORD,
+    pass: process.env.GMAIL_APP_PASSWORD?.replace(/\s/g, ""),
   },
+  connectionTimeout: 10000,
+  greetingTimeout: 10000,
+  socketTimeout: 15000,
 });
 
 export async function POST(req: NextRequest) {
@@ -62,10 +67,16 @@ export async function POST(req: NextRequest) {
     });
 
     return NextResponse.json({ success: true });
-  } catch (error) {
-    console.error("Contact API error:", error);
+  } catch (error: unknown) {
+    const err = error as { code?: string; message?: string };
+    console.error("Contact API error:", err.code, err.message);
+    const isTimeout = err.code === "ETIMEDOUT" || err.code === "ECONNECTION";
     return NextResponse.json(
-      { error: "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง" },
+      {
+        error: isTimeout
+          ? "ไม่สามารถเชื่อมต่อ mail server ได้ กรุณาติดต่อ admin"
+          : "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง",
+      },
       { status: 500 }
     );
   }
