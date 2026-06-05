@@ -1218,9 +1218,9 @@ function MapDrawContent() {
         source: "th-boundary",
         paint: {
           "line-color": "#22c55e",
-          "line-width": ["interpolate", ["linear"], ["zoom"], 4, 6, 8, 12, 12, 20],
-          "line-opacity": ["interpolate", ["linear"], ["zoom"], 4, 0.2, 12, 0.35],
-          "line-blur": ["interpolate", ["linear"], ["zoom"], 4, 4, 12, 10],
+          "line-width": ["interpolate", ["linear"], ["zoom"], 4, 4, 8, 8, 12, 14],
+          "line-opacity": ["interpolate", ["linear"], ["zoom"], 4, 0.15, 12, 0.28],
+          "line-blur": ["interpolate", ["linear"], ["zoom"], 4, 3, 12, 7],
         },
       });
       map.addLayer({
@@ -1229,7 +1229,7 @@ function MapDrawContent() {
         source: "th-boundary",
         paint: {
           "line-color": "#16a34a",
-          "line-width": ["interpolate", ["linear"], ["zoom"], 4, 1.5, 8, 2.5, 12, 4],
+          "line-width": ["interpolate", ["linear"], ["zoom"], 4, 1, 8, 1.8, 12, 2.8],
           "line-opacity": 0.9,
         },
       });
@@ -1251,9 +1251,9 @@ function MapDrawContent() {
         source: "region-boundary",
         paint: {
           "line-color": "#f59e0b",
-          "line-width": ["interpolate", ["linear"], ["zoom"], 5, 6, 9, 12, 13, 20],
-          "line-opacity": ["interpolate", ["linear"], ["zoom"], 5, 0.15, 13, 0.3],
-          "line-blur": ["interpolate", ["linear"], ["zoom"], 5, 3, 13, 10],
+          "line-width": ["interpolate", ["linear"], ["zoom"], 5, 4, 9, 8, 13, 14],
+          "line-opacity": ["interpolate", ["linear"], ["zoom"], 5, 0.12, 13, 0.22],
+          "line-blur": ["interpolate", ["linear"], ["zoom"], 5, 2, 13, 7],
         },
       });
       map.addLayer({
@@ -1262,7 +1262,7 @@ function MapDrawContent() {
         source: "region-boundary",
         paint: {
           "line-color": "#d97706",
-          "line-width": ["interpolate", ["linear"], ["zoom"], 5, 1.5, 9, 2.5, 13, 5],
+          "line-width": ["interpolate", ["linear"], ["zoom"], 5, 1, 9, 1.8, 13, 3.5],
           "line-opacity": 0.95,
         },
       });
@@ -1288,9 +1288,9 @@ function MapDrawContent() {
         source: "province-boundary",
         paint: {
           "line-color": "#ec4899", // pink-500
-          "line-width": ["interpolate", ["linear"], ["zoom"], 6, 6, 10, 12, 14, 20],
-          "line-opacity": ["interpolate", ["linear"], ["zoom"], 6, 0.15, 14, 0.3],
-          "line-blur": ["interpolate", ["linear"], ["zoom"], 6, 3, 14, 10],
+          "line-width": ["interpolate", ["linear"], ["zoom"], 6, 4, 10, 8, 14, 14],
+          "line-opacity": ["interpolate", ["linear"], ["zoom"], 6, 0.12, 14, 0.22],
+          "line-blur": ["interpolate", ["linear"], ["zoom"], 6, 2, 14, 7],
         },
       });
       // Main solid line — thickens on zoom
@@ -1300,7 +1300,7 @@ function MapDrawContent() {
         source: "province-boundary",
         paint: {
           "line-color": "#db2777", // pink-600
-          "line-width": ["interpolate", ["linear"], ["zoom"], 6, 1.5, 10, 2.5, 14, 5],
+          "line-width": ["interpolate", ["linear"], ["zoom"], 6, 1, 10, 1.8, 14, 3.5],
           "line-opacity": 0.95,
         },
       });
@@ -1313,9 +1313,9 @@ function MapDrawContent() {
         source: "district-boundary",
         paint: {
           "line-color": "#06b6d4",
-          "line-width": ["interpolate", ["linear"], ["zoom"], 6, 6, 10, 12, 14, 20],
-          "line-opacity": ["interpolate", ["linear"], ["zoom"], 6, 0.15, 14, 0.3],
-          "line-blur": ["interpolate", ["linear"], ["zoom"], 6, 3, 14, 10],
+          "line-width": ["interpolate", ["linear"], ["zoom"], 6, 4, 10, 8, 14, 14],
+          "line-opacity": ["interpolate", ["linear"], ["zoom"], 6, 0.12, 14, 0.22],
+          "line-blur": ["interpolate", ["linear"], ["zoom"], 6, 2, 14, 7],
         },
       });
       map.addLayer({
@@ -1324,7 +1324,7 @@ function MapDrawContent() {
         source: "district-boundary",
         paint: {
           "line-color": "#06b6d4",
-          "line-width": ["interpolate", ["linear"], ["zoom"], 6, 1.5, 10, 2.5, 14, 5],
+          "line-width": ["interpolate", ["linear"], ["zoom"], 6, 1, 10, 1.8, 14, 3.5],
           "line-opacity": 0.95,
         },
       });
@@ -1337,9 +1337,9 @@ function MapDrawContent() {
         source: "tambon-boundary",
         paint: {
           "line-color": "#a855f7",
-          "line-width": ["interpolate", ["linear"], ["zoom"], 6, 6, 10, 12, 14, 20],
-          "line-opacity": ["interpolate", ["linear"], ["zoom"], 6, 0.15, 14, 0.3],
-          "line-blur": ["interpolate", ["linear"], ["zoom"], 6, 3, 14, 10],
+          "line-width": ["interpolate", ["linear"], ["zoom"], 6, 4, 10, 8, 14, 14],
+          "line-opacity": ["interpolate", ["linear"], ["zoom"], 6, 0.12, 14, 0.22],
+          "line-blur": ["interpolate", ["linear"], ["zoom"], 6, 2, 14, 7],
         },
       });
       map.addLayer({
@@ -1348,7 +1348,7 @@ function MapDrawContent() {
         source: "tambon-boundary",
         paint: {
           "line-color": "#a855f7",
-          "line-width": ["interpolate", ["linear"], ["zoom"], 6, 1.5, 10, 2.5, 14, 5],
+          "line-width": ["interpolate", ["linear"], ["zoom"], 6, 1, 10, 1.8, 14, 3.5],
           "line-opacity": 0.95,
         },
       });
