@@ -81,6 +81,7 @@ See [api.http](api.http) for runnable request examples.
       }
     ],
     "estimated_parameters": {
+      "area_m2": 38.23,
       "year_of_planting": {
           "value": 2010,
           "note": [
