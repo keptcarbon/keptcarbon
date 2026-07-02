@@ -4,9 +4,10 @@ Tree count reliability check.
 
 from app.services.spatial_utils import SpatialUtils
 from app.core.constants import (
-    TREE_DENSITIES, 
+    TREE_DENSITIES,
     TREE_COUNT_VALIDATION_THRESHOLD,
-    TREE_AGE_HOMOLOGOUS_THRESHOLD
+    TREE_AGE_HOMOLOGOUS_THRESHOLD,
+    DEFAULT_SPACING_SYSTEM
 )
 
 class TreeService:
@@ -16,9 +17,8 @@ class TreeService:
     def get_tree_count_user_input(self, poly_data: dict) -> dict:
         geom = poly_data.get("A302_geometry")
         area_ha = self.spatial_utils.calculate_area_ha(geom)
-        print(f"Calculated area (ha) for polygon {poly_data['id']}: {area_ha}")
 
-        spacing = poly_data.get("spacing_system") or "2.5x8"
+        spacing = poly_data.get("spacing_system") or DEFAULT_SPACING_SYSTEM
         density = TREE_DENSITIES.get(spacing, 500)
 
         calculated_count = int(area_ha * density)
@@ -32,7 +32,6 @@ class TreeService:
                 "note": "CALCULATED FROM AREA AND SPACING."
             }
 
-        diff_percent = abs(user_tree_count - calculated_count) / calculated_count
         positive_diff_percent = (user_tree_count - calculated_count) / calculated_count
 
         if positive_diff_percent <= TREE_COUNT_VALIDATION_THRESHOLD:
@@ -59,7 +58,7 @@ class TreeService:
             # If the age map data is dominated by one age class, we will use the calculated tree count based on area 
             # and spacing without adjustment, as the age homogeneity suggests that the plantation is likely to have 
             # use user-input spacing to estimate tree density across the area or use default spacing if no user-input is provided.
-            spacing = poly_data.get("spacing_system") or "2.5x8"
+            spacing = poly_data.get("spacing_system") or DEFAULT_SPACING_SYSTEM
             density = TREE_DENSITIES.get(spacing, 500)
 
             calculated_count = int(area_ha * density)

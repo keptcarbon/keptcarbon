@@ -22,6 +22,35 @@ class LanduseService:
             else:
                 print(f"Warning: Landuse vector file not found for P_CODE: {p_code}")
 
+    def _get_intersecting_candidates(self, lu_gdf, geometry):
+        """Reproject the drawn polygon and pre-filter LU features via spatial index."""
+        plantation_geom = shape(geometry)
+        plantation_gdf = gpd.GeoDataFrame(
+            index=[0], crs="EPSG:4326", geometry=[plantation_geom]
+        ).to_crs(self.target_crs)
+
+        target_geom = plantation_gdf.geometry.iloc[0]
+
+        possible_matches_idx = lu_gdf.sindex.query(target_geom, predicate="intersects")
+        lu_candidates = lu_gdf.iloc[possible_matches_idx].copy()
+
+        if lu_candidates.empty:
+            return target_geom, lu_candidates
+
+        lu_candidates["geometry"] = lu_candidates.geometry.intersection(target_geom)
+        lu_candidates = lu_candidates[~lu_candidates.geometry.is_empty]
+
+        return target_geom, lu_candidates
+
+    @staticmethod
+    def _determine_group(row):
+        l1 = str(row["LUL1_CODE"]).upper()
+        if l1 in ["U", "F", "M", "W"]:
+            return l1
+        if l1 == "A":
+            return str(row["LU_CODE"])
+        return "OTHER"
+
     # ── Existing endpoint (/api/estimate) ─────────────────────────────────────
 
     def find_rubber_cultivation_area(self, poly_data: dict):
@@ -41,42 +70,20 @@ class LanduseService:
             return poly_data
 
         try:
-            plantation_geom = shape(poly_data["geometry"])
-            plantation_gdf = gpd.GeoDataFrame(
-                index=[0], crs="EPSG:4326", geometry=[plantation_geom]
-            ).to_crs(self.target_crs)
-
-            target_geom = plantation_gdf.geometry.iloc[0]
+            target_geom, lu_candidates = self._get_intersecting_candidates(lu_gdf, poly_data["geometry"])
             total_area_m2 = target_geom.area
-
-            # Fast spatial index pre-filter then precise intersection
-            possible_matches_idx = lu_gdf.sindex.query(target_geom, predicate="intersects")
-            lu_candidates = lu_gdf.iloc[possible_matches_idx].copy()
 
             if lu_candidates.empty:
                 poly_data["lu_polygon"] = []
                 poly_data["total_area_m2"] = round(total_area_m2, 4)
                 return poly_data
 
-            lu_candidates["geometry"] = lu_candidates.geometry.intersection(target_geom)
-            lu_candidates = lu_candidates[~lu_candidates.geometry.is_empty]
-
-            def determine_group(row):
-                l1 = str(row["LUL1_CODE"]).upper()
-                if l1 in ["U", "F", "M", "W"]:
-                    return l1
-                if l1 == "A":
-                    return str(row["LU_CODE"])
-                return "OTHER"
-
-            lu_candidates["group_key"] = lu_candidates.apply(determine_group, axis=1)
+            lu_candidates["group_key"] = lu_candidates.apply(self._determine_group, axis=1)
             selcted_lu_candidates = lu_candidates[lu_candidates["group_key"].isin(poly_data["selected_lu_classes"])]
             merged_gdf = selcted_lu_candidates.dissolve(by="group_key")
-            
-            poly_data["A302_geometry"] = mapping(unary_union(merged_gdf.geometry)) 
-            poly_data["A302_area_m2"] = round(merged_gdf.geometry.area.sum(),4)
-            area = poly_data["A302_area_m2"]
-            # print(f"A320_area (m2): {area}")
+
+            poly_data["A302_geometry"] = mapping(unary_union(merged_gdf.geometry))
+            poly_data["A302_area_m2"] = round(merged_gdf.geometry.area.sum(), 4)
 
             return poly_data
 
@@ -99,35 +106,15 @@ class LanduseService:
             return poly_data
 
         try:
-            plantation_geom = shape(poly_data["geometry"])
-            plantation_gdf = gpd.GeoDataFrame(
-                index=[0], crs="EPSG:4326", geometry=[plantation_geom]
-            ).to_crs(self.target_crs)
-
-            target_geom = plantation_gdf.geometry.iloc[0]
+            target_geom, lu_candidates = self._get_intersecting_candidates(lu_gdf, poly_data["geometry"])
             total_area_m2 = target_geom.area
-
-            # Fast spatial index pre-filter then precise intersection
-            possible_matches_idx = lu_gdf.sindex.query(target_geom, predicate="intersects")
-            lu_candidates = lu_gdf.iloc[possible_matches_idx].copy()
 
             if lu_candidates.empty:
                 poly_data["lu_polygon"] = []
                 poly_data["total_area_m2"] = round(total_area_m2, 4)
                 return poly_data
 
-            lu_candidates["geometry"] = lu_candidates.geometry.intersection(target_geom)
-            lu_candidates = lu_candidates[~lu_candidates.geometry.is_empty]
-
-            def determine_group(row):
-                l1 = str(row["LUL1_CODE"]).upper()
-                if l1 in ["U", "F", "M", "W"]:
-                    return l1
-                if l1 == "A":
-                    return str(row["LU_CODE"])
-                return "OTHER"
-
-            lu_candidates["group_key"] = lu_candidates.apply(determine_group, axis=1)
+            lu_candidates["group_key"] = lu_candidates.apply(self._determine_group, axis=1)
             merged_gdf = lu_candidates.dissolve(by="group_key")
 
             # Calculate areas while still in UTM (metres), then convert to requested output CRS
