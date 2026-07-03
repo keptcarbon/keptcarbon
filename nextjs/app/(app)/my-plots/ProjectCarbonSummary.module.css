@@ -1,0 +1,373 @@
+.container {
+  background: #fff;
+  border-radius: 20px;
+  border: 1px solid rgba(16, 185, 129, 0.18);
+  overflow: hidden;
+  margin-bottom: 20px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.05);
+}
+
+/* ── Header ─────────────────────────────────────────── */
+
+.header {
+  padding: 18px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.headerMobile {
+  padding: 16px;
+}
+
+.headerCollapsed {
+  background: linear-gradient(to right, #f0fdf4, #fff);
+}
+
+.headerExpanded {
+  background: linear-gradient(to right, #f8fafc, #fff);
+  border-bottom: 1px solid rgba(16, 185, 129, 0.15);
+}
+
+.headerLeft {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.headerIcon {
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #10b981, #047857);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.35);
+  flex-shrink: 0;
+  color: #fff;
+  font-size: 18px;
+}
+
+.headerTitle {
+  font-size: 17px;
+  font-weight: 800;
+  color: #064e3b;
+  line-height: 1.2;
+}
+
+.headerTitleMobile {
+  font-size: 15px;
+}
+
+.headerToggle {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  font-size: 16px;
+  font-weight: bold;
+}
+
+.headerToggleCollapsed {
+  background: #10b981;
+  color: #fff;
+}
+
+.headerToggleExpanded {
+  background: rgba(16, 185, 129, 0.1);
+  color: #064e3b;
+}
+
+/* ── Content grid ───────────────────────────────────── */
+
+.content {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+
+.contentMobile {
+  grid-template-columns: 1fr;
+}
+
+/* ── Chart panel ────────────────────────────────────── */
+
+.chartPanel {
+  padding: 20px 24px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  background: #fff;
+  min-height: 320px;
+  border-right: 1px solid rgba(16, 185, 129, 0.15);
+}
+
+.chartPanelMobile {
+  padding: 16px;
+  min-height: 260px;
+  border-right: none;
+  border-bottom: 1px solid rgba(16, 185, 129, 0.15);
+}
+
+.chartLabel {
+  font-size: 13px;
+  font-weight: 700;
+  color: #064e3b;
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.chartLabelIcon {
+  color: #10b981;
+}
+
+.emptyChart {
+  text-align: center;
+  color: #94a3b8;
+  padding: 32px 20px;
+}
+
+.emptyChartIcon {
+  font-size: 40px;
+  display: block;
+  margin-bottom: 10px;
+  color: #cbd5e1;
+}
+
+.emptyChartTitle {
+  font-size: 14px;
+  font-weight: 700;
+  color: #64748b;
+}
+
+.emptyChartSubtitle {
+  font-size: 12px;
+  margin-top: 6px;
+  line-height: 1.5;
+}
+
+/* ── Stats panel ────────────────────────────────────── */
+
+.statsPanel {
+  padding: 24px 24px;
+  background: linear-gradient(135deg, #ffffff 0%, #f2fcf5 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  position: relative;
+  overflow: hidden;
+}
+
+.statsPanelMobile {
+  padding: 20px 18px;
+}
+
+.glowTopRight {
+  position: absolute;
+  top: -50px;
+  right: -50px;
+  width: 200px;
+  height: 200px;
+  background: radial-gradient(circle, rgba(16, 185, 129, 0.06) 0%, transparent 70%);
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.glowBottomLeft {
+  position: absolute;
+  bottom: -50px;
+  left: -50px;
+  width: 150px;
+  height: 150px;
+  background: radial-gradient(circle, rgba(13, 148, 136, 0.05) 0%, transparent 70%);
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.metricBox {
+  background: linear-gradient(to right, rgba(13, 148, 136, 0.08), rgba(20, 184, 166, 0.03));
+  border: 1px solid rgba(13, 148, 136, 0.2);
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  position: relative;
+}
+
+.metricLabel {
+  font-size: 13px;
+  color: #0f766e;
+  font-weight: 700;
+  margin-bottom: 6px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.metricValue {
+  font-weight: 800;
+  color: #0d9488;
+  font-size: 28px;
+  line-height: 1.1;
+}
+
+.metricValueMobile {
+  font-size: 24px;
+}
+
+.metricCi {
+  font-size: 20px;
+  color: #0f766e;
+}
+
+.metricCiMobile {
+  font-size: 18px;
+}
+
+.metricUnit {
+  font-size: 16px;
+  font-weight: 600;
+  opacity: 0.8;
+}
+
+.processingHeader {
+  font-size: 13px;
+  font-weight: 700;
+  color: #059669;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+/* ── Stats grid ─────────────────────────────────────── */
+
+.statsGrid {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+.statsGridMobile {
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.statCardFullSpan {
+  grid-column: 1 / -1;
+}
+
+.cycleGrid {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.cycleGridMobile {
+  gap: 8px;
+}
+
+/* ── StatCard ───────────────────────────────────────── */
+
+.statCard {
+  background: rgba(255, 255, 255, 0.7);
+  border-radius: 12px;
+  padding: 12px 14px;
+  border: 1px solid rgba(16, 185, 129, 0.15);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.03);
+}
+
+.statCardMobile {
+  padding: 10px 12px;
+}
+
+.statCardLabel {
+  font-size: 11px;
+  color: #64748b;
+  font-weight: 600;
+  margin-bottom: 5px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.statCardLabelIcon {
+  font-size: 11px;
+}
+
+.statCardValueRow {
+  display: flex;
+  align-items: baseline;
+  gap: 3px;
+}
+
+.statCardValue {
+  font-size: 20px;
+  font-weight: 800;
+  line-height: 1;
+  width: 100%;
+}
+
+.statCardValueMobile {
+  font-size: 18px;
+}
+
+.statCardUnit {
+  font-size: 11px;
+  color: #94a3b8;
+  font-weight: 500;
+}
+
+/* ── Cycle stat inner value block ───────────────────── */
+
+.cycleValueBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.cycleValueLabel {
+  font-size: 12px;
+  color: #64748b;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.cycleValueRow {
+  display: flex;
+  align-items: baseline;
+  gap: 3px;
+}
+
+.cycleValueMain {
+  font-size: 20px;
+  font-weight: 800;
+}
+
+.cycleValueMainMobile {
+  font-size: 18px;
+}
+
+.cycleValueCi {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.cycleValueUnit {
+  font-size: 11px;
+  color: #94a3b8;
+  font-weight: 500;
+}
