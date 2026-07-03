@@ -1,0 +1,165 @@
+.wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 13px;
+  color: #475569;
+}
+
+.card {
+  padding: 12px 14px;
+  background: rgba(16, 185, 129, 0.04);
+  border-radius: 10px;
+  border: 1px solid rgba(16, 185, 129, 0.15);
+}
+
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.headerLabel {
+  font-weight: 700;
+  color: #047857;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+}
+
+.areaText {
+  font-size: 12px;
+  color: #475569;
+  font-weight: 600;
+}
+
+.strongDark {
+  color: #0f172a;
+}
+
+.yearSection {
+  margin-bottom: 0;
+}
+
+.yearSectionWithNotes {
+  margin-bottom: 12px;
+}
+
+.yearLabel {
+  font-size: 12px;
+  color: #475569;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.yearLabelHighlight {
+  color: #059669;
+  font-weight: 600;
+}
+
+.yearBoxRow {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.yearBox {
+  padding: 4px 10px;
+  background: rgba(100, 116, 139, 0.06);
+  border-radius: 8px;
+  border: 1px solid rgba(100, 116, 139, 0.15);
+  font-weight: 500;
+  font-size: 12px;
+  color: #475569;
+}
+
+.emptyText {
+  font-size: 12px;
+  color: #475569;
+}
+
+.expandBtn {
+  border: 1px solid rgba(100, 116, 139, 0.2);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #475569;
+}
+
+.expandBtnLg {
+  width: 24px;
+  height: 24px;
+}
+
+.expandBtnSm {
+  width: 22px;
+  height: 22px;
+}
+
+.expandBtnOn {
+  background: rgba(226, 232, 240, 0.8);
+}
+
+.expandBtnOff {
+  background: rgba(241, 245, 249, 0.8);
+}
+
+.expandIconLg {
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.expandIconSm {
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.notesBox {
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.6);
+  border-radius: 8px;
+  border: 1px solid rgba(16, 185, 129, 0.2);
+}
+
+.notesBoxLabel {
+  font-size: 12px;
+  color: #475569;
+  font-weight: 700;
+  margin-bottom: 6px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.notesBoxIcon {
+  color: #059669;
+}
+
+.noteBox {
+  padding: 4px 8px;
+  background: rgba(100, 116, 139, 0.04);
+  border-radius: 6px;
+  border: 1px solid rgba(100, 116, 139, 0.1);
+  font-weight: 500;
+  font-size: 11px;
+  color: #475569;
+}
+
+.paramsSection {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-top: 8px;
+  padding-top: 10px;
+  border-top: 1px dashed rgba(16, 185, 129, 0.2);
+}
+
+.paramSource {
+  color: #64748b;
+  font-size: 12px;
+}

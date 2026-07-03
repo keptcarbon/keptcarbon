@@ -20,7 +20,9 @@ from app.core.constants import (
     MAX_TREE_AGE,
     MEAN_CUT_TREE_AGE,
     MIX_TREE_PROPORTION,
-    TREE_AGE_HOMOLOGOUS_THRESHOLD
+    TREE_AGE_HOMOLOGOUS_THRESHOLD,
+    DEFAULT_SPACING_SYSTEM,
+    DEFAULT_RUBBER_CLONE
 )
 
 class CarbonService:
@@ -46,7 +48,7 @@ class CarbonService:
                 detail=f"Province code '{p_code}' is not supported. Supported: {list(REGION_CONFIG.keys())}"
             )
 
-        clone = poly_data.get("rubber_clone") or "RRIM 600"
+        clone = poly_data.get("rubber_clone") or DEFAULT_RUBBER_CLONE
         growth_model = config.get("model_used", "cubic_poly")
         allometry = config.get("biomass_estimation_method", "hytonen_2018")
 
@@ -74,8 +76,7 @@ class CarbonService:
 
         # Using max() with a generator expression
         max_age = max(cohort['age'] for cohort in cohorts)
-        limit_year = start_year + (GROWTH_MODEL_YEAR -  max_age) # Filter threshold
-        print(f"Max cohort age: {max_age}, Profile limit year: {limit_year}")
+        limit_year = start_year + (GROWTH_MODEL_YEAR - max_age)  # Filter threshold
 
         # Initialize baseline variables before entering the loop
         baseline_carbon = None
@@ -164,14 +165,10 @@ class CarbonService:
     async def get_carbon_profile(self, poly_data) -> dict:
         current_calendar_year = datetime.now().year
 
-        print(f"Received polygon data for carbon profile generation: {poly_data}")
-
         # Step 1: Determine province code
         poly_data = self.pro_svc.get_province(poly_data)
-        print(f"Province code determined: {poly_data.get('province_code')}")
 
         if poly_data.get("province_code") is None:
-            print(f"Error: No valid province code found. Status: {poly_data['status']}")
             return {
                 "polygon_id": poly_data.get("id"),
                 "status": poly_data.get("status"),
@@ -182,7 +179,6 @@ class CarbonService:
         # Step 2: Multi-Polygon Dissolve & Geometry Merge
         poly_data = self.lu_svc.find_rubber_cultivation_area(poly_data)
         if poly_data["A302_geometry"] is None:
-            print(f"Error: No valid merged geometry found. Status: {poly_data['status']}")
             return {
                 "polygon_id": poly_data.get("id"),
                 "status": poly_data.get("status"),
@@ -193,45 +189,28 @@ class CarbonService:
         # Step 3: Check user input year of planting and tree count for reliability
         # Cache the counts for later use in age cohort extraction to avoid duplicate raster I/O
         poly_data = self.age_map_svc.get_plantation_year_count(poly_data)
-        # print(f"Year counts for polygon {poly_data['id']}: {poly_data['_cached_year_counts']}")
 
         if poly_data.get("year_of_planting") is not None:
 
             if poly_data.get("project_type") == "existing":
-                # User input year of planting is available — use it directly to calculate age and generate profile
+                # User input year of planting is available — use it directly to calculate age
                 age = current_calendar_year - poly_data["year_of_planting"]
-
                 planning_year_info = self.age_map_svc.get_plantation_year_of_planting_info(poly_data)
-                # print(f"Planning year info: {planning_year_info}")
-
-                tree_info = self.tree_svc.get_tree_count_user_input(poly_data)
-                
-                cohorts = [{"age": age, 
-                            "pixel_count": None,
-                            "proportion": 1, 
-                            "tree_count": tree_info['tree_count']}
-                        ]
-
-                profile = self.generate_carbon_profile(poly_data, cohorts)
-
-                message_flag = "CALCULATED" if tree_info['is_calculated'] else "RELIABLE"
-
-            else: # replanting
-                # start at age 0
+            else:  # replanting — starts at age 0, no raster-derived planting-year info
                 age = 0
                 planning_year_info = None
 
-                tree_info = self.tree_svc.get_tree_count_user_input(poly_data)
-                
-                cohorts = [{"age": age, 
-                            "pixel_count": None,
-                            "proportion": 1, 
-                            "tree_count": tree_info['tree_count']}
-                        ]
+            tree_info = self.tree_svc.get_tree_count_user_input(poly_data)
 
-                profile = self.generate_carbon_profile(poly_data, cohorts)
+            cohorts = [{"age": age,
+                        "pixel_count": None,
+                        "proportion": 1,
+                        "tree_count": tree_info['tree_count']}
+                    ]
 
-                message_flag = "CALCULATED" if tree_info['is_calculated'] else "RELIABLE"
+            profile = self.generate_carbon_profile(poly_data, cohorts)
+
+            message_flag = "CALCULATED" if tree_info['is_calculated'] else "RELIABLE"
 
             return {
                 "polygon_id": poly_data["id"],
@@ -249,7 +228,7 @@ class CarbonService:
                         "source": "user input" if poly_data.get('year_of_planting') else "calculated from raster"
                     },
                     "rubber_clone": {
-                        "value": poly_data.get('rubber_clone') if poly_data.get('rubber_clone') else "RRIM 600",
+                        "value": poly_data.get('rubber_clone') if poly_data.get('rubber_clone') else DEFAULT_RUBBER_CLONE,
                         "note": "default",
                         "source": "user input" if poly_data.get('rubber_clone') else "default value applied"
                     },
@@ -258,7 +237,7 @@ class CarbonService:
                         "source": "calculated from area and spacing system" if tree_info['is_calculated'] else "user input"
                     },
                     "spacing_system": {
-                        "value": poly_data.get('spacing_system') if poly_data.get('spacing_system') else "2.5x8",
+                        "value": poly_data.get('spacing_system') if poly_data.get('spacing_system') else DEFAULT_SPACING_SYSTEM,
                         "source": "user input" if poly_data.get('spacing_system') else "default value applied"
                     }
                 }
@@ -266,18 +245,13 @@ class CarbonService:
             
 
         else:
-            # print("Error: No user input year of planting found.")
-            
             cohorts = self.age_map_svc.get_plantation_age_cohorts(poly_data)
-            # print(f"Extracted age cohorts: {cohorts}")
 
             # Find the dictionary containing the maximum proportion value
             dominant_cohort = max(cohorts, key=lambda c: c['proportion'])
-            
+
             highest_proportion = dominant_cohort['proportion']
-            # print(f"highest_proportion: {highest_proportion}")
             highest_proportion_age = dominant_cohort['age']
-            # print(f"highest_proportion_age age cohorts: {highest_proportion_age}")
 
             # Unknow year of planting is highest propotion
             if highest_proportion_age > MAX_TREE_AGE: 
@@ -310,7 +284,6 @@ class CarbonService:
             else: # High age VARIABILITY found
                 # Identify undetermined entries where age equates to the current calendar year
                 cohorts_with_null_age = [c for c in cohorts if c['age'] > MAX_TREE_AGE]
-                # print(f"Cohorts with null age: {cohorts_with_null_age}")
 
                 reliable_mgs_add = ""
                 if cohorts_with_null_age:
@@ -325,9 +298,7 @@ class CarbonService:
                         c for c in cohorts 
                         if c['age'] <= MEAN_CUT_TREE_AGE or c['proportion'] >= MIX_TREE_PROPORTION
                     ]
-                
-            
-            # print(f"Final cohorts used for profile generation: {cohorts}")
+
             # Sum the 'tree_count' from all cohorts
             # Safe calculation that falls back to 0 if 'tree_count' is None or missing
             total_tree_count = sum((cohort.get('tree_count') or 0) for cohort in cohorts)
@@ -372,7 +343,7 @@ class CarbonService:
                         "source": "calculated from raster"
                     },
                     "rubber_clone": {
-                        "value": poly_data.get('rubber_clone') if poly_data.get('rubber_clone') else "RRIM 600",
+                        "value": poly_data.get('rubber_clone') if poly_data.get('rubber_clone') else DEFAULT_RUBBER_CLONE,
                         "note": "default",
                         "source": "user input" if poly_data.get('rubber_clone') else "default value applied"
                     },
@@ -381,7 +352,7 @@ class CarbonService:
                         "source": "calculated from area and spacing system"
                     },
                     "spacing_system": {
-                        "value": poly_data.get('spacing_system') if poly_data.get('spacing_system') else "2.5x8",
+                        "value": poly_data.get('spacing_system') if poly_data.get('spacing_system') else DEFAULT_SPACING_SYSTEM,
                         "source": "user input" if poly_data.get('spacing_system') else "default value"
                     }
                 }

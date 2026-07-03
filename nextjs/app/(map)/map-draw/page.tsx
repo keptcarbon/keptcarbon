@@ -18,99 +18,26 @@ import {
 import { getPlantationInfo } from "@/lib/carbon-api";
 import { ParcelResultsPanel } from "@/app/components/organisms";
 import { useSearchParams } from "next/navigation";
-
-type Tab = "draw" | "shp";
-
-const REGIONS_DATA = [
-  { name: "ภาคตะวันออกเฉียงเหนือ", provinces: ["บึงกาฬ"] },
-  { name: "ภาคตะวันออก", provinces: ["ระยอง"] },
-  { name: "ภาคใต้", provinces: ["สุราษฎร์ธานี"] },
-];
-
-const zoomToGeoJSONFeatures = (features: GeoJSON.Feature[], map: maplibregl.Map) => {
-  if (!features || !features.length || !map) return;
-  let minLng = 180, maxLng = -180, minLat = 90, maxLat = -90;
-  let hasCoords = false;
-
-  const updateBounds = (ring: number[][]) => {
-    ring.forEach(([lng, lat]) => {
-      if (lng < minLng) minLng = lng;
-      if (lng > maxLng) maxLng = lng;
-      if (lat < minLat) minLat = lat;
-      if (lat > maxLat) maxLat = lat;
-      hasCoords = true;
-    });
-  };
-
-  features.forEach(feature => {
-    if (!feature.geometry) return;
-    if (feature.geometry.type === "Polygon") {
-      (feature.geometry as GeoJSON.Polygon).coordinates.forEach(updateBounds);
-    } else if (feature.geometry.type === "MultiPolygon") {
-      (feature.geometry as GeoJSON.MultiPolygon).coordinates.forEach(poly => poly.forEach(updateBounds));
-    }
-  });
-
-  if (hasCoords) {
-    // Adding checks to prevent identical bounds error
-    if (minLng === maxLng) { minLng -= 0.01; maxLng += 0.01; }
-    if (minLat === maxLat) { minLat -= 0.01; maxLat += 0.01; }
-    map.fitBounds([[minLng, minLat], [maxLng, maxLat]], { 
-      padding: 60, 
-      duration: 2500, // Slower, smoother animation
-      essential: true 
-    });
-  }
-};
-
-
-const AMPHOE_DATA: Record<string, string[]> = {
-  "บึงกาฬ": ["เมืองบึงกาฬ", "พรเจริญ", "โซ่พิสัย", "เซกา", "ปากคาด", "บึงโขงหลง", "ศรีวิไล", "บุ้งคล้า"],
-  "ระยอง": ["เมืองระยอง", "บ้านฉาง", "แกลง", "วังจันทร์", "บ้านค่าย", "ปลวกแดง", "เขาชะเมา", "นิคมพัฒนา"],
-  "สุราษฎร์ธานี": ["เมืองสุราษฎร์ธานี", "กาญจนดิษฐ์", "ดอนสัก", "เกาะสมุย", "เกาะพะงัน", "ไชยา", "ท่าชนะ", "คีรีรัฐนิคม", "บ้านตาขุน", "พนม", "ท่าฉาง", "บ้านนาสาร", "บ้านนาเดิม", "เคียนซา", "เวียงสระ", "พระแสง", "พุนพิน", "ชัยบุรี", "วิภาวดี"],
-};
-
-// UTM Zone 47N/48N → WGS84
-function utmToLatLng(easting: number, northing: number, zone: number, isNorth = true) {
-  const a = 6378137.0, f = 1 / 298.257223563;
-  const b = a * (1 - f);
-  const e2 = 1 - (b * b) / (a * a);
-  const ep2 = e2 / (1 - e2);
-  const k0 = 0.9996, E0 = 500000, N0 = isNorth ? 0 : 10000000;
-  const lam0 = ((zone - 1) * 6 - 180 + 3) * (Math.PI / 180);
-  const x = easting - E0, y = northing - N0;
-  const M = y / k0;
-  const mu = M / (a * (1 - e2 / 4 - (3 * e2 * e2) / 64 - (5 * e2 * e2 * e2) / 256));
-  const e1 = (1 - Math.sqrt(1 - e2)) / (1 + Math.sqrt(1 - e2));
-  const phi1 = mu
-    + (3 * e1 / 2 - 27 * e1 ** 3 / 32) * Math.sin(2 * mu)
-    + (21 * e1 ** 2 / 16 - 55 * e1 ** 4 / 32) * Math.sin(4 * mu)
-    + (151 * e1 ** 3 / 96) * Math.sin(6 * mu);
-  const sp = Math.sin(phi1), cp = Math.cos(phi1), tp = Math.tan(phi1);
-  const N1 = a / Math.sqrt(1 - e2 * sp * sp);
-  const T1 = tp * tp, C1 = ep2 * cp * cp;
-  const R1 = a * (1 - e2) / (1 - e2 * sp * sp) ** 1.5;
-  const D = x / (N1 * k0);
-  const lat = phi1 - (N1 * tp / R1) * (D * D / 2 - (5 + 3 * T1 + 10 * C1 - 4 * C1 * C1 - 9 * ep2) * D ** 4 / 24 + (61 + 90 * T1 + 298 * C1 + 45 * T1 * T1 - 252 * ep2 - 3 * C1 * C1) * D ** 6 / 720);
-  const lon = lam0 + (D - (1 + 2 * T1 + C1) * D ** 3 / 6 + (5 - 2 * C1 + 28 * T1 - 3 * C1 * C1 + 8 * ep2 + 24 * T1 * T1) * D ** 5 / 120) / cp;
-  return { lat: lat * 180 / Math.PI, lng: lon * 180 / Math.PI };
-}
-
-const cursorAddNode = "cell";
-
-const SNAP_PX = 15;
+import {
+  type Tab,
+  REGIONS_DATA,
+  zoomToGeoJSONFeatures,
+  AMPHOE_DATA,
+  utmToLatLng,
+  cursorAddNode,
+  SNAP_PX,
+} from "./utils";
+import { useMapInit } from "./useMapInit";
+import { useBoundarySelection } from "./useBoundarySelection";
+import { NodeWarningPopup } from "./components/NodeWarningPopup";
+import { AreaErrorPopup } from "./components/AreaErrorPopup";
+import { ErrorPopup } from "./components/ErrorPopup";
+import { StepWarningPopup } from "./components/StepWarningPopup";
 
 function MapDrawContent() {
   const { user } = useAuth();
 
-  const [selectedRegion, setSelectedRegion] = useState("");
-  const [selectedProvince, setSelectedProvince] = useState("");
-  const [selectedAmphoe, setSelectedAmphoe] = useState("");
-  const [selectedTambon, setSelectedTambon] = useState("");
   const [locationMethod, setLocationMethod] = useState<"area" | "coord">("area");
-  const [amphoesFromDb, setAmphoesFromDb] = useState<string[]>([]);
-  const [tambonsFromDb, setTambonsFromDb] = useState<string[]>([]);
-  const [tambonsLoading, setTambonsLoading] = useState(false);
   const [coordMode, setCoordMode] = useState<"latlng" | "utm">("latlng");
   const [coordLat, setCoordLat] = useState("");
   const [coordLng, setCoordLng] = useState("");
@@ -171,7 +98,15 @@ function MapDrawContent() {
   const [status, setStatus] = useState("🇹🇭 แผนที่ประเทศไทย — เลือกภาค จังหวัด อำเภอ หรือตำบล แล้วกด \"เริ่มวาดแปลง\"");
   const [mapLoaded, setMapLoaded] = useState(false);
 
-
+  const {
+    selectedRegion, setSelectedRegion,
+    selectedProvince, setSelectedProvince,
+    selectedAmphoe, setSelectedAmphoe,
+    selectedTambon, setSelectedTambon,
+    amphoesFromDb,
+    tambonsFromDb,
+    tambonsLoading,
+  } = useBoundarySelection({ mapRef, mapLoadedRef, mapLoaded });
 
   // SHP state
   const [shpFile, setShpFile] = useState<File | null>(null);
@@ -377,129 +312,6 @@ function MapDrawContent() {
       }
     }
   }, [drawnParcels, getVertFeatures]);
-
-
-
-  // Thailand boundary: show when no region/province selected, hide otherwise
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map || !mapLoadedRef.current) return;
-    const src = map.getSource("th-boundary") as maplibregl.GeoJSONSource | undefined;
-    if (!src) return;
-    if (selectedRegion || selectedProvince) {
-      src.setData({ type: "FeatureCollection", features: [] });
-      return;
-    }
-    fetch('/api/geojson/th-boundary')
-      .then(r => r.json())
-      .then(fc => { src.setData(fc); })
-      .catch(console.error);
-  }, [selectedRegion, selectedProvince, mapLoaded]);
-
-  // Region boundary: show only the selected region, hide when province chosen
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map || !mapLoadedRef.current) return;
-    const src = map.getSource("region-boundary") as maplibregl.GeoJSONSource | undefined;
-    if (!src) return;
-    if (!selectedRegion || selectedProvince) {
-      src.setData({ type: "FeatureCollection", features: [] });
-      return;
-    }
-    fetch('/api/geojson/regions')
-      .then(r => r.json())
-      .then((fc: GeoJSON.FeatureCollection) => {
-        const filtered: GeoJSON.FeatureCollection = {
-          type: "FeatureCollection",
-          features: (fc.features || []).filter(f => f.properties?.name_th === selectedRegion),
-        };
-        src.setData(filtered);
-        if (filtered.features.length) zoomToGeoJSONFeatures(filtered.features, map);
-      })
-      .catch(console.error);
-  }, [selectedRegion, selectedProvince, mapLoaded]);
-
-  // Update province boundary to show only the selected province
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map || !mapLoadedRef.current) return;
-    const src = map.getSource("province-boundary") as maplibregl.GeoJSONSource | undefined;
-    if (!src) return;
-    if (!selectedProvince || selectedAmphoe) {
-      src.setData({ type: "FeatureCollection", features: [] });
-      return;
-    }
-    fetch(`/api/geojson/boundary?province=${encodeURIComponent(selectedProvince)}`)
-      .then(r => r.json())
-      .then(fc => {
-        src.setData(fc);
-        if (fc.features) zoomToGeoJSONFeatures(fc.features, map);
-      })
-      .catch(console.error);
-  }, [selectedProvince, selectedAmphoe, mapLoaded]);
-
-  // Fetch amphoe list from DB when province changes
-  useEffect(() => {
-    if (!selectedProvince) { setAmphoesFromDb([]); setTambonsFromDb([]); return; }
-    fetch(`/api/geojson/districts?province=${encodeURIComponent(selectedProvince)}`)
-      .then(r => r.json())
-      .then((fc: GeoJSON.FeatureCollection) => {
-        const names = Array.from(new Set(
-          (fc.features || []).map((f: GeoJSON.Feature) => f.properties?.amphoe_t as string).filter(Boolean)
-        )).sort((a, b) => a.localeCompare(b, 'th'));
-        setAmphoesFromDb(names);
-      })
-      .catch(console.error);
-  }, [selectedProvince]);
-
-  // Fetch tambon list from DB when amphoe changes
-  useEffect(() => {
-    if (!selectedAmphoe) { setTambonsFromDb([]); setTambonsLoading(false); return; }
-    setTambonsLoading(true);
-    setTambonsFromDb([]);
-    fetch(`/api/geojson/tambon?district=${encodeURIComponent(selectedAmphoe)}`)
-      .then(r => r.json())
-      .then((fc: GeoJSON.FeatureCollection) => {
-        const names = Array.from(new Set(
-          (fc.features || []).map((f: GeoJSON.Feature) => f.properties?.tambon_t as string).filter(Boolean)
-        )).sort((a, b) => a.localeCompare(b, 'th'));
-        setTambonsFromDb(names);
-      })
-      .catch(console.error)
-      .finally(() => setTambonsLoading(false));
-  }, [selectedAmphoe]);
-
-  // Update district boundary layer when amphoe changes
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map || !mapLoadedRef.current) return;
-    const src = map.getSource("district-boundary") as maplibregl.GeoJSONSource | undefined;
-    if (!src) return;
-    if (!selectedAmphoe || !selectedProvince || selectedTambon) { src.setData({ type: "FeatureCollection", features: [] }); return; }
-    fetch(`/api/geojson/districts?district=${encodeURIComponent(selectedAmphoe)}&province=${encodeURIComponent(selectedProvince)}`)
-      .then(r => r.json())
-      .then(fc => {
-        src.setData(fc);
-        if (fc.features) zoomToGeoJSONFeatures(fc.features, map);
-      })
-      .catch(console.error);
-  }, [selectedAmphoe, selectedProvince, selectedTambon, mapLoaded]);
-
-  // Update tambon boundary layer when tambon changes
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map || !mapLoadedRef.current) return;
-    const src = map.getSource("tambon-boundary") as maplibregl.GeoJSONSource | undefined;
-    if (!src) return;
-    if (!selectedTambon || !selectedAmphoe) { src.setData({ type: "FeatureCollection", features: [] }); return; }
-    fetch(`/api/geojson/tambon?tambon=${encodeURIComponent(selectedTambon)}&district=${encodeURIComponent(selectedAmphoe)}`)
-      .then(r => r.json())
-      .then(fc => {
-        src.setData(fc);
-        if (fc.features) zoomToGeoJSONFeatures(fc.features, map);
-      })
-      .catch(console.error);
-  }, [selectedTambon, selectedAmphoe, mapLoaded]);
 
   // Hide vertex nodes when not on step 1 (not editable at step 2/3)
   // Also hide existing polygon vertices while drawing to prevent accidental snapping
@@ -1120,540 +932,15 @@ function MapDrawContent() {
   }, [parcelFeatures, handleLandUseChange]);
 
   // ===== MAP INIT =====
-  useEffect(() => {
-    if (!mapContainerRef.current || mapRef.current) return;
-    const map = new maplibregl.Map({
-      container: mapContainerRef.current,
-      pixelRatio: Math.min(typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1, 2),
-      style: {
-        version: 8,
-        glyphs: "https://fonts.openmaptiles.org/{fontstack}/{range}.pbf",
-        sources: {
-          hybrid: {
-            type: "raster",
-            tiles: ["https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}"],
-            tileSize: 256,
-            minzoom: 1,
-            maxzoom: 20,
-            attribution: "© Google",
-          },
-          sat: {
-            type: "raster",
-            tiles: ["https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}"],
-            tileSize: 256,
-            minzoom: 1,
-            maxzoom: 20,
-            attribution: "© Google",
-          },
-          street: {
-            type: "raster",
-            tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
-            tileSize: 256,
-            minzoom: 1,
-            maxzoom: 19,
-            attribution: "",
-          },
-          topo: {
-            type: "raster",
-            tiles: ["https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}"],
-            tileSize: 256,
-            minzoom: 1,
-            maxzoom: 19,
-            attribution: "",
-          },
-        },
-        layers: [
-          { id: "background", type: "background", paint: { "background-color": "#ffffff" } },
-          { id: "hybrid", type: "raster", source: "hybrid", layout: { visibility: "visible" } },
-          { id: "sat", type: "raster", source: "sat", layout: { visibility: "none" } },
-          { id: "street", type: "raster", source: "street", layout: { visibility: "none" } },
-          { id: "topo", type: "raster", source: "topo", layout: { visibility: "none" } },
-        ],
-      },
-      center: [101.258, 13.0],
-      zoom: typeof window !== "undefined" ? (window.innerWidth < 768 ? 1.5 : 2.2) : 2.2,
-      minZoom: 0.5,
-      maxZoom: 19,
-      pitch: 0,
-      bearing: 0,
-      maxPitch: 0,
-      pitchWithRotate: false,
-      dragRotate: false,
-      touchPitch: false,
-      attributionControl: false,
-    });
-    mapRef.current = map;
-
-    map.addControl(new maplibregl.NavigationControl({ showCompass: false, showZoom: true }), "bottom-right");
-    map.addControl(
-      new maplibregl.GeolocateControl({
-        positionOptions: { enableHighAccuracy: true },
-        trackUserLocation: true,
-      }),
-      "bottom-right",
-    );
-    // เพิ่มปุ่มเข็มทิศแยกต่างหาก เพื่อให้อยู่ด้านบนสุด (ลำดับการแอดหลังสุดสำหรับ bottom-right จะอยู่บนสุด)
-    map.addControl(new maplibregl.NavigationControl({ showCompass: true, showZoom: false }), "bottom-right");
-
-    map.on("load", () => {
-      map.setProjection({ type: "globe" });
-      mapLoadedRef.current = true;
-      setMapLoaded(true);
-
-
-      // ── Thailand Country Boundary (shown on load, before any selection) ───
-      map.addSource("th-boundary", {
-        type: "geojson",
-        data: { type: "FeatureCollection", features: [] },
-      });
-      map.addLayer({
-        id: "th-boundary-fill",
-        type: "fill",
-        source: "th-boundary",
-        paint: { "fill-color": "#22c55e", "fill-opacity": 0.04 },
-      });
-      map.addLayer({
-        id: "th-boundary-glow",
-        type: "line",
-        source: "th-boundary",
-        paint: {
-          "line-color": "#22c55e",
-          "line-width": ["interpolate", ["linear"], ["zoom"], 4, 4, 8, 8, 12, 14],
-          "line-opacity": ["interpolate", ["linear"], ["zoom"], 4, 0.15, 12, 0.28],
-          "line-blur": ["interpolate", ["linear"], ["zoom"], 4, 3, 12, 7],
-        },
-      });
-      map.addLayer({
-        id: "th-boundary-line",
-        type: "line",
-        source: "th-boundary",
-        paint: {
-          "line-color": "#16a34a",
-          "line-width": ["interpolate", ["linear"], ["zoom"], 4, 1, 8, 1.8, 12, 2.8],
-          "line-opacity": 0.9,
-        },
-      });
-
-      // ── Region Boundaries (shown when region is selected) ──────────────────
-      map.addSource("region-boundary", {
-        type: "geojson",
-        data: { type: "FeatureCollection", features: [] },
-      });
-      map.addLayer({
-        id: "region-boundary-fill",
-        type: "fill",
-        source: "region-boundary",
-        paint: { "fill-color": "#f59e0b", "fill-opacity": 0.06 },
-      });
-      map.addLayer({
-        id: "region-boundary-glow",
-        type: "line",
-        source: "region-boundary",
-        paint: {
-          "line-color": "#f59e0b",
-          "line-width": ["interpolate", ["linear"], ["zoom"], 5, 4, 9, 8, 13, 14],
-          "line-opacity": ["interpolate", ["linear"], ["zoom"], 5, 0.12, 13, 0.22],
-          "line-blur": ["interpolate", ["linear"], ["zoom"], 5, 2, 13, 7],
-        },
-      });
-      map.addLayer({
-        id: "region-boundary-line",
-        type: "line",
-        source: "region-boundary",
-        paint: {
-          "line-color": "#d97706",
-          "line-width": ["interpolate", ["linear"], ["zoom"], 5, 1, 9, 1.8, 13, 3.5],
-          "line-opacity": 0.95,
-        },
-      });
-
-      // Fetch Thailand boundary on initial load
-      fetch('/api/geojson/th-boundary')
-        .then(r => r.json())
-        .then(fc => {
-          const src = map.getSource("th-boundary") as maplibregl.GeoJSONSource | undefined;
-          if (src) src.setData(fc);
-        })
-        .catch(console.error);
-
-      // ── Province Boundaries ───────────────────────────────────────────────
-      map.addSource("province-boundary", {
-        type: "geojson",
-        data: { type: "FeatureCollection", features: [] },
-      });
-      // Glow — expands as you zoom in
-      map.addLayer({
-        id: "province-boundary-glow",
-        type: "line",
-        source: "province-boundary",
-        paint: {
-          "line-color": "#ec4899", // pink-500
-          "line-width": ["interpolate", ["linear"], ["zoom"], 6, 4, 10, 8, 14, 14],
-          "line-opacity": ["interpolate", ["linear"], ["zoom"], 6, 0.12, 14, 0.22],
-          "line-blur": ["interpolate", ["linear"], ["zoom"], 6, 2, 14, 7],
-        },
-      });
-      // Main solid line — thickens on zoom
-      map.addLayer({
-        id: "province-boundary-line",
-        type: "line",
-        source: "province-boundary",
-        paint: {
-          "line-color": "#db2777", // pink-600
-          "line-width": ["interpolate", ["linear"], ["zoom"], 6, 1, 10, 1.8, 14, 3.5],
-          "line-opacity": 0.95,
-        },
-      });
-
-      // ── District Boundaries ───────────────────────────────────────────────
-      map.addSource("district-boundary", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
-      map.addLayer({
-        id: "district-boundary-glow",
-        type: "line",
-        source: "district-boundary",
-        paint: {
-          "line-color": "#06b6d4",
-          "line-width": ["interpolate", ["linear"], ["zoom"], 6, 4, 10, 8, 14, 14],
-          "line-opacity": ["interpolate", ["linear"], ["zoom"], 6, 0.12, 14, 0.22],
-          "line-blur": ["interpolate", ["linear"], ["zoom"], 6, 2, 14, 7],
-        },
-      });
-      map.addLayer({
-        id: "district-boundary-line",
-        type: "line",
-        source: "district-boundary",
-        paint: {
-          "line-color": "#06b6d4",
-          "line-width": ["interpolate", ["linear"], ["zoom"], 6, 1, 10, 1.8, 14, 3.5],
-          "line-opacity": 0.95,
-        },
-      });
-
-      // ── Tambon Boundaries ─────────────────────────────────────────────────
-      map.addSource("tambon-boundary", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
-      map.addLayer({
-        id: "tambon-boundary-glow",
-        type: "line",
-        source: "tambon-boundary",
-        paint: {
-          "line-color": "#a855f7",
-          "line-width": ["interpolate", ["linear"], ["zoom"], 6, 4, 10, 8, 14, 14],
-          "line-opacity": ["interpolate", ["linear"], ["zoom"], 6, 0.12, 14, 0.22],
-          "line-blur": ["interpolate", ["linear"], ["zoom"], 6, 2, 14, 7],
-        },
-      });
-      map.addLayer({
-        id: "tambon-boundary-line",
-        type: "line",
-        source: "tambon-boundary",
-        paint: {
-          "line-color": "#a855f7",
-          "line-width": ["interpolate", ["linear"], ["zoom"], 6, 1, 10, 1.8, 14, 3.5],
-          "line-opacity": 0.95,
-        },
-      });
-      // ─────────────────────────────────────────────────────────────────────
-
-      map.addSource("draw-line", { type: "geojson", data: emptyFC() });
-      map.addLayer({
-        id: "draw-line-l",
-        type: "line",
-        source: "draw-line",
-        layout: { "line-join": "round", "line-cap": "round" },
-        paint: { "line-color": "#3b82f6", "line-width": 2, "line-dasharray": [3, 2] },
-      });
-      map.addSource("draw-fill", { type: "geojson", data: emptyFC() });
-      map.addLayer({
-        id: "draw-fill-l",
-        type: "fill",
-        source: "draw-fill",
-        paint: { "fill-color": "#3b82f6", "fill-opacity": 0.05 },
-      });
-      map.addSource("draw-verts", { type: "geojson", data: emptyFC() });
-      map.addLayer({
-        id: "draw-verts-l",
-        type: "circle",
-        source: "draw-verts",
-        paint: {
-          "circle-color": [
-            "case",
-            ["boolean", ["feature-state", "hover"], false],
-            [
-              "case",
-              ["==", ["get", "isMid"], true], "#3b82f6",
-              "#2563eb"
-            ],
-            [
-              "case",
-              ["==", ["get", "isMid"], true], "rgba(255, 255, 255, 0.75)",
-              "#3b82f6"
-            ]
-          ],
-          "circle-radius": [
-            "interpolate",
-            ["linear"],
-            ["zoom"],
-            4,
-            [
-              "case",
-              ["boolean", ["feature-state", "hover"], false],
-              ["case", ["==", ["get", "isMid"], true], 3.5, 4.5],
-              ["case", ["==", ["get", "isMid"], true], 2, 3]
-            ],
-            14,
-            [
-              "case",
-              ["boolean", ["feature-state", "hover"], false],
-              ["case", ["==", ["get", "isMid"], true], 6, 7.5],
-              ["case", ["==", ["get", "isMid"], true], 4, 5.5]
-            ]
-          ],
-          "circle-stroke-color": [
-            "case",
-            ["boolean", ["feature-state", "hover"], false], "#ffffff",
-            [
-              "case",
-              ["==", ["get", "isMid"], true], "#3b82f6",
-              "rgba(255,255,255,0.95)"
-            ]
-          ],
-          "circle-stroke-width": [
-            "case",
-            ["boolean", ["feature-state", "hover"], false], 1.5,
-            [
-              "case",
-              ["==", ["get", "isMid"], true], 1,
-              1.5
-            ]
-          ],
-          "circle-opacity": [
-            "case",
-            ["boolean", ["feature-state", "hover"], false], 1.0,
-            [
-              "case",
-              ["==", ["get", "isMid"], true], 0.5,
-              1.0
-            ]
-          ],
-          "circle-stroke-opacity": [
-            "case",
-            ["boolean", ["feature-state", "hover"], false], 1.0,
-            [
-              "case",
-              ["==", ["get", "isMid"], true], 0.6,
-              1.0
-            ]
-          ]
-        },
-      });
-      map.addSource("plot", { type: "geojson", data: emptyFC() });
-      map.addLayer({
-        id: "plot-fill",
-        type: "fill",
-        source: "plot",
-        paint: { "fill-color": "#3b82f6", "fill-opacity": 0.05 },
-      });
-      map.addLayer({
-        id: "plot-line",
-        type: "line",
-        source: "plot",
-        layout: { "line-join": "round", "line-cap": "round" },
-        paint: { "line-color": "#3b82f6", "line-width": ["interpolate", ["linear"], ["zoom"], 4, 1, 14, 2] },
-      });
-
-
-
-      map.addSource("matched-parcels", { type: "geojson", data: emptyFC() });
-      map.addLayer({
-        id: "matched-parcels-fill",
-        type: "fill",
-        source: "matched-parcels",
-        paint: {
-          "fill-color": [
-            "case",
-            ["==", ["to-string", ["coalesce", ["get", "lu_class"], ""]], "A302"], "#84cc16",
-            "rgba(0,0,0,0)"
-          ],
-          "fill-opacity": 0
-        },
-      });
-      map.addLayer({
-        id: "matched-parcels-line",
-        type: "line",
-        source: "matched-parcels",
-        layout: { "line-join": "round", "line-cap": "round" },
-        paint: {
-          "line-color": [
-            "case",
-            ["==", ["to-string", ["coalesce", ["get", "lu_class"], ""]], "A302"], "#84cc16",
-            "#64748b"
-          ],
-          "line-width": 2.2,
-          "line-opacity": 1
-        },
-      });
-      map.addLayer({
-        id: "matched-parcels-label",
-        type: "symbol",
-        source: "matched-parcels",
-        layout: {
-          "text-field": ["coalesce", ["get", "lu_class"], ["get", "plot_index"]],
-          "text-size": 13,
-          "text-allow-overlap": false,
-        },
-        paint: {
-          "text-color": "#ffffff",
-          "text-halo-color": "#0f172a",
-          "text-halo-width": 2,
-        },
-      });
-
-      // Reference layer: existing project plots shown when adding a new plot
-      map.addSource("ref-project-plots", { type: "geojson", data: emptyFC() });
-      map.addLayer({
-        id: "ref-project-plots-fill",
-        type: "fill",
-        source: "ref-project-plots",
-        paint: { "fill-color": "#64748b", "fill-opacity": 0.05 },
-      });
-      map.addLayer({
-        id: "ref-project-plots-line",
-        type: "line",
-        source: "ref-project-plots",
-        layout: { "line-join": "round", "line-cap": "round" },
-        paint: { "line-color": "#334155", "line-width": 1.5 },
-      });
-
-      map.addSource("plot-verts", { type: "geojson", data: emptyFC() });
-      map.addLayer({
-        id: "plot-verts-l",
-        type: "circle",
-        source: "plot-verts",
-        paint: {
-          "circle-color": [
-            "case",
-            ["boolean", ["feature-state", "hover"], false],
-            [
-              "case",
-              ["==", ["get", "isMid"], true], "#3b82f6",
-              "#2563eb"
-            ],
-            [
-              "case",
-              ["==", ["get", "isMid"], true], "rgba(255, 255, 255, 0.75)",
-              "#ffffff"
-            ]
-          ],
-          "circle-radius": [
-            "interpolate",
-            ["linear"],
-            ["zoom"],
-            4,
-            [
-              "case",
-              ["boolean", ["feature-state", "hover"], false],
-              ["case", ["==", ["get", "isMid"], true], 3.5, 4.5],
-              ["case", ["==", ["get", "isMid"], true], 2, 3]
-            ],
-            14,
-            [
-              "case",
-              ["boolean", ["feature-state", "hover"], false],
-              ["case", ["==", ["get", "isMid"], true], 6, 7.5],
-              ["case", ["==", ["get", "isMid"], true], 4, 5.5]
-            ]
-          ],
-          "circle-stroke-color": [
-            "case",
-            ["boolean", ["feature-state", "hover"], false], "#ffffff",
-            [
-              "case",
-              ["==", ["get", "isMid"], true], "#3b82f6",
-              "#2563eb"
-            ]
-          ],
-          "circle-stroke-width": [
-            "case",
-            ["boolean", ["feature-state", "hover"], false], 1.5,
-            [
-              "case",
-              ["==", ["get", "isMid"], true], 1,
-              2
-            ]
-          ],
-          "circle-opacity": [
-            "case",
-            ["boolean", ["feature-state", "hover"], false], 1.0,
-            [
-              "case",
-              ["==", ["get", "isMid"], true], 0.5,
-              1.0
-            ]
-          ],
-          "circle-stroke-opacity": [
-            "case",
-            ["boolean", ["feature-state", "hover"], false], 1.0,
-            [
-              "case",
-              ["==", ["get", "isMid"], true], 0.6,
-              1.0
-            ]
-          ]
-        },
-      });
-
-      // Snap indicator — shown when dragging a vertex near another polygon's vertex
-      map.addSource("snap-indicator", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
-      map.addLayer({
-        id: "snap-indicator-glow",
-        type: "circle",
-        source: "snap-indicator",
-        paint: {
-          "circle-color": "rgba(245, 158, 11, 0.22)",
-          "circle-radius": 20,
-          "circle-blur": 0.7,
-          "circle-stroke-width": 0,
-        },
-      });
-      map.addLayer({
-        id: "snap-indicator-ring",
-        type: "circle",
-        source: "snap-indicator",
-        paint: {
-          "circle-color": "rgba(0,0,0,0)",
-          "circle-radius": 12,
-          "circle-stroke-color": "#f59e0b",
-          "circle-stroke-width": 2.5,
-          "circle-opacity": 0,
-          "circle-stroke-opacity": 1,
-        },
-      });
-
-      const fmt = (v: unknown) => (v == null || v === "" ? "—" : String(v));
-      map.on("click", "matched-parcels-fill", (e) => {
-        if (drawingRef.current) return;
-        if (!e.features?.length) return;
-        const p = (e.features[0].properties ?? {}) as Record<string, unknown>;
-        if (p.plot_index) {
-          const idx = parseInt(String(p.plot_index), 10) - 1;
-          setSelectedPlotIndex(idx);
-        }
-      });
-      map.on("mouseenter", "matched-parcels-fill", () => {
-        if (!drawingRef.current) map.getCanvas().style.cursor = "pointer";
-      });
-      map.on("mouseleave", "matched-parcels-fill", () => {
-        if (!drawingRef.current) map.getCanvas().style.cursor = "";
-      });
-    });
-
-    return () => {
-      cancelAnimationFrame(boundaryAnimRef.current);
-      map.remove();
-      mapRef.current = null;
-      mapLoadedRef.current = false;
-    };
-  }, []);
+  useMapInit({
+    mapContainerRef,
+    mapRef,
+    mapLoadedRef,
+    setMapLoaded,
+    boundaryAnimRef,
+    drawingRef,
+    setSelectedPlotIndex,
+  });
 
   // ===== AUTO-LOAD EXISTING PROJECT FOR CALCULATION =====
   useEffect(() => {
@@ -1671,8 +958,6 @@ function MapDrawContent() {
       action = params.get("action") || action;
       plotId = params.get("plotId") || plotId;
     }
-
-    console.log("[AUTO-LOAD] Effect triggered", { projName, action, plotId, currentDrawnCount: drawnParcels.length });
 
     // Add-plot mode: project specified but no action/plotId — load existing plots into step 2
     if (projName && !action && !plotId && !refPlotsLoadedRef.current) {
@@ -1788,9 +1073,7 @@ function MapDrawContent() {
           // Filter client-side by project name as safety net
           const allProjectPlots: any[] = (Array.isArray(apiData.plots) ? apiData.plots : [])
             .filter((p: any) => String(p.name || "").toLowerCase() === String(projName).toLowerCase());
-          console.log("[AUTO-LOAD] API plots for:", projName, allProjectPlots);
           const projectPlots = allProjectPlots;
-          console.log("[AUTO-LOAD] projectPlots for:", projName, projectPlots);
 
           if (projectPlots.length > 0) {
             const feats: GeoJSON.Feature[] = projectPlots.map((p: any, i: number) => ({
@@ -2514,12 +1797,6 @@ function MapDrawContent() {
   // ===== PLANTATION INFO (rubber area search via backend) =====
   const runPlantationInfo = useCallback(async (projType?: string | null) => {
     const activeProjType = projType !== undefined ? projType : projectType;
-    console.log("[runPlantationInfo] Called", {
-      drawnParcelsLength: drawnParcels.length,
-      totalDrawnArea,
-      drawnParcels,
-      activeProjType
-    });
     if (drawnParcels.length === 0) {
       setSearchErr("กรุณาวาดแปลงหรืออัปโหลด Shapefile ก่อน");
       return;
@@ -2560,7 +1837,6 @@ function MapDrawContent() {
             project_type: activeProjType,
             output_crs: "EPSG:4326",
           });
-          console.log(`[KeptCarbon] plantation-info parcel ${pi}:`, JSON.stringify(result, null, 2));
           allRawPlantationInfo.push(result);
 
           const luPolygons = result.lu_polygon ?? [];
@@ -2748,14 +2024,8 @@ function MapDrawContent() {
 
   // Auto-trigger plantation info search when new parcels are drawn
   useEffect(() => {
-    console.log("[AUTO-TRIGGER] Effect evaluated", {
-      needsPlantationSearch: needsPlantationSearchRef.current,
-      drawnParcelsLength: drawnParcels.length,
-      drawnParcels
-    });
     if (needsPlantationSearchRef.current && drawnParcels.length > 0) {
       needsPlantationSearchRef.current = false;
-      console.log("[AUTO-TRIGGER] Launching runPlantationInfoRef.current()");
       runPlantationInfoRef.current(projectType);
     }
   }, [drawnParcels, projectType]);
@@ -3894,170 +3164,19 @@ function MapDrawContent() {
         </div>
       )}
 
-      {/* Minimum-points warning popup */}
-      {nodeWarningPopup && (
-        <div className="mds-node-warn-overlay" onClick={() => setNodeWarningPopup(false)}>
-          <div className="mds-node-warn-popup" onClick={(e) => e.stopPropagation()}>
-            <div className="mds-node-warn-icon">
-              <i className="bi bi-pentagon-fill" />
-              <span className="mds-node-warn-badge">3+</span>
-            </div>
-            <div className="mds-node-warn-content">
-              <h3>ไม่สามารถลบจุดได้</h3>
-              <p>แปลงที่วาดต้องมีอย่างน้อย 3 จุด<br />จึงจะสร้างพื้นที่แปลงได้</p>
-            </div>
-            <button className="mds-node-warn-btn" onClick={() => setNodeWarningPopup(false)}>
-              รับทราบ
-            </button>
-          </div>
-        </div>
-      )}
+      <NodeWarningPopup open={nodeWarningPopup} onClose={() => setNodeWarningPopup(false)} />
 
-      {/* Area Validation Popup */}
-      {areaError && (
-        <div className="mds-area-popup-overlay" onClick={() => setAreaError(null)}>
-          <div className="mds-area-popup" onClick={(e) => e.stopPropagation()}>
-            <div className="mds-area-popup-icon">
-              <i className="bi bi-exclamation-triangle-fill" />
-            </div>
-            <div className="mds-area-popup-content">
-              <h3>{areaError.tooSmall ? "พื้นที่แปลงเล็กเกินไป" : "พื้นที่แปลงใหญ่เกินไป"}</h3>
-              <p>
-                ขนาดแปลงที่วาดคือ <strong>{areaError.rai.toFixed(2)} ไร่</strong> ({Math.round(areaError.sqm).toLocaleString()} ตร.ม.)
-                {areaError.tooSmall
-                  ? <> ซึ่งน้อยกว่าเกณฑ์ขั้นต่ำ <strong>1 ไร่</strong></>
-                  : <> ซึ่งเกินกว่าเกณฑ์สูงสุด <strong>500 ไร่</strong></>
-                }
-              </p>
-              <div className="mds-area-popup-hint">
-                {areaError.tooSmall
-                  ? "กรุณาวาดแปลงใหม่ให้มีพื้นที่อย่างน้อย 1 ไร่"
-                  : "กรุณาปรับลดขอบเขตแปลง หรือแบ่งเป็นหลายแปลง"
-                }
-              </div>
-            </div>
-            <button className="mds-area-popup-close" onClick={() => setAreaError(null)}>
-              ตกลง
-            </button>
-          </div>
-        </div>
-      )}
-      {/* Error Validation Popup */}
-      {errorPopup && (
-        <div style={{
-          position: "fixed", inset: 0, zIndex: 99999,
-          background: "rgba(15,23,42,0.4)", backdropFilter: "blur(4px)",
-          display: "flex", alignItems: "center", justifyContent: "center", padding: 20
-        }}>
-          <div style={{
-            background: "#fff", borderRadius: 20, padding: "28px 24px 24px",
-            width: "100%", maxWidth: 360, textAlign: "center",
-            boxShadow: "0 20px 40px rgba(0,0,0,0.15), 0 0 0 1px rgba(0,0,0,0.05)",
-            animation: "popupIn 0.3s cubic-bezier(0.16, 1, 0.3, 1)"
-          }}>
-            <div style={{
-              width: 56, height: 56, borderRadius: "50%",
-              background: errorPopup.title === "แจ้งเตือนข้อมูล" ? "#fef08a" : "#fee2e2",
-              color: errorPopup.title === "แจ้งเตือนข้อมูล" ? "#ca8a04" : "#ef4444",
-              display: "flex", alignItems: "center", justifyContent: "center",
-              fontSize: 28, margin: "0 auto 16px"
-            }}>
-              <i className={`bi ${errorPopup.title === "แจ้งเตือนข้อมูล" ? "bi-info-circle-fill" : "bi-x-circle-fill"}`} />
-            </div>
-            <h3 style={{ fontSize: 18, fontWeight: 800, color: "#0f172a", marginBottom: 8, lineHeight: 1.3 }}>
-              {errorPopup.title}
-            </h3>
-            <p style={{ fontSize: 14, color: "#475569", lineHeight: 1.5, marginBottom: 24 }}>
-              {errorPopup.desc}
-            </p>
-            <button
-              onClick={() => setErrorPopup(null)}
-              style={{
-                width: "100%", padding: "12px", borderRadius: 12,
-                background: errorPopup.title === "แจ้งเตือนข้อมูล" ? "#ca8a04" : "#ef4444",
-                color: "#fff", border: "none", fontSize: 15, fontWeight: 700,
-                cursor: "pointer", transition: "all 0.2s"
-              }}
-            >
-              ตกลง
-            </button>
-          </div>
-          <style>{`
-            @keyframes popupIn {
-              from { opacity: 0; transform: scale(0.95) translateY(10px); }
-              to { opacity: 1; transform: scale(1) translateY(0); }
-            }
-          `}</style>
-        </div>
-      )}
+      <AreaErrorPopup error={areaError} onClose={() => setAreaError(null)} />
 
-      {/* Step Warning Popup */}
-      {stepWarningPopup && (
-        <div style={{
-          position: "fixed", inset: 0, zIndex: 99999,
-          background: "rgba(15,23,42,0.4)", backdropFilter: "blur(4px)",
-          display: "flex", alignItems: "center", justifyContent: "center", padding: 20
-        }}>
-          <div style={{
-            background: "#fff", borderRadius: 20, padding: "28px 24px 24px",
-            width: "100%", maxWidth: 360, textAlign: "center",
-            boxShadow: "0 20px 40px rgba(0,0,0,0.15), 0 0 0 1px rgba(0,0,0,0.05)",
-            animation: "popupIn 0.3s cubic-bezier(0.16, 1, 0.3, 1)"
-          }}>
-            <div style={{
-              width: 56, height: 56, borderRadius: "50%",
-              background: "rgba(220,38,38,0.1)",
-              color: "#dc2626",
-              display: "flex", alignItems: "center", justifyContent: "center",
-              fontSize: 28, margin: "0 auto 16px"
-            }}>
-              <i className="bi bi-exclamation-triangle-fill" />
-            </div>
-            <h3 style={{ fontSize: 18, fontWeight: 800, color: "#dc2626", marginBottom: 8, lineHeight: 1.3 }}>
-              {user ? "เริ่มโครงการใหม่หรือไม่?" : "แน่ใจหรือไม่?"}
-            </h3>
-            <p style={{ fontSize: 14, color: "#475569", lineHeight: 1.5, marginBottom: 24 }}>
-              {user
-                ? "ต้องการที่จะเริ่มกำหนดขอบเขตและสร้างโครงการใหม่"
-                : "หากกลับไปข้อมูลที่ทำไว้จะหายไป"}
-              {user && !plotsSaved && (
-                <>
-                  <br />
-                  <span style={{ color: "rgb(220, 50, 38)", fontWeight: 700, display: "block", marginTop: 8 }}>
-                    คำเตือน:ไม่ได้ทำการบันทึกข้อมูลแปลงที่วาดไว้ในระบบ
-                  </span>
-                </>
-              )}
-            </p>
-            <div style={{ display: "flex", gap: 12 }}>
-              <button
-                onClick={() => setStepWarningPopup(false)}
-                style={{
-                  flex: 1, padding: "12px", borderRadius: 12,
-                  background: "#e2e8f0", color: "#475569",
-                  border: "none", fontSize: 15, fontWeight: 700,
-                  cursor: "pointer", transition: "all 0.2s"
-                }}
-              >
-                ยกเลิก
-              </button>
-              <button
-                onClick={handleConfirmStep1}
-                style={{
-                  flex: 1, padding: "12px", borderRadius: 12,
-                  background: "#dc2626", color: "#fff",
-                  border: "none", fontSize: 15, fontWeight: 700,
-                  cursor: "pointer", transition: "all 0.2s"
-                }}
-              >
-                ตกลง
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ErrorPopup popup={errorPopup} onClose={() => setErrorPopup(null)} />
 
-
+      <StepWarningPopup
+        open={stepWarningPopup}
+        isLoggedIn={!!user}
+        plotsSaved={plotsSaved}
+        onCancel={() => setStepWarningPopup(false)}
+        onConfirm={handleConfirmStep1}
+      />
     </div>
   );
 }

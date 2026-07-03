@@ -1,0 +1,582 @@
+.card {
+  background: #fff;
+  border-radius: 20px;
+  border: 1px solid rgba(16, 185, 129, 0.13);
+  box-shadow: 0 2px 16px rgba(0, 0, 0, 0.05);
+  overflow: hidden;
+  transition: box-shadow 0.25s, transform 0.25s;
+  position: relative;
+}
+
+.card:hover {
+  box-shadow: 0 10px 32px rgba(16, 185, 129, 0.13);
+  transform: translateY(-2px);
+}
+
+.accentBar {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  background: linear-gradient(to bottom, #10b981, #059669, #047857);
+}
+
+/* ── Header ─────────────────────────────────────────── */
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 15px 20px 13px 22px;
+  gap: 12px;
+  background: linear-gradient(to bottom, #fafffe 0%, #fff 100%);
+}
+
+.headerMobile {
+  padding: 14px 16px 12px 20px;
+}
+
+.headerLeft {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  flex: 1;
+}
+
+.indexBadge {
+  width: 42px;
+  height: 42px;
+  border-radius: 13px;
+  flex-shrink: 0;
+  background: linear-gradient(135deg, #10b981 0%, #047857 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 14px rgba(16, 185, 129, 0.35);
+  font-size: 21px;
+  font-weight: 900;
+  color: #fff;
+  letter-spacing: -0.5px;
+}
+
+.titleBlock {
+  min-width: 0;
+}
+
+.titleRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.title {
+  font-size: 18px;
+  font-weight: 800;
+  color: #0f172a;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+
+.badge {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 20px;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  white-space: nowrap;
+}
+
+.badgeProcessed {
+  color: #059669;
+  background: rgba(5, 150,105, 0.1);
+  border: 1px solid rgba(5, 150,105, 0.25);
+}
+
+.badgeUnprocessed {
+  color: #f59e0b;
+  background: rgba(245, 158, 11, 0.1);
+  border: 1px solid rgba(245, 158, 11, 0.25);
+}
+
+.dateRow {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 3px;
+}
+
+.dateText {
+  font-size: 12px;
+  color: #cbd5e1;
+}
+
+.actionsRow {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.actionBtn {
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  border: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  transition: background 0.15s;
+  font-size: 14px;
+}
+
+.actionBtnPin {
+  background: rgba(16, 185, 129, 0.07);
+  color: #10b981;
+}
+.actionBtnPin:hover {
+  background: rgba(16, 185, 129, 0.14);
+}
+
+.actionBtnEdit {
+  background: #f1f5f9;
+  color: #475569;
+}
+.actionBtnEdit:hover {
+  background: #e2e8f0;
+}
+
+.actionBtnDelete {
+  background: rgba(239, 68, 68, 0.07);
+  color: #ef4444;
+}
+.actionBtnDelete:hover {
+  background: rgba(239, 68, 68, 0.14);
+}
+
+/* ── Info strip ─────────────────────────────────────── */
+
+.infoStrip {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  border-top: 1px solid #f1f5f9;
+  border-bottom: 1px solid #f1f5f9;
+  background: #fafbfc;
+}
+
+.infoStripMobile {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+.infoCell {
+  padding: 13px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.infoCellMobile {
+  padding: 11px 14px;
+}
+
+.infoCellBorderRight {
+  border-right: 1px solid #f1f5f9;
+}
+
+.infoCellBorderBottom {
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.infoIconBox {
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  background: rgba(16, 185, 129, 0.12);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.infoIconRow {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.infoIcon {
+  font-size: 12px;
+  color: #10b981;
+}
+
+.infoLabel {
+  font-size: 13px;
+  color: #94a3b8;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+}
+
+.infoValueRow {
+  display: flex;
+  align-items: baseline;
+  gap: 3px;
+}
+
+.infoUnit {
+  font-size: 12px;
+  color: #94a3b8;
+  font-weight: 500;
+}
+
+.infoValue {
+  font-size: 18px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.infoValueMobile {
+  font-size: 17px;
+}
+
+.infoValueEmpty {
+  color: #cbd5e1;
+}
+
+.infoValueFilled {
+  color: #1e293b;
+}
+
+/* ── Tabs ───────────────────────────────────────────── */
+
+.tabsRow {
+  display: flex;
+  border-top: 1px solid rgba(16, 185, 129, 0.08);
+}
+
+.tabBtn {
+  flex: 1;
+  padding: 12px;
+  border: none;
+  font-size: 14px;
+  font-weight: 700;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: background 0.15s;
+  cursor: pointer;
+}
+
+.tabBtnMobile {
+  padding: 10px 4px;
+  flex-direction: column;
+  font-size: 12px;
+}
+
+.tabBtnDivider {
+  border-right: 1px solid rgba(16, 185, 129, 0.08);
+}
+
+.tabBtnActive {
+  background: rgba(16, 185, 129, 0.06);
+  color: #059669;
+}
+
+.tabBtnInactive {
+  background: #fff;
+  color: #64748b;
+}
+
+.tabBtnDisabled {
+  color: #cbd5e1;
+  cursor: default;
+  opacity: 0.6;
+}
+
+.tabIconRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tabIcon {
+  font-size: 15px;
+}
+
+.tabLabel {
+  white-space: nowrap;
+}
+
+.tabUnprocessedBadge {
+  font-size: 10px;
+  color: #f59e0b;
+  white-space: nowrap;
+  background: rgba(245, 158, 11, 0.08);
+  padding: 2px 6px;
+  border-radius: 10px;
+}
+
+/* ── Content ────────────────────────────────────────── */
+
+.content {
+  padding: 16px 20px 24px;
+  background: #fff;
+  border-top: 1px solid #f8fafc;
+}
+
+.contentMobile {
+  padding: 12px 16px 20px;
+}
+
+.carbonGrid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 20px;
+  align-items: stretch;
+  min-width: 0;
+}
+
+.carbonGridTwoCol {
+  grid-template-columns: 1fr 1fr;
+}
+
+.graphPanel {
+  min-width: 0;
+  overflow: hidden;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.graphInner {
+  height: 100%;
+  min-height: 280px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.graphInnerBox {
+  width: 100%;
+  max-width: 680px;
+}
+
+.emptyGraph {
+  text-align: center;
+  padding: 32px 20px;
+  background: linear-gradient(135deg, #fffbeb, #fef3c7);
+  border-radius: 14px;
+  border: 1.5px dashed rgba(245, 158, 11, 0.3);
+  color: #92400e;
+  font-size: 14px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 280px;
+}
+
+.emptyGraphIconBox {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  background: rgba(245, 158, 11, 0.15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 12px;
+}
+
+.emptyGraphIcon {
+  font-size: 22px;
+  color: #f59e0b;
+}
+
+.emptyGraphTitle {
+  font-weight: 700;
+  font-size: 15px;
+  margin-bottom: 4px;
+}
+
+.emptyGraphSubtitle {
+  font-size: 12px;
+  color: #b45309;
+  line-height: 1.5;
+}
+
+/* ── Details panel (mirrors PlotDetailCard) ────────── */
+
+.detailsPanel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 13px;
+  color: #475569;
+  height: 100%;
+}
+
+.detailsCard {
+  padding: 12px 14px;
+  background: rgba(16, 185, 129, 0.04);
+  border-radius: 10px;
+  border: 1px solid rgba(16, 185, 129, 0.15);
+  height: 100%;
+}
+
+.detailsHeader {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.detailsHeaderLabel {
+  font-weight: 700;
+  color: #047857;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+}
+
+.detailsAreaText {
+  font-size: 12px;
+  color: #475569;
+  font-weight: 600;
+}
+
+.strongDark {
+  color: #0f172a;
+}
+
+.yearSection {
+  margin-bottom: 0;
+}
+
+.yearSectionWithNotes {
+  margin-bottom: 12px;
+}
+
+.yearLabel {
+  font-size: 12px;
+  color: #475569;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.yearLabelHighlight {
+  color: #059669;
+  font-weight: 600;
+}
+
+.yearBoxRow {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.yearBox {
+  padding: 4px 10px;
+  background: rgba(100, 116, 139, 0.06);
+  border-radius: 8px;
+  border: 1px solid rgba(100, 116, 139, 0.15);
+  font-weight: 500;
+  font-size: 12px;
+  color: #475569;
+}
+
+.emptyText {
+  font-size: 12px;
+  color: #475569;
+}
+
+.expandBtn {
+  border: 1px solid rgba(100, 116, 139, 0.2);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #475569;
+}
+
+.expandBtnLg {
+  width: 24px;
+  height: 24px;
+}
+
+.expandBtnSm {
+  width: 22px;
+  height: 22px;
+}
+
+.expandBtnOn {
+  background: rgba(226, 232, 240, 0.8);
+}
+
+.expandBtnOff {
+  background: rgba(241, 245, 249, 0.8);
+}
+
+.expandIconLg {
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.expandIconSm {
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.notesBox {
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.6);
+  border-radius: 8px;
+  border: 1px solid rgba(16, 185, 129, 0.2);
+}
+
+.notesBoxLabel {
+  font-size: 12px;
+  color: #475569;
+  font-weight: 700;
+  margin-bottom: 6px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.notesBoxIcon {
+  color: #059669;
+}
+
+.noteBox {
+  padding: 4px 8px;
+  background: rgba(100, 116, 139, 0.04);
+  border-radius: 6px;
+  border: 1px solid rgba(100, 116, 139, 0.1);
+  font-weight: 500;
+  font-size: 11px;
+  color: #475569;
+}
+
+.paramsSection {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-top: 8px;
+  padding-top: 10px;
+  border-top: 1px dashed rgba(16, 185, 129, 0.2);
+}
+
+.paramSource {
+  color: #64748b;
+  font-size: 12px;
+}

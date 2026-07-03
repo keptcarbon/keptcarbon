@@ -28,6 +28,4 @@ async def estimate_carbon(polygons: List[PlantationEstimateRequest]):
                 detail=f"Error processing {polygon_id}: {str(e)}"
             )
 
-    print(f"Total reports generated: {len(results)}") # Verify this matches test.json count
-    
     return results

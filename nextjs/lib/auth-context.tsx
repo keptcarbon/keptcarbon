@@ -8,7 +8,18 @@ import {
   useMemo,
   useState,
 } from "react";
-import { Auth, type SessionUser } from "./auth";
+
+/** Shape returned by /api/auth/me, /api/auth/login, /api/auth/register. */
+export type SessionUser = {
+  id: number | string;
+  email: string;
+  username?: string;
+  fullname: string;
+  phone?: string;
+  pictureUrl?: string;
+  role: string;
+  provider?: string;
+};
 
 type ModalKind = null | "login" | "register";
 

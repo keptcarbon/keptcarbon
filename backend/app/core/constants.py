@@ -14,7 +14,11 @@ MIX_TREE_PROPORTION = 0.02  # Proportion for removing older age noisy pixels
 CARBON_FRACTION = 0.47 
 CARBON_EQUIVALENT_FACTOR = 3.667  # C to CO2  Molecular weight ratio 44/12
 
-# Spacing to Density Mapping 
+# Defaults applied when the user does not specify a spacing system or clone
+DEFAULT_SPACING_SYSTEM = "2.5x8"
+DEFAULT_RUBBER_CLONE = "RRIM 600"
+
+# Spacing to Density Mapping
 TREE_DENSITIES = {
     "2.5x8": 500,  # Recommended standard for flat terrain
     "3x7": 475,    # Common for sloped areas
@@ -37,36 +41,27 @@ REGION_CONFIG = {
             ("RRIM 600", "cubic_poly", "hytonen_2018"): "rrim600_cubic_poly_hytonen_rayong.csv",
             ("RRIT 251", "cubic_poly", "hytonen_2018"): "rrim600_cubic_poly_hytonen_rayong.csv",
             ("RRIM 600", "cubic_poly", "chiarawipa_2012"): "rrim600_cubic_poly_chiarawipa_rayong.csv",
-            ("RRIT 251", "cubic_poly", "chiarawipa_20112"): "rrim600_cubic_poly_chiarawipa_rayong.csv",
+            ("RRIT 251", "cubic_poly", "chiarawipa_2012"): "rrim600_cubic_poly_chiarawipa_rayong.csv",
 
             ("RRIM 600", "chapman_richards", "hytonen_2018"): "rrim600_chapman_richards_hytonen_rayong.csv",
             ("RRIT 251", "chapman_richards", "hytonen_2018"): "rrim600_chapman_richards_hytonen_rayong.csv",
             ("RRIM 600", "chapman_richards", "chiarawipa_2012"): "rrim600_chapman_richards_chiarawipa_rayong.csv",
-            ("RRIT 251", "chapman_richards", "chiarawipa_20112"): "rrim600_chapman_richards_chiarawipa_rayong.csv",
+            ("RRIT 251", "chapman_richards", "chiarawipa_2012"): "rrim600_chapman_richards_chiarawipa_rayong.csv",
 
             ("RRIM 600", "gompertz", "hytonen_2018"): "rrim600_gompertz_hytonen_rayong.csv",
             ("RRIT 251", "gompertz", "hytonen_2018"): "rrim600_gompertz_hytonen_rayong.csv",
             ("RRIM 600", "gompertz", "chiarawipa_2012"): "rrim600_gompertz_chiarawipa_rayong.csv",
-            ("RRIT 251", "gompertz", "chiarawipa_20112"): "rrim600_gompertz_chiarawipa_rayong.csv",
+            ("RRIT 251", "gompertz", "chiarawipa_2012"): "rrim600_gompertz_chiarawipa_rayong.csv",
 
             ("RRIM 600", "schumacher", "hytonen_2018"): "rrim600_schumacher_hytonen_rayong.csv",
             ("RRIT 251", "schumacher", "hytonen_2018"): "rrim600_schumacher_hytonen_rayong.csv",
             ("RRIM 600", "schumacher", "chiarawipa_2012"): "rrim600_schumacher_chiarawipa_rayong.csv",
-            ("RRIT 251", "schumacher", "chiarawipa_20112"): "rrim600_schumacher_chiarawipa_rayong.csv",
+            ("RRIT 251", "schumacher", "chiarawipa_2012"): "rrim600_schumacher_chiarawipa_rayong.csv",
 
             ("RRIM 600", "weibull", "hytonen_2018"): "rrim600_weibull_hytonen_rayong.csv",
             ("RRIT 251", "weibull", "hytonen_2018"): "rrim600_weibull_hytonen_rayong.csv",
             ("RRIM 600", "weibull", "chiarawipa_2012"): "rrim600_weibull_chiarawipa_rayong.csv",
-            ("RRIT 251", "weibull", "chiarawipa_20112"): "rrim600_weibull_chiarawipa_rayong.csv"
+            ("RRIT 251", "weibull", "chiarawipa_2012"): "rrim600_weibull_chiarawipa_rayong.csv"
         }
-    }#,
-    #"SRT": {  # Surat Thani Province
-    #    "province_name": "Surat Thani",
-    #    "lu_vector": "LU_SNI_2567.gpkg",
-    #    "plaining_year_map": "establishment_year_surat.tif",
-    #    "plaining_year_map_qa": "establishment_year_surat_qa.tif",
-    #    "biomass_estimation_tables": {
-    #        ("RRIM 600", "cubic_poly", "hytonen_2018"): "rrim600_cubic_poly_hytonen_surat.csv"
-    #    }
-    #}
+    }
 }

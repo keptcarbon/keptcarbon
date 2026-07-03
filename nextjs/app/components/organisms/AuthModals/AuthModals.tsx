@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Auth } from "@/lib/auth";
 import { useAuth } from "@/lib/auth-context";
 import { ModalShell } from "@/app/components/molecules";
 

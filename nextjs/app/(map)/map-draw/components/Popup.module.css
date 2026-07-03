@@ -1,0 +1,131 @@
+@keyframes popupIn {
+  from { opacity: 0; transform: scale(0.95) translateY(10px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  background: rgba(15, 23, 42, 0.4);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.modal {
+  background: #fff;
+  border-radius: 20px;
+  padding: 28px 24px 24px;
+  width: 100%;
+  max-width: 360px;
+  text-align: center;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(0, 0, 0, 0.05);
+  animation: popupIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.iconCircle {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  margin: 0 auto 16px;
+}
+
+.iconInfo {
+  background: #fef08a;
+  color: #ca8a04;
+}
+
+.iconError {
+  background: #fee2e2;
+  color: #ef4444;
+}
+
+.iconDanger {
+  background: rgba(220, 38, 38, 0.1);
+  color: #dc2626;
+}
+
+.title {
+  font-size: 18px;
+  font-weight: 800;
+  color: #0f172a;
+  margin-bottom: 8px;
+  line-height: 1.3;
+}
+
+.titleDanger {
+  composes: title;
+  color: #dc2626;
+}
+
+.desc {
+  font-size: 14px;
+  color: #475569;
+  line-height: 1.5;
+  margin-bottom: 24px;
+}
+
+.warningText {
+  color: rgb(220, 50, 38);
+  font-weight: 700;
+  display: block;
+  margin-top: 8px;
+}
+
+.button {
+  width: 100%;
+  padding: 12px;
+  border-radius: 12px;
+  color: #fff;
+  border: none;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.buttonInfo {
+  background: #ca8a04;
+}
+
+.buttonError {
+  background: #ef4444;
+}
+
+.buttonRow {
+  display: flex;
+  gap: 12px;
+}
+
+.buttonSecondary {
+  flex: 1;
+  padding: 12px;
+  border-radius: 12px;
+  background: #e2e8f0;
+  color: #475569;
+  border: none;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.buttonDanger {
+  flex: 1;
+  padding: 12px;
+  border-radius: 12px;
+  background: #dc2626;
+  color: #fff;
+  border: none;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+}
