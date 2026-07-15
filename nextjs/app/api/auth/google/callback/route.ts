@@ -68,6 +68,7 @@ export async function GET(request: NextRequest) {
        ON CONFLICT (email) DO UPDATE SET
          picture_url = EXCLUDED.picture_url,
          fullname = EXCLUDED.fullname,
+         provider = EXCLUDED.provider,
          google_user_id = COALESCE(EXCLUDED.google_user_id, users.google_user_id)
        RETURNING id, email, role, provider`,
       [email, `google_${googleUserId?.slice(0, 8) || email}`, fullname, pictureUrl, googleUserId]

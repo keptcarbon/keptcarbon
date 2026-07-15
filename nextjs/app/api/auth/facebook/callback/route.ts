@@ -59,7 +59,11 @@ export async function GET(request: NextRequest) {
     const result = await pool.query(
       `INSERT INTO users (email, username, fullname, picture_url, provider, facebook_user_id, role)
        VALUES ($1, $2, $3, $4, 'facebook', $5, 'user')
-       ON CONFLICT (facebook_user_id) DO UPDATE SET picture_url = EXCLUDED.picture_url, fullname = EXCLUDED.fullname, email = EXCLUDED.email
+       ON CONFLICT (email) DO UPDATE SET
+         picture_url = EXCLUDED.picture_url,
+         fullname = EXCLUDED.fullname,
+         provider = EXCLUDED.provider,
+         facebook_user_id = COALESCE(EXCLUDED.facebook_user_id, users.facebook_user_id)
        RETURNING id, email, role, provider`,
       [email, `facebook_${facebookId?.slice(0, 8) || email}`, fullname, pictureUrl, facebookId]
     );
