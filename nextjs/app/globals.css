@@ -110,6 +110,8 @@ body {
 }
 
 @theme inline {
+  /* Extra-wide container — enables `max-w-9xl` (Tailwind ships up to 7xl) */
+  --container-9xl: 96rem;
   /* Literal font names — @theme inline cannot resolve runtime CSS variables */
   --font-heading: "Noto Sans Thai", "Noto Sans", ui-sans-serif, system-ui, sans-serif;
   --font-sans: "Noto Sans Thai", "Noto Sans", ui-sans-serif, system-ui, sans-serif;
@@ -192,6 +194,7 @@ body {
    without touching Bootstrap-styled legacy pages. Plain CSS (no @apply)
    so nothing here is emitted !important. */
 @layer base {
+
   .kc-tw,
   .kc-tw *,
   .kc-tw *::before,

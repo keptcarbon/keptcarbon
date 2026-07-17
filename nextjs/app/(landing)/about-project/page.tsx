@@ -10,6 +10,7 @@ import {
   Phone,
 } from "lucide-react";
 import ContactForm from "../ContactForm";
+import Reveal from "./Reveal";
 
 export const metadata: Metadata = {
   title: "เกี่ยวกับโครงการ | KeptCarbon",
@@ -143,7 +144,7 @@ function TeamCard({
   affil: string;
 }) {
   return (
-    <div className="flex flex-col items-center rounded-xl border border-border bg-card p-6 text-center transition-shadow duration-200 hover:shadow-md">
+    <div className="flex h-full flex-col items-center rounded-xl border border-border bg-card p-6 text-center transition-shadow duration-200 hover:shadow-md">
       <div className="mb-4 size-24 overflow-hidden rounded-full border border-border">
         <Image
           src={`/assets/img/team/${img}`}
@@ -169,42 +170,52 @@ function TeamCard({
 export default function AboutProjectPage() {
   return (
     <div className="kc-tw bg-background">
+      {/* ── Hero: header + About together fill one viewport ──────────── */}
+      <div className="flex min-h-screen flex-col justify-center">
       {/* ── Page header ─────────────────────────────────────────────── */}
       <header className="flex flex-col items-center px-4 pt-32 pb-12 text-center md:pt-44 md:pb-16">
-        <span className="mb-6 inline-flex items-center gap-1.5 rounded-full border border-border bg-secondary/60 px-3.5 py-1.5 text-xs font-medium text-secondary-foreground md:text-sm">
-          <Landmark className="size-3.5" aria-hidden="true" />
-          โครงการวิจัยและพัฒนา
-        </span>
-        <h1 className="m-0 text-3xl font-bold tracking-tight text-foreground md:text-5xl">
-          เกี่ยวกับโครงการ <span className="text-primary">KeptCarbon</span>
-        </h1>
-        <p className="mx-auto mt-5 mb-0 max-w-2xl text-base leading-relaxed text-muted-foreground md:text-lg">
-          แพลตฟอร์มภูมิสารสนเทศและปัญญาประดิษฐ์
-          เพื่อการจัดการสวนยางพาราอย่างยืดหยุ่นต่อการเปลี่ยนแปลงสภาพภูมิอากาศ
-        </p>
+        <Reveal className="w-full">
+          <span className="mb-6 inline-flex items-center gap-1.5 rounded-full border border-border bg-secondary/60 px-3.5 py-1.5 text-xs font-medium text-secondary-foreground md:text-sm">
+            <Landmark className="size-3.5" aria-hidden="true" />
+            โครงการวิจัยและพัฒนา
+          </span>
+        </Reveal>
+        <Reveal className="w-full" delay={90}>
+          <h1 className="m-0 text-3xl font-bold tracking-tight text-foreground md:text-5xl">
+            เกี่ยวกับโครงการ <span className="text-primary">KeptCarbon</span>
+          </h1>
+        </Reveal>
+        <Reveal className="w-full" delay={180}>
+          <p className="mx-auto mt-5 mb-0 max-w-2xl text-base leading-relaxed text-muted-foreground md:text-lg">
+            แพลตฟอร์มภูมิสารสนเทศและปัญญาประดิษฐ์
+            เพื่อการจัดการสวนยางพาราอย่างยืดหยุ่นต่อการเปลี่ยนแปลงสภาพภูมิอากาศ
+          </p>
+        </Reveal>
       </header>
 
       {/* ── About ───────────────────────────────────────────────────── */}
       <section id="about" className="scroll-mt-28 px-4 pb-16 md:pb-24">
-        <div className="mx-auto max-w-3xl">
-          <p className="mt-0 mb-5 text-base leading-relaxed text-foreground/90 md:text-lg">
-            โครงการวิจัยนี้พัฒนา <strong>KeptCarbon Platform</strong>{" "}
-            โดยใช้เทคโนโลยีภูมิสารสนเทศ (Geospatial) ร่วมกับปัญญาประดิษฐ์
-            (GeoAI) เพื่อพยากรณ์อายุยางพาราและประเมินศักยภาพคาร์บอนเครดิตในระดับรายแปลง
-            พร้อมนำเสนอข้อมูลเชิงพื้นที่และเวลาในรูปแบบที่เข้าใจง่าย
-            ช่วยให้เกษตรกรเห็นภาพรายได้ระยะยาว ลดความเสี่ยงในการตัดสินใจ
-            และสนับสนุนการสื่อสารเชิงนโยบายได้อย่างมีประสิทธิภาพ
-          </p>
-          <p className="mt-0 mb-8 text-base leading-relaxed text-foreground/90 md:text-lg">
-            แพลตฟอร์มนี้ช่วยเพิ่มความแม่นยำของข้อมูล
-            ลดความไม่แน่นอนในการตัดสินใจ
-            สร้างแรงจูงใจให้เกษตรกรเข้าร่วมโครงการคาร์บอนเครดิต
-            และส่งเสริมผลกระทบเชิงบวกทั้งด้านสิ่งแวดล้อม เศรษฐกิจชุมชน
-            และการขับเคลื่อนประเทศสู่เป้าหมาย Net Zero อย่างยั่งยืน
-          </p>
+        <div className="mx-auto max-w-7xl">
+          <Reveal>
+            <p className="mt-0 mb-5 text-base leading-relaxed text-foreground/90 md:text-lg">
+              โครงการวิจัยนี้พัฒนา <strong>KeptCarbon Platform</strong>{" "}
+              โดยใช้เทคโนโลยีภูมิสารสนเทศ (Geospatial) ร่วมกับปัญญาประดิษฐ์
+              (GeoAI) เพื่อพยากรณ์อายุยางพาราและประเมินศักยภาพคาร์บอนเครดิตในระดับรายแปลง
+              พร้อมนำเสนอข้อมูลเชิงพื้นที่และเวลาในรูปแบบที่เข้าใจง่าย
+              ช่วยให้เกษตรกรเห็นภาพรายได้ระยะยาว ลดความเสี่ยงในการตัดสินใจ
+              และสนับสนุนการสื่อสารเชิงนโยบายได้อย่างมีประสิทธิภาพ
+            </p>
+            <p className="mt-0 mb-16 text-base leading-relaxed text-foreground/90 md:text-lg">
+              แพลตฟอร์มนี้ช่วยเพิ่มความแม่นยำของข้อมูล
+              ลดความไม่แน่นอนในการตัดสินใจ
+              สร้างแรงจูงใจให้เกษตรกรเข้าร่วมโครงการคาร์บอนเครดิต
+              และส่งเสริมผลกระทบเชิงบวกทั้งด้านสิ่งแวดล้อม เศรษฐกิจชุมชน
+              และการขับเคลื่อนประเทศสู่เป้าหมาย Net Zero อย่างยั่งยืน
+            </p>
+          </Reveal>
 
           {/* Meaning callout */}
-          <div className="mb-8 rounded-xl border border-border bg-secondary/40 p-6 md:p-8">
+          <Reveal delay={120} className="mb-8 rounded-xl border border-border bg-secondary/40 p-6 md:p-8">
             <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-primary">
               <Leaf className="size-4" aria-hidden="true" />
               ความหมายของ KeptCarbon
@@ -216,83 +227,78 @@ export default function AboutProjectPage() {
               การรักษามูลค่าทางเศรษฐกิจของคาร์บอนเครดิต
               และการพัฒนาระบบข้อมูลที่ต่อเนื่องและยั่งยืน
             </p>
-          </div>
-
-          {/* Stats */}
-          <div className="grid grid-cols-3 gap-3 md:gap-4">
-            {stats.map(({ value, label }) => (
-              <div
-                key={label}
-                className="rounded-xl border border-border bg-card p-4 text-center md:p-6"
-              >
-                <div className="text-lg font-bold text-primary md:text-2xl">
-                  {value}
-                </div>
-                <div className="mt-1 text-xs text-muted-foreground md:text-sm">
-                  {label}
-                </div>
-              </div>
-            ))}
-          </div>
+          </Reveal>
         </div>
       </section>
+      </div>
 
       {/* ── Objectives ──────────────────────────────────────────────── */}
       <section
         id="objectives"
-        className="scroll-mt-28 border-t border-border bg-muted/50 px-4 py-16 md:py-24"
+        className="scroll-mt-28 border-t border-border bg-white px-4 py-16 md:py-28"
       >
-        <div className="mx-auto max-w-3xl">
-          <SectionHeading
-            title="วัตถุประสงค์"
-            subtitle="สามเป้าหมายหลักของโครงการวิจัย KeptCarbon"
-          />
-          <ol className="m-0 flex list-none flex-col gap-4 p-0">
+        <div className="mx-auto max-w-6xl">
+          <Reveal>
+            <SectionHeading
+              title="วัตถุประสงค์"
+              subtitle="สามเป้าหมายหลักของโครงการวิจัย KeptCarbon"
+            />
+          </Reveal>
+          <Reveal delay={100}>
+            <ol className="m-0 flex list-none flex-col p-0">
             {objectives.map(({ label, heading, body }, i) => (
               <li
                 key={label}
-                className="rounded-xl border border-border bg-card p-6 md:p-8"
+                className="group grid grid-cols-1 gap-x-8 gap-y-4 border-slate-100 py-10 first:pt-0 last:pb-0 not-first:border-t md:grid-cols-12 md:items-center md:py-16"
               >
-                <div className="mb-3 flex items-center gap-3">
-                  <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-secondary text-sm font-bold text-primary">
-                    {i + 1}
-                  </span>
-                  <span className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-                    {label}
+                {/* Editorial watermark number */}
+                <div className="md:col-span-3">
+                  <span className="block text-5xl font-bold leading-none tracking-tighter text-slate-200 tabular-nums transition-colors duration-300 md:text-8xl ">
+                    {String(i + 1).padStart(2, "0")}
                   </span>
                 </div>
-                <h3 className="mt-0 mb-2 text-base font-semibold text-foreground md:text-lg">
-                  {heading}
-                </h3>
-                <p className="m-0 text-sm leading-relaxed text-muted-foreground md:text-base">
-                  {body}
-                </p>
+
+                {/* Content */}
+                <div className="md:col-span-9">
+                  <span className="mb-3 inline-block text-xs font-semibold tracking-[0.2em] text-emerald-600 uppercase">
+                    {label}
+                  </span>
+                  <h3 className="mt-0 mb-3 text-xl font-semibold tracking-tight text-slate-900 md:text-2xl">
+                    {heading}
+                  </h3>
+                  <p className="m-0 max-w text-base leading-relaxed text-slate-500">
+                    {body}
+                  </p>
+                </div>
               </li>
             ))}
-          </ol>
+            </ol>
+          </Reveal>
         </div>
       </section>
 
       {/* ── Partners ────────────────────────────────────────────────── */}
       <section id="partners" className="scroll-mt-28 px-4 py-16 md:py-24">
-        <div className="mx-auto max-w-5xl">
-          <SectionHeading title="หน่วยงานร่วมโครงการ" />
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-4">
+        <div className="mx-auto max-w-7xl">
+          <Reveal>
+            <SectionHeading title="หน่วยงานร่วมโครงการ" />
+          </Reveal>
+          <Reveal delay={100} className="grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-4">
             {[1, 2, 3, 4].map((n) => (
               <div
                 key={n}
-                className="flex items-center justify-center rounded-xl border border-border bg-card p-6"
+                className="group flex items-center justify-center rounded-xl border border-border bg-card p-6 transition-all duration-300 hover:-translate-y-1 hover:border-primary/40 hover:shadow-md"
               >
                 <Image
                   src={`/assets/img/clients/client-${n}.png`}
                   alt={`หน่วยงานร่วมโครงการ ${n}`}
                   width={160}
                   height={80}
-                  className="h-14 w-auto object-contain"
+                  className="h-14 w-auto object-contain transition-all duration-300 group-hover:opacity-100 group-hover:grayscale-0"
                 />
               </div>
             ))}
-          </div>
+          </Reveal>
         </div>
       </section>
 
@@ -301,33 +307,42 @@ export default function AboutProjectPage() {
         id="team"
         className="scroll-mt-28 border-t border-border bg-muted/50 px-4 py-16 md:py-24"
       >
-        <div className="mx-auto max-w-5xl">
-          <SectionHeading
-            title="คณะผู้ปฏิบัติงานโครงการ"
-            subtitle="คณะผู้ดำเนินงานจากสามมหาวิทยาลัยชั้นนำของประเทศ"
-          />
-          <div className="mx-auto mb-4 grid max-w-2xl grid-cols-1 gap-4 sm:grid-cols-2">
+        <div className="mx-auto max-w-7xl">
+          <Reveal>
+            <SectionHeading
+              title="คณะผู้ปฏิบัติงานโครงการ"
+              subtitle="คณะผู้ดำเนินงานจากสามมหาวิทยาลัยชั้นนำของประเทศ"
+            />
+          </Reveal>
+          <Reveal delay={100} className="mx-auto mb-4 grid max-w-2xl grid-cols-1 gap-4 sm:grid-cols-2">
             {teamLead.map((m) => (
               <TeamCard key={m.img} {...m} />
             ))}
-          </div>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          </Reveal>
+          <Reveal delay={160} className="flex flex-wrap justify-center gap-4">
             {teamMembers.map((m) => (
-              <TeamCard key={m.img} role="ผู้ร่วมโครงการ" {...m} />
+              <div
+                key={m.img}
+                className="basis-full sm:basis-[calc(50%-0.5rem)] lg:basis-[calc(33.333%-0.667rem)]"
+              >
+                <TeamCard role="ผู้ร่วมโครงการ" {...m} />
+              </div>
             ))}
-          </div>
+          </Reveal>
         </div>
       </section>
 
       {/* ── Contact ─────────────────────────────────────────────────── */}
       <section id="contact" className="scroll-mt-28 px-4 py-16 md:py-24">
-        <div className="mx-auto max-w-5xl">
-          <SectionHeading
-            title="ติดต่อเรา"
-            subtitle="สามารถติดต่อพวกเราได้ที่"
-          />
+        <div className="mx-auto max-w-7xl">
+          <Reveal>
+            <SectionHeading
+              title="ติดต่อเรา"
+              subtitle="สามารถติดต่อพวกเราได้ที่"
+            />
+          </Reveal>
 
-          <div className="mb-10 grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-6">
+          <Reveal delay={100} className="mb-10 grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-6">
             {/* KeptCarbon Project */}
             <div className="rounded-xl border border-border bg-card p-6 md:p-8">
               <div className="mb-4 flex items-center gap-2.5">
@@ -339,11 +354,14 @@ export default function AboutProjectPage() {
                 </h3>
               </div>
 
-              <div className="mb-4 flex items-start gap-2.5">
-                <MapPin
-                  className="mt-0.5 size-4 shrink-0 text-muted-foreground"
-                  aria-hidden="true"
-                />
+              <div className="mb-4 flex items-stretch gap-2.5">
+                <div className="flex shrink-0 flex-col items-center">
+                  <MapPin
+                    className="mt-0.5 size-4 text-muted-foreground"
+                    aria-hidden="true"
+                  />
+                  <div className="my-2 w-px flex-1 bg-border" />
+                </div>
                 <div>
                   <div className="mb-2 text-sm font-medium text-foreground">
                     ที่อยู่หน่วยงาน
@@ -378,7 +396,7 @@ export default function AboutProjectPage() {
             </div>
 
             {/* EnGRIDs Developer */}
-            <div className="rounded-xl border border-border bg-card p-6 md:p-8">
+            <div className="flex h-full flex-col rounded-xl border border-border bg-card p-6 md:p-8">
               <div className="mb-4 flex items-center gap-2.5">
                 <span className="flex size-9 items-center justify-center rounded-lg bg-secondary text-primary">
                   <Globe className="size-4.5" aria-hidden="true" />
@@ -402,7 +420,7 @@ export default function AboutProjectPage() {
                 </p>
               </div>
 
-              <div className="flex flex-col gap-3 border-t border-border pt-4">
+              <div className="mt-auto flex flex-col gap-3 border-t border-border pt-4">
                 <div className="flex items-center gap-2.5">
                   <Phone
                     className="size-4 shrink-0 text-muted-foreground"
@@ -443,7 +461,7 @@ export default function AboutProjectPage() {
                 </div>
               </div>
             </div>
-          </div>
+          </Reveal>
 
           {/* Send Message Form (existing client component, legacy-styled) */}
           <ContactForm />
