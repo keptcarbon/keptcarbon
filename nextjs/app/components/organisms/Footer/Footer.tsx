@@ -46,11 +46,11 @@ const year = new Date().getFullYear();
 export default function Footer() {
   return (
     <footer id="footer" className="border-t border-border bg-white">
-      <div className="mx-auto max-w-9xl px-4 py-12 md:py-16">
+      <div className="mx-auto max-w-8xl px-6 py-8 md:py-12">
         {/* Main grid */}
-        <div className="grid grid-cols-1 gap-10 md:grid-cols-4 md:gap-8">
+        <div className="grid grid-cols-2 gap-x-6 gap-y-10 md:grid-cols-4 md:gap-8">
           {/* Brand */}
-          <div className="md:col-span-2">
+          <div className="col-span-2">
             <Link href="/" className="inline-flex items-center gap-2.5 no-underline">
               <Image
                 src="/assets/img/keptcarbon-logo.png"
@@ -59,9 +59,6 @@ export default function Footer() {
                 height={40}
                 className="h-9 w-auto"
               />
-              <span className="text-lg font-bold tracking-tight text-slate-900">
-                Kept<span className="text-emerald-600">Carbon</span>
-              </span>
             </Link>
             <p className="mt-4 max-w-sm text-sm leading-relaxed text-slate-500">
               แพลตฟอร์มภูมิสารสนเทศและปัญญาประดิษฐ์

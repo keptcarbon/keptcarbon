@@ -29,42 +29,35 @@ export default function ModalShell({
 
   return (
     <div
-      className="kc-modal-backdrop"
+      className="kc-tw fixed inset-0 z-[1080] flex items-start justify-center overflow-y-auto bg-black/40 p-4 backdrop-blur-sm sm:items-center sm:p-6"
       onClick={onClose}
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "rgba(0,0,0,0.55)",
-        zIndex: 1080,
-        display: "flex",
-        alignItems: "flex-start",
-        justifyContent: "center",
-        padding: "16px",
-        overflowY: "auto",
-      }}
     >
       <div
-        style={{ width: "100%", maxWidth: width, position: "relative", margin: "auto" }}
+        className="relative w-full transition-all"
+        style={{ maxWidth: width }}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="modal-auth-card">
+        <div className="relative overflow-hidden rounded-2xl bg-white p-6 shadow-2xl sm:p-8 border border-[var(--kc-border-input)]">
           <button
             type="button"
             onClick={onClose}
             aria-label="Close"
-            style={{
-              position: "absolute",
-              top: 12,
-              right: 12,
-              border: 0,
-              background: "transparent",
-              fontSize: 22,
-              cursor: "pointer",
-              color: "#94a3b8",
-              lineHeight: 1,
-            }}
+            className="absolute right-4 top-4 flex size-8 items-center justify-center border-0 bg-transparent rounded-full text-[var(--kc-muted)] transition-colors hover:bg-[var(--kc-green-50)] hover:text-[var(--kc-ink)] cursor-pointer"
           >
-            ×
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M18 6 6 18" />
+              <path d="m6 6 12 12" />
+            </svg>
           </button>
           {children}
         </div>

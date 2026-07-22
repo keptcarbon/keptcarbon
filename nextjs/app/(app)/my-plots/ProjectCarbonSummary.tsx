@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { CarbonBarChart, type BarPoint } from "@/app/components/organisms/ParcelResultsPanel/CarbonBarChart";
 import type { SavedPlot } from "./types";
 import styles from "./ProjectCarbonSummary.module.css";
+import { Accordion } from "./Accordion";
 
 export function ProjectCarbonSummary({ plots, isMobile }: { plots: SavedPlot[]; isMobile: boolean }) {
   const currentYearBE = new Date().getFullYear() + 543;
@@ -132,7 +133,7 @@ export function ProjectCarbonSummary({ plots, isMobile }: { plots: SavedPlot[]; 
       </div>
 
       {/* Expandable Content */}
-      {isExpanded && (
+      <Accordion open={isExpanded}>
         <div className={`${styles.content} ${isMobile ? styles.contentMobile : ""}`}>
 
           {/* Left: Chart Panel */}
@@ -178,10 +179,10 @@ export function ProjectCarbonSummary({ plots, isMobile }: { plots: SavedPlot[]; 
 
             {/* Top 3 Stats grid */}
             <div className={`${styles.statsGrid} ${isMobile ? styles.statsGridMobile : ""}`}>
-              <StatCard icon="bi-check-circle-fill" iconColor="#10b981" label="ประมวลผลแล้ว" value={`${processedCount}/${plots.length}`} unit="แปลง" valueColor="#047857" />
-              <StatCard icon="bi-grid-fill" iconColor="#0d9488" label="พื้นที่รวม" value={totalAreaRai.toFixed(1)} unit="ไร่" valueColor="#0d9488" />
+              <StatCard icon="bi-check-circle-fill" iconColor="#1e7a47" label="ประมวลผลแล้ว" value={`${processedCount}/${plots.length}`} unit="แปลง" valueColor="#17603a" />
+              <StatCard icon="bi-grid-fill" iconColor="#1e7a47" label="พื้นที่รวม" value={totalAreaRai.toFixed(1)} unit="ไร่" valueColor="#1e7a47" />
               {totalTrees > 0 && (
-                <StatCard icon="bi-tree-fill" iconColor="#16a34a" label="จำนวนต้นรวม" value={totalTrees.toLocaleString("th-TH")} unit="ต้น" valueColor="#064e3b" fullSpan={isMobile} />
+                <StatCard icon="bi-tree-fill" iconColor="#1e7a47" label="จำนวนต้นรวม" value={totalTrees.toLocaleString("th-TH")} unit="ต้น" valueColor="#064e3b" fullSpan={isMobile} />
               )}
             </div>
 
@@ -192,10 +193,10 @@ export function ProjectCarbonSummary({ plots, isMobile }: { plots: SavedPlot[]; 
                   const displayCycle = pt.year_at === 0 ? 0 : Math.floor((pt.year_at - 1) / 7);
                   const GREEN_THEME_COLORS = [
                     { top: "#bef264", bot: "#84cc16", label: "#3f6212" }, // Lime
-                    { top: "#4ade80", bot: "#16a34a", label: "#14532d" }, // Mint
-                    { top: "#10b981", bot: "#059669", label: "#064e3b" }, // Emerald
-                    { top: "#059669", bot: "#047857", label: "#064e3b" }, // Forest
-                    { top: "#0d9488", bot: "#0f766e", label: "#134e4a" }, // Teal
+                    { top: "#63b78c", bot: "#1e7a47", label: "#14532d" }, // Mint
+                    { top: "#1e7a47", bot: "#1e7a47", label: "#064e3b" }, // Emerald
+                    { top: "#1e7a47", bot: "#17603a", label: "#064e3b" }, // Forest
+                    { top: "#1e7a47", bot: "#0f766e", label: "#134e4a" }, // Teal
                   ];
                   const col = GREEN_THEME_COLORS[Math.min(Math.max(0, displayCycle), GREEN_THEME_COLORS.length - 1)];
 
@@ -228,7 +229,7 @@ export function ProjectCarbonSummary({ plots, isMobile }: { plots: SavedPlot[]; 
           </div>
 
         </div>
-      )}
+      </Accordion>
     </div>
   );
 }

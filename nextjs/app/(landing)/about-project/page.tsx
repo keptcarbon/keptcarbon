@@ -18,12 +18,6 @@ export const metadata: Metadata = {
     "โครงการวิจัยและพัฒนา KeptCarbon Platform — แพลตฟอร์มภูมิสารสนเทศและปัญญาประดิษฐ์เพื่อการจัดการสวนยางพาราอย่างยืดหยุ่นต่อการเปลี่ยนแปลงสภาพภูมิอากาศ",
 };
 
-const stats = [
-  { value: "3", label: "วัตถุประสงค์หลัก" },
-  { value: "GeoAI", label: "เทคโนโลยีหลัก" },
-  { value: "Net Zero", label: "เป้าหมายสูงสุด" },
-] as const;
-
 const objectives = [
   {
     label: "Platform Development",
@@ -171,73 +165,71 @@ export default function AboutProjectPage() {
   return (
     <div className="kc-tw bg-background">
       {/* ── Hero: header + About together fill one viewport ──────────── */}
-      <div className="flex min-h-screen flex-col justify-center">
-      {/* ── Page header ─────────────────────────────────────────────── */}
-      <header className="flex flex-col items-center px-4 pt-32 pb-12 text-center md:pt-44 md:pb-16">
-        <Reveal className="w-full">
-          <span className="mb-6 inline-flex items-center gap-1.5 rounded-full border border-border bg-secondary/60 px-3.5 py-1.5 text-xs font-medium text-secondary-foreground md:text-sm">
-            <Landmark className="size-3.5" aria-hidden="true" />
-            โครงการวิจัยและพัฒนา
-          </span>
-        </Reveal>
-        <Reveal className="w-full" delay={90}>
-          <h1 className="m-0 text-3xl font-bold tracking-tight text-foreground md:text-5xl">
-            เกี่ยวกับโครงการ <span className="text-primary">KeptCarbon</span>
-          </h1>
-        </Reveal>
-        <Reveal className="w-full" delay={180}>
-          <p className="mx-auto mt-5 mb-0 max-w-2xl text-base leading-relaxed text-muted-foreground md:text-lg">
-            แพลตฟอร์มภูมิสารสนเทศและปัญญาประดิษฐ์
-            เพื่อการจัดการสวนยางพาราอย่างยืดหยุ่นต่อการเปลี่ยนแปลงสภาพภูมิอากาศ
-          </p>
-        </Reveal>
-      </header>
-
-      {/* ── About ───────────────────────────────────────────────────── */}
-      <section id="about" className="scroll-mt-28 px-4 pb-16 md:pb-24">
-        <div className="mx-auto max-w-7xl">
-          <Reveal>
-            <p className="mt-0 mb-5 text-base leading-relaxed text-foreground/90 md:text-lg">
-              โครงการวิจัยนี้พัฒนา <strong>KeptCarbon Platform</strong>{" "}
-              โดยใช้เทคโนโลยีภูมิสารสนเทศ (Geospatial) ร่วมกับปัญญาประดิษฐ์
-              (GeoAI) เพื่อพยากรณ์อายุยางพาราและประเมินศักยภาพคาร์บอนเครดิตในระดับรายแปลง
-              พร้อมนำเสนอข้อมูลเชิงพื้นที่และเวลาในรูปแบบที่เข้าใจง่าย
-              ช่วยให้เกษตรกรเห็นภาพรายได้ระยะยาว ลดความเสี่ยงในการตัดสินใจ
-              และสนับสนุนการสื่อสารเชิงนโยบายได้อย่างมีประสิทธิภาพ
-            </p>
-            <p className="mt-0 mb-16 text-base leading-relaxed text-foreground/90 md:text-lg">
-              แพลตฟอร์มนี้ช่วยเพิ่มความแม่นยำของข้อมูล
-              ลดความไม่แน่นอนในการตัดสินใจ
-              สร้างแรงจูงใจให้เกษตรกรเข้าร่วมโครงการคาร์บอนเครดิต
-              และส่งเสริมผลกระทบเชิงบวกทั้งด้านสิ่งแวดล้อม เศรษฐกิจชุมชน
-              และการขับเคลื่อนประเทศสู่เป้าหมาย Net Zero อย่างยั่งยืน
+      <div className="flex min-h-screen flex-col justify-center bg-gradient-to-b from-secondary/70 via-secondary/20 to-background">
+        {/* ── Page header ─────────────────────────────────────────────── */}
+        <header className="flex flex-col items-center px-4 pt-32 pb-12 text-center sm:px-6 md:pt-44 md:pb-16 lg:px-8">
+          <Reveal className="w-full">
+            <span className="mb-6 inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3.5 py-1.5 text-xs font-medium text-secondary-foreground shadow-sm md:text-sm">
+              <Landmark className="size-3.5" aria-hidden="true" />
+              โครงการวิจัยและพัฒนา
+            </span>
+          </Reveal>
+          <Reveal className="w-full" delay={90}>
+            <h1 className="m-0 text-3xl font-bold tracking-tight text-foreground md:text-5xl">
+              เกี่ยวกับโครงการ <span className="text-primary">KeptCarbon</span>
+            </h1>
+          </Reveal>
+          <Reveal className="w-full" delay={180}>
+            <p className="mx-auto mt-5 mb-0 max-w-2xl text-base leading-relaxed text-muted-foreground md:text-lg">
+              แพลตฟอร์มภูมิสารสนเทศและปัญญาประดิษฐ์
+              เพื่อการจัดการสวนยางพาราอย่างยืดหยุ่นต่อการเปลี่ยนแปลงสภาพภูมิอากาศ
             </p>
           </Reveal>
+          <Reveal className="mt-10 w-full max-w-2xl" delay={260}>
+            <div className="h-px w-full bg-border" />
+          </Reveal>
+        </header>
 
-          {/* Meaning callout */}
-          <Reveal delay={120} className="mb-8 rounded-xl border border-border bg-secondary/40 p-6 md:p-8">
-            <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-primary">
-              <Leaf className="size-4" aria-hidden="true" />
-              ความหมายของ KeptCarbon
+        {/* ── About ───────────────────────────────────────────────────── */}
+        <section id="about" className="scroll-mt-28 px-4 pb-16 sm:px-6 md:pb-24 lg:px-8">
+          <div className="mx-auto max-w-7xl">
+            <div className="mx-auto max-w-4xl">
+              <Reveal>
+                <p className="mt-0 mb-5 text-base leading-relaxed text-foreground/90 md:text-lg">
+                  โครงการวิจัยนี้พัฒนา <strong>KeptCarbon Platform</strong>{" "}
+                  โดยใช้เทคโนโลยีภูมิสารสนเทศ (Geospatial) ร่วมกับปัญญาประดิษฐ์
+                  (GeoAI) เพื่อพยากรณ์อายุยางพาราและประเมินศักยภาพคาร์บอนเครดิตในระดับรายแปลง
+                  พร้อมนำเสนอข้อมูลเชิงพื้นที่และเวลาในรูปแบบที่เข้าใจง่าย
+                  ช่วยให้เกษตรกรเห็นภาพรายได้ระยะยาว ลดความเสี่ยงในการตัดสินใจ
+                  และสนับสนุนการสื่อสารเชิงนโยบายได้อย่างมีประสิทธิภาพ
+                </p>
+              </Reveal>
+
+              {/* Meaning callout */}
+              <Reveal delay={120} className="rounded-xl border border-border bg-secondary/40 p-6 md:p-8">
+                <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-primary">
+                  <Leaf className="size-4" aria-hidden="true" />
+                  ความหมายของ KeptCarbon
+                </div>
+                <p className="m-0 text-sm leading-relaxed text-foreground/90 md:text-base">
+                  <strong>KeptCarbon</strong> หมายถึง{" "}
+                  <em>&ldquo;การเก็บและรักษาคาร์บอน&rdquo;</em>{" "}
+                  สะท้อนแนวคิดการกักเก็บคาร์บอนในสวนยางพารา
+                  การรักษามูลค่าทางเศรษฐกิจของคาร์บอนเครดิต
+                  และการพัฒนาระบบข้อมูลที่ต่อเนื่องและยั่งยืน
+                </p>
+              </Reveal>
             </div>
-            <p className="m-0 text-sm leading-relaxed text-foreground/90 md:text-base">
-              <strong>KeptCarbon</strong> หมายถึง{" "}
-              <em>&ldquo;การเก็บและรักษาคาร์บอน&rdquo;</em>{" "}
-              สะท้อนแนวคิดการกักเก็บคาร์บอนในสวนยางพารา
-              การรักษามูลค่าทางเศรษฐกิจของคาร์บอนเครดิต
-              และการพัฒนาระบบข้อมูลที่ต่อเนื่องและยั่งยืน
-            </p>
-          </Reveal>
-        </div>
-      </section>
+          </div>
+        </section>
       </div>
 
       {/* ── Objectives ──────────────────────────────────────────────── */}
       <section
         id="objectives"
-        className="scroll-mt-28 border-t border-border bg-white px-4 py-16 md:py-28"
+        className="scroll-mt-28 border-y border-border bg-muted/60 px-4 py-16 sm:px-6 md:py-28 lg:px-8"
       >
-        <div className="mx-auto max-w-6xl">
+        <div className="mx-auto max-w-7xl">
           <Reveal>
             <SectionHeading
               title="วัตถุประสงค์"
@@ -246,39 +238,39 @@ export default function AboutProjectPage() {
           </Reveal>
           <Reveal delay={100}>
             <ol className="m-0 flex list-none flex-col p-0">
-            {objectives.map(({ label, heading, body }, i) => (
-              <li
-                key={label}
-                className="group grid grid-cols-1 gap-x-8 gap-y-4 border-slate-100 py-10 first:pt-0 last:pb-0 not-first:border-t md:grid-cols-12 md:items-center md:py-16"
-              >
-                {/* Editorial watermark number */}
-                <div className="md:col-span-3">
-                  <span className="block text-5xl font-bold leading-none tracking-tighter text-slate-200 tabular-nums transition-colors duration-300 md:text-8xl ">
-                    {String(i + 1).padStart(2, "0")}
-                  </span>
-                </div>
+              {objectives.map(({ label, heading, body }, i) => (
+                <li
+                  key={label}
+                  className="group grid grid-cols-1 gap-x-8 gap-y-4 border-border py-10 first:pt-0 last:pb-0 not-first:border-t md:grid-cols-12 md:items-center md:py-16"
+                >
+                  {/* Editorial watermark number */}
+                  <div className="md:col-span-3">
+                    <span className="block text-5xl font-bold leading-none tracking-tighter text-primary/15 tabular-nums md:text-8xl">
+                      {String(i + 1).padStart(2, "0")}
+                    </span>
+                  </div>
 
-                {/* Content */}
-                <div className="md:col-span-9">
-                  <span className="mb-3 inline-block text-xs font-semibold tracking-[0.2em] text-emerald-600 uppercase">
-                    {label}
-                  </span>
-                  <h3 className="mt-0 mb-3 text-xl font-semibold tracking-tight text-slate-900 md:text-2xl">
-                    {heading}
-                  </h3>
-                  <p className="m-0 max-w text-base leading-relaxed text-slate-500">
-                    {body}
-                  </p>
-                </div>
-              </li>
-            ))}
+                  {/* Content */}
+                  <div className="md:col-span-9">
+                    <span className="mb-3 inline-block text-xs font-semibold tracking-[0.2em] text-primary uppercase">
+                      {label}
+                    </span>
+                    <h3 className="mt-0 mb-3 text-xl font-semibold tracking-tight text-foreground md:text-2xl">
+                      {heading}
+                    </h3>
+                    <p className="m-0 max-w text-base leading-relaxed text-muted-foreground">
+                      {body}
+                    </p>
+                  </div>
+                </li>
+              ))}
             </ol>
           </Reveal>
         </div>
       </section>
 
       {/* ── Partners ────────────────────────────────────────────────── */}
-      <section id="partners" className="scroll-mt-28 px-4 py-16 md:py-24">
+      <section id="partners" className="scroll-mt-28 px-4 py-16 sm:px-6 md:py-24 lg:px-8">
         <div className="mx-auto max-w-7xl">
           <Reveal>
             <SectionHeading title="หน่วยงานร่วมโครงการ" />
@@ -292,9 +284,9 @@ export default function AboutProjectPage() {
                 <Image
                   src={`/assets/img/clients/client-${n}.png`}
                   alt={`หน่วยงานร่วมโครงการ ${n}`}
-                  width={160}
-                  height={80}
-                  className="h-14 w-auto object-contain transition-all duration-300 group-hover:opacity-100 group-hover:grayscale-0"
+                  width={220}
+                  height={120}
+                  className="h-20 w-auto object-contain transition-all duration-300 group-hover:opacity-100 group-hover:grayscale-0 md:h-24"
                 />
               </div>
             ))}
@@ -305,7 +297,7 @@ export default function AboutProjectPage() {
       {/* ── Team ────────────────────────────────────────────────────── */}
       <section
         id="team"
-        className="scroll-mt-28 border-t border-border bg-muted/50 px-4 py-16 md:py-24"
+        className="scroll-mt-28 border-t border-border bg-muted/60 px-4 py-16 sm:px-6 md:py-24 lg:px-8"
       >
         <div className="mx-auto max-w-7xl">
           <Reveal>
@@ -314,16 +306,16 @@ export default function AboutProjectPage() {
               subtitle="คณะผู้ดำเนินงานจากสามมหาวิทยาลัยชั้นนำของประเทศ"
             />
           </Reveal>
-          <Reveal delay={100} className="mx-auto mb-4 grid max-w-2xl grid-cols-1 gap-4 sm:grid-cols-2">
+          <Reveal delay={100} className="mx-auto mb-4 grid max-w-2xl grid-cols-2 gap-3 sm:gap-4">
             {teamLead.map((m) => (
               <TeamCard key={m.img} {...m} />
             ))}
           </Reveal>
-          <Reveal delay={160} className="flex flex-wrap justify-center gap-4">
+          <Reveal delay={160} className="flex flex-wrap justify-center gap-3 sm:gap-4">
             {teamMembers.map((m) => (
               <div
                 key={m.img}
-                className="basis-full sm:basis-[calc(50%-0.5rem)] lg:basis-[calc(33.333%-0.667rem)]"
+                className="basis-[calc(50%-0.375rem)] sm:basis-[calc(50%-0.5rem)] lg:basis-[calc(33.333%-0.667rem)]"
               >
                 <TeamCard role="ผู้ร่วมโครงการ" {...m} />
               </div>
@@ -333,7 +325,7 @@ export default function AboutProjectPage() {
       </section>
 
       {/* ── Contact ─────────────────────────────────────────────────── */}
-      <section id="contact" className="scroll-mt-28 px-4 py-16 md:py-24">
+      <section id="contact" className="scroll-mt-28 border-t border-border px-4 py-16 sm:px-6 md:py-24 lg:px-8">
         <div className="mx-auto max-w-7xl">
           <Reveal>
             <SectionHeading
@@ -345,7 +337,7 @@ export default function AboutProjectPage() {
           <Reveal delay={100} className="mb-10 grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-6">
             {/* KeptCarbon Project */}
             <div className="rounded-xl border border-border bg-card p-6 md:p-8">
-              <div className="mb-4 flex items-center gap-2.5">
+              <div className="mb-6 flex items-center gap-2.5">
                 <span className="flex size-9 items-center justify-center rounded-lg bg-secondary text-primary">
                   <Building2 className="size-4.5" aria-hidden="true" />
                 </span>
@@ -397,67 +389,132 @@ export default function AboutProjectPage() {
 
             {/* EnGRIDs Developer */}
             <div className="flex h-full flex-col rounded-xl border border-border bg-card p-6 md:p-8">
-              <div className="mb-4 flex items-center gap-2.5">
+              <div className="mb-6 flex items-center gap-2.5">
                 <span className="flex size-9 items-center justify-center rounded-lg bg-secondary text-primary">
                   <Globe className="size-4.5" aria-hidden="true" />
                 </span>
                 <h3 className="m-0 text-base font-semibold text-foreground md:text-lg">
-                  ผู้พัฒนาระบบ EnGRIDs
+                  ผู้พัฒนาระบบ EnGRIDs and turnPROx
                 </h3>
               </div>
 
-              <div className="mb-4 flex items-start gap-2.5">
-                <MapPin
-                  className="mt-0.5 size-4 shrink-0 text-muted-foreground"
-                  aria-hidden="true"
-                />
-                <p className="m-0 text-sm leading-relaxed text-muted-foreground">
-                  สตูดิโอวิจัยและพัฒนานวัตกรรมเชิงพื้นที่ด้านสิ่งแวดล้อม
-                  <br />
-                  ภาควิชาภูมิศาสตร์ คณะสังคมศาสตร์
-                  <br />
-                  มหาวิทยาลัยเชียงใหม่ อ.เมือง จ.เชียงใหม่ 50200
-                </p>
-              </div>
+              <div className="grid grow grid-cols-1 gap-5 sm:grid-cols-2 sm:gap-6">
+                {/* EnGRIDs */}
+                <div className="flex h-full flex-col">
+                  <div className="text-sm font-semibold tracking-wide text-primary">
+                    EnGRIDs
+                  </div>
+                  <div className="mt-2 mb-4 flex items-start gap-2.5">
+                    <MapPin
+                      className="mt-0.5 size-4 shrink-0 text-muted-foreground"
+                      aria-hidden="true"
+                    />
+                    <p className="m-0 text-sm leading-relaxed text-muted-foreground">
+                      สตูดิโอวิจัยและพัฒนานวัตกรรมเชิงพื้นที่ด้านสิ่งแวดล้อม
+                      <br />
+                      ภาควิชาภูมิศาสตร์ คณะสังคมศาสตร์
+                      <br />
+                      มหาวิทยาลัยเชียงใหม่ อ.เมือง จ.เชียงใหม่ 50200
+                    </p>
+                  </div>
+                  <div className="mt-auto flex flex-col gap-3">
+                    <div className="flex min-w-0 items-center gap-2.5">
+                      <Phone
+                        className="size-4 shrink-0 text-muted-foreground"
+                        aria-hidden="true"
+                      />
+                      <a
+                        href="tel:053943526"
+                        className="text-sm font-medium break-all text-primary no-underline hover:underline"
+                      >
+                        053-943526
+                      </a>
+                    </div>
+                    <div className="flex min-w-0 items-center gap-2.5">
+                      <Mail
+                        className="size-4 shrink-0 text-muted-foreground"
+                        aria-hidden="true"
+                      />
+                      <a
+                        href="mailto:engrids2025@gmail.com"
+                        className="text-sm font-medium break-all text-primary no-underline hover:underline"
+                      >
+                        engrids2025@gmail.com
+                      </a>
+                    </div>
+                    <div className="flex min-w-0 items-center gap-2.5">
+                      <Globe
+                        className="size-4 shrink-0 text-muted-foreground"
+                        aria-hidden="true"
+                      />
+                      <a
+                        href="https://engrids.soc.cmu.ac.th/"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm font-medium break-all text-primary no-underline hover:underline"
+                      >
+                        engrids.soc.cmu.ac.th
+                      </a>
+                    </div>
+                  </div>
+                </div>
 
-              <div className="mt-auto flex flex-col gap-3 border-t border-border pt-4">
-                <div className="flex items-center gap-2.5">
-                  <Phone
-                    className="size-4 shrink-0 text-muted-foreground"
-                    aria-hidden="true"
-                  />
-                  <a
-                    href="tel:053943526"
-                    className="text-sm font-medium text-primary no-underline hover:underline"
-                  >
-                    053-943526
-                  </a>
-                </div>
-                <div className="flex items-center gap-2.5">
-                  <Mail
-                    className="size-4 shrink-0 text-muted-foreground"
-                    aria-hidden="true"
-                  />
-                  <a
-                    href="mailto:engrids2025@gmail.com"
-                    className="text-sm font-medium text-primary no-underline hover:underline"
-                  >
-                    engrids2025@gmail.com
-                  </a>
-                </div>
-                <div className="flex items-center gap-2.5">
-                  <Globe
-                    className="size-4 shrink-0 text-muted-foreground"
-                    aria-hidden="true"
-                  />
-                  <a
-                    href="https://engrids.soc.cmu.ac.th/"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-sm font-medium text-primary no-underline hover:underline"
-                  >
-                    engrids.soc.cmu.ac.th
-                  </a>
+                {/* turnPROx */}
+                <div className="flex h-full flex-col border-t border-border pt-5 sm:border-t-0 sm:border-l sm:pt-0 sm:pl-6">
+                  <div className="text-sm font-semibold tracking-wide text-primary">
+                    turnPROx
+                  </div>
+                  <div className="mt-2 mb-4 flex items-start gap-2.5">
+                    <MapPin
+                      className="mt-0.5 size-4 shrink-0 text-muted-foreground"
+                      aria-hidden="true"
+                    />
+                    <p className="m-0 text-sm leading-relaxed text-muted-foreground">
+                      239 ถนนห้วยแก้ว ตำบลสุเทพ อำเภอเมืองเชียงใหม่
+                      <br />
+                      จังหวัดเชียงใหม่ 50200
+                    </p>
+                  </div>
+                  <div className="mt-auto flex flex-col gap-3">
+                    <div className="flex min-w-0 items-center gap-2.5">
+                      <Phone
+                        className="size-4 shrink-0 text-muted-foreground"
+                        aria-hidden="true"
+                      />
+                      <a
+                        href="tel:0654158248"
+                        className="text-sm font-medium break-all text-primary no-underline hover:underline"
+                      >
+                        065-415-8248
+                      </a>
+                    </div>
+                    <div className="flex min-w-0 items-center gap-2.5">
+                      <Mail
+                        className="size-4 shrink-0 text-muted-foreground"
+                        aria-hidden="true"
+                      />
+                      <a
+                        href="mailto:admin@turnpro@gmail.com"
+                        className="text-sm font-medium break-all text-primary no-underline hover:underline"
+                      >
+                        admin@turnpro@gmail.com
+                      </a>
+                    </div>
+                    <div className="flex min-w-0 items-center gap-2.5">
+                      <Globe
+                        className="size-4 shrink-0 text-muted-foreground"
+                        aria-hidden="true"
+                      />
+                      <a
+                        href="https://turnpro.dev/"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm font-medium break-all text-primary no-underline hover:underline"
+                      >
+                        turnpro.dev
+                      </a>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>

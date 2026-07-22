@@ -6,10 +6,10 @@ import type { YearlyEstimate } from "@/lib/carbon-api";
 // All-green theme: lime → mint → emerald → forest → teal
 const GREEN_THEME_COLORS = [
   { top: "#bef264", bot: "#84cc16", label: "#3f6212" }, // Lime
-  { top: "#4ade80", bot: "#16a34a", label: "#14532d" }, // Mint
-  { top: "#10b981", bot: "#059669", label: "#064e3b" }, // Emerald
-  { top: "#059669", bot: "#047857", label: "#064e3b" }, // Forest
-  { top: "#0d9488", bot: "#0f766e", label: "#134e4a" }, // Teal
+  { top: "#63b78c", bot: "#16a34a", label: "#14532d" }, // Mint
+  { top: "#1e7a47", bot: "#1e7a47", label: "#064e3b" }, // Emerald
+  { top: "#1e7a47", bot: "#17603a", label: "#064e3b" }, // Forest
+  { top: "#1e7a47", bot: "#17603a", label: "#134e4a" }, // Teal
 ];
 
 const getCycleColor = (cycle: number) =>
@@ -147,18 +147,18 @@ export function CarbonBarChart({
 
   return (
     <div style={{
-      background: "linear-gradient(135deg,#f0fdf4,#dcfce7)",
+      background: "#edfaf3",
       borderRadius: 16,
       padding: isMobile ? "12px 10px 8px" : "18px 16px 12px",
-      boxShadow: "0 10px 30px -5px rgba(5,150,105,0.12)",
-      border: "1px solid rgba(16,185,129,0.15)",
+      boxShadow: "0 10px 30px -5px rgba(30, 122, 71,0.12)",
+      border: "1px solid rgba(30, 122, 71,0.15)",
       height: "100%",
       display: "flex",
       flexDirection: "column",
       justifyContent: "center"
     }}>
       {title && (
-        <div style={{ textAlign: "center", fontSize: isMobile ? 14 : (narrowMode ? 15 : 17), fontWeight: 800, color: "#0f766e", marginTop: isMobile ? 0 : 4, marginBottom: isMobile ? 6 : 10 }}>
+        <div style={{ textAlign: "center", fontSize: isMobile ? 14 : (narrowMode ? 15 : 17), fontWeight: 800, color: "#17603a", marginTop: isMobile ? 0 : 4, marginBottom: isMobile ? 6 : 10 }}>
           {title === "ปริมาณการกักเก็บคาร์บอนสะสม (tCO₂)" ? "ปริมาณการกักเก็บคาร์บอนสะสม (tCO₂eq)" : title}
         </div>
       )}
@@ -180,10 +180,10 @@ export function CarbonBarChart({
             </filter>
             <linearGradient id="lineGrad" x1="0" y1="0" x2="1" y2="0">
               <stop offset="0%" stopColor="#a3e635" />
-              <stop offset="25%" stopColor="#4ade80" />
-              <stop offset="50%" stopColor="#10b981" />
-              <stop offset="75%" stopColor="#059669" />
-              <stop offset="100%" stopColor="#0d9488" />
+              <stop offset="25%" stopColor="#63b78c" />
+              <stop offset="50%" stopColor="#1e7a47" />
+              <stop offset="75%" stopColor="#1e7a47" />
+              <stop offset="100%" stopColor="#1e7a47" />
             </linearGradient>
           </defs>
 
@@ -382,10 +382,10 @@ export function CarbonBarChart({
       {allPts.length > 1 && (
         <div style={{ marginTop: 12, padding: "0 12px", display: "flex", flexDirection: "column", gap: 12 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <div style={{ fontSize: 13, fontWeight: 700, color: "#0f766e" }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: "#17603a" }}>
               ช่วงปีที่แสดงผล
             </div>
-            <div style={{ fontSize: 13, fontWeight: 700, color: "#10b981" }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: "#1e7a47" }}>
               พ.ศ. {allPts[minVal]?.yearBE ?? 0} - {allPts[maxVal]?.yearBE ?? 0}
             </div>
           </div>
@@ -399,7 +399,7 @@ export function CarbonBarChart({
               left: `calc(8px + ${actualMaxIdx > 0 ? (minVal / actualMaxIdx) : 0} * (100% - 16px))`,
               width: `calc(${actualMaxIdx > 0 ? ((maxVal - minVal) / actualMaxIdx) : 0} * (100% - 16px))`,
               height: 6,
-              background: "linear-gradient(90deg, #10b981, #059669)",
+              background: "#1e7a47",
               borderRadius: 3,
               zIndex: 2,
               transition: "left 0.1s, width 0.1s"
@@ -478,7 +478,7 @@ export function CarbonBarChart({
           width: 16px;
           height: 16px;
           background: #fff;
-          border: 2px solid #059669;
+          border: 2px solid #1e7a47;
           border-radius: 50%;
           cursor: pointer;
           box-shadow: 0 2px 4px rgba(0,0,0,0.2);
@@ -488,7 +488,7 @@ export function CarbonBarChart({
           width: 16px;
           height: 16px;
           background: #fff;
-          border: 2px solid #059669;
+          border: 2px solid #1e7a47;
           border-radius: 50%;
           cursor: pointer;
           box-shadow: 0 2px 4px rgba(0,0,0,0.2);
