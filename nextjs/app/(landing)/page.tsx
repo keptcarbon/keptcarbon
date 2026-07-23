@@ -57,7 +57,7 @@ export default function Home() {
       {/* ── Section A: Hero ─────────────────────────────────────────── */}
       <section
         className="relative flex min-h-screen flex-col items-center justify-center px-4 pt-32 pb-16 text-center sm:px-6 md:pt-48 md:pb-32 lg:px-8 bg-cover bg-center bg-no-repeat"
-        style={{ backgroundImage: "url('/assets/img/hero-bg4.webp')" }}
+        style={{ backgroundImage: "url('/assets/img/hero-bg.webp')" }}
       >
         <div className="absolute inset-0 bg-black/60 z-0"></div>
         <div className="relative z-10 flex flex-col items-center">
