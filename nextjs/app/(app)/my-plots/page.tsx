@@ -3,17 +3,18 @@
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/lib/auth-context";
 import Link from "next/link";
+import {
+  Plus, Search, X, Check, Trash2, ChevronDown, ChevronUp,
+  Map as MapIcon, LayoutGrid, Sparkles, User, Users, Loader2,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { profileToBarPoints } from "@/app/components/organisms/ParcelResultsPanel/CarbonBarChart";
 import { estimateCarbon, type PlantationPolygon } from "@/lib/carbon-api";
 import type { SavedPlot } from "./types";
 import { EditPlotModal } from "./EditPlotModal";
 import { PlotCard } from "./PlotCard";
 import { ProjectCarbonSummary } from "./ProjectCarbonSummary";
-
-const HERO_BG =
-  "radial-gradient(1000px 400px at -5% -5%, rgba(16,185,129,0.12) 0%, rgba(16,185,129,0) 60%)," +
-  "radial-gradient(800px 400px at 105% 0%, rgba(59,130,246,0.1) 0%, rgba(59,130,246,0) 58%)," +
-  "linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.9) 100%)";
+import { Accordion } from "./Accordion";
 
 export default function MyPlotsPage() {
   const { user, ready } = useAuth();
@@ -438,7 +439,7 @@ export default function MyPlotsPage() {
   if (!ready || !mounted)
     return (
       <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#f8fdfb" }}>
-        <div className="spinner-border" style={{ color: "#10b981", width: "3rem", height: "3rem" }} role="status" />
+        <div className="spinner-border" style={{ color: "#1e7a47", width: "3rem", height: "3rem" }} role="status" />
       </div>
     );
 
@@ -449,143 +450,97 @@ export default function MyPlotsPage() {
   }
 
   return (
-    <div style={{ minHeight: "100vh", background: "#f4fcf8", paddingTop: 140, paddingBottom: "60px", fontFamily: "'Inter','Noto Sans Thai',sans-serif" }}>
-      <div className="container" style={{ maxWidth: "1100px" }}>
+    <div className="kc-tw min-h-screen bg-muted/30 pt-[108px] pb-16">
+      <div className="mx-auto w-full max-w-6xl px-4 sm:px-6 lg:px-8">
 
-        {/* Hero */}
-        <div style={{
-          background: HERO_BG, borderRadius: isMobile ? 18 : 20, padding: isMobile ? "20px 18px" : "28px 40px", marginBottom: 20,
-          border: "1px solid rgba(16,185,129,0.15)", boxShadow: "0 10px 30px rgba(0,0,0,0.02)",
-          position: "relative", overflow: "hidden",
-        }}>
-          <div style={{ position: "absolute", top: -50, left: -50, width: isMobile ? 150 : 200, height: isMobile ? 150 : 200, background: "rgba(16,185,129,0.2)", filter: "blur(60px)", borderRadius: "50%", pointerEvents: "none" }} />
-          <div style={{ position: "absolute", bottom: -50, right: -50, width: isMobile ? 200 : 250, height: isMobile ? 200 : 250, background: "rgba(13,148,136,0.15)", filter: "blur(70px)", borderRadius: "50%", pointerEvents: "none" }} />
-
-          <div style={{ position: "relative", zIndex: 1, display: "flex", flexDirection: isMobile ? "column" : "row", justifyContent: "space-between", alignItems: isMobile ? "flex-start" : "center", gap: 20 }}>
-            <div style={{ width: "100%" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
-                <div style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "4px 12px", background: "rgba(16,185,129,0.1)", color: "#059669", borderRadius: 50, fontSize: 13, fontWeight: 700, border: "1px solid rgba(16,185,129,0.2)" }}>
-                  <i className="bi bi-folder-fill" /> {viewMode === "all" ? "ข้อมูลทั้งหมดในระบบ" : "ข้อมูลของฉัน"}
-                </div>
-              </div>
-              <h1 style={{ fontSize: isMobile ? 28 : 36, fontWeight: 800, color: "#064e3b", marginBottom: 8, lineHeight: 1.2 }}>
-                {viewMode === "all" ? "การจัดการแปลงทั้งหมด" : "แปลงของฉัน"}
-              </h1>
-              <p style={{ fontSize: isMobile ? 15 : 17, color: "#475569", margin: "0 0 18px", lineHeight: 1.6 }}>
-                {viewMode === "all"
-                  ? "ตรวจสอบและจัดการข้อมูลแปลงของผู้ใช้งานทุกคนในระบบ"
-                  : "จัดการข้อมูลแปลงและผลประเมินคาร์บอนเครดิต"}
-              </p>
-              {/* Search */}
-              <div style={{ position: "relative", maxWidth: isMobile ? "100%" : 440 }}>
-                <i className="bi bi-search" style={{ position: "absolute", left: 13, top: "50%", transform: "translateY(-50%)", color: searchFocused ? "#059669" : "#94a3b8", fontSize: 15, pointerEvents: "none" }} />
-                <input
-                  type="text"
-                  placeholder="ค้นหาแปลง ชื่อโครงการ..."
-                  value={searchTerm}
-                  onChange={e => setSearchTerm(e.target.value)}
-                  onFocus={() => setSearchFocused(true)}
-                  onBlur={() => setSearchFocused(false)}
-                  style={{
-                    width: "100%", padding: "11px 38px 11px 40px",
-                    borderRadius: 13, fontSize: 15, color: "#0f172a",
-                    border: `2px solid ${searchFocused ? "#10b981" : "rgba(16,185,129,0.25)"}`,
-                    background: "rgba(255,255,255,0.95)", outline: "none",
-                    boxShadow: searchFocused ? "0 0 0 4px rgba(16,185,129,0.1)" : "0 2px 10px rgba(0,0,0,0.04)",
-                    transition: "border-color 0.15s, box-shadow 0.15s",
-                  }}
-                />
-                {searchTerm && (
-                  <button onClick={() => setSearchTerm("")} style={{ position: "absolute", right: 11, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: 17, padding: 2, lineHeight: 1 }}>
-                    <i className="bi bi-x-circle-fill" />
-                  </button>
-                )}
-              </div>
-            </div>
-
-            <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", flexWrap: "wrap", alignItems: "center", justifyContent: isMobile ? "flex-start" : "flex-end", gap: isMobile ? 12 : 16, width: isMobile ? "100%" : "auto" }}>
-              {isAdmin && (
-                <div style={{
-                  background: "rgba(255,255,255,0.9)",
-                  padding: 4,
-                  borderRadius: isMobile ? 12 : 14,
-                  display: "flex",
-                  gap: isMobile ? 3 : 4,
-                  border: "1px solid rgba(16,185,129,0.15)",
-                  width: isMobile ? "100%" : "auto",
-                  boxShadow: isMobile ? "none" : "0 4px 15px rgba(0,0,0,0.05)"
-                }}>
-                  <button
-                    onClick={() => setViewMode("mine")}
-                    style={{
-                      flex: isMobile ? 1 : "initial",
-                      padding: isMobile ? "7px 12px" : "8px 16px",
-                      borderRadius: isMobile ? 9 : 10,
-                      border: "none",
-                      fontSize: 15,
-                      fontWeight: 700,
-                      cursor: "pointer",
-                      transition: "all 0.2s",
-                      background: viewMode === "mine" ? "#10b981" : "transparent",
-                      color: viewMode === "mine" ? "#fff" : "#64748b",
-                      display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-                      whiteSpace: "nowrap"
-                    }}
-                  >
-                    <i className="bi bi-person-circle" /> {isMobile ? "ของฉัน" : "เฉพาะของฉัน"}
-                  </button>
-                  <button
-                    onClick={() => setViewMode("all")}
-                    style={{
-                      flex: isMobile ? 1 : "initial",
-                      padding: isMobile ? "7px 12px" : "8px 16px",
-                      borderRadius: isMobile ? 9 : 10,
-                      border: "none",
-                      fontSize: 15,
-                      fontWeight: 700,
-                      cursor: "pointer",
-                      transition: "all 0.2s",
-                      background: viewMode === "all" ? "#0f172a" : "transparent",
-                      color: viewMode === "all" ? "#fff" : "#64748b",
-                      display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-                      whiteSpace: "nowrap"
-                    }}
-                  >
-                    <i className="bi bi-people-fill" /> {isMobile ? "ทั้งหมด" : "ดูทั้งหมด"}
-                  </button>
-                </div>
-              )}
-              <a
-                href="/map-draw"
-                style={{
-                  display: "inline-flex", alignItems: "center", justifyContent: "center", gap: isMobile ? 8 : 10, background: "linear-gradient(135deg,#10b981 0%,#059669 100%)", color: "#fff", padding: isMobile ? "12px 24px" : "14px 28px", borderRadius: isMobile ? 12 : 14, fontWeight: 700, fontSize: isMobile ? 15 : 17, textDecoration: "none", boxShadow: isMobile ? "0 6px 15px rgba(16,185,129,0.25)" : "0 10px 25px rgba(16,185,129,0.3)",
-                  width: isMobile ? "100%" : "auto",
-                  whiteSpace: "nowrap",
-                  transition: "all 0.2s ease"
-                }}
-              >
-                <i className="bi bi-plus-circle" style={{ fontSize: isMobile ? 16 : 18 }} /> เริ่มโครงการใหม่
-              </a>
-            </div>
+        {/* Page header */}
+        <div className="mb-6 flex flex-col justify-between gap-4 md:flex-row md:items-center">
+          <div>
+            <h1 className="m-0 mb-1 text-2xl font-bold tracking-tight text-foreground md:text-3xl">
+              {viewMode === "all" ? "การจัดการแปลงทั้งหมด" : "แปลงของฉัน"}
+            </h1>
+            <p className="m-0 text-sm text-muted-foreground">
+              {viewMode === "all"
+                ? "ตรวจสอบและจัดการข้อมูลแปลงของผู้ใช้งานทุกคนในระบบ"
+                : "จัดการข้อมูลแปลงและผลประเมินคาร์บอนเครดิต"}
+            </p>
           </div>
+          <Button
+            nativeButton={false}
+            render={<Link href="/map-draw" />}
+            className="h-11 shrink-0 rounded-xl px-6 text-sm font-semibold no-underline"
+          >
+            <Plus className="size-4" aria-hidden="true" /> เริ่มโครงการใหม่
+          </Button>
         </div>
 
-        {/* KPI Cards */}
-        {plots.length > 0 && (
-          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(3, 1fr)" : "repeat(auto-fit, minmax(190px, 1fr))", gap: isMobile ? 8 : 14, marginBottom: 24 }}>
-            {([
-              { label: "โครงการทั้งหมด", val: new Set(plots.map(p => p.name || "ไม่มีชื่อโครงการ")).size.toLocaleString("th-TH"), unit: "โครงการ", icon: "bi-folder-fill", color: "#10b981", bg: "rgba(16,185,129,0.10)" },
-              { label: "แปลงทั้งหมด", val: plots.length.toLocaleString("th-TH"), unit: "แปลง", icon: "bi-map-fill", color: "#059669", bg: "rgba(5,150,105,0.10)" },
-              { label: "พื้นที่รวม", val: totalArea.toFixed(2), unit: "ไร่", icon: "bi-grid-fill", color: "#047857", bg: "rgba(4,120,87,0.10)" },
-            ] as { label: string; val: string; unit: string; icon: string; color: string; bg: string }[]).map(({ label, val, unit, icon, color, bg }) => (
-              <div key={label} style={{ background: "#fff", borderRadius: isMobile ? 12 : 14, padding: isMobile ? "8px 9px" : "12px 14px", border: "1px solid rgba(0,0,0,0.05)", boxShadow: "0 2px 8px rgba(0,0,0,0.02)" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: isMobile ? 3 : 4 }}>
-                  <span style={{ fontSize: isMobile ? 11 : 13, color: "#64748b", lineHeight: 1.3 }}>{label}</span>
-                  <div style={{ width: isMobile ? 18 : 22, height: isMobile ? 18 : 22, borderRadius: 5, background: bg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                    <i className={`bi ${icon}`} style={{ color, fontSize: isMobile ? 10 : 12 }} />
-                  </div>
+        {/* Toolbar: search + admin scope + stats */}
+        <div className="mb-6 flex flex-col gap-3 rounded-xl border border-border bg-card p-3 shadow-sm md:flex-row md:items-center">
+          {/* Search */}
+          <div className="relative min-w-0 flex-1">
+            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+            <input
+              type="text"
+              placeholder="ค้นหาแปลง ชื่อโครงการ..."
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+              onFocus={() => setSearchFocused(true)}
+              onBlur={() => setSearchFocused(false)}
+              className="h-10 w-full rounded-lg border border-input bg-background pl-9 pr-9 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/15"
+            />
+            {searchTerm && (
+              <button onClick={() => setSearchTerm("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 cursor-pointer border-0 bg-transparent p-1 text-muted-foreground transition-colors hover:text-foreground">
+                <X className="size-4" aria-hidden="true" />
+              </button>
+            )}
+          </div>
+
+          {/* Admin scope toggle */}
+          {isAdmin && (
+            <div className="flex w-full shrink-0 rounded-lg border border-border bg-muted p-1 md:w-auto">
+              <button
+                onClick={() => setViewMode("mine")}
+                className={`flex flex-1 cursor-pointer items-center justify-center gap-1.5 whitespace-nowrap rounded-md border-0 px-3.5 py-1.5 text-sm font-semibold transition-colors md:flex-initial ${viewMode === "mine" ? "bg-primary text-primary-foreground" : "bg-transparent text-muted-foreground hover:text-foreground"}`}
+              >
+                <User className="size-3.5" aria-hidden="true" /> {isMobile ? "ของฉัน" : "เฉพาะของฉัน"}
+              </button>
+              <button
+                onClick={() => setViewMode("all")}
+                className={`flex flex-1 cursor-pointer items-center justify-center gap-1.5 whitespace-nowrap rounded-md border-0 px-3.5 py-1.5 text-sm font-semibold transition-colors md:flex-initial ${viewMode === "all" ? "bg-foreground text-background" : "bg-transparent text-muted-foreground hover:text-foreground"}`}
+              >
+                <Users className="size-3.5" aria-hidden="true" /> {isMobile ? "ทั้งหมด" : "ดูทั้งหมด"}
+              </button>
+            </div>
+          )}
+
+          {/* Inline stats */}
+          {plots.length > 0 && (
+            <div className="hidden shrink-0 items-center divide-x divide-border md:flex">
+              {([
+                { label: "โครงการ", val: new Set(plots.map(p => p.name || "ไม่มีชื่อโครงการ")).size.toLocaleString("th-TH") },
+                { label: "แปลง", val: plots.length.toLocaleString("th-TH") },
+                { label: "ไร่", val: totalArea.toFixed(2) },
+              ]).map(({ label, val }) => (
+                <div key={label} className="flex items-baseline gap-1.5 px-4">
+                  <span className="text-lg font-bold text-primary">{val}</span>
+                  <span className="text-xs font-medium text-muted-foreground">{label}</span>
                 </div>
-                <div style={{ fontSize: isMobile ? 16 : 22, fontWeight: 800, color, lineHeight: 1.2 }}>{val} <span style={{ fontSize: isMobile ? 10 : 12, color: "#94a3b8", fontWeight: 400 }}>{unit}</span></div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Mobile stats strip */}
+        {plots.length > 0 && (
+          <div className="mb-6 grid grid-cols-3 gap-2 md:hidden">
+            {([
+              { label: "โครงการ", val: new Set(plots.map(p => p.name || "ไม่มีชื่อโครงการ")).size.toLocaleString("th-TH") },
+              { label: "แปลง", val: plots.length.toLocaleString("th-TH") },
+              { label: "ไร่", val: totalArea.toFixed(2) },
+            ]).map(({ label, val }) => (
+              <div key={label} className="rounded-xl border border-border bg-card p-2.5 text-center">
+                <div className="text-lg font-bold leading-tight text-primary">{val}</div>
+                <div className="text-xs font-medium text-muted-foreground">{label}</div>
               </div>
             ))}
           </div>
@@ -593,36 +548,37 @@ export default function MyPlotsPage() {
 
         {/* Content */}
         <div>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14, padding: "0 2px", gap: 10 }}>
-            <h2 style={{ fontSize: isMobile ? 17 : 20, fontWeight: 800, color: "#064e3b", margin: 0, whiteSpace: "nowrap", flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <h2 className="m-0 min-w-0 flex-1 truncate text-lg font-bold tracking-tight text-foreground">
               {viewMode === "all" ? (isMobile ? "แปลงทั้งหมด" : "รายการแปลงทั้งหมด") : (isMobile ? "แปลงที่บันทึก" : "รายการแปลงที่บันทึกแล้ว")}
               {searchTerm && (
-                <span style={{ fontSize: isMobile ? 13 : 15, fontWeight: 400, color: "#64748b", marginLeft: isMobile ? 4 : 8 }}>
+                <span className="ml-2 text-sm font-normal text-muted-foreground">
                   พบ {filteredPlots.length}
                 </span>
               )}
             </h2>
-            <div style={{ display: "flex", gap: isMobile ? 6 : 10, alignItems: "center", flexShrink: 0 }}>
+            <div className="flex shrink-0 items-center gap-2">
 
               {plots.length > 0 && (
-                <div style={{ position: "relative", display: "flex", gap: 12, alignItems: "center" }}>
+                <div className="flex items-center gap-2">
                   {!deleteMode ? (
                     <button
                       onClick={() => setDeleteMode(true)}
-                      style={{ width: 38, height: 38, padding: 0, background: "rgba(239,68,68,0.1)", color: "#ef4444", border: "1px solid rgba(239,68,68,0.2)", borderRadius: 10, cursor: "pointer", fontSize: 16, display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.2s" }}
+                      className="flex h-9 cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-destructive/30 bg-card px-3 text-[13px] font-semibold text-destructive transition-colors hover:bg-destructive/10"
                       title="ลบโครงการ"
                     >
-                      <i className="bi bi-trash3-fill" />
+                      <Trash2 className="size-3.5" aria-hidden="true" />
+                      {!isMobile && "ลบโครงการ"}
                     </button>
                   ) : (
                     <>
-                      <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", padding: "8px 12px", background: selectedProjectNames.size === projectGroups.length && projectGroups.length > 0 ? "rgba(239,68,68,0.05)" : "#fff", borderRadius: 10, border: selectedProjectNames.size === projectGroups.length && projectGroups.length > 0 ? "1px solid rgba(239,68,68,0.2)" : "1px solid #e2e8f0", transition: "all 0.2s" }}>
-                        <div style={{ width: 18, height: 18, borderRadius: 5, border: selectedProjectNames.size === projectGroups.length && projectGroups.length > 0 ? "2px solid #ef4444" : "2px solid #cbd5e1", background: selectedProjectNames.size === projectGroups.length && projectGroups.length > 0 ? "#ef4444" : "#fff", display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.15s" }}>
-                          {selectedProjectNames.size === projectGroups.length && projectGroups.length > 0 && <i className="bi bi-check" style={{ color: "#fff", fontSize: 14, fontWeight: 900 }} />}
-                        </div>
+                      <label className={`flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-1.5 transition-colors ${selectedProjectNames.size === projectGroups.length && projectGroups.length > 0 ? "border-destructive/30 bg-destructive/5" : "border-border bg-card"}`}>
+                        <span className={`flex size-[18px] items-center justify-center rounded border-2 transition-colors ${selectedProjectNames.size === projectGroups.length && projectGroups.length > 0 ? "border-destructive bg-destructive" : "border-muted-foreground/40 bg-card"}`}>
+                          {selectedProjectNames.size === projectGroups.length && projectGroups.length > 0 && <Check className="size-3 text-white" aria-hidden="true" />}
+                        </span>
                         <input
                           type="checkbox"
-                          style={{ display: "none" }}
+                          className="hidden"
                           checked={selectedProjectNames.size === projectGroups.length && projectGroups.length > 0}
                           onChange={(e) => {
                             if (e.target.checked) {
@@ -632,7 +588,7 @@ export default function MyPlotsPage() {
                             }
                           }}
                         />
-                        <span style={{ fontSize: 14, fontWeight: 700, color: selectedProjectNames.size === projectGroups.length && projectGroups.length > 0 ? "#ef4444" : "#64748b" }}>เลือกทั้งหมด</span>
+                        <span className={`text-sm font-semibold ${selectedProjectNames.size === projectGroups.length && projectGroups.length > 0 ? "text-destructive" : "text-muted-foreground"}`}>เลือกทั้งหมด</span>
                       </label>
 
                       <button
@@ -640,17 +596,17 @@ export default function MyPlotsPage() {
                           setDeleteMode(false);
                           setSelectedProjectNames(new Set());
                         }}
-                        style={{ padding: isMobile ? "6px 10px" : "8px 12px", background: "#f1f5f9", color: "#64748b", border: "1px solid #e2e8f0", borderRadius: 10, cursor: "pointer", fontSize: 15, fontWeight: 700, display: "flex", alignItems: "center", gap: 5, transition: "all 0.2s" }}
+                        className="flex h-9 cursor-pointer items-center gap-1 rounded-lg border border-border bg-muted px-3 text-sm font-semibold text-muted-foreground transition-colors hover:text-foreground"
                       >
-                        {!isMobile && <span>ยกเลิก</span>}
+                        ยกเลิก
                       </button>
 
                       <button
                         onClick={() => setIsDeleteModalOpen(true)}
                         disabled={selectedProjectNames.size === 0}
-                        style={{ padding: isMobile ? "6px 10px" : "8px 12px", background: selectedProjectNames.size > 0 ? "rgba(239,68,68,0.1)" : "#f1f5f9", color: selectedProjectNames.size > 0 ? "#ef4444" : "#94a3b8", border: selectedProjectNames.size > 0 ? "1px solid rgba(239,68,68,0.2)" : "1px solid transparent", borderRadius: 10, cursor: selectedProjectNames.size > 0 ? "pointer" : "not-allowed", fontSize: 15, fontWeight: 700, display: "flex", alignItems: "center", gap: 5, transition: "all 0.2s" }}
+                        className={`flex h-9 items-center gap-1.5 rounded-lg border px-3 text-sm font-semibold transition-colors ${selectedProjectNames.size > 0 ? "cursor-pointer border-destructive/30 bg-destructive/10 text-destructive hover:bg-destructive/15" : "cursor-not-allowed border-transparent bg-muted text-muted-foreground/60"}`}
                       >
-                        <i className="bi bi-trash3-fill" style={{ fontSize: 14 }} />
+                        <Trash2 className="size-3.5" aria-hidden="true" />
                         {!isMobile && <span>ยืนยัน {selectedProjectNames.size > 0 && `(${selectedProjectNames.size})`}</span>}
                       </button>
                     </>
@@ -661,82 +617,86 @@ export default function MyPlotsPage() {
           </div>
 
           {filteredPlots.length === 0 ? (
-            <div style={{ textAlign: "center", padding: "44px 24px", background: "#fff", borderRadius: 20, color: "#94a3b8", fontSize: 14 }}>
-              <i className="bi bi-search" style={{ fontSize: 32, display: "block", marginBottom: 8 }} />
-              ไม่พบแปลงที่ตรงกับ &ldquo;<strong style={{ color: "#64748b" }}>{searchTerm}</strong>&rdquo;
-              <br />
-              <button onClick={() => setSearchTerm("")} style={{ marginTop: 12, padding: "5px 16px", background: "rgba(16,185,129,0.08)", color: "#059669", border: "1px solid rgba(16,185,129,0.3)", borderRadius: 8, cursor: "pointer", fontSize: 13, fontWeight: 700 }}>
-                ล้างการค้นหา
-              </button>
+            <div className="rounded-xl border border-dashed border-border bg-card px-6 py-12 text-center text-sm text-muted-foreground">
+              <Search className="mx-auto mb-3 size-8 opacity-50" aria-hidden="true" />
+              ไม่พบแปลงที่ตรงกับ &ldquo;<strong className="text-foreground">{searchTerm}</strong>&rdquo;
+              <div>
+                <button onClick={() => setSearchTerm("")} className="mt-3 cursor-pointer rounded-lg border border-primary/30 bg-primary/5 px-4 py-1.5 text-[13px] font-semibold text-primary transition-colors hover:bg-primary/10">
+                  ล้างการค้นหา
+                </button>
+              </div>
             </div>
           ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: isMobile ? 24 : 32 }}>
+            <div className="flex flex-col gap-6">
               {editingPlot && <EditPlotModal plot={editingPlot.plot} index={editingPlot.index} onClose={() => setEditingPlot(null)} onSave={handleUpdatePlot} isMobile={isMobile} />}
               {projectGroups.map((group, gIdx) => (
-                <div key={`${group.projectName}-${gIdx}`} style={{ position: "relative", background: "#fff", borderRadius: 24, border: "1px solid rgba(16,185,129,0.2)", overflow: "hidden", boxShadow: "0 10px 30px rgba(0,0,0,0.03)" }}>
-                  {/* Project Header */}
+                <div key={`${group.projectName}-${gIdx}`} className="relative overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+                  {/* Project Header — whole row toggles expand */}
                   <div
-                    style={{ padding: isMobile ? "14px 16px" : "16px 24px", background: selectedProjectNames.has(group.projectName) ? "linear-gradient(135deg,rgba(239,68,68,0.05),rgba(239,68,68,0.02))" : "linear-gradient(135deg,rgba(16,185,129,0.04),rgba(5,150,105,0.01))", display: "flex", flexDirection: isMobile ? "column" : "row", justifyContent: "space-between", alignItems: isMobile ? "flex-start" : "center", gap: 12, transition: "background 0.2s" }}
+                    onClick={() => (deleteMode ? toggleProjectSelection(group.projectName) : toggleProject(group.projectName))}
+                    className={`flex cursor-pointer select-none flex-col justify-between gap-3 p-4 transition-colors md:flex-row md:items-center md:px-6 md:py-5 ${selectedProjectNames.has(group.projectName) ? "bg-destructive/5" : "bg-card hover:bg-muted/40"}`}
                   >
                     <div>
-                      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
+                      <div className="mb-1.5 flex items-center gap-2.5">
                         {deleteMode && (
-                          <div
-                            onClick={() => toggleProjectSelection(group.projectName)}
-                            style={{ width: 22, height: 22, borderRadius: 6, border: selectedProjectNames.has(group.projectName) ? "2px solid #ef4444" : "2px solid #cbd5e1", background: selectedProjectNames.has(group.projectName) ? "#ef4444" : "#fff", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "all 0.15s", cursor: "pointer", animation: "fadeIn 0.2s" }}
+                          <span
+                            onClick={(e) => { e.stopPropagation(); toggleProjectSelection(group.projectName); }}
+                            className={`flex size-[22px] shrink-0 cursor-pointer items-center justify-center rounded-md border-2 transition-colors ${selectedProjectNames.has(group.projectName) ? "border-destructive bg-destructive" : "border-muted-foreground/40 bg-card"}`}
                           >
-                            {selectedProjectNames.has(group.projectName) && <i className="bi bi-check" style={{ color: "#fff", fontSize: 13, fontWeight: 900 }} />}
-                          </div>
+                            {selectedProjectNames.has(group.projectName) && <Check className="size-3.5 text-white" aria-hidden="true" />}
+                          </span>
                         )}
-                        <div style={{ width: 32, height: 32, borderRadius: "50%", background: "linear-gradient(135deg, #10b981 0%, #047857 100%)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, fontWeight: 900, boxShadow: "0 2px 8px rgba(16,185,129,0.35)", flexShrink: 0 }}>
+                        <span className="flex size-8 shrink-0 items-center justify-center rounded-lg border border-primary/20 bg-primary/10 text-sm font-bold text-primary">
                           {gIdx + 1}
-                        </div>
-                        <h3 style={{ margin: 0, fontSize: isMobile ? 22 : 26, fontWeight: 800, color: "#064e3b" }}>
+                        </span>
+                        <h3 className="m-0 text-lg font-bold tracking-tight text-foreground md:text-xl">
                           {group.projectName !== "ไม่มีชื่อโครงการ" ? (
                             <>
-                              <span style={{ color: "#64748b", fontWeight: 700, fontSize: isMobile ? 18 : 20, marginRight: 6 }}>โครงการ</span>
+                              <span className="mr-1.5 text-base font-medium text-muted-foreground">โครงการ</span>
                               {group.projectName}
                             </>
                           ) : (
-                            <span style={{ color: "#64748b" }}>ไม่มีชื่อโครงการ</span>
+                            <span className="text-muted-foreground">ไม่มีชื่อโครงการ</span>
                           )}
                         </h3>
                       </div>
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: 12, color: "#64748b", fontSize: 15, fontWeight: 500 }}>
-                        <span><i className="bi bi-map-fill me-1" style={{ color: "#0ea5e9" }} /> {group.plots.length} แปลง</span>
-                        <span><i className="bi bi-grid-fill me-1" style={{ color: "#10b981" }} /> {group.totalArea.toFixed(2)} ไร่</span>
+                      <div className="flex flex-wrap gap-4 text-sm font-medium text-muted-foreground">
+                        <span className="inline-flex items-center gap-1.5"><MapIcon className="size-3.5 text-primary" aria-hidden="true" /> {group.plots.length} แปลง</span>
+                        <span className="inline-flex items-center gap-1.5"><LayoutGrid className="size-3.5 text-primary" aria-hidden="true" /> {group.totalArea.toFixed(2)} ไร่</span>
                       </div>
                     </div>
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: 10, width: isMobile ? "100%" : "auto" }}>
+                    <div className="flex w-full flex-wrap items-center gap-2 md:w-auto">
                       <button
-                        onClick={() => handleInlineEstimate(group.projectName, group.plots)}
+                        onClick={(e) => { e.stopPropagation(); handleInlineEstimate(group.projectName, group.plots); }}
                         disabled={estimatingProject === group.projectName}
-                        style={{ flex: isMobile ? "1 1 100%" : "auto", textAlign: "center", padding: isMobile ? "10px 16px" : "8px 16px", borderRadius: 12, background: estimatingProject === group.projectName ? "#94a3b8" : "linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%)", color: "#fff", fontWeight: 700, fontSize: isMobile ? 15 : 14, textDecoration: "none", border: "none", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, boxShadow: estimatingProject === group.projectName ? "none" : "0 4px 15px rgba(14,165,233,0.3)", whiteSpace: "nowrap", cursor: estimatingProject === group.projectName ? "not-allowed" : "pointer" }}
+                        className={`flex h-10 flex-[1_1_100%] items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border-0 px-4 text-sm font-semibold transition-colors md:flex-initial ${estimatingProject === group.projectName ? "cursor-not-allowed bg-muted text-muted-foreground" : "cursor-pointer bg-primary text-primary-foreground shadow-sm hover:bg-primary/90"}`}
                       >
                         {estimatingProject === group.projectName ? (
-                          <><i className="spinner-border spinner-border-sm" /> กำลังประมวลผล...</>
+                          <><Loader2 className="size-4 animate-spin" aria-hidden="true" /> กำลังประมวลผล...</>
                         ) : (
-                          <><i className="bi bi-magic" /> ประเมินคาร์บอนเครดิต</>
+                          <><Sparkles className="size-4" aria-hidden="true" /> ประเมินคาร์บอนเครดิต</>
                         )}
                       </button>
-                      <Link href={`/map-draw?project=${encodeURIComponent(group.projectName)}`} style={{ flex: isMobile ? 1 : "auto", textAlign: "center", padding: "8px 16px", borderRadius: 12, background: "rgba(16,185,129,0.1)", color: "#059669", fontWeight: 700, fontSize: 15, textDecoration: "none", border: "1px solid rgba(16,185,129,0.2)", display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }}>
-                        <i className="bi bi-plus-lg" /> เพิ่มแปลง
+                      <Link href={`/map-draw?project=${encodeURIComponent(group.projectName)}`} onClick={(e) => e.stopPropagation()} className="flex h-10 flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-primary/25 bg-primary/5 px-4 text-sm font-semibold text-primary no-underline transition-colors hover:bg-primary/10 md:flex-initial">
+                        <Plus className="size-4" aria-hidden="true" /> เพิ่มแปลง
                       </Link>
-                      <button onClick={() => toggleProject(group.projectName)} style={{ flex: isMobile ? 1 : "auto", padding: "8px 16px", borderRadius: 12, background: expandedProjects[group.projectName] ? "rgba(0,0,0,0.05)" : "#0f172a", color: expandedProjects[group.projectName] ? "#475569" : "#fff", fontWeight: 700, fontSize: 15, border: "none", cursor: "pointer", transition: "all 0.2s", display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }}>
-                        {expandedProjects[group.projectName] ? "ซ่อนแปลง" : "ดูแปลงทั้งหมด"} <i className={`bi bi-chevron-${expandedProjects[group.projectName] ? "up" : "down"}`} />
+                      <button onClick={(e) => { e.stopPropagation(); toggleProject(group.projectName); }} className="flex h-10 flex-1 cursor-pointer items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-border bg-card px-4 text-sm font-semibold text-foreground transition-colors hover:bg-muted/60 md:flex-initial">
+                        {expandedProjects[group.projectName] ? "ซ่อนแปลง" : "ดูแปลงทั้งหมด"}
+                        {expandedProjects[group.projectName] ? <ChevronUp className="size-4" aria-hidden="true" /> : <ChevronDown className="size-4" aria-hidden="true" />}
                       </button>
                     </div>
                   </div>
 
                   {/* Project Plots */}
-                  {expandedProjects[group.projectName] && (() => {
+                  <Accordion open={!!expandedProjects[group.projectName]}>
+                  {(() => {
                     const profilesWithData = group.plots.filter(p => p.carbonProfile && p.carbonProfile.length > 0);
                     const groupMinEndYearBE = profilesWithData.length > 0
                       ? Math.min(...profilesWithData.map(p => p.carbonProfile![p.carbonProfile!.length - 1].yearBE))
                       : 0;
                     return (
-                      <div style={{ padding: isMobile ? "16px" : "24px", background: "#f8fafc", borderTop: "1px solid rgba(16,185,129,0.1)" }}>
-                        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                      <div className="border-t border-border/60 bg-muted/30 p-4 md:p-6">
+                        <div className="flex flex-col gap-4">
                           <ProjectCarbonSummary plots={group.plots} isMobile={isMobile} />
                           {group.plots.map((plot, i) => (
                             <PlotCard
@@ -756,6 +716,7 @@ export default function MyPlotsPage() {
                       </div>
                     );
                   })()}
+                  </Accordion>
                 </div>
               ))}
             </div>
@@ -790,9 +751,9 @@ export default function MyPlotsPage() {
                 <div style={{ fontSize: 15, color: "#475569" }}>
                   กำลังจะลบ <strong style={{ color: "#ef4444" }}>{selectedProjectNames.size}</strong> โครงการ:
                 </div>
-                <div style={{ background: "#f8fafc", borderRadius: 12, padding: "12px 16px", maxHeight: 150, overflowY: "auto", border: "1px solid #e2e8f0", textAlign: "left" }}>
+                <div style={{ background: "#f8fafc", borderRadius: 12, padding: "12px 16px", maxHeight: 150, overflowY: "auto", border: "1px solid #e6f0ea", textAlign: "left" }}>
                   {Array.from(selectedProjectNames).map(name => (
-                    <div key={name} style={{ fontSize: 14, color: "#1e293b", fontWeight: 600, padding: "4px 0", borderBottom: "1px dashed #e2e8f0" }}>
+                    <div key={name} style={{ fontSize: 14, color: "#1e293b", fontWeight: 600, padding: "4px 0", borderBottom: "1px dashed #e6f0ea" }}>
                       • {name}
                     </div>
                   ))}
@@ -802,7 +763,7 @@ export default function MyPlotsPage() {
 
             {/* Footer */}
             <div style={{ padding: "16px 24px", borderTop: "1px solid #f1f5f9", background: "#f8fafc", display: "flex", gap: 12, justifyContent: "flex-end" }}>
-              <button onClick={() => setIsDeleteModalOpen(false)} style={{ padding: "10px 20px", borderRadius: 12, border: "none", background: "#e2e8f0", color: "#475569", fontWeight: 700, fontSize: 15, cursor: "pointer", transition: "background 0.2s" }} onMouseEnter={e => e.currentTarget.style.background = "#cbd5e1"} onMouseLeave={e => e.currentTarget.style.background = "#e2e8f0"}>
+              <button onClick={() => setIsDeleteModalOpen(false)} style={{ padding: "10px 20px", borderRadius: 12, border: "none", background: "#e6f0ea", color: "#475569", fontWeight: 700, fontSize: 15, cursor: "pointer", transition: "background 0.2s" }} onMouseEnter={e => e.currentTarget.style.background = "#cbd5e1"} onMouseLeave={e => e.currentTarget.style.background = "#e6f0ea"}>
                 ยกเลิก
               </button>
               <button
@@ -832,7 +793,7 @@ export default function MyPlotsPage() {
               </p>
             </div>
             <div style={{ padding: "16px 24px", borderTop: "1px solid #f1f5f9", background: "#f8fafc", display: "flex", gap: 12, justifyContent: "flex-end" }}>
-              <button onClick={() => setPlotToDelete(null)} style={{ padding: "10px 20px", borderRadius: 12, border: "none", background: "#e2e8f0", color: "#475569", fontWeight: 700, fontSize: 15, cursor: "pointer", flex: 1, transition: "background 0.2s" }} onMouseEnter={e => e.currentTarget.style.background = "#cbd5e1"} onMouseLeave={e => e.currentTarget.style.background = "#e2e8f0"}>
+              <button onClick={() => setPlotToDelete(null)} style={{ padding: "10px 20px", borderRadius: 12, border: "none", background: "#e6f0ea", color: "#475569", fontWeight: 700, fontSize: 15, cursor: "pointer", flex: 1, transition: "background 0.2s" }} onMouseEnter={e => e.currentTarget.style.background = "#cbd5e1"} onMouseLeave={e => e.currentTarget.style.background = "#e6f0ea"}>
                 ยกเลิก
               </button>
               <button

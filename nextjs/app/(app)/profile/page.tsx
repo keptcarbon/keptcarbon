@@ -2,19 +2,13 @@
 
 import { useState, useEffect } from "react";
 import { useAuth } from "@/lib/auth-context";
-import { Card, Eyebrow } from "@/app/components";
-
-const HERO_BG =
-    "radial-gradient(1000px 400px at -5% -5%, rgba(16,185,129,0.12) 0%, rgba(16,185,129,0) 60%)," +
-    "radial-gradient(800px 400px at 105% 0%, rgba(59,130,246,0.1) 0%, rgba(59,130,246,0) 58%)," +
-    "linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.9) 100%)";
 
 const INPUT_STYLE: React.CSSProperties = {
     borderRadius: 10,
-    border: "1.5px solid #e5e7eb",
+    border: "1px solid #e6f0ea",
     fontSize: 14,
     padding: "10px 14px",
-    background: "#fafafa",
+    background: "#ffffff",
     width: "100%",
     outline: "none",
     transition: "border-color 0.15s",
@@ -69,63 +63,77 @@ export default function ProfilePage() {
     const saveDisabled = loading || !firstname || !lastname;
 
     return (
-        <div className="container py-5" style={{ marginTop: "120px", maxWidth: 820 }}>
+        <div className="kc-tw min-h-screen bg-muted/60 pt-[84px] pb-8">
+        <div className="container py-5" style={{ maxWidth: 980 }}>
 
-            {/* ── Hero card ── */}
-            <Card className="border-0 shadow-sm mb-4 overflow-hidden">
-                <div className="p-4 p-md-5" style={{ background: HERO_BG, borderBottom: "1px solid rgba(0,0,0,0.06)" }}>
-                    <div className="d-flex flex-wrap align-items-center gap-4">
+            {/* ── Page title ── */}
+            <div className="mb-4">
+                <h1 className="fw-bold mb-1" style={{ letterSpacing: "-0.02em", color: "#1a3d2b", fontSize: 26 }}>บัญชีผู้ใช้งาน</h1>
+                <div style={{ fontSize: 14, color: "#5a7a65" }}>จัดการข้อมูลส่วนตัวและการเข้าสู่ระบบของคุณ</div>
+            </div>
+
+            {/* ── Two-column: identity rail + form ── */}
+            <div className="d-flex flex-column flex-md-row align-items-start" style={{ gap: 20 }}>
+
+                {/* Left: identity rail */}
+                <div style={{ width: "100%", maxWidth: 300, flexShrink: 0, background: "#ffffff", border: "1px solid #e6f0ea", borderRadius: 16, boxShadow: "0 1px 2px rgba(16,40,28,0.04)", overflow: "hidden", alignSelf: "stretch" }} className="mx-auto mx-md-0">
+                    <div style={{ padding: "28px 20px 22px", textAlign: "center", borderBottom: "1px solid #e6f0ea" }}>
                         {user.pictureUrl ? (
                             <img
                                 src={user.pictureUrl}
                                 alt={user.fullname}
                                 referrerPolicy="no-referrer"
-                                style={{ width: 80, height: 80, borderRadius: "50%", objectFit: "cover", flexShrink: 0, boxShadow: "0 4px 16px rgba(0,0,0,0.12)" }}
+                                style={{ width: 88, height: 88, borderRadius: "50%", objectFit: "cover", boxShadow: "0 0 0 4px #ffffff, 0 0 0 6px #d7ede1", marginBottom: 14 }}
                             />
                         ) : (
                             <div style={{
-                                width: 80, height: 80, borderRadius: "50%", flexShrink: 0,
-                                background: "linear-gradient(135deg, #065f46 0%, #059669 100%)",
+                                width: 88, height: 88, borderRadius: "50%", margin: "0 auto 14px",
+                                background: "#1e7a47",
                                 display: "flex", alignItems: "center", justifyContent: "center",
-                                color: "white", fontSize: 36,
-                                boxShadow: "0 4px 16px rgba(5,150,105,0.30)",
+                                color: "white", fontSize: 38,
+                                boxShadow: "0 0 0 4px #ffffff, 0 0 0 6px #d7ede1",
                             }}>
                                 <i className="bi bi-person-fill"></i>
                             </div>
                         )}
-                        <div style={{ flex: 1 }}>
-                            <Eyebrow icon="bi-person-circle" className="mb-2">บัญชีผู้ใช้งาน</Eyebrow>
-                            <h1 className="fw-bold mb-1" style={{ letterSpacing: "-0.02em" }}>{user.fullname || "ผู้ใช้งาน"}</h1>
-                            <div className="text-muted mb-2" style={{ fontSize: 14 }}>{user.email || user.username}</div>
-                            <div className="d-flex flex-wrap gap-2">
-                                <span className="badge rounded-pill" style={{ background: "rgba(5,150,105,0.12)", color: "#065f46", fontWeight: 600, fontSize: 12, padding: "5px 12px" }}>
-                                    <i className="bi bi-shield-check me-1" />
-                                    {user.role === "admin" ? "ผู้ดูแลระบบ" : "ผู้ใช้งานทั่วไป"}
+                        <div className="fw-bold" style={{ letterSpacing: "-0.01em", color: "#1a3d2b", fontSize: 19, lineHeight: 1.3 }}>{user.fullname || "ผู้ใช้งาน"}</div>
+                        <div style={{ fontSize: 13, color: "#5a7a65", wordBreak: "break-all" }}>{user.email || user.username}</div>
+                    </div>
+                    <div style={{ padding: "16px 20px", display: "flex", flexDirection: "column", gap: 10 }}>
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: 13 }}>
+                            <span style={{ color: "#5a7a65", fontWeight: 600 }}>สิทธิ์การใช้งาน</span>
+                            <span style={{ background: "#edfaf3", color: "#1e7a47", fontWeight: 700, fontSize: 12, padding: "4px 10px", borderRadius: 50 }}>
+                                <i className="bi bi-shield-check me-1" />
+                                {user.role === "admin" ? "ผู้ดูแลระบบ" : "ผู้ใช้งานทั่วไป"}
+                            </span>
+                        </div>
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: 13 }}>
+                            <span style={{ color: "#5a7a65", fontWeight: 600 }}>การเข้าสู่ระบบ</span>
+                            {user.provider === "line" ? (
+                                <span style={{ background: "#06C755", color: "#fff", fontWeight: 700, fontSize: 12, padding: "4px 10px", borderRadius: 50 }}>
+                                    <i className="bi bi-line me-1" />LINE
                                 </span>
-                                {user.provider === "line" && (
-                                    <span className="badge rounded-pill" style={{ background: "#06C755", color: "white", fontWeight: 600, fontSize: 12, padding: "5px 12px" }}>
-                                        <i className="bi bi-line me-1" />LINE Login
-                                    </span>
-                                )}
-                            </div>
+                            ) : (
+                                <span style={{ background: "#f1f6f3", color: "#1a3d2b", fontWeight: 700, fontSize: 12, padding: "4px 10px", borderRadius: 50 }}>
+                                    <i className="bi bi-envelope me-1" />อีเมล
+                                </span>
+                            )}
                         </div>
                     </div>
                 </div>
-            </Card>
 
-            {/* ── Form card ── */}
-            <Card className="border-0 shadow-sm">
-                <div className="p-4 p-md-5">
-                    <div className="d-flex align-items-center gap-2 mb-4">
-                        <i className="bi bi-pencil-square text-success" />
-                        <span className="fw-bold">แก้ไขข้อมูลส่วนตัว</span>
+                {/* Right: form card */}
+                <div style={{ flex: 1, width: "100%", background: "#ffffff", border: "1px solid #e6f0ea", borderRadius: 16, boxShadow: "0 1px 2px rgba(16,40,28,0.04)", padding: "28px 28px 24px" }}>
+                    <div className="mb-4">
+                        <div className="fw-bold" style={{ color: "#1a3d2b", fontSize: 16 }}>แก้ไขข้อมูลส่วนตัว</div>
+                        <div style={{ fontSize: 13, color: "#5a7a65", marginTop: 2 }}>ข้อมูลนี้จะแสดงในระบบและใช้ติดต่อคุณ</div>
                     </div>
 
                     {message && (
                         <div className="rounded-3 mb-4 p-3 d-flex align-items-center gap-2" style={{
-                            background: message.type === "success" ? "rgba(16,185,129,0.08)" : "rgba(239,68,68,0.08)",
-                            border: `1px solid ${message.type === "success" ? "rgba(16,185,129,0.25)" : "rgba(239,68,68,0.25)"}`,
-                            color: message.type === "success" ? "#065f46" : "#991b1b",
+                            background: message.type === "success" ? "#edfaf3" : "#fef2f2",
+                            border: `1px solid ${message.type === "success" ? "#e6f0ea" : "#fecaca"}`,
+                            color: message.type === "success" ? "#1e7a47" : "#991b1b",
                             fontSize: 14, fontWeight: 500,
                         }}>
                             <i className={`bi ${message.type === "success" ? "bi-check-circle-fill" : "bi-exclamation-circle-fill"}`} />
@@ -136,24 +144,24 @@ export default function ProfilePage() {
                     <form onSubmit={handleSubmit}>
                         <div className="row g-4 mb-4">
                             <div className="col-md-6">
-                                <label className="fw-medium mb-2 d-block" style={{ fontSize: 13, color: "#374151" }}>
+                                <label className="fw-medium mb-2 d-block" style={{ fontSize: 13, color: "#1a3d2b" }}>
                                     ชื่อ <span style={{ color: "#ef4444" }}>*</span>
                                 </label>
                                 <input type="text" style={INPUT_STYLE} value={firstname} onChange={(e) => setFirstname(e.target.value)} placeholder="กรอกชื่อของคุณ" required />
                             </div>
                             <div className="col-md-6">
-                                <label className="fw-medium mb-2 d-block" style={{ fontSize: 13, color: "#374151" }}>
+                                <label className="fw-medium mb-2 d-block" style={{ fontSize: 13, color: "#1a3d2b" }}>
                                     นามสกุล <span style={{ color: "#ef4444" }}>*</span>
                                 </label>
                                 <input type="text" style={INPUT_STYLE} value={lastname} onChange={(e) => setLastname(e.target.value)} placeholder="กรอกนามสกุลของคุณ" required />
                             </div>
                             <div className="col-md-6">
-                                <label className="fw-medium mb-2 d-block" style={{ fontSize: 13, color: "#374151" }}>อีเมล / ชื่อผู้ใช้</label>
+                                <label className="fw-medium mb-2 d-block" style={{ fontSize: 13, color: "#1a3d2b" }}>อีเมล / ชื่อผู้ใช้</label>
                                 <input type="text" style={{ ...INPUT_STYLE, background: "#f3f4f6", color: "#9ca3af" }} value={user.email || user.username || ""} disabled />
                                 <div className="mt-1" style={{ fontSize: 12, color: "#9ca3af" }}>ข้อมูลบัญชีไม่สามารถเปลี่ยนแปลงได้</div>
                             </div>
                             <div className="col-md-6">
-                                <label className="fw-medium mb-2 d-block" style={{ fontSize: 13, color: "#374151" }}>เบอร์โทรศัพท์</label>
+                                <label className="fw-medium mb-2 d-block" style={{ fontSize: 13, color: "#1a3d2b" }}>เบอร์โทรศัพท์</label>
                                 <input type="tel" style={INPUT_STYLE} value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="08X-XXX-XXXX" />
                             </div>
                         </div>
@@ -164,8 +172,8 @@ export default function ProfilePage() {
                                 className="btn"
                                 disabled={saveDisabled}
                                 style={{
-                                    background: saveDisabled ? "#d1fae5" : "linear-gradient(135deg, #065f46 0%, #059669 100%)",
-                                    color: saveDisabled ? "#6b7280" : "white",
+                                    background: saveDisabled ? "#e6f0ea" : "#1e7a47",
+                                    color: saveDisabled ? "#94a3b8" : "white",
                                     border: "none",
                                     borderRadius: 10,
                                     padding: "10px 24px",
@@ -182,7 +190,8 @@ export default function ProfilePage() {
                         </div>
                     </form>
                 </div>
-            </Card>
+            </div>
+        </div>
         </div>
     );
 }

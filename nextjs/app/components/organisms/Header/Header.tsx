@@ -2,47 +2,66 @@
 
 import { useEffect, useState, useRef } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
+import {
+  Menu,
+  X,
+  Map,
+  BarChart3,
+  User,
+  MapPinned,
+  LogOut,
+  LogIn,
+  UserPlus,
+  FileText,
+  LayoutGrid,
+  Shield,
+} from "lucide-react";
 
+/* ── Nav data ────────────────────────────────────────────────────────────── */
+const navLinks = [
+  { label: "หน้าแรก", href: "/", icon: LayoutGrid },
+  { label: "เกี่ยวกับโครงการ", href: "/about-project", icon: FileText },
+  { label: "แดชบอร์ด", href: "/dashboard", icon: BarChart3 },
+  { label: "ประเมินคาร์บอน", href: "/map-draw", icon: Map },
+] as const;
+
+/* ── Component ───────────────────────────────────────────────────────────── */
 export default function Header() {
   const router = useRouter();
   const pathname = usePathname();
   const { ready, user, openLogin, openRegister, logout } = useAuth();
+
   const [scrolled, setScrolled] = useState(false);
   const [navOpen, setNavOpen] = useState(false);
-  const [dropdownOpen, setDropdownOpen] = useState(false);
-  const [homeDropdownOpen, setHomeDropdownOpen] = useState(false);
-  const dropdownRef = useRef<HTMLDivElement>(null);
+  const [avatarOpen, setAvatarOpen] = useState(false);
 
+  const avatarRef = useRef<HTMLDivElement>(null);
+
+  /* Close dropdowns on outside click */
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setDropdownOpen(false);
-      }
+    const handler = (e: MouseEvent) => {
+      if (avatarRef.current && !avatarRef.current.contains(e.target as Node))
+        setAvatarOpen(false);
     };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
   }, []);
 
+  /* Scroll shadow */
   useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 100);
+    const onScroll = () => setScrolled(window.scrollY > 10);
     onScroll();
-    window.addEventListener("scroll", onScroll);
+    window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
+  /* Lock body scroll when mobile nav is open */
   useEffect(() => {
-    document.body.classList.toggle("scrolled", scrolled);
-  }, [scrolled]);
-
-  useEffect(() => {
-    document.body.classList.toggle("on-home", pathname === "/");
-    return () => document.body.classList.remove("on-home");
-  }, [pathname]);
-
-  useEffect(() => {
-    document.body.classList.toggle("kc-mobile-nav-active", navOpen);
+    document.body.style.overflow = navOpen ? "hidden" : "";
+    return () => { document.body.style.overflow = ""; };
   }, [navOpen]);
 
   const closeNav = () => setNavOpen(false);
@@ -52,300 +71,310 @@ export default function Header() {
     router.push("/");
   };
 
+  const isActive = (href: string) => {
+    if (href === "/") return pathname === "/";
+    return pathname.startsWith(href);
+  };
+
+  /* Shared link classes (desktop center nav) */
+  const navLinkClass = (active: boolean) =>
+    `rounded-lg px-3 py-2 text-sm font-medium no-underline transition-colors hover:text-[var(--kc-green)] ${active ? "text-[var(--kc-green)]" : "text-[var(--kc-ink)]"
+    }`;
+
+  /* ── Render ──────────────────────────────────────────────────────────── */
   return (
     <>
-      <header id="header" className="header d-flex align-items-center fixed-top">
-        <div className="container-fluid container-xl position-relative d-flex align-items-center">
-          <Link href="/" className="logo d-flex align-items-center me-auto">
-            <img src="/assets/img/keptcarbon-logo.png" alt="Kept Carbon Logo" className="header-logo-img" />
+      {/* ───── Desktop + Mobile Top Bar ───────────────────────────────── */}
+      <header
+        className={`kc-tw fixed inset-x-0 top-0 z-[997] border-b border-[var(--kc-border-input)] bg-white/95 backdrop-blur-md transition-shadow duration-300 ${scrolled ? "shadow-[0_4px_16px_rgba(0,0,0,0.05)]" : ""
+          }`}
+      >
+        <div className="mx-auto flex h-16 max-w-9xl items-center justify-between px-4 lg:px-8">
+          {/* ── Logo ─────────────────────────────────────────────────── */}
+          <Link
+            href="/"
+            className="flex shrink-0 items-center gap-2.5 no-underline"
+          >
+            <Image
+              src="/assets/img/keptcarbon-logo.png"
+              alt="KeptCarbon"
+              width={40}
+              height={40}
+              className="h-9 w-9 rounded-lg object-cover shadow-[var(--kc-shadow-xs)]"
+              priority
+            />
           </Link>
 
-          <nav id="navmenu" className="navmenu">
-            {ready && user ? (
-              <ul className="d-none d-xl-flex">
-                <li className="dropdown">
-                  <Link
-                    href="/"
-                    className={homeDropdownOpen ? "active" : ""}
-                  >
-                    <span onClick={closeNav}>หน้าแรก</span>
-                    <i
-                      className="bi bi-chevron-down toggle-dropdown"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        setHomeDropdownOpen(!homeDropdownOpen);
-                      }}
-                    ></i>
-                  </Link>
-                  <ul className={homeDropdownOpen ? "dropdown-active" : ""}>
-                    <li>
-                      <a href="/#project-about" onClick={closeNav}>เกี่ยวกับโครงการ</a>
-                    </li>
-                    <li>
-                      <a href="/#team" onClick={closeNav}>ทีมงานของเรา</a>
-                    </li>
-                    <li>
-                      <a href="/#contact" onClick={closeNav}>ติดต่อเรา</a>
-                    </li>
-                  </ul>
-                </li>
-                <li>
-                  <Link href="/dashboard" onClick={closeNav}>
-                    แดชบอร์ด
-                  </Link>
-                </li>
-                <li>
-                  <Link href="/map-draw" className={pathname.startsWith("/map-draw") ? "active" : ""} onClick={closeNav}>
-                    คำนวณคาร์บอน
-                  </Link>
-                </li>
-              </ul>
-            ) : (
-              <ul className="d-none d-xl-flex">
-                <li className="dropdown">
-                  <Link
-                    href="/"
-                    className={homeDropdownOpen ? "active" : ""}
-                  >
-                    <span onClick={closeNav}>หน้าแรก</span>
-                    <i
-                      className="bi bi-chevron-down toggle-dropdown"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        setHomeDropdownOpen(!homeDropdownOpen);
-                      }}
-                    ></i>
-                  </Link>
-                  <ul className={homeDropdownOpen ? "dropdown-active" : ""}>
-                    <li>
-                      <a href="/#project-about" onClick={closeNav}>เกี่ยวกับโครงการ</a>
-                    </li>
-                    <li>
-                      <a href="/#team" onClick={closeNav}>ทีมงานของเรา</a>
-                    </li>
-                    <li>
-                      <a href="/#contact" onClick={closeNav}>ติดต่อเรา</a>
-                    </li>
-                  </ul>
-                </li>
-                <li>
-                  <Link href="/dashboard" onClick={closeNav}>
-                    แดชบอร์ด
-                  </Link>
-                </li>
-                <li>
-                  <Link href="/map-draw" className={pathname.startsWith("/map-draw") ? "active" : ""} onClick={closeNav}>
-                    คำนวณคาร์บอน
-                  </Link>
-                </li>
-              </ul>
-            )}
-            <i
-              className={`mobile-nav-toggle d-xl-none bi bi-list`}
-              onClick={() => setNavOpen(true)}
-            ></i>
+          {/* ── Desktop Center Nav (hidden below xl) ─────────────────── */}
+          <nav className="absolute left-1/2 hidden -translate-x-1/2 items-center gap-1 xl:flex">
+            {navLinks.map(({ label, href }) => (
+              <Link key={href} href={href} className={navLinkClass(isActive(href))}>
+                {label}
+              </Link>
+            ))}
           </nav>
 
-          <div id="nav-buttons" className="d-flex align-items-center ms-3">
+          {/* ── Desktop Right: Auth (hidden below xl) ────────────────── */}
+          <div className="hidden items-center gap-3 xl:flex">
             {ready && user ? (
-              <div className="position-relative" ref={dropdownRef}>
-                <a
-                  href="#"
-                  className="d-flex align-items-center text-decoration-none"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    setDropdownOpen(!dropdownOpen);
-                  }}
+              /* ── Logged-in avatar dropdown ── */
+              <div className="relative" ref={avatarRef}>
+                <button
+                  type="button"
+                  className="flex items-center gap-2 border-0 bg-transparent rounded-full p-0.5 transition-shadow hover:ring-2 hover:ring-[var(--kc-green)]/20 cursor-pointer"
+                  onClick={() => setAvatarOpen((v) => !v)}
                 >
                   {user.pictureUrl ? (
                     <img
                       src={user.pictureUrl}
                       alt={user.fullname}
                       referrerPolicy="no-referrer"
-                      style={{
-                        width: "38px",
-                        height: "38px",
-                        borderRadius: "50%",
-                        objectFit: "cover",
-                      }}
+                      className="size-9 rounded-full object-cover"
                     />
                   ) : (
-                    <div
-                      className="d-flex align-items-center justify-content-center text-white"
-                      style={{
-                        width: "38px",
-                        height: "38px",
-                        borderRadius: "50%",
-                        backgroundColor: "var(--kc-sage-soft, #738f7d)",
-                        fontSize: "20px",
-                      }}
-                    >
-                      <i className="bi bi-person-fill"></i>
-                    </div>
+                    <span className="flex size-9 items-center justify-center rounded-full bg-[var(--kc-green)] text-white">
+                      <User className="size-4" />
+                    </span>
                   )}
-                </a>
+                </button>
 
-                {dropdownOpen && (
-                  <ul
-                    className="dropdown-menu show dropdown-menu-end shadow"
-                    style={{ position: "absolute", top: "100%", right: 0, marginTop: "10px", border: "none", borderRadius: "10px", minWidth: "160px" }}
-                  >
-                    <li>
-                      <a
-                        href="#"
-                        className="dropdown-item d-flex align-items-center py-2"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          setDropdownOpen(false);
-                          router.push("/my-plots");
-                        }}
-                      >
-                        <i className="bi bi-map me-2 fs-5 text-secondary"></i> แปลงของฉัน
-                      </a>
-                    </li>
-                    <li>
-                      <a
-                        href="#"
-                        className="dropdown-item d-flex align-items-center py-2"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          setDropdownOpen(false);
-                          router.push("/profile");
-                        }}
-                      >
-                        <i className="bi bi-person me-2 fs-5 text-secondary"></i> โปรไฟล์
-                      </a>
-                    </li>
+                {/* Avatar dropdown */}
+                <div
+                  className={`absolute right-0 top-full pt-2 transition-all duration-200 ${avatarOpen
+                    ? "pointer-events-auto translate-y-0 opacity-100"
+                    : "pointer-events-none -translate-y-1 opacity-0"
+                    }`}
+                >
+                  <div className="w-52 overflow-hidden rounded-xl border border-[var(--kc-border-input)] bg-white shadow-[var(--kc-shadow-card)]">
+                    {/* User info */}
+                    <div className="border-b border-[var(--kc-border-input)] px-4 py-3">
+                      <p className="m-0 text-sm font-semibold text-[var(--kc-ink)]">
+                        {user.fullname}
+                      </p>
+                      <p className="m-0 mt-0.5 truncate text-xs text-[var(--kc-sage)]">
+                        {user.email}
+                      </p>
+                    </div>
+                    <Link
+                      href="/my-plots"
+                      className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-[var(--kc-ink)] no-underline transition-colors hover:bg-[var(--kc-green-50)]"
+                      onClick={() => setAvatarOpen(false)}
+                    >
+                      <MapPinned className="size-4 text-[var(--kc-sage)]" />
+                      แปลงของฉัน
+                    </Link>
+                    <Link
+                      href="/profile"
+                      className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-[var(--kc-ink)] no-underline transition-colors hover:bg-[var(--kc-green-50)]"
+                      onClick={() => setAvatarOpen(false)}
+                    >
+                      <User className="size-4 text-[var(--kc-sage)]" />
+                      โปรไฟล์
+                    </Link>
                     {user.role === "admin" && (
                       <>
-                        <li><hr className="dropdown-divider my-1" /></li>
-                        <li>
-                          <a
-                            href="#"
-                            className="dropdown-item d-flex align-items-center py-2"
-                            onClick={(e) => {
-                              e.preventDefault();
-                              setDropdownOpen(false);
-                              router.push("/admin/users");
-                            }}
-                          >
-                            <i className="bi bi-people me-2 fs-5 text-secondary"></i> จัดการผู้ใช้
-                          </a>
-                        </li>
+                        <div className="mx-4 border-t border-[var(--kc-border-input)]" />
+                        <Link
+                          href="/admin/users"
+                          className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-[var(--kc-ink)] no-underline transition-colors hover:bg-[var(--kc-green-50)]"
+                          onClick={() => setAvatarOpen(false)}
+                        >
+                          <Shield className="size-4 text-[var(--kc-sage)]" />
+                          จัดการผู้ใช้
+                        </Link>
                       </>
                     )}
-                    <li><hr className="dropdown-divider my-1" /></li>
-                    <li>
-                      <a
-                        className="dropdown-item d-flex align-items-center py-2 text-danger"
-                        href="#"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          setDropdownOpen(false);
-                          onLogout();
-                        }}
-                      >
-                        <i className="bi bi-box-arrow-right me-2 fs-5"></i> ออกจากระบบ
-                      </a>
-                    </li>
-                  </ul>
-                )}
+                    <div className="mx-4 border-t border-[var(--kc-border-input)]" />
+                    <button
+                      type="button"
+                      className="flex w-full items-center gap-2.5 border-0 bg-transparent px-4 py-2.5 text-sm text-[var(--kc-error)] transition-colors hover:bg-red-50 cursor-pointer"
+                      onClick={() => {
+                        setAvatarOpen(false);
+                        onLogout();
+                      }}
+                    >
+                      <LogOut className="size-4" />
+                      ออกจากระบบ
+                    </button>
+                  </div>
+                </div>
               </div>
             ) : (
+              /* ── Guest: Login (text) + Sign up (solid pill) ── */
               <>
-                <a
-                  className="btn-getstarted"
-                  href="#"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    openLogin();
-                  }}
+                <button
+                  type="button"
+                  className="border-0 bg-transparent px-3 py-2 text-sm font-medium text-[var(--kc-ink)] transition-colors hover:text-[var(--kc-green)] cursor-pointer"
+                  onClick={openLogin}
                 >
                   เข้าสู่ระบบ
-                </a>
+                </button>
+                <button
+                  type="button"
+                  className="rounded-full border border-[var(--kc-green)] bg-[var(--kc-green)] px-5 py-2 text-sm font-semibold text-white transition-all hover:bg-[var(--kc-green-dark)] hover:border-[var(--kc-green-dark)] hover:shadow-[var(--kc-shadow-button)]"
+                  onClick={openRegister}
+                >
+                  สมัครสมาชิก
+                </button>
               </>
             )}
           </div>
+
+          {/* ── Mobile Hamburger (visible below xl) ──────────────────── */}
+          <button
+            type="button"
+            className="flex size-10 items-center justify-center border-0 bg-transparent rounded-full text-[var(--kc-ink)] transition-colors hover:bg-[var(--kc-green-50)] xl:hidden cursor-pointer"
+            onClick={() => setNavOpen(true)}
+            aria-label="Open menu"
+          >
+            <Menu className="size-5" />
+          </button>
         </div>
       </header>
 
-      {/* Custom Mobile Drawer */}
-      <div className={`kc-mobile-drawer d-xl-none ${navOpen ? 'active' : ''}`}>
-        <div className="drawer-overlay" onClick={closeNav}></div>
-        <div className="drawer-panel">
-          <div className="drawer-header">
-            <div className="drawer-brand">
-              <span className="brand-title">KeptCarbon</span>
-            </div>
-            <button className="drawer-close" onClick={closeNav}>
-              <i className="bi bi-x"></i>
-            </button>
+      {/* ───── Mobile Drawer ──────────────────────────────────────────── */}
+      {/* Overlay */}
+      <div
+        className={`kc-tw fixed inset-0 z-[998] bg-black/40 backdrop-blur-sm transition-opacity duration-300 xl:hidden ${navOpen
+          ? "pointer-events-auto opacity-100"
+          : "pointer-events-none opacity-0"
+          }`}
+        onClick={closeNav}
+      />
+
+      {/* Panel */}
+      <aside
+        className={`kc-tw fixed inset-y-0 right-0 z-[999] flex w-[300px] max-w-[85vw] flex-col bg-white shadow-[var(--kc-shadow-modal)] transition-transform duration-300 ease-[var(--kc-ease)] xl:hidden ${navOpen ? "translate-x-0" : "translate-x-full"
+          }`}
+      >
+        {/* Drawer header */}
+        <div className="flex h-16 items-center justify-between border-b border-[var(--kc-border-input)] px-5">
+          <div className="flex items-center gap-2.5">
+            <Image
+              src="/assets/img/keptcarbon-logo.png"
+              alt="KeptCarbon"
+              width={36}
+              height={36}
+              className="h-9 w-9 rounded-lg object-cover"
+            />
           </div>
-
-          <div className="drawer-body">
-            <div className="drawer-nav-list">
-              <Link href="/" className={`drawer-nav-item ${pathname === '/' ? 'active' : ''}`} onClick={closeNav}>
-                <i className="bi bi-house"></i> หน้าแรก
-              </Link>
-
-              <div className="drawer-nav-category">เมนูหลัก</div>
-              <Link href="/dashboard" className={`drawer-nav-item ${pathname === '/dashboard' ? 'active' : ''}`} onClick={closeNav}>
-                <i className="bi bi-grid"></i> แดชบอร์ด
-              </Link>
-              <Link href="/map-draw" className={`drawer-nav-item ${pathname.startsWith('/map-draw') ? 'active' : ''}`} onClick={closeNav}>
-                <i className="bi bi-map"></i> คำนวณคาร์บอน
-              </Link>
-
-              {ready && user && (
-                <>
-                  <div className="drawer-nav-category">ข้อมูลผู้ใช้</div>
-                  <Link href="/profile" className={`drawer-nav-item ${pathname === '/profile' ? 'active' : ''}`} onClick={closeNav}>
-                    <i className="bi bi-person-circle"></i> โปรไฟล์
-                  </Link>
-                  <Link href="/my-plots" className={`drawer-nav-item ${pathname === '/my-plots' ? 'active' : ''}`} onClick={closeNav}>
-                    <i className="bi bi-map"></i> แปลงของฉัน
-                  </Link>
-                </>
-              )}
-
-              <div className="drawer-nav-category">ข้อมูลอ้างอิง</div>
-              <Link href="/#project-about" className="drawer-nav-item" onClick={closeNav}>
-                <i className="bi bi-file-earmark-text"></i> เกี่ยวกับโครงการ
-              </Link>
-              <Link href="/#team" className="drawer-nav-item" onClick={closeNav}>
-                <i className="bi bi-person-badge"></i> ทีมงานของเรา
-              </Link>
-              <Link href="/#contact" className="drawer-nav-item" onClick={closeNav}>
-                <i className="bi bi-chat-dots"></i> ติดต่อเรา
-              </Link>
-
-              {ready && user && user.role === "admin" && (
-                <>
-                  <div className="drawer-nav-category">สำหรับผู้ดูแลระบบ</div>
-                  <Link href="/admin/users" className={`drawer-nav-item ${pathname === '/admin/users' ? 'active' : ''}`} onClick={closeNav}>
-                    <i className="bi bi-people"></i> จัดการผู้ใช้
-                  </Link>
-                </>
-              )}
-
-              <div className="drawer-auth-actions">
-                {ready && user ? (
-                  <a href="#" className="drawer-nav-item" style={{ color: "#d9534f" }} onClick={(e) => { e.preventDefault(); onLogout(); }}>
-                    <i className="bi bi-box-arrow-right" style={{ color: "#d9534f" }}></i> ออกจากระบบ
-                  </a>
-                ) : (
-                  <a href="#" className="drawer-nav-item" style={{ color: "#2d9e5f" }} onClick={(e) => { e.preventDefault(); closeNav(); openLogin(); }}>
-                    <i className="bi bi-box-arrow-in-right" style={{ color: "#2d9e5f" }}></i> เข้าสู่ระบบ
-                  </a>
-                )}
-              </div>
-            </div>
-          </div>
-
+          <button
+            type="button"
+            className="flex size-9 items-center justify-center border-0 bg-transparent rounded-full text-[var(--kc-sage)] transition-colors hover:bg-[var(--kc-green-50)] hover:text-[var(--kc-ink)] cursor-pointer"
+            onClick={closeNav}
+            aria-label="Close menu"
+          >
+            <X className="size-5" />
+          </button>
         </div>
-      </div>
+
+        {/* Drawer body (scrollable) */}
+        <div className="flex-1 overflow-y-auto px-4 py-4">
+          {navLinks.map(({ label, href, icon: Icon }) => (
+            <Link
+              key={href}
+              href={href}
+              className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium no-underline transition-colors ${isActive(href)
+                ? "bg-[var(--kc-green-50)] text-[var(--kc-green)]"
+                : "text-[var(--kc-ink)] hover:bg-[var(--kc-green-50)]"
+                }`}
+              onClick={closeNav}
+            >
+              <Icon className="size-4 shrink-0 opacity-60" />
+              {label}
+            </Link>
+          ))}
+
+          {/* Logged-in extras */}
+          {ready && user && (
+            <>
+              <div className="mb-1 mt-4 px-3 text-[11px] font-semibold tracking-wider text-[var(--kc-sage)] uppercase">
+                ข้อมูลผู้ใช้
+              </div>
+              <Link
+                href="/profile"
+                className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium no-underline transition-colors ${pathname === "/profile"
+                  ? "bg-[var(--kc-green-50)] text-[var(--kc-green)]"
+                  : "text-[var(--kc-ink)] hover:bg-[var(--kc-green-50)]"
+                  }`}
+                onClick={closeNav}
+              >
+                <User className="size-4 shrink-0 opacity-60" />
+                โปรไฟล์
+              </Link>
+              <Link
+                href="/my-plots"
+                className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium no-underline transition-colors ${pathname === "/my-plots"
+                  ? "bg-[var(--kc-green-50)] text-[var(--kc-green)]"
+                  : "text-[var(--kc-ink)] hover:bg-[var(--kc-green-50)]"
+                  }`}
+                onClick={closeNav}
+              >
+                <MapPinned className="size-4 shrink-0 opacity-60" />
+                แปลงของฉัน
+              </Link>
+
+              {user.role === "admin" && (
+                <>
+                  <div className="mb-1 mt-4 px-3 text-[11px] font-semibold tracking-wider text-[var(--kc-sage)] uppercase">
+                    สำหรับผู้ดูแลระบบ
+                  </div>
+                  <Link
+                    href="/admin/users"
+                    className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium no-underline transition-colors ${pathname === "/admin/users"
+                      ? "bg-[var(--kc-green-50)] text-[var(--kc-green)]"
+                      : "text-[var(--kc-ink)] hover:bg-[var(--kc-green-50)]"
+                      }`}
+                    onClick={closeNav}
+                  >
+                    <Shield className="size-4 shrink-0 opacity-60" />
+                    จัดการผู้ใช้
+                  </Link>
+                </>
+              )}
+            </>
+          )}
+        </div>
+
+        {/* Drawer footer: Auth actions */}
+        <div className="border-t border-[var(--kc-border-input)] px-5 py-4">
+          {ready && user ? (
+            <button
+              type="button"
+              className="flex w-full items-center justify-center gap-2 border-0 rounded-lg bg-red-50 px-4 py-2.5 text-sm font-medium text-[var(--kc-error)] transition-colors hover:bg-red-100 cursor-pointer"
+              onClick={onLogout}
+            >
+              <LogOut className="size-4" />
+              ออกจากระบบ
+            </button>
+          ) : (
+            <div className="flex flex-col gap-2">
+              <button
+                type="button"
+                className="flex w-full items-center justify-center gap-2 border-0 rounded-lg bg-[var(--kc-green)] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[var(--kc-green-dark)] cursor-pointer"
+                onClick={() => {
+                  closeNav();
+                  openRegister();
+                }}
+              >
+                <UserPlus className="size-4" />
+                สมัครสมาชิก
+              </button>
+              <button
+                type="button"
+                className="flex w-full items-center justify-center gap-2 rounded-lg border border-[var(--kc-border-input)] bg-white px-4 py-2.5 text-sm font-medium text-[var(--kc-ink)] transition-colors hover:bg-[var(--kc-green-50)] cursor-pointer"
+                onClick={() => {
+                  closeNav();
+                  openLogin();
+                }}
+              >
+                <LogIn className="size-4" />
+                เข้าสู่ระบบ
+              </button>
+            </div>
+          )}
+        </div>
+      </aside>
     </>
   );
 }

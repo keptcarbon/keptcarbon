@@ -1,0 +1,27 @@
+# ─────────────────────────────────────────────────────────────
+# Local dev override — auto-loaded by `docker compose up`.
+# Runs Next.js in dev mode (`next dev`) with hot reload against
+# your bind-mounted source, instead of the baked production build.
+#
+# To run the PRODUCTION build instead (ignore this file):
+#   docker compose -f docker-compose.yml up -d --build
+# ─────────────────────────────────────────────────────────────
+
+services:
+  nextjs:
+    build:
+      # Stop at the builder stage — it has full node_modules + source,
+      # so we can run the dev server instead of the standalone output.
+      target: builder
+    command: npm run dev
+    volumes:
+      # Live source from the host …
+      - ./nextjs:/app
+      # … but keep the container's node_modules (linux/alpine binaries),
+      # don't let the host's shadow it.
+      - /app/node_modules
+    environment:
+      # Poll for file changes — inotify events don't reliably cross
+      # Docker Desktop bind mounts on Windows/macOS.
+      - WATCHPACK_POLLING=true
+    restart: unless-stopped

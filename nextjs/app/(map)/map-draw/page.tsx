@@ -146,8 +146,15 @@ function MapDrawContent() {
   const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(1);
 
   // Panel toggle state
-  const [isPanelOpen, setIsPanelOpen] = useState(false);
+  const [isPanelOpen, setIsPanelOpen] = useState(true);
   const [showWelcomeHint, setShowWelcomeHint] = useState(true);
+
+  useEffect(() => {
+    if (projNameParam || isEditingPlotParam) return;
+    const tRegion = setTimeout(() => setSelectedRegion("ภาคตะวันออก"), 250);
+    const tProvince = setTimeout(() => setSelectedProvince("ระยอง"), 2600);
+    return () => { clearTimeout(tRegion); clearTimeout(tProvince); };
+  }, []);
 
   // Area Validation State
   const [areaError, setAreaError] = useState<{ rai: number; sqm: number; tooSmall?: boolean } | null>(null);
@@ -413,7 +420,7 @@ function MapDrawContent() {
         const screenPt = map.project([touch.lng, touch.lat] as [number, number]);
         const snapCoord = findSnapTarget(screenPt, activePIdx);
         const newCoord: [number, number] = snapCoord ?? [touch.lng, touch.lat];
-        
+
         const testCoords = [...coords];
         testCoords[activeVIdx] = newCoord;
         if (activeVIdx === 0) {
@@ -422,9 +429,9 @@ function MapDrawContent() {
         const oldRai = polygonAreaM2(coords as LngLat[]) / 1600;
         const newRai = polygonAreaM2(testCoords as LngLat[]) / 1600;
         if (newRai > 500 && newRai > oldRai) {
-           setAreaError({ rai: newRai, sqm: newRai * 1600 });
-           onVertsTouchEnd();
-           return;
+          setAreaError({ rai: newRai, sqm: newRai * 1600 });
+          onVertsTouchEnd();
+          return;
         }
 
         setSnapIndicator(snapCoord);
@@ -548,7 +555,7 @@ function MapDrawContent() {
         const coords = [...geom.coordinates[0]];
         const snapCoord = findSnapTarget(e.point, activePIdx);
         const newCoord: [number, number] = snapCoord ?? [e.lngLat.lng, e.lngLat.lat];
-        
+
         const testCoords = [...coords];
         testCoords[activeVIdx] = newCoord;
         if (activeVIdx === 0) {
@@ -557,9 +564,9 @@ function MapDrawContent() {
         const oldRai = polygonAreaM2(coords as LngLat[]) / 1600;
         const newRai = polygonAreaM2(testCoords as LngLat[]) / 1600;
         if (newRai > 500 && newRai > oldRai) {
-           setAreaError({ rai: newRai, sqm: newRai * 1600 });
-           onVertsUp();
-           return;
+          setAreaError({ rai: newRai, sqm: newRai * 1600 });
+          onVertsUp();
+          return;
         }
 
         setSnapIndicator(snapCoord);
@@ -1487,15 +1494,15 @@ function MapDrawContent() {
       const newCoord = snapCoord ?? [touch.lng, touch.lat];
 
       if (vertsRef.current.length >= 3) {
-         const oldRai = polygonAreaM2([...vertsRef.current, vertsRef.current[0]]) / 1600;
-         const testPts = [...vertsRef.current];
-         testPts[drawTouchDragIdx] = newCoord as [number, number];
-         const newRai = polygonAreaM2([...testPts, testPts[0]]) / 1600;
-         if (newRai > 500 && newRai > oldRai) {
-            setAreaError({ rai: newRai, sqm: newRai * 1600 });
-            onDrawTouchEnd();
-            return;
-         }
+        const oldRai = polygonAreaM2([...vertsRef.current, vertsRef.current[0]]) / 1600;
+        const testPts = [...vertsRef.current];
+        testPts[drawTouchDragIdx] = newCoord as [number, number];
+        const newRai = polygonAreaM2([...testPts, testPts[0]]) / 1600;
+        if (newRai > 500 && newRai > oldRai) {
+          setAreaError({ rai: newRai, sqm: newRai * 1600 });
+          onDrawTouchEnd();
+          return;
+        }
       }
 
       vertsRef.current[drawTouchDragIdx] = newCoord as [number, number];
@@ -1522,15 +1529,15 @@ function MapDrawContent() {
         const newCoord = snapCoord ?? [ev.lngLat.lng, ev.lngLat.lat];
 
         if (vertsRef.current.length >= 3) {
-           const oldRai = polygonAreaM2([...vertsRef.current, vertsRef.current[0]]) / 1600;
-           const testPts = [...vertsRef.current];
-           testPts[dragIdx] = newCoord as [number, number];
-           const newRai = polygonAreaM2([...testPts, testPts[0]]) / 1600;
-           if (newRai > 500 && newRai > oldRai) {
-              setAreaError({ rai: newRai, sqm: newRai * 1600 });
-              onDrawMouseUp();
-              return;
-           }
+          const oldRai = polygonAreaM2([...vertsRef.current, vertsRef.current[0]]) / 1600;
+          const testPts = [...vertsRef.current];
+          testPts[dragIdx] = newCoord as [number, number];
+          const newRai = polygonAreaM2([...testPts, testPts[0]]) / 1600;
+          if (newRai > 500 && newRai > oldRai) {
+            setAreaError({ rai: newRai, sqm: newRai * 1600 });
+            onDrawMouseUp();
+            return;
+          }
         }
 
         vertsRef.current[dragIdx] = newCoord as [number, number];
@@ -1717,10 +1724,6 @@ function MapDrawContent() {
     setCoordE("");
     setCoordN("");
     setCoordUtmZone(47);
-    setSelectedRegion("");
-    setSelectedProvince("");
-    setSelectedAmphoe("");
-    setSelectedTambon("");
     const map = mapRef.current;
     if (map && mapLoadedRef.current) {
       (map.getSource("draw-line") as maplibregl.GeoJSONSource | undefined)?.setData(emptyFC());
@@ -2157,7 +2160,7 @@ function MapDrawContent() {
       });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      setShpStatus({ msg: "✗ " + msg });
+      setShpStatus({ msg: "" + msg });
     }
   };
 
@@ -2308,7 +2311,7 @@ function MapDrawContent() {
             >
               <i className={(m === "hybrid" || m === "sat") ? "bi bi-globe-asia-australia" : m === "street" ? "bi bi-map" : "bi bi-tree"} />
               {m === "hybrid" ? (
-                <span>ดาวเทียม <br/>(Google map)</span>
+                <span>ดาวเทียม <br />(Google map)</span>
               ) : m === "sat" ? "ดาวเทียม (ดั้งเดิม)" : m === "street" ? "ถนน " : "ภูมิประเทศ"}
             </div>
           ))}
@@ -2364,7 +2367,7 @@ function MapDrawContent() {
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
               <div style={{
                 width: 38, height: 38, borderRadius: "50%",
-                background: "linear-gradient(135deg, #10b981, #059669)",
+                background: "#1e7a47",
                 display: "flex", alignItems: "center", justifyContent: "center",
                 color: "#fff", fontSize: 17, flexShrink: 0,
                 boxShadow: "0 4px 12px rgba(5,150,105,0.35)"
@@ -2383,7 +2386,7 @@ function MapDrawContent() {
               กดปุ่ม{" "}
               <span style={{
                 display: "inline-flex", alignItems: "center", justifyContent: "center",
-                background: "linear-gradient(135deg, #2d9e5f, #0d9488)",
+                background: "#1e7a47",
                 color: "#fff", borderRadius: "50%", width: 18, height: 18,
                 fontSize: 9, verticalAlign: "middle"
               }}>
@@ -2397,7 +2400,7 @@ function MapDrawContent() {
               onClick={() => { setShowWelcomeHint(false); setIsPanelOpen(true); }}
               style={{
                 width: "100%", padding: "9px 0", borderRadius: 10,
-                background: "linear-gradient(135deg, #10b981, #059669)",
+                background: "#1e7a47",
                 color: "#fff", border: "none", fontSize: 12.5, fontWeight: 700,
                 cursor: "pointer", display: "flex", alignItems: "center",
                 justifyContent: "center", gap: 6,
@@ -2477,7 +2480,7 @@ function MapDrawContent() {
                   borderRadius: "10px",
                   boxSizing: "border-box",
                   border: vertCount < 3 ? "1px solid #e2e8f0" : "1px solid transparent",
-                  background: vertCount < 3 ? "#f1f5f9" : "linear-gradient(135deg, #10b981, #059669)",
+                  background: vertCount < 3 ? "#f1f5f9" : "#1e7a47",
                   color: vertCount < 3 ? "#94a3b8" : "#fff",
                   fontSize: "12px",
                   fontWeight: "700",
@@ -2499,7 +2502,7 @@ function MapDrawContent() {
                   borderRadius: "10px",
                   boxSizing: "border-box",
                   border: "1px solid transparent",
-                  background: "linear-gradient(135deg, #ef4444, #dc2626)",
+                  background: "#dc2626",
                   color: "#fff",
                   fontSize: "12px",
                   fontWeight: "700",
@@ -2565,13 +2568,18 @@ function MapDrawContent() {
             min-width: 30px !important;
             font-size: 11.5px !important;
           }
+          /* Track must sit on the circles' vertical centre (30px circle → 15px);
+             the 2px line is offset up 1px so it is exactly centred. */
+          .mds-stepper .mds-stepper-track {
+            top: 14px !important;
+          }
           .mds-stepper .mds-step:not(:last-of-type)::after {
             top: 15px !important;
             left: calc(50% + 15px) !important;
             right: calc(-50% + 15px) !important;
           }
           .mds-stepper .mds-step.active .mds-step-circle {
-            transform: scale(1.1) !important;
+            transform: none !important;
           }
           .mds-stepper .mds-step-label {
             font-size: 10.5px !important;
@@ -2582,17 +2590,15 @@ function MapDrawContent() {
             cursor: pointer !important;
           }
           .mds-stepper .mds-step.clickable:hover .mds-step-circle {
-            box-shadow: 0 0 0 6px rgba(31,174,89,0.18) !important;
-            transform: scale(1.13) !important;
+            box-shadow: 0 0 0 4px #edfaf3 !important;
           }
           .mds-stepper .mds-step.clickable:hover .mds-step-label {
-            color: #16a34a !important;
-            text-decoration: underline !important;
+            color: #1e7a47 !important;
           }
-          /* Locked step (not yet reachable) */
+          /* Locked step (not yet reachable) — full opacity, only cursor signals it */
           .mds-stepper .mds-step.locked {
             cursor: not-allowed !important;
-            opacity: 0.4 !important;
+            opacity: 1 !important;
           }
         `}</style>
 
@@ -2768,14 +2774,14 @@ function MapDrawContent() {
                               ) : null}
                             </div>
                           ) : (
-                            <div style={{ padding: "10px 12px", background: "linear-gradient(135deg,rgba(5,150,105,0.05),rgba(13,148,136,0.04))", border: "1px solid rgba(5,150,105,0.18)", borderRadius: 10, display: "flex", flexDirection: "column", gap: 8 }}>
+                            <div style={{ padding: "10px 12px", background: "#f8fbf9", border: "1px solid rgba(5,150,105,0.18)", borderRadius: 10, display: "flex", flexDirection: "column", gap: 8 }}>
                               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                                 <div style={{ fontSize: 14, fontWeight: 700, color: "#059669", display: "flex", alignItems: "center", gap: 5 }}>
                                   ระบบพิกัด
                                 </div>
                                 <div style={{ display: "flex", gap: 4 }}>
                                   {(["latlng", "utm"] as const).map(m => (
-                                    <button key={m} onClick={() => setCoordMode(m)} style={{ padding: "3px 9px", borderRadius: 6, fontSize: 15, fontWeight: 700, cursor: "pointer", border: "none", background: coordMode === m ? "linear-gradient(135deg,#059669,#0d9488)" : "#f1f5f9", color: coordMode === m ? "#fff" : "#64748b", transition: "all 0.15s" }}>
+                                    <button key={m} onClick={() => setCoordMode(m)} style={{ padding: "3px 9px", borderRadius: 6, fontSize: 15, fontWeight: 700, cursor: "pointer", border: "none", background: coordMode === m ? "#1e7a47" : "#f1f5f9", color: coordMode === m ? "#fff" : "#64748b", transition: "all 0.15s" }}>
                                       {m === "latlng" ? "Lat/Lng" : "UTM"}
                                     </button>
                                   ))}
@@ -2797,7 +2803,7 @@ function MapDrawContent() {
                                   <div style={{ display: "flex", gap: 5, alignItems: "center" }}>
                                     <span style={{ fontSize: 14, color: "#64748b", fontWeight: 600 }}>Zone:</span>
                                     {([47, 48] as const).map(z => (
-                                      <button key={z} onClick={() => setCoordUtmZone(z)} style={{ padding: "3px 11px", borderRadius: 6, fontSize: 15, fontWeight: 700, cursor: "pointer", border: "none", background: coordUtmZone === z ? "linear-gradient(135deg,#059669,#0d9488)" : "#f1f5f9", color: coordUtmZone === z ? "#fff" : "#64748b", transition: "all 0.15s" }}>{z}N</button>
+                                      <button key={z} onClick={() => setCoordUtmZone(z)} style={{ padding: "3px 11px", borderRadius: 6, fontSize: 15, fontWeight: 700, cursor: "pointer", border: "none", background: coordUtmZone === z ? "#1e7a47" : "#f1f5f9", color: coordUtmZone === z ? "#fff" : "#64748b", transition: "all 0.15s" }}>{z}N</button>
                                     ))}
                                     <span style={{ fontSize: 13, color: "#94a3b8" }}>{coordUtmZone === 47 ? "(ตะวันตก)" : "(ตะวันออก)"}</span>
                                   </div>
@@ -2906,22 +2912,42 @@ function MapDrawContent() {
                         <div style={{ textAlign: "center" }}>
                           <h3 style={{ margin: 0, fontSize: isMobile() ? "16px" : "14px", fontWeight: 700, color: "#0f172a" }}>กำลังวาดแปลง...</h3>
                         </div>
-                        <button
-                          className="mds-btn"
-                          style={{
-                            width: "100%",
-                            padding: isMobile() ? "12px" : "10px",
-                            background: "#ef4444",
-                            color: "#fff",
-                            border: "none",
-                            borderRadius: "10px",
-                            fontWeight: 700,
-                            boxShadow: "0 4px 12px rgba(239,68,68,0.25)"
-                          }}
-                          onClick={clearDraw}
-                        >
-                          <i className="bi bi-x-circle" /> ยกเลิกการวาด
-                        </button>
+                        <div style={{ display: "flex", gap: 8, width: "100%" }}>
+                          <button
+                            className="mds-btn"
+                            onClick={() => finishDraw()}
+                            disabled={vertCount < 3}
+                            style={{
+                              flex: 1,
+                              padding: isMobile() ? "12px" : "10px",
+                              background: vertCount < 3 ? "#f1f5f9" : "#1e7a47",
+                              color: vertCount < 3 ? "#94a3b8" : "#fff",
+                              border: vertCount < 3 ? "1px solid #e2e8f0" : "none",
+                              borderRadius: "10px",
+                              fontWeight: 700,
+                              boxShadow: vertCount < 3 ? "none" : "0 4px 12px rgba(16,185,129,0.25)",
+                              cursor: vertCount < 3 ? "not-allowed" : "pointer"
+                            }}
+                          >
+                            <i className="bi bi-check-circle" /> เสร็จสิ้น
+                          </button>
+                          <button
+                            className="mds-btn"
+                            style={{
+                              flex: 1,
+                              padding: isMobile() ? "12px" : "10px",
+                              background: "#ef4444",
+                              color: "#fff",
+                              border: "none",
+                              borderRadius: "10px",
+                              fontWeight: 700,
+                              boxShadow: "0 4px 12px rgba(239,68,68,0.25)"
+                            }}
+                            onClick={clearDraw}
+                          >
+                            <i className="bi bi-x-circle" /> ยกเลิกการวาด
+                          </button>
+                        </div>
                         <style>{`
                           @keyframes pulse-soft {
                             0% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.1); }
@@ -2969,7 +2995,7 @@ function MapDrawContent() {
                             <button
                               className="mds-btn"
                               style={{
-                                background: (user && (!projectName.trim() || isDuplicateProjectName)) ? "#cbd5e1" : "linear-gradient(135deg, #0d9488, #0f766e)",
+                                background: (user && (!projectName.trim() || isDuplicateProjectName)) ? "#cbd5e1" : "#1e7a47",
                                 color: "#fff",
                                 border: "none",
                                 boxShadow: (user && (!projectName.trim() || isDuplicateProjectName)) ? "none" : "0 4px 10px rgba(13,148,136,0.25)",
@@ -3034,7 +3060,7 @@ function MapDrawContent() {
                           className="mds-btn"
                           style={{
                             flex: 1.5,
-                            background: "linear-gradient(135deg, #0d9488, #0f766e)",
+                            background: "#1e7a47",
                             color: "#fff",
                             border: "none",
                             boxShadow: "0 4px 10px rgba(13,148,136,0.25)"
@@ -3084,6 +3110,8 @@ function MapDrawContent() {
                 onDrawMore={startDrawFlow}
                 drawMoreDisabled={isEditingPlotParam}
                 onCancelDraw={cancelDrawMode}
+                onFinishDraw={() => finishDraw()}
+                drawVertCount={vertCount}
                 isDrawing={drawing}
                 onLandUseChange={handleLandUseChange}
                 onProjectTypeChange={(type) => setProjectType(type)}

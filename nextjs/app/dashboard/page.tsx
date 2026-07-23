@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import DashboardMap, { type MapPlot } from "./DashboardMap";
 import { getDashboardRayong, getDashboardDistricts, type DashboardRayongResponse, type DashboardDistrict } from "@/lib/carbon-api";
+import { Footer } from "@/app/components/organisms";
 
 // ── Rayong province system database ──────────────────────────────────────────
 const AGE_CONFIG = [
@@ -594,7 +595,8 @@ export default function DashboardPage() {
   const maxAgeDist = useMemo(() => Math.max(...selected.ageDist.map(a => a.areaRai), 1), [selected]);
 
   return (
-    <div className="db2-page" style={{ minHeight: "100vh", background: "linear-gradient(180deg,#ecfdf5 0%,#f8fafc 60%)", paddingTop: 110, paddingBottom: 60, fontFamily: "'Noto Sans Thai','Inter',sans-serif" }}>
+    <>
+      <div className="db2-page" style={{ minHeight: "100vh", background: "linear-gradient(180deg,#ecfdf5 0%,#f8fafc 60%)", paddingTop: 110, paddingBottom: 60, fontFamily: "'Noto Sans Thai','Inter',sans-serif" }}>
       <div className="db2-wrap">
 
         {/* ── Hero ─────────────────────────────────────────────────────────── */}
@@ -851,6 +853,8 @@ export default function DashboardPage() {
           .db2-stat-card { padding: 12px 10px; }
         }
       `}</style>
-    </div>
+      </div>
+      <Footer />
+    </>
   );
 }

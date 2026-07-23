@@ -1,16 +1,15 @@
 .card {
   background: #fff;
-  border-radius: 20px;
-  border: 1px solid rgba(16, 185, 129, 0.13);
-  box-shadow: 0 2px 16px rgba(0, 0, 0, 0.05);
+  border-radius: 14px;
+  border: 1px solid #e6f0ea;
+  box-shadow: 0 1px 2px rgba(16, 40, 28, 0.04);
   overflow: hidden;
   transition: box-shadow 0.25s, transform 0.25s;
   position: relative;
 }
 
 .card:hover {
-  box-shadow: 0 10px 32px rgba(16, 185, 129, 0.13);
-  transform: translateY(-2px);
+  box-shadow: 0 4px 14px rgba(16, 40, 28, 0.06);
 }
 
 .accentBar {
@@ -18,8 +17,8 @@
   left: 0;
   top: 0;
   bottom: 0;
-  width: 4px;
-  background: linear-gradient(to bottom, #10b981, #059669, #047857);
+  width: 0;
+  background: transparent;
 }
 
 /* ── Header ─────────────────────────────────────────── */
@@ -30,7 +29,7 @@
   justify-content: space-between;
   padding: 15px 20px 13px 22px;
   gap: 12px;
-  background: linear-gradient(to bottom, #fafffe 0%, #fff 100%);
+  background: #ffffff;
 }
 
 .headerMobile {
@@ -46,18 +45,19 @@
 }
 
 .indexBadge {
-  width: 42px;
-  height: 42px;
-  border-radius: 13px;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
   flex-shrink: 0;
-  background: linear-gradient(135deg, #10b981 0%, #047857 100%);
+  background: #edfaf3;
+  border: 1px solid #d7ede1;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 4px 14px rgba(16, 185, 129, 0.35);
-  font-size: 21px;
-  font-weight: 900;
-  color: #fff;
+  box-shadow: none;
+  font-size: 18px;
+  font-weight: 800;
+  color: #1e7a47;
   letter-spacing: -0.5px;
 }
 
@@ -73,9 +73,9 @@
 }
 
 .title {
-  font-size: 18px;
+  font-size: 17px;
   font-weight: 800;
-  color: #0f172a;
+  color: #1a3d2b;
   line-height: 1.3;
   white-space: nowrap;
 }
@@ -92,9 +92,9 @@
 }
 
 .badgeProcessed {
-  color: #059669;
-  background: rgba(5, 150,105, 0.1);
-  border: 1px solid rgba(5, 150,105, 0.25);
+  color: #1e7a47;
+  background: #edfaf3;
+  border: 1px solid #d7ede1;
 }
 
 .badgeUnprocessed {
@@ -112,7 +112,7 @@
 
 .dateText {
   font-size: 12px;
-  color: #cbd5e1;
+  color: #94a3b8;
 }
 
 .actionsRow {
@@ -136,11 +136,11 @@
 }
 
 .actionBtnPin {
-  background: rgba(16, 185, 129, 0.07);
-  color: #10b981;
+  background: rgba(30, 122, 71, 0.07);
+  color: #1e7a47;
 }
 .actionBtnPin:hover {
-  background: rgba(16, 185, 129, 0.14);
+  background: rgba(30, 122, 71, 0.14);
 }
 
 .actionBtnEdit {
@@ -164,9 +164,9 @@
 .infoStrip {
   display: grid;
   grid-template-columns: repeat(6, 1fr);
-  border-top: 1px solid #f1f5f9;
-  border-bottom: 1px solid #f1f5f9;
-  background: #fafbfc;
+  border-top: 1px solid #f0f5f2;
+  border-bottom: 1px solid #f0f5f2;
+  background: #ffffff;
 }
 
 .infoStripMobile {
@@ -196,7 +196,7 @@
   width: 20px;
   height: 20px;
   border-radius: 6px;
-  background: rgba(16, 185, 129, 0.12);
+  background: transparent;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -211,12 +211,12 @@
 
 .infoIcon {
   font-size: 12px;
-  color: #10b981;
+  color: #1e7a47;
 }
 
 .infoLabel {
   font-size: 13px;
-  color: #94a3b8;
+  color: #5a7a65;
   font-weight: 600;
   letter-spacing: 0.2px;
 }
@@ -248,14 +248,14 @@
 }
 
 .infoValueFilled {
-  color: #1e293b;
+  color: #1a3d2b;
 }
 
 /* ── Tabs ───────────────────────────────────────────── */
 
 .tabsRow {
   display: flex;
-  border-top: 1px solid rgba(16, 185, 129, 0.08);
+  border-top: 1px solid rgba(30, 122, 71, 0.08);
 }
 
 .tabBtn {
@@ -280,17 +280,26 @@
 }
 
 .tabBtnDivider {
-  border-right: 1px solid rgba(16, 185, 129, 0.08);
+  border-right: 1px solid rgba(30, 122, 71, 0.08);
 }
 
 .tabBtnActive {
-  background: rgba(16, 185, 129, 0.06);
-  color: #059669;
+  background: rgba(30, 122, 71, 0.06);
+  color: #1e7a47;
 }
 
 .tabBtnInactive {
   background: #fff;
   color: #64748b;
+}
+
+.tabBtnInactive:not(.tabBtnDisabled):hover {
+  background: #f8fbf9;
+  color: #1a3d2b;
+}
+
+.tabBtnActive:hover {
+  background: rgba(30, 122, 71, 0.1);
 }
 
 .tabBtnDisabled {
@@ -371,7 +380,7 @@
 .emptyGraph {
   text-align: center;
   padding: 32px 20px;
-  background: linear-gradient(135deg, #fffbeb, #fef3c7);
+  background: #fffbeb;
   border-radius: 14px;
   border: 1.5px dashed rgba(245, 158, 11, 0.3);
   color: #92400e;
@@ -424,9 +433,9 @@
 
 .detailsCard {
   padding: 12px 14px;
-  background: rgba(16, 185, 129, 0.04);
+  background: rgba(30, 122, 71, 0.04);
   border-radius: 10px;
-  border: 1px solid rgba(16, 185, 129, 0.15);
+  border: 1px solid rgba(30, 122, 71, 0.15);
   height: 100%;
 }
 
@@ -439,7 +448,7 @@
 
 .detailsHeaderLabel {
   font-weight: 700;
-  color: #047857;
+  color: #17603a;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -472,7 +481,7 @@
 }
 
 .yearLabelHighlight {
-  color: #059669;
+  color: #1e7a47;
   font-weight: 600;
 }
 
@@ -540,7 +549,7 @@
   padding: 10px 12px;
   background: rgba(255, 255, 255, 0.6);
   border-radius: 8px;
-  border: 1px solid rgba(16, 185, 129, 0.2);
+  border: 1px solid rgba(30, 122, 71, 0.2);
 }
 
 .notesBoxLabel {
@@ -554,7 +563,7 @@
 }
 
 .notesBoxIcon {
-  color: #059669;
+  color: #1e7a47;
 }
 
 .noteBox {
@@ -573,7 +582,7 @@
   gap: 3px;
   margin-top: 8px;
   padding-top: 10px;
-  border-top: 1px dashed rgba(16, 185, 129, 0.2);
+  border-top: 1px dashed rgba(30, 122, 71, 0.2);
 }
 
 .paramSource {

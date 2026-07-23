@@ -6,6 +6,7 @@ import { CarbonBarChart, type BarPoint } from "@/app/components/organisms/Parcel
 import type { SavedPlot } from "./types";
 import { PlotMiniMap } from "./PlotMiniMap";
 import styles from "./PlotCard.module.css";
+import { Accordion } from "./Accordion";
 
 export function PlotCard({ plot, index, onDelete, onDeleteClick, onEdit, expanded, onToggle, isMobile, maxYearBE }: { plot: SavedPlot; index: number; onDelete: () => void; onDeleteClick?: (p: SavedPlot, i: number) => void; onEdit?: (p: SavedPlot, i: number) => void; expanded: boolean; onToggle: () => void; isMobile: boolean; maxYearBE?: number }) {
   const [activeTab, setActiveTab] = useState<"map" | "carbon">("map");
@@ -183,7 +184,7 @@ export function PlotCard({ plot, index, onDelete, onDeleteClick, onEdit, expande
               </div>
               <div className={styles.infoValueRow}>
                 {label === "ปีที่ปลูก" && val && unit && <span className={styles.infoUnit}>{unit}</span>}
-                <span className={`${styles.infoValue} ${isMobile ? styles.infoValueMobile : ""} ${!val ? styles.infoValueEmpty : styles.infoValueFilled}`}>{val || " "}</span>
+                <span className={`${styles.infoValue} ${isMobile ? styles.infoValueMobile : ""} ${!val ? styles.infoValueEmpty : styles.infoValueFilled}`}>{val || "-"}</span>
                 {unit && label !== "ปีที่ปลูก" && <span className={styles.infoUnit}>{unit}</span>}
               </div>
             </div>
@@ -232,7 +233,7 @@ export function PlotCard({ plot, index, onDelete, onDeleteClick, onEdit, expande
       </div>
 
       {/* Content section */}
-      {expanded && (
+      <Accordion open={expanded}>
         <div className={`${styles.content} ${isMobile ? styles.contentMobile : ""}`}>
           {activeTab === "map" ? (
             <PlotMiniMap plot={plot} isMobile={isMobile} index={index} />
@@ -360,7 +361,7 @@ export function PlotCard({ plot, index, onDelete, onDeleteClick, onEdit, expande
             </div>
           )}
         </div>
-      )}
+      </Accordion>
     </div>
   );
 }

@@ -4,12 +4,57 @@
    2. Legacy vendor CSS is loaded via <link> in layout.tsx
    ========================================================================== */
 
+/* ── Tailwind v4 — granular import, NO preflight ─────────────────────────
+   Bootstrap (loaded via <link> in layout.tsx) already provides the global
+   reset; Tailwind preflight would fight it on every legacy page.
+   `important` makes utilities win over unlayered vendor CSS
+   (bootstrap.min.css / main.css / keptcarbon.css). */
+@layer theme, base, components, utilities;
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities) important;
 @import "./styles/tokens.css";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
 
 /* ── Override --kc-font-family to always include explicit Thai name ── */
 :root {
   --kc-font-family: var(--font-noto-sans-thai), 'Noto Sans Thai', 'Noto Sans',
     system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  /* shadcn theme — mapped onto KeptCarbon design tokens (tokens.css) */
+  --background: var(--kc-white, #ffffff);
+  --foreground: var(--kc-ink, #1a3d2b);
+  --card: var(--kc-white, #ffffff);
+  --card-foreground: var(--kc-ink, #1a3d2b);
+  --popover: var(--kc-white, #ffffff);
+  --popover-foreground: var(--kc-ink, #1a3d2b);
+  --primary: var(--kc-green-dark, #1e7a47);
+  --primary-foreground: #ffffff;
+  --secondary: var(--kc-green-50, #edfaf3);
+  --secondary-foreground: var(--kc-green-dark, #1e7a47);
+  --muted: var(--kc-cream-2, #f8fbf9);
+  --muted-foreground: var(--kc-sage, #5a7a65);
+  --accent: var(--kc-green-50, #edfaf3);
+  --accent-foreground: var(--kc-green-dark, #1e7a47);
+  --destructive: var(--kc-error, #c53030);
+  --border: var(--kc-border-input, #e6f0ea);
+  --input: var(--kc-border-input, #e6f0ea);
+  --ring: var(--kc-green, #2d9e5f);
+  --chart-1: oklch(0.87 0 0);
+  --chart-2: oklch(0.556 0 0);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
+  --radius: 0.625rem;
+  --sidebar: oklch(0.985 0 0);
+  --sidebar-foreground: oklch(0.145 0 0);
+  --sidebar-primary: oklch(0.205 0 0);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.97 0 0);
+  --sidebar-accent-foreground: oklch(0.205 0 0);
+  --sidebar-border: oklch(0.922 0 0);
+  --sidebar-ring: oklch(0.708 0 0);
 }
 
 /* ── Global resets using token values ──────────── */
@@ -62,4 +107,101 @@ body {
 .kc-custom-popup {
   padding: 0 !important;
   filter: drop-shadow(0 20px 40px rgba(0, 0, 0, 0.20));
+}
+
+@theme inline {
+  /* Extra-wide container — enables `max-w-9xl` (Tailwind ships up to 7xl) */
+  --container-9xl: 96rem;
+  /* Literal font names — @theme inline cannot resolve runtime CSS variables */
+  --font-heading: "Noto Sans Thai", "Noto Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Noto Sans Thai", "Noto Sans", ui-sans-serif, system-ui, sans-serif;
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --color-foreground: var(--foreground);
+  --color-background: var(--background);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+.dark {
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.205 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.922 0 0);
+  --primary-foreground: oklch(0.205 0 0);
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --accent: oklch(0.269 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.556 0 0);
+  --chart-1: oklch(0.87 0 0);
+  --chart-2: oklch(0.556 0 0);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
+  --sidebar: oklch(0.205 0 0);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.556 0 0);
+}
+
+/* ── Tailwind compat base, scoped to redesigned pages (.kc-tw) ──────────
+   Replaces the part of preflight that border-* utilities depend on,
+   without touching Bootstrap-styled legacy pages. Plain CSS (no @apply)
+   so nothing here is emitted !important. */
+@layer base {
+
+  .kc-tw,
+  .kc-tw *,
+  .kc-tw *::before,
+  .kc-tw *::after {
+    box-sizing: border-box;
+    border-width: 0;
+    border-style: solid;
+    border-color: var(--border);
+  }
 }

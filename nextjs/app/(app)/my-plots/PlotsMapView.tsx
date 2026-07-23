@@ -175,15 +175,15 @@ export function PlotsMapView({ plots, isMobile }: { plots: SavedPlot[], isMobile
             width: 220px;
             background: #fff;
             border-radius: 14px;
-            border: 1px solid #e2e8f0;
+            border: 1px solid #e6f0ea;
             box-shadow: 0 8px 24px rgba(0,0,0,0.10);
             overflow: hidden;
           ">
-            <div style="height: 3px; background: #10b981;"></div>
+            <div style="height: 3px; background: #1e7a47;"></div>
             <div style="padding: 14px 16px 12px;">
               <div style="font-size: 17px; font-weight: 800; color: #0f172a; margin-bottom: 6px; line-height: 1.2;">${p.projectName}</div>
               <div style="display:flex; align-items:center; gap:5px; color:#94a3b8; font-size:13px; margin-bottom:14px;">
-                <i class="bi bi-geo-alt-fill" style="font-size:12px; color:#10b981;"></i>
+                <i class="bi bi-geo-alt-fill" style="font-size:12px; color:#1e7a47;"></i>
                 <span>${p.province}</span>
               </div>
               <div style="height:1px; background:#f1f5f9; margin-bottom:12px;"></div>
@@ -194,7 +194,7 @@ export function PlotsMapView({ plots, isMobile }: { plots: SavedPlot[], isMobile
                 </div>
                 <div style="width:1px; background:#f1f5f9; align-self:stretch;"></div>
                 <div>
-                  <div style="font-size:16px; font-weight:800; color:#059669;">${p.carbon}</div>
+                  <div style="font-size:16px; font-weight:800; color:#1e7a47;">${p.carbon}</div>
                   <div style="font-size:11px; color:#94a3b8; margin-top:1px;">tCO₂</div>
                 </div>
                 ${p.carbonPerTree !== '—' ? `

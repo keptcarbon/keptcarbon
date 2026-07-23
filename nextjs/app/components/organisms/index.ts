@@ -4,3 +4,4 @@ export { Footer } from "./Footer";
 
 export { ParcelResultsPanel } from "./ParcelResultsPanel/ParcelResultsPanel";
 export { AuthModals, LoginModal, RegisterModal } from "./AuthModals";
+export { CondolenceLightbox } from "./CondolenceLightbox/CondolenceLightbox";
