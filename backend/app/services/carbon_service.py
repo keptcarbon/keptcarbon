@@ -137,7 +137,7 @@ class CarbonService:
                 # Re-calculate the half-width margin of error for the gain
                 total_carbon_gain_ci_tCO2e = round((total_carbon_gain_ci_upper_tCO2e - total_carbon_gain_ci_lower_tCO2e) / 2.0, 4)
 
-                # Match layout configuration of your structural YearlyEstimate schema
+                # Match layout configuration of your structural YearlyAssess schema
                 projections.append({
                     "year": target_year,
                     "year_at": year_offset,
@@ -173,7 +173,7 @@ class CarbonService:
                 "polygon_id": poly_data.get("id"),
                 "status": poly_data.get("status"),
                 "carbon_profile": None,
-                "estimated_parameters": None
+                "assess_parameters": None
             }
 
         # Step 2: Multi-Polygon Dissolve & Geometry Merge
@@ -183,7 +183,7 @@ class CarbonService:
                 "polygon_id": poly_data.get("id"),
                 "status": poly_data.get("status"),
                 "carbon_profile": None,
-                "estimated_parameters": None
+                "assess_parameters": None
             }
 
         # Step 3: Check user input year of planting and tree count for reliability
@@ -220,7 +220,7 @@ class CarbonService:
                     "message": f"CARBON PROFILE GENERATED USING USER-INPUT YEAR OF PLANTING AND {message_flag} TREE COUNT."
                 },
                 "carbon_profile": profile,
-                "estimated_parameters": {
+                "assess_parameters": {
                     "area_m2": poly_data["A302_area_m2"],
                     "year_of_planting": {
                         "value": poly_data.get("year_of_planting"),
@@ -266,7 +266,7 @@ class CarbonService:
                             )
                     },
                     "carbon_profile": None,
-                    "estimated_parameters": None
+                    "assess_parameters": None
                 }
 
             # Found mojority age
@@ -335,7 +335,7 @@ class CarbonService:
                     "message": reliable_mgs
                 },
                 "carbon_profile": profile,
-                "estimated_parameters": {
+                "assess_parameters": {
                     "area_m2": poly_data["A302_area_m2"],
                     "year_of_planting": {
                         "value": formatted_years,

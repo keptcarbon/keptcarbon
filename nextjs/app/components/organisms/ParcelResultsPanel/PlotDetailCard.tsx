@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { EstimatedParameters } from "@/lib/carbon-api";
+import type { AssessParameters } from "@/lib/carbon-api";
 import { type PlotFormData, type CarbonResult, convertYearNoteToBE } from "./utils";
 import styles from "./PlotDetailCard.module.css";
 
@@ -13,7 +13,7 @@ export function PlotDetailCard({
 }: {
     form: PlotFormData | undefined;
     cr: CarbonResult;
-    ep: EstimatedParameters | null | undefined;
+    ep: AssessParameters | null | undefined;
     areaRai?: number;
 }) {
     const [expandYears, setExpandYears] = useState(false);

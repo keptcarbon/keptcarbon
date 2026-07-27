@@ -2,12 +2,12 @@ from app.services.province_service import ProvinceService
 from app.services.landuse_service import LanduseService
 
 
-class PlantationService:
+class PlotsService:
     def __init__(self):
         self.pro_svc = ProvinceService()
         self.lu_svc = LanduseService()
 
-    async def get_plantation_info(self, poly_data: dict) -> dict:
+    async def get_plots_info(self, poly_data: dict) -> dict:
         poly_data = self.pro_svc.get_province(poly_data)
         if poly_data.get("province_code") is None:
             return {

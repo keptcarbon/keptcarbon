@@ -15,7 +15,7 @@ import {
   detectUtmZoneAuto,
   sanitizePolygonForApi,
 } from "@/lib/map-utils";
-import { getPlantationInfo } from "@/lib/carbon-api";
+import { getPlotsInfo } from "@/lib/carbon-api";
 import { ParcelResultsPanel } from "@/app/components/organisms";
 import { useSearchParams } from "next/navigation";
 import {
@@ -1834,7 +1834,7 @@ function MapDrawContent() {
         const parcel = drawnParcels[pi];
         const plotIndexStr = (parcel.properties as any)?.plot_index || String(pi + 1);
         try {
-          const result = await getPlantationInfo({
+          const result = await getPlotsInfo({
             id: `parcel-${pi}-${Date.now()}`,
             geometry: sanitizePolygonForApi(parcel.geometry),
             project_type: activeProjType,
