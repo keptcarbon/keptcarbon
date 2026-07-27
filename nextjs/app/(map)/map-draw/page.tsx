@@ -2548,7 +2548,6 @@ function MapDrawContent() {
             </div>
             <div>
               <div className="mds-panel-topbar-title">KeptCarbon</div>
-              <div className="mds-panel-topbar-sub">ระบบประเมินคาร์บอนเครดิต</div>
             </div>
           </div>
           <button

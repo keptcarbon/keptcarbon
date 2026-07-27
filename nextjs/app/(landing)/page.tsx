@@ -14,19 +14,19 @@ const benefits = [
     icon: Clock,
     title: "ประหยัดเวลาและต้นทุน",
     description:
-      "ลดความจำเป็นในการลงพื้นที่สำรวจทุกต้นด้วยการวิเคราะห์ผ่านภาพถ่ายดาวเทียมและ AI",
+      "ลดการลงพื้นที่สำรวจทุกต้นด้วยการวิเคราะห์ผ่านภาพถ่ายดาวเทียม และ GeoAI",
   },
   {
     icon: Target,
     title: "ความแม่นยำระดับสูง",
     description:
-      "อัลกอริทึม GeoAI ช่วยระบุขอบเขตและประเมินอายุยางพาราได้อย่างมีประสิทธิภาพ",
+      "อัลกอริทึม GeoAI ช่วยระบุขอบเขตแปลง ระบุอายุยางพาราและประเมินคาร์บอนได้อย่างมีประสิทธิภาพ",
   },
   {
     icon: ShieldCheck,
     title: "ข้อมูลพร้อมใช้งาน",
     description:
-      "รายงานผลการประเมินสอดคล้องกับมาตรฐาน รองรับการยื่นเอกสารในอนาคต",
+      "รายงานผลการประเมินสอดคล้องกับมาตรฐาน รองรับการยื่นเอกสารโครงการและทวนสอบในอนาคต",
   },
 ] as const;
 
@@ -62,10 +62,10 @@ export default function Home() {
         <div className="absolute inset-0 bg-black/60 z-0"></div>
         <div className="relative z-10 flex flex-col items-center">
           <span className="mb-6 inline-flex items-center rounded-full border border-white/20 bg-white/10 px-3.5 py-1.5 text-xs font-medium text-white backdrop-blur-sm md:text-sm">
-            แพลตฟอร์มภูมิสารสนเทศและปัญญาประดิษฐ์ เพื่อสวนยางพาราไทย
+            GeoAI Platform for Carbon Credit Estimation
           </span>
 
-          <h1 className="m-0 text-5xl font-extrabold tracking-tighter drop-shadow-lg sm:text-6xl md:text-7xl">
+          <h1 className="m-0 text-5xl font-extrabold tracking-tighter drop-shadow-lg sm:text-6xl md:text-[80px]">
             <span className="bg-gradient-to-b from-white to-white/70 bg-clip-text text-transparent">Kept</span>
             <span className="bg-gradient-to-br from-emerald-300 to-emerald-500 bg-clip-text text-transparent">Carbon</span>
           </h1>
@@ -147,7 +147,7 @@ export default function Home() {
                 className="flex flex-col items-center px-2 text-center"
               >
                 <div className="mb-4 flex size-12 items-center justify-center rounded-full bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400">
-                  <Icon className="size-6" aria-hidden="true" />
+                  <Icon className="size-10" aria-hidden="true" />
                 </div>
                 <h3 className="mb-2 text-lg font-semibold text-foreground">{title}</h3>
                 <p className="text-sm leading-relaxed text-muted-foreground">{description}</p>
@@ -161,7 +161,7 @@ export default function Home() {
       <section className="w-full border-t border-border bg-background px-4 py-16 text-center sm:px-6 md:py-24 lg:px-8">
         <Reveal className="mx-auto w-full max-w-4xl">
           <div className="mx-auto mb-5 flex size-12 items-center justify-center rounded-full bg-secondary text-primary">
-            <Leaf className="size-6" aria-hidden="true" />
+            <Leaf className="size-10" aria-hidden="true" />
           </div>
           <h2 className="mt-0 mb-3 text-3xl font-bold tracking-tight text-foreground md:text-3xl">
             พร้อมประเมินศักยภาพคาร์บอนเครดิตสวนยางของคุณหรือยัง?

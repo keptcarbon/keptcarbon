@@ -139,7 +139,7 @@ function TeamCard({
 }) {
   return (
     <div className="flex h-full flex-col items-center rounded-xl border border-border bg-card p-6 text-center transition-shadow duration-200 hover:shadow-md">
-      <div className="mb-4 size-24 overflow-hidden rounded-full border border-border">
+      <div className="mb-4 size-[110px] overflow-hidden rounded-full border border-border">
         <Image
           src={`/assets/img/team/${img}`}
           alt={name}
