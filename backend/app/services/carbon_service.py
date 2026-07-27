@@ -50,12 +50,12 @@ class CarbonService:
 
         clone = poly_data.get("rubber_clone") or DEFAULT_RUBBER_CLONE
         growth_model = config.get("model_used", "cubic_poly")
-        allometry = config.get("biomass_estimation_method", "hytonen_2018")
+        allometry = config.get("biomass_assessment_method", "hytonen_2018")
 
         table_key = (clone, growth_model, allometry)
-        file_name = config["biomass_estimation_tables"].get(table_key)
+        file_name = config["biomass_assessment_tables"].get(table_key)
         if file_name is None:
-            available = list(config["biomass_estimation_tables"].keys())
+            available = list(config["biomass_assessment_tables"].keys())
             raise HTTPException(
                 status_code=422,
                 detail=f"No lookup table for clone='{clone}', model='{growth_model}', allometry='{allometry}'. "

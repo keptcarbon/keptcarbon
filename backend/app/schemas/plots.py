@@ -127,5 +127,19 @@ class PlotsInfoResponse(BaseModel):
     lu_polygon: Optional[List[LUPolygon]] = None
 
 
+# ── Nav endpoint (/api/v1/plots/nav) ──────────────────────
+
+class PlotsNavRequest(BaseModel):
+    """Payload for /plots/nav (Check whether a point falls in a supported province)"""
+    lat: float = Field(..., description="Latitude in EPSG:4326 (WGS84)")
+    lon: float = Field(..., description="Longitude in EPSG:4326 (WGS84)")
+
+
+class PlotsNavResponse(BaseModel):
+    supported: bool = Field(..., description="True if the point is within a Thai province supported by the system")
+    province_code: Optional[str] = Field(None, description="Matched province code, if any")
+    message: str
+
+
 
 
