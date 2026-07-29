@@ -3089,7 +3089,7 @@ function MapDrawContent() {
                 parcelFeatures={drawnParcels}
                 luFeatures={parcelFeatures}
                 rawPlantationInfo={rawPlantationInfo}
-                userDisplayName={user?.fullname ?? ""}
+                userDisplayName={user?.displayName ?? ""}
                 drawnGeometry={drawnGeometry}
                 onFlyTo={flyToFeature}
                 onReset={clearDraw}

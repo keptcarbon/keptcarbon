@@ -6,19 +6,24 @@ import { signToken, AUTH_COOKIE } from "@/lib/jwt";
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { email, password, fullname, phone } = body as {
+    const { email, password, firstName, lastName, phone } = body as {
       email?: string;
       password?: string;
-      fullname?: string;
+      firstName?: string;
+      lastName?: string;
       phone?: string;
     };
 
-    if (!email || !password || !fullname) {
+    if (!email || !password || !firstName) {
       return NextResponse.json(
         { error: "กรุณากรอกข้อมูลให้ครบถ้วน (ชื่อ, อีเมล, รหัสผ่าน)" },
         { status: 400 }
       );
     }
+
+    const first = firstName.trim();
+    const last = (lastName ?? "").trim();
+    const displayName = `${first} ${last}`.trim();
 
     if (password.length < 6) {
       return NextResponse.json(
@@ -48,10 +53,10 @@ export async function POST(request: NextRequest) {
 
     // Insert user
     const result = await pool.query(
-      `INSERT INTO users (email, username, password_hash, fullname, phone, provider, role)
-       VALUES ($1, $2, $3, $4, $5, 'local', 'user')
-       RETURNING id, email, username, fullname, phone, picture_url, provider, role`,
-      [email.trim(), username, hash, fullname.trim(), phone?.trim() || ""]
+      `INSERT INTO users (email, username, password_hash, first_name, last_name, display_name, phone, provider, role)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, 'local', 'user')
+       RETURNING id, email, username, first_name, last_name, display_name, phone, picture_url, provider, role`,
+      [email.trim(), username, hash, first, last, displayName, phone?.trim() || ""]
     );
 
     const user = result.rows[0];
@@ -70,7 +75,9 @@ export async function POST(request: NextRequest) {
         id: user.id,
         email: user.email,
         username: user.username,
-        fullname: user.fullname,
+        firstName: user.first_name,
+        lastName: user.last_name,
+        displayName: user.display_name,
         phone: user.phone,
         pictureUrl: user.picture_url,
         role: user.role,

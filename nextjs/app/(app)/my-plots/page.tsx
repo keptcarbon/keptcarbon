@@ -618,7 +618,7 @@ export default function MyPlotsPage() {
 
           {filteredPlots.length === 0 ? (
             <div className="rounded-xl border border-dashed border-border bg-card px-6 py-12 text-center text-sm text-muted-foreground">
-              <Search className="mx-auto mb-3 size-8 opacity-50" aria-hidden="true" />
+              <Search className="mx-auto mb-1 mr-2 size-5 opacity-50" aria-hidden="true" />
               ไม่พบแปลงที่ตรงกับ &ldquo;<strong className="text-foreground">{searchTerm}</strong>&rdquo;
               <div>
                 <button onClick={() => setSearchTerm("")} className="mt-3 cursor-pointer rounded-lg border border-primary/30 bg-primary/5 px-4 py-1.5 text-[13px] font-semibold text-primary transition-colors hover:bg-primary/10">
@@ -689,33 +689,33 @@ export default function MyPlotsPage() {
 
                   {/* Project Plots */}
                   <Accordion open={!!expandedProjects[group.projectName]}>
-                  {(() => {
-                    const profilesWithData = group.plots.filter(p => p.carbonProfile && p.carbonProfile.length > 0);
-                    const groupMinEndYearBE = profilesWithData.length > 0
-                      ? Math.min(...profilesWithData.map(p => p.carbonProfile![p.carbonProfile!.length - 1].yearBE))
-                      : 0;
-                    return (
-                      <div className="border-t border-border/60 bg-muted/30 p-4 md:p-6">
-                        <div className="flex flex-col gap-4">
-                          <ProjectCarbonSummary plots={group.plots} isMobile={isMobile} />
-                          {group.plots.map((plot, i) => (
-                            <PlotCard
-                              key={`${plot.id}-${i}`}
-                              plot={plot}
-                              index={i + 1}
-                              onDelete={() => handleDelete(plot.id)}
-                              onDeleteClick={(p, idx) => setPlotToDelete({ plot: p, index: idx })}
-                              onEdit={(p, idx) => setEditingPlot({ plot: p, index: idx })}
-                              expanded={expandedPlotId === plot.id}
-                              onToggle={() => setExpandedPlotId(prev => prev === plot.id ? null : plot.id)}
-                              isMobile={isMobile}
-                              maxYearBE={groupMinEndYearBE > 0 ? groupMinEndYearBE : undefined}
-                            />
-                          ))}
+                    {(() => {
+                      const profilesWithData = group.plots.filter(p => p.carbonProfile && p.carbonProfile.length > 0);
+                      const groupMinEndYearBE = profilesWithData.length > 0
+                        ? Math.min(...profilesWithData.map(p => p.carbonProfile![p.carbonProfile!.length - 1].yearBE))
+                        : 0;
+                      return (
+                        <div className="border-t border-border/60 bg-muted/30 p-4 md:p-6">
+                          <div className="flex flex-col gap-4">
+                            <ProjectCarbonSummary plots={group.plots} isMobile={isMobile} />
+                            {group.plots.map((plot, i) => (
+                              <PlotCard
+                                key={`${plot.id}-${i}`}
+                                plot={plot}
+                                index={i + 1}
+                                onDelete={() => handleDelete(plot.id)}
+                                onDeleteClick={(p, idx) => setPlotToDelete({ plot: p, index: idx })}
+                                onEdit={(p, idx) => setEditingPlot({ plot: p, index: idx })}
+                                expanded={expandedPlotId === plot.id}
+                                onToggle={() => setExpandedPlotId(prev => prev === plot.id ? null : plot.id)}
+                                isMobile={isMobile}
+                                maxYearBE={groupMinEndYearBE > 0 ? groupMinEndYearBE : undefined}
+                              />
+                            ))}
+                          </div>
                         </div>
-                      </div>
-                    );
-                  })()}
+                      );
+                    })()}
                   </Accordion>
                 </div>
               ))}

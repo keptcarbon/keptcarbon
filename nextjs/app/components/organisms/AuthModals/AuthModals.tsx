@@ -207,8 +207,9 @@ export function LoginModal() {
 export function RegisterModal() {
   const { modal, closeModal, openLogin, refresh } = useAuth();
   const router = useRouter();
-  const fullnameRef = useRef<HTMLInputElement>(null);
-  const [fullname, setFullname] = useState("");
+  const firstNameRef = useRef<HTMLInputElement>(null);
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
@@ -220,7 +221,8 @@ export function RegisterModal() {
 
   useEffect(() => {
     if (modal === "register") {
-      setFullname("");
+      setFirstName("");
+      setLastName("");
       setEmail("");
       setPhone("");
       setPassword("");
@@ -229,7 +231,7 @@ export function RegisterModal() {
       setShowConfirmPwd(false);
       setAlert(null);
       setBusy(false);
-      setTimeout(() => fullnameRef.current?.focus(), 50);
+      setTimeout(() => firstNameRef.current?.focus(), 50);
     }
   }, [modal]);
 
@@ -248,7 +250,7 @@ export function RegisterModal() {
       const res = await fetch("/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: email.trim(), password, fullname, phone }),
+        body: JSON.stringify({ email: email.trim(), password, firstName, lastName, phone }),
       });
       const data = await res.json();
 
@@ -286,20 +288,36 @@ export function RegisterModal() {
       <AlertBox alert={alert} />
 
       <form onSubmit={onSubmit} className="flex flex-col gap-4">
-        <div className="flex flex-col gap-1.5">
-          <label className="text-sm font-medium text-[var(--kc-ink)]">ชื่อ-นามสกุล</label>
-          <div className="relative">
-            <UserIcon className="absolute left-3.5 top-1/2 size-4.5 -translate-y-1/2 text-[var(--kc-sage)]" />
-            <input
-              ref={fullnameRef}
-              type="text"
-              value={fullname}
-              onChange={(e) => setFullname(e.target.value)}
-              placeholder="กรอกชื่อ-นามสกุล"
-              required
-              autoComplete="name"
-              className="w-full rounded-xl border border-[var(--kc-border-input)] bg-white py-2.5 pl-10 pr-4 text-sm text-[var(--kc-ink)] outline-none transition-colors placeholder:text-slate-400 focus:border-[var(--kc-green)] focus:ring-1 focus:ring-[var(--kc-green)]"
-            />
+        <div className="grid grid-cols-2 gap-4">
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium text-[var(--kc-ink)]">ชื่อ</label>
+            <div className="relative">
+              <UserIcon className="absolute left-3.5 top-1/2 size-4.5 -translate-y-1/2 text-[var(--kc-sage)]" />
+              <input
+                ref={firstNameRef}
+                type="text"
+                value={firstName}
+                onChange={(e) => setFirstName(e.target.value)}
+                placeholder="กรอกชื่อ"
+                required
+                autoComplete="given-name"
+                className="w-full rounded-xl border border-[var(--kc-border-input)] bg-white py-2.5 pl-10 pr-4 text-sm text-[var(--kc-ink)] outline-none transition-colors placeholder:text-slate-400 focus:border-[var(--kc-green)] focus:ring-1 focus:ring-[var(--kc-green)]"
+              />
+            </div>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium text-[var(--kc-ink)]">นามสกุล</label>
+            <div className="relative">
+              <UserIcon className="absolute left-3.5 top-1/2 size-4.5 -translate-y-1/2 text-[var(--kc-sage)]" />
+              <input
+                type="text"
+                value={lastName}
+                onChange={(e) => setLastName(e.target.value)}
+                placeholder="กรอกนามสกุล"
+                autoComplete="family-name"
+                className="w-full rounded-xl border border-[var(--kc-border-input)] bg-white py-2.5 pl-10 pr-4 text-sm text-[var(--kc-ink)] outline-none transition-colors placeholder:text-slate-400 focus:border-[var(--kc-green)] focus:ring-1 focus:ring-[var(--kc-green)]"
+              />
+            </div>
           </div>
         </div>
 

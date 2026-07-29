@@ -24,10 +24,9 @@ export default function ProfilePage() {
     const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
     useEffect(() => {
-        if (user?.fullname) {
-            const parts = user.fullname.split(" ");
-            setFirstname(parts[0] || "");
-            setLastname(parts.slice(1).join(" ") || "");
+        if (user) {
+            setFirstname(user.firstName || "");
+            setLastname(user.lastName || "");
             setPhone(user.phone || "");
         }
     }, [user]);
@@ -40,7 +39,7 @@ export default function ProfilePage() {
             const res = await fetch("/api/profile/update", {
                 method: "PUT",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ firstname, lastname, phone }),
+                body: JSON.stringify({ firstName: firstname, lastName: lastname, phone }),
             });
             const data = await res.json();
             if (!res.ok) throw new Error(data.error || "เกิดข้อผิดพลาดในการบันทึกข้อมูล");
@@ -60,7 +59,7 @@ export default function ProfilePage() {
     );
     if (!user) return null;
 
-    const saveDisabled = loading || !firstname || !lastname;
+    const saveDisabled = loading || !firstname;
 
     return (
         <div className="kc-tw min-h-screen bg-muted/60 pt-[84px] pb-8">
@@ -81,7 +80,7 @@ export default function ProfilePage() {
                         {user.pictureUrl ? (
                             <img
                                 src={user.pictureUrl}
-                                alt={user.fullname}
+                                alt={user.displayName}
                                 referrerPolicy="no-referrer"
                                 style={{ width: 88, height: 88, borderRadius: "50%", objectFit: "cover", boxShadow: "0 0 0 4px #ffffff, 0 0 0 6px #d7ede1", marginBottom: 14 }}
                             />
@@ -96,7 +95,7 @@ export default function ProfilePage() {
                                 <i className="bi bi-person-fill"></i>
                             </div>
                         )}
-                        <div className="fw-bold" style={{ letterSpacing: "-0.01em", color: "#1a3d2b", fontSize: 19, lineHeight: 1.3 }}>{user.fullname || "ผู้ใช้งาน"}</div>
+                        <div className="fw-bold" style={{ letterSpacing: "-0.01em", color: "#1a3d2b", fontSize: 19, lineHeight: 1.3 }}>{user.displayName || "ผู้ใช้งาน"}</div>
                         <div style={{ fontSize: 13, color: "#5a7a65", wordBreak: "break-all" }}>{user.email || user.username}</div>
                     </div>
                     <div style={{ padding: "16px 20px", display: "flex", flexDirection: "column", gap: 10 }}>
@@ -151,9 +150,9 @@ export default function ProfilePage() {
                             </div>
                             <div className="col-md-6">
                                 <label className="fw-medium mb-2 d-block" style={{ fontSize: 13, color: "#1a3d2b" }}>
-                                    นามสกุล <span style={{ color: "#ef4444" }}>*</span>
+                                    นามสกุล
                                 </label>
-                                <input type="text" style={INPUT_STYLE} value={lastname} onChange={(e) => setLastname(e.target.value)} placeholder="กรอกนามสกุลของคุณ" required />
+                                <input type="text" style={INPUT_STYLE} value={lastname} onChange={(e) => setLastname(e.target.value)} placeholder="กรอกนามสกุลของคุณ" />
                             </div>
                             <div className="col-md-6">
                                 <label className="fw-medium mb-2 d-block" style={{ fontSize: 13, color: "#1a3d2b" }}>อีเมล / ชื่อผู้ใช้</label>

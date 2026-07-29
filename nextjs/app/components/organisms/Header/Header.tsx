@@ -127,7 +127,7 @@ export default function Header() {
                   {user.pictureUrl ? (
                     <img
                       src={user.pictureUrl}
-                      alt={user.fullname}
+                      alt={user.displayName}
                       referrerPolicy="no-referrer"
                       className="size-9 rounded-full object-cover"
                     />
@@ -149,7 +149,7 @@ export default function Header() {
                     {/* User info */}
                     <div className="border-b border-[var(--kc-border-input)] px-4 py-3">
                       <p className="m-0 text-sm font-semibold text-[var(--kc-ink)]">
-                        {user.fullname}
+                        {user.displayName}
                       </p>
                       <p className="m-0 mt-0.5 truncate text-xs text-[var(--kc-sage)]">
                         {user.email}
