@@ -1699,6 +1699,23 @@ function MapDrawContent() {
     }
   };
 
+  // Clear อำเภอ/ตำบล and zoom the map back out to the selected จังหวัด (e.g. ระยอง)
+  const zoomToSelectedProvince = useCallback(() => {
+    const map = mapRef.current;
+    if (!map || !mapLoadedRef.current || !selectedProvince) return;
+    if (selectedAmphoe || selectedTambon) {
+      // Clearing อำเภอ/ตำบล makes the boundary hook redraw + zoom to the province.
+      setSelectedAmphoe("");
+      setSelectedTambon("");
+    } else {
+      // อำเภอ already empty — zoom to the province directly.
+      fetch(`/api/geojson/boundary?province=${encodeURIComponent(selectedProvince)}`)
+        .then(r => (r.ok ? r.json() : null))
+        .then(fc => { if (fc?.features?.length) zoomToGeoJSONFeatures(fc.features, map); })
+        .catch(() => {});
+    }
+  }, [selectedProvince, selectedAmphoe, selectedTambon, setSelectedAmphoe, setSelectedTambon]);
+
   const clearDraw = () => {
     vertsRef.current = [];
     finalGJRef.current = null;
@@ -1735,6 +1752,7 @@ function MapDrawContent() {
     }
     setCurrentStep(1);
     setIsPanelOpen(true);
+    zoomToSelectedProvince();
   };
 
   const deleteParcel = useCallback((idx: number) => {
@@ -1779,7 +1797,8 @@ function MapDrawContent() {
       (map.getSource("draw-fill") as maplibregl.GeoJSONSource).setData(emptyFC());
       (map.getSource("draw-verts") as maplibregl.GeoJSONSource).setData(emptyFC());
     }
-  }, []);
+    zoomToSelectedProvince();
+  }, [zoomToSelectedProvince]);
 
   const cancelSearch = useCallback(() => {
     searchAbortRef.current?.abort();
@@ -1794,7 +1813,8 @@ function MapDrawContent() {
     if (map && mapLoadedRef.current) {
       (map.getSource("matched-parcels") as maplibregl.GeoJSONSource | undefined)?.setData(emptyFC());
     }
-  }, []);
+    zoomToSelectedProvince();
+  }, [zoomToSelectedProvince]);
 
 
   // ===== PLANTATION INFO (rubber area search via backend) =====
@@ -2767,6 +2787,27 @@ function MapDrawContent() {
                                   )}
                                 </div>
                               </div>
+
+                              {/* ── grey divider ── */}
+                              <div style={{ height: 1, background: "#e2e8f0", margin: "14px 0 10px" }} />
+
+                              {/* Latitude / Longitude / ค้นหา (optional) */}
+                              <label style={{ fontSize: 14, fontWeight: 600, color: "#64748b" }}>พิกัดกลางแปลง <span style={{ fontWeight: 400, color: "#94a3b8" }}>(ไม่บังคับ)</span></label>
+                              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr auto", gap: 6, alignItems: "end" }}>
+                                <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                                  <label style={{ fontSize: 14, fontWeight: 600, color: "#64748b" }}>Latitude</label>
+                                  <input className="prp-input" style={{ padding: "8px 5px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: 15, width: "100%", boxSizing: "border-box", transform: "none" }} placeholder="เช่น 15.8700" value={coordLat} onChange={e => setCoordLat(e.target.value)} />
+                                </div>
+                                <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                                  <label style={{ fontSize: 14, fontWeight: 600, color: "#64748b" }}>Longitude</label>
+                                  <input className="prp-input" style={{ padding: "8px 5px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: 15, width: "100%", boxSizing: "border-box", transform: "none" }} placeholder="เช่น 100.9925" value={coordLng} onChange={e => setCoordLng(e.target.value)} />
+                                </div>
+                                {/* ค้นหา button (UI only) */}
+                                <button type="button" style={{ padding: "8px 14px", borderRadius: 8, border: "none", background: "#1e7a47", color: "#fff", fontSize: 15, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, whiteSpace: "nowrap", height: 38 }}>
+                                  <i className="bi bi-search" /> ค้นหา
+                                </button>
+                              </div>
+
                               {!selectedRegion || !selectedProvince ? (
                                 <div style={{ color: "#f59e0b", fontSize: 11, fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
                                   <i className="bi bi-exclamation-circle-fill" /> กรุณาเลือกภาคและจังหวัดเพื่อดำเนินการต่อ
@@ -3099,6 +3140,7 @@ function MapDrawContent() {
                   } else {
                     setCurrentStep(1);
                     setIsPanelOpen(true);
+                    zoomToSelectedProvince();
                   }
                 }}
                 onCancel={cancelSearch}
