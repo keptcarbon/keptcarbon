@@ -1,5 +1,6 @@
 "use client";
 import { useState, useMemo, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { CarbonBarChart, profileToBarPoints, type BarPoint } from "./CarbonBarChart";
@@ -774,8 +775,10 @@ export function ParcelResultsPanel({
 
             onStepChange(3);
 
-            // Auto-save to backend for both logged-in users and guests
-            handleSave(results, responses, polygons).catch(console.error);
+            // Auto-save as a draft (guest_key) — for BOTH logged-in users and guests.
+            // Persists to DB but does NOT appear in My Plots until the user clicks
+            // "บันทึกข้อมูล", which claims the draft into their account.
+            handleSave(results, responses, polygons, { forceGuest: true }).catch(console.error);
         } catch (err) {
             setCarbonErr(getFriendlyErrorMessage(err, plots, plotForms, stablePlotIds));
         } finally {
@@ -796,14 +799,19 @@ export function ParcelResultsPanel({
 
     // Removed: if (!(searchRunning || searchErr || searchCount !== null)) return null;
 
-    const handleSave = async (overrideResults?: CarbonResult[], overrideResponses?: any[], overridePolygons?: PlantationPolygon[]) => {
+    const handleSave = async (overrideResults?: CarbonResult[], overrideResponses?: any[], overridePolygons?: PlantationPolygon[], opts?: { forceGuest?: boolean }) => {
         if (user && isDuplicateProjectName) {
             setCarbonErr("ชื่อโครงการนี้ถูกใช้งานแล้ว กรุณาใช้ชื่ออื่น");
             return;
         }
 
-        setSaveState("saving");
-        await new Promise(r => setTimeout(r, 900));
+        // draft = auto-save จาก "ประมวลผล" (บันทึกลง DB เป็น guest_key แต่ยังไม่ claim)
+        const isDraft = opts?.forceGuest === true;
+
+        if (!isDraft) {
+            setSaveState("saving");
+            await new Promise(r => setTimeout(r, 900));
+        }
 
         try {
             const activeResponses = overrideResponses || backendResponses || [];
@@ -890,9 +898,10 @@ export function ParcelResultsPanel({
             let projectId: string | undefined;
 
             if (user) {
-                // Logged in: ใช้ username จาก user, project name จาก form
-                userId = user.username || user.email || String(user.id);
                 projectId = projectName || "Unnamed Project";
+                // ประมวลผล/บันทึก ของ user ที่ล็อกอิน ทำงานบน row ที่เป็น guest_key ก่อน
+                // จนกว่าจะกด "บันทึกข้อมูล" แล้ว claim → reuse guest_key เดิมถ้ามี draft อยู่
+                userId = guestUserId ?? undefined;
             } else if (guestUserId) {
                 // Guest re-save: ส่ง userId ที่ได้จาก POST ครั้งแรก เพื่อให้ PATCH ระบุตัวตนได้
                 userId = guestUserId;
@@ -1009,6 +1018,8 @@ export function ParcelResultsPanel({
                 frontendPlots: finalFrontendPlots,
             };
             if (userId) saveBody.userId = userId;
+            // Draft (ประมวลผล): บังคับบันทึกเป็น guest_key แม้จะล็อกอินอยู่ → ไม่โผล่ My Plots
+            if (isDraft) saveBody.forceGuest = true;
 
             // Only send projectId if it's a real name, so the backend can auto-generate for guests
             if (projectId && projectId !== "Unnamed Project") {
@@ -1034,18 +1045,42 @@ export function ParcelResultsPanel({
                 if (data.project?.id) {
                     setDbProjectId(data.project.id);
                 }
-                // บันทึก guest userId ที่ server สร้างให้ เพื่อใช้กับ PATCH ครั้งถัดไป และหน้า My Plots
-                if (!user && data.project?.userId) {
-                    setGuestUserId(data.project.userId);
-                    if (typeof window !== "undefined") {
-                        localStorage.setItem("guest_user_id", data.project.userId);
+                // เก็บ guest_key ที่ server คืนกลับมา เพื่อใช้ PATCH ครั้งถัดไป / claim
+                if (data.project?.userId && data.project.userId !== guestUserId) {
+                    if (!user) {
+                        // Guest: เก็บลง localStorage เพื่อดูใน My Plots ได้
+                        setGuestUserId(data.project.userId);
+                        if (typeof window !== "undefined") {
+                            localStorage.setItem("guest_user_id", data.project.userId);
+                        }
+                    } else if (isDraft) {
+                        // ล็อกอิน + draft (ประมวลผล): เก็บใน state เท่านั้น ไม่เขียน localStorage
+                        setGuestUserId(data.project.userId);
+                    }
+                }
+
+                // กด "บันทึกข้อมูล" โดย user ที่ล็อกอิน → claim draft (guest_key) เข้าบัญชี
+                // → row ถูกย้ายไป user_uuid แล้วจะโผล่ใน My Plots
+                if (!isDraft && user && guestUserId) {
+                    try {
+                        await fetch("/api/plots/claim", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ guestKey: guestUserId }),
+                        });
+                        setGuestUserId(null);
+                    } catch (e) {
+                        console.error("claim error:", e);
                     }
                 }
             }
         } catch (e) { console.error("handleSave error:", e); }
-        setSaveState("done");
-        onSave?.();
-        setTimeout(() => setSaveState("idle"), 2000);
+        // Draft (ประมวลผล) ไม่แตะสถานะปุ่ม/plotsSaved — ปุ่มยังเป็น "บันทึกข้อมูล" อยู่
+        if (!isDraft) {
+            setSaveState("done");
+            onSave?.();
+            setTimeout(() => setSaveState("idle"), 2000);
+        }
     };
 
 
@@ -1112,50 +1147,51 @@ export function ParcelResultsPanel({
                     </button>
                 </div>
 
-                {/* Action buttons (Moved to top) */}
-                {carbonErr && (
-                    <div style={{
-                        marginBottom: 16,
-                        padding: "14px 16px",
-                        background: "#fef2f2",
-                        border: "1px solid #fecaca",
-                        borderRadius: 14,
-                        fontSize: 13,
-                        color: "#991b1b",
-                        display: "flex",
-                        alignItems: "flex-start",
-                        gap: 10,
-                        boxShadow: "0 2px 8px rgba(220,38,38,0.06)",
-                        animation: "slideInUp 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards"
-                    }}>
-                        <div style={{
-                            width: 28, height: 28, borderRadius: 8,
-                            background: "rgba(220,38,38,0.1)",
+                {/* Process/validation error → one-time popup modal (portal to <body> so it
+                    centers on the viewport, unaffected by the panel's transforms/overflow) */}
+                {carbonErr && typeof document !== "undefined" && createPortal(
+                    <div
+                        onClick={() => setCarbonErr(null)}
+                        style={{
+                            position: "fixed", inset: 0, zIndex: 4000,
+                            background: "rgba(15,23,42,0.45)",
                             display: "flex", alignItems: "center", justifyContent: "center",
-                            flexShrink: 0, marginTop: 1
-                        }}>
-                            <i className="bi bi-exclamation-triangle-fill" style={{ fontSize: 14, color: "#dc2626" }} />
-                        </div>
-                        <div style={{ flex: 1, lineHeight: 1.6, paddingTop: 2 }}>
-                            <span style={{ color: "#b91c1c", opacity: 0.9, fontWeight: 500 }}>{carbonErr}</span>
-                        </div>
-                        <button
-                            onClick={() => setCarbonErr(null)}
+                            padding: 20,
+                        }}
+                    >
+                        <div
+                            onClick={(e) => e.stopPropagation()}
                             style={{
-                                background: "rgba(220,38,38,0.06)",
-                                border: "none",
-                                borderRadius: 6,
-                                width: 24, height: 24,
-                                display: "flex", alignItems: "center", justifyContent: "center",
-                                cursor: "pointer", flexShrink: 0, marginTop: 1,
-                                color: "#991b1b", fontSize: 13,
-                                padding: 0, lineHeight: 1
+                                width: "100%", maxWidth: 360,
+                                background: "#fff", borderRadius: 18,
+                                padding: "26px 24px 22px", textAlign: "center",
+                                boxShadow: "0 20px 60px rgba(0,0,0,0.25)",
+                                animation: "slideInUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards",
                             }}
-                            title="ปิด"
                         >
-                            <i className="bi bi-x" />
-                        </button>
-                    </div>
+                            <div style={{
+                                width: 56, height: 56, borderRadius: "50%",
+                                background: "rgba(220,38,38,0.1)",
+                                display: "flex", alignItems: "center", justifyContent: "center",
+                                margin: "0 auto 16px",
+                            }}>
+                                <i className="bi bi-exclamation-triangle-fill" style={{ fontSize: 26, color: "#dc2626" }} />
+                            </div>
+                            <h3 style={{ margin: "0 0 8px", fontSize: 17, fontWeight: 700, color: "#0f172a" }}>ไม่สามารถดำเนินการได้</h3>
+                            <p style={{ margin: "0 0 20px", fontSize: 14, lineHeight: 1.6, color: "#475569" }}>{carbonErr}</p>
+                            <button
+                                onClick={() => setCarbonErr(null)}
+                                style={{
+                                    width: "100%", padding: "11px", borderRadius: 12,
+                                    border: "none", background: "#dc2626", color: "#fff",
+                                    fontSize: 15, fontWeight: 700, cursor: "pointer",
+                                }}
+                            >
+                                ตกลง
+                            </button>
+                        </div>
+                    </div>,
+                    document.body
                 )}
                 {user && isDuplicateProjectName && (
                     <div style={{
@@ -1802,13 +1838,13 @@ export function ParcelResultsPanel({
                             setSaveState("idle");
                             onStepChange(2);
                         }}
-                        title="ย้อนกลับขั้นตอนที่ 2"
-                        style={{ flexShrink: 0, padding: "5px 12px", fontSize: 12, fontWeight: 600, borderRadius: 8, display: "inline-flex", alignItems: "center", gap: 4, color: "#1e7a47", border: "1px solid #cfe6d9", background: "#ffffff", cursor: "pointer", whiteSpace: "nowrap", transition: "all 0.18s", lineHeight: 1.5 }}
+                        title="จัดการแปลงพื้นที่"
+                        style={{ flexShrink: 0, alignSelf: "flex-start", padding: "5px 12px", fontSize: 12, fontWeight: 600, borderRadius: 8, display: "inline-flex", alignItems: "center", gap: 4, color: "#1e7a47", border: "1px solid #cfe6d9", background: "#ffffff", cursor: "pointer", whiteSpace: "nowrap", transition: "all 0.18s", lineHeight: 1.5 }}
                         onMouseEnter={e => { e.currentTarget.style.background = "#edfaf3"; e.currentTarget.style.borderColor = "#1e7a47"; }}
                         onMouseLeave={e => { e.currentTarget.style.background = "#ffffff"; e.currentTarget.style.borderColor = "#cfe6d9"; }}
                     >
                         <i className="bi bi-chevron-left" style={{ fontSize: 11 }} />
-                        <span>ย้อนกลับ</span>
+                        <span>จัดการแปลงพื้นที่</span>
                     </button>
                 </div>
 

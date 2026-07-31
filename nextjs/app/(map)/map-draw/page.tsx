@@ -147,7 +147,61 @@ function MapDrawContent() {
 
   // Panel toggle state
   const [isPanelOpen, setIsPanelOpen] = useState(true);
+  // Mobile bottom-sheet: expanded = panel covers full height over the map
+  const [panelExpanded, setPanelExpanded] = useState(false);
+  const [dragMapH, setDragMapH] = useState<number | null>(null); // live map-side height (px) while dragging
+  const shellRef = useRef<HTMLDivElement>(null);
+  const mapSideRef = useRef<HTMLDivElement>(null);
+  const draggingRef = useRef(false);
+  const dragStartYRef = useRef(0);
+  const mapHStartRef = useRef(0);
+  const shellHRef = useRef(0);
+  const dragMapHRef = useRef(0);
   const [showWelcomeHint, setShowWelcomeHint] = useState(true);
+
+  // Collapse the bottom-sheet whenever the panel is closed so it reopens at normal height
+  useEffect(() => {
+    if (!isPanelOpen) setPanelExpanded(false);
+  }, [isPanelOpen]);
+
+  // ── Mobile bottom-sheet drag (pointer-follow, works with mouse + touch) ──
+  const onSheetPointerDown = (e: React.PointerEvent) => {
+    const shellH = shellRef.current?.getBoundingClientRect().height ?? window.innerHeight;
+    const mapH = mapSideRef.current?.getBoundingClientRect().height ?? shellH * 0.42;
+    dragStartYRef.current = e.clientY;
+    mapHStartRef.current = mapH;
+    shellHRef.current = shellH;
+    dragMapHRef.current = mapH;
+    draggingRef.current = true;
+    setDragMapH(mapH);
+    try { (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); } catch { /* noop */ }
+  };
+  const onSheetPointerMove = (e: React.PointerEvent) => {
+    if (!draggingRef.current) return;
+    const delta = e.clientY - dragStartYRef.current;
+    // map-side height follows the finger: drag up → smaller map → bigger panel
+    const o = Math.max(0, Math.min(shellHRef.current, mapHStartRef.current + delta));
+    dragMapHRef.current = o;
+    setDragMapH(o);
+  };
+  const onSheetPointerUp = () => {
+    if (!draggingRef.current) return;
+    draggingRef.current = false;
+    const o = dragMapHRef.current;
+    const mapStart = mapHStartRef.current;
+    const shellH = shellHRef.current;
+    const upThreshold = mapStart * 0.5;                          // dragged up past half → full height
+    const downThreshold = mapStart + (shellH - mapStart) * 0.5;  // dragged down past half → close
+    setDragMapH(null);
+    if (o <= upThreshold) {
+      setPanelExpanded(true);
+    } else if (o >= downThreshold) {
+      setPanelExpanded(false);
+      setIsPanelOpen(false);
+    } else {
+      setPanelExpanded(false);
+    }
+  };
 
   useEffect(() => {
     if (projNameParam || isEditingPlotParam) return;
@@ -2266,10 +2320,14 @@ function MapDrawContent() {
 
 
   return (
-    <div className={`mds-shell${drawing ? " drawing" : ""}`}>
+    <div
+      ref={shellRef}
+      className={`mds-shell${drawing ? " drawing" : ""}${panelExpanded && isPanelOpen ? " panel-expanded" : ""}${dragMapH != null ? " panel-dragging" : ""}`}
+      style={dragMapH != null ? ({ ["--mds-map-h" as string]: `${dragMapH}px` } as React.CSSProperties) : undefined}
+    >
 
       {/* ══ LEFT: Map ══ */}
-      <div className="mds-map-side">
+      <div className="mds-map-side" ref={mapSideRef}>
         <div className="mds-map-container" ref={mapContainerRef} />
 
         {/* Floating search bar */}
@@ -2557,8 +2615,16 @@ function MapDrawContent() {
       {/* ══ RIGHT: Data Panel ══ */}
       <div className={`mds-panel-side ${isPanelOpen ? "open" : "closed"}`}>
 
-        {/* Drag handle for mobile toggle */}
-        <div className="mds-mobile-drag-handle" onClick={() => setIsPanelOpen(false)} />
+        {/* Drag handle for mobile bottom-sheet: hold + drag to follow the pointer.
+            Release past 50% up → full height, past 50% down → close, else snap to normal. */}
+        <div
+          className="mds-mobile-drag-handle"
+          style={{ touchAction: "none" }}
+          onPointerDown={onSheetPointerDown}
+          onPointerMove={onSheetPointerMove}
+          onPointerUp={onSheetPointerUp}
+          onPointerCancel={onSheetPointerUp}
+        />
 
         {/* ── Panel Mini Header ── */}
         <div className="mds-panel-topbar">
@@ -2576,7 +2642,7 @@ function MapDrawContent() {
             onClick={() => setIsPanelOpen(false)}
             title="ซ่อนแผง"
           >
-            <i className="bi bi-x-lg" />
+            <i className="bi bi-arrow-bar-right" />
           </button>
         </div>
 
@@ -2736,7 +2802,7 @@ function MapDrawContent() {
                                 <label style={{ fontSize: 14, fontWeight: 600, color: "#64748b" }}>ภาค</label>
                                 <select className="prp-input" style={{ padding: "8px 5px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: 15, background: "#fff", width: "100%" }} value={selectedRegion} onChange={(e) => { setSelectedRegion(e.target.value); setSelectedProvince(""); setSelectedAmphoe(""); setSelectedTambon(""); }}>
                                   <option value="">เลือกภาค...</option>
-                                  {REGIONS_DATA.map(r => <option key={r.name} value={r.name}>{r.name}</option>)}
+                                  {REGIONS_DATA.filter(r => r.name === "ภาคตะวันออก").map(r => <option key={r.name} value={r.name}>{r.name}</option>)}
                                 </select>
                               </div>
 
@@ -2746,7 +2812,7 @@ function MapDrawContent() {
                                   <label style={{ fontSize: 14, fontWeight: 600, color: "#64748b" }}>จังหวัด</label>
                                   <select className="prp-input" style={{ padding: "8px 5px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: 15, background: selectedRegion ? "#fff" : "#f8fafc", color: selectedRegion ? "#0f172a" : "#94a3b8", width: "100%" }} value={selectedProvince} onChange={(e) => { setSelectedProvince(e.target.value); setSelectedAmphoe(""); setSelectedTambon(""); }} disabled={!selectedRegion}>
                                     <option value="">เลือกจังหวัด...</option>
-                                    {selectedRegion && REGIONS_DATA.find(r => r.name === selectedRegion)?.provinces.map(p => <option key={p} value={p}>{p}</option>)}
+                                    {selectedRegion && REGIONS_DATA.find(r => r.name === selectedRegion)?.provinces.filter(p => p === "ระยอง").map(p => <option key={p} value={p}>{p}</option>)}
                                   </select>
                                 </div>
                                 <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>

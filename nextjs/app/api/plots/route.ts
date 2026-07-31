@@ -103,15 +103,17 @@ export async function POST(request: NextRequest) {
     // กำหนดเจ้าของ: ล็อกอิน → user_uuid, guest → guest_key (อย่างใดอย่างหนึ่ง)
     let userUuid: string | null = null;
     let guestKey: string | null = null;
-    if (payload) {
+    if (payload && !body.forceGuest) {
+      // บันทึกจริง (กด "บันทึกข้อมูล" / แก้ไข) → เป็นเจ้าของด้วย user_uuid
       userUuid = await getUserUuid(payload);
       if (!userUuid) {
         return NextResponse.json({ error: "User not found" }, { status: 401 });
       }
     } else if (body.userId) {
-      // Guest re-save: ใช้ guest_key เดิมที่ server เคยสร้างให้
+      // Guest re-save หรือ draft ของ user ที่ล็อกอิน (forceGuest) → reuse guest_key เดิม
       guestKey = body.userId;
     } else {
+      // ประมวลผลครั้งแรก (guest หรือ forceGuest) → สร้าง guest_key ใหม่
       guestKey = generateGuestKey();
     }
 

@@ -365,8 +365,13 @@ body.map-draw-active {
   transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1), margin-right 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
+/* Closed (desktop): slide the panel off to the right and reclaim its width so the
+   map grows smoothly. margin-right is transitioned on .mds-panel-side, which drives
+   both the slide and the map's expansion in sync. */
 .mds-panel-side.closed {
-  display: none !important;
+  margin-right: -44%;
+  box-shadow: none !important;
+  pointer-events: none;
 }
 
 .mds-mobile-drag-handle {
@@ -2050,6 +2055,34 @@ body.map-draw-active {
     margin-top: -24px !important;
     border-radius: 24px 24px 0 0 !important;
     box-shadow: 0 -10px 36px rgba(0, 0, 0, 0.1) !important;
+    transition: margin-top 0.35s ease, border-radius 0.35s ease !important;
+  }
+
+  /* Bottom-sheet expanded: panel slides up to full height, covering the map */
+  .mds-shell.panel-expanded .mds-map-side {
+    flex: 0 0 0 !important;
+    min-height: 0 !important;
+    height: 0 !important;
+    overflow: hidden;
+  }
+
+  .mds-shell.panel-expanded .mds-panel-side {
+    flex: 1 1 auto !important;
+    margin-top: 0 !important;
+    border-radius: 0 !important;
+  }
+
+  /* Live drag: map-side height follows the pointer in real time (no easing) */
+  .mds-shell.panel-dragging .mds-map-side {
+    flex: 0 0 var(--mds-map-h, 42vh) !important;
+    height: var(--mds-map-h, 42vh) !important;
+    min-height: 0 !important;
+    overflow: hidden;
+    transition: none !important;
+  }
+
+  .mds-shell.panel-dragging .mds-panel-side {
+    transition: none !important;
   }
 
   /* clickable drag handle area */
