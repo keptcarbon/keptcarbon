@@ -1,4 +1,4 @@
-import type { EstimationResponse, YearlyEstimate } from "@/lib/carbon-api";
+import type { CarbonAssessResponse, YearlyAssess } from "@/lib/carbon-api";
 import type { BarPoint } from "./CarbonBarChart";
 
 export interface PlotFormData {
@@ -239,11 +239,11 @@ export function computePlot(feat: GeoJSON.Feature): PlotInfo {
     };
 }
 
-export function aggregateProfiles(responses: EstimationResponse[], fallbackBaseAge: number = 0): BarPoint[] {
+export function aggregateProfiles(responses: CarbonAssessResponse[], fallbackBaseAge: number = 0): BarPoint[] {
     // Only keep non-empty profiles and filter by age <= 35 to match visual graph cutoff
     const profiles = responses
         .map(r => r.carbon_profile)
-        .filter((p): p is YearlyEstimate[] => Array.isArray(p) && p.length > 0);
+        .filter((p): p is YearlyAssess[] => Array.isArray(p) && p.length > 0);
 
     if (profiles.length === 0) return [];
 

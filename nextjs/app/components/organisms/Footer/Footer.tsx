@@ -1,6 +1,6 @@
 import Link from "next/link";
 import Image from "next/image";
-import { Mail, MapPin } from "lucide-react";
+import { Mail } from "lucide-react";
 
 type IconProps = { className?: string };
 
@@ -36,7 +36,7 @@ const navLinks = [
 ] as const;
 
 const socialLinks = [
-  { label: "Facebook", href: "#", icon: FacebookIcon },
+  { label: "Facebook", href: "https://www.facebook.com/profile.php?id=61591328554670", icon: FacebookIcon },
   { label: "X", href: "#", icon: XIcon },
   { label: "LINE", href: "#", icon: LineIcon },
 ] as const;
@@ -55,12 +55,12 @@ export default function Footer() {
               <Image
                 src="/assets/img/keptcarbon-logo.png"
                 alt="KeptCarbon"
-                width={40}
-                height={40}
-                className="h-9 w-auto"
+                width={56}
+                height={56}
+                className="h-14 w-auto"
               />
             </Link>
-            <p className="mt-4 max-w-sm text-sm leading-relaxed text-slate-500">
+            <p className="mt-4 max-w-md text-base leading-relaxed text-slate-500">
               แพลตฟอร์มภูมิสารสนเทศและปัญญาประดิษฐ์
               เพื่อการจัดการสวนยางพาราอย่างยืดหยุ่นต่อการเปลี่ยนแปลงสภาพภูมิอากาศ
             </p>
@@ -71,6 +71,8 @@ export default function Footer() {
                 <a
                   key={label}
                   href={href}
+                  target="_blank"
+                  rel="noopener noreferrer"
                   aria-label={label}
                   className="flex size-9 items-center justify-center rounded-lg border border-border text-slate-500 transition-colors hover:border-emerald-600/40 hover:text-emerald-600"
                 >
@@ -82,7 +84,7 @@ export default function Footer() {
 
           {/* Navigation */}
           <nav aria-label="Footer">
-            <h3 className="m-0 text-sm font-semibold tracking-wider text-slate-900 uppercase">
+            <h3 className="m-0 text-base font-semibold tracking-wider text-slate-900 uppercase">
               เมนู
             </h3>
             <ul className="mt-4 flex list-none flex-col gap-3 p-0">
@@ -90,7 +92,7 @@ export default function Footer() {
                 <li key={href}>
                   <Link
                     href={href}
-                    className="text-sm text-slate-500 no-underline transition-colors hover:text-emerald-600"
+                    className="text-base text-slate-500 no-underline transition-colors hover:text-emerald-600"
                   >
                     {label}
                   </Link>
@@ -101,26 +103,18 @@ export default function Footer() {
 
           {/* Contact */}
           <div>
-            <h3 className="m-0 text-sm font-semibold tracking-wider text-slate-900 uppercase">
+            <h3 className="m-0 text-base font-semibold tracking-wider text-slate-900 uppercase">
               ติดต่อ
             </h3>
             <ul className="mt-4 flex list-none flex-col gap-3 p-0">
               <li>
                 <a
                   href="mailto:keptcarbon@gmail.com"
-                  className="flex items-center gap-2.5 text-sm text-slate-500 no-underline transition-colors hover:text-emerald-600"
+                  className="flex items-center gap-2.5 text-base text-slate-500 no-underline transition-colors hover:text-emerald-600"
                 >
                   <Mail className="size-4 shrink-0" aria-hidden="true" />
                   keptcarbon@gmail.com
                 </a>
-              </li>
-              <li className="flex items-start gap-2.5 text-sm text-slate-500">
-                <MapPin className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-                <span>
-                  คณะสังคมศาสตร์ มหาวิทยาลัยเชียงใหม่
-                  <br />
-                  อ.เมือง จ.เชียงใหม่ 50200
-                </span>
               </li>
             </ul>
           </div>
@@ -132,12 +126,6 @@ export default function Footer() {
             © {year} KeptCarbon. All rights reserved.
           </p>
           <div className="flex items-center gap-6 text-sm">
-            <Link
-              href="/about-project"
-              className="text-slate-500 no-underline transition-colors hover:text-emerald-600"
-            >
-              เกี่ยวกับโครงการ
-            </Link>
             <span className="text-slate-500">
               Designed by{" "}
               <a

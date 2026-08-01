@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
-import type { YearlyEstimate } from "@/lib/carbon-api";
+import type { YearlyAssess } from "@/lib/carbon-api";
 
 // All-green theme: lime → mint → emerald → forest → teal
 const GREEN_THEME_COLORS = [
@@ -29,7 +29,7 @@ export type BarPoint = {
   isAgeValid?: boolean;
 };
 
-export function profileToBarPoints(profile: YearlyEstimate[], baseAge: number = 0): BarPoint[] {
+export function profileToBarPoints(profile: YearlyAssess[], baseAge: number = 0): BarPoint[] {
   return profile.map((item, i) => {
     const yearAt = item.year_at ?? i;
     const age = (item.age != null && !isNaN(item.age)) ? item.age : baseAge + yearAt;

@@ -78,7 +78,7 @@ export default function Header() {
 
   /* Shared link classes (desktop center nav) */
   const navLinkClass = (active: boolean) =>
-    `rounded-lg px-3 py-2 text-sm font-medium no-underline transition-colors hover:text-[var(--kc-green)] ${active ? "text-[var(--kc-green)]" : "text-[var(--kc-ink)]"
+    `rounded-lg px-3 py-2 text-base font-medium no-underline transition-colors hover:text-[var(--kc-green)] ${active ? "text-[var(--kc-green)]" : "text-[var(--kc-ink)]"
     }`;
 
   /* ── Render ──────────────────────────────────────────────────────────── */
@@ -204,14 +204,14 @@ export default function Header() {
               <>
                 <button
                   type="button"
-                  className="border-0 bg-transparent px-3 py-2 text-sm font-medium text-[var(--kc-ink)] transition-colors hover:text-[var(--kc-green)] cursor-pointer"
+                  className="border-0 bg-transparent px-3 py-2 text-base font-medium text-[var(--kc-ink)] transition-colors hover:text-[var(--kc-green)] cursor-pointer"
                   onClick={openLogin}
                 >
                   เข้าสู่ระบบ
                 </button>
                 <button
                   type="button"
-                  className="rounded-full border border-[var(--kc-green)] bg-[var(--kc-green)] px-5 py-2 text-sm font-semibold text-white transition-all hover:bg-[var(--kc-green-dark)] hover:border-[var(--kc-green-dark)] hover:shadow-[var(--kc-shadow-button)]"
+                  className="rounded-full border border-[var(--kc-green)] bg-[var(--kc-green)] px-5 py-2 text-base font-semibold text-white transition-all hover:bg-[var(--kc-green-dark)] hover:border-[var(--kc-green-dark)] hover:shadow-[var(--kc-shadow-button)]"
                   onClick={openRegister}
                 >
                   สมัครสมาชิก

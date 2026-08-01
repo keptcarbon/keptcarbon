@@ -59,9 +59,10 @@ class ProvinceService:
                 }
                 return poly_data
 
-            # Pick the province with the largest intersection area
+            # Pick the province with the largest intersection area.
+            # Starts below zero so zero-area intersections (e.g. a Point target) still match.
             best_match = None
-            max_intersect_area = 0.0
+            max_intersect_area = -1.0
             for _, prov_row in candidates.iterrows():
                 inter_geom = target_geom.intersection(prov_row.geometry)
                 if not inter_geom.is_empty and inter_geom.area > max_intersect_area:

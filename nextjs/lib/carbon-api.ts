@@ -5,7 +5,7 @@
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_API_URL || "http://127.0.0.1:8001/api/v1";
 
-export interface PlantationPolygon {
+export interface CarbonAssessRequest {
     id: string;
     geometry: GeoJSON.Geometry;
     year_of_planting?: number | null;
@@ -30,7 +30,7 @@ export interface CarbonValue {
     ci_upper: number;
 }
 
-export interface YearlyEstimate {
+export interface YearlyAssess {
     year: number;
     year_at: number;
     age: number;
@@ -38,32 +38,32 @@ export interface YearlyEstimate {
     gain: CarbonValue;
 }
 
-export interface EstimatedParamYear {
+export interface AssessParamYear {
     value: number | string[];
     note: string[] | null;
     source: string;
 }
 
-export interface EstimatedParamSimple {
+export interface AssessParamSimple {
     value: string | number;
     note: string | null;
     source: string;
 }
 
-export interface EstimatedParameters {
+export interface AssessParameters {
     area_m2?: number;
-    year_of_planting: EstimatedParamYear;
-    rubber_clone: EstimatedParamSimple;
-    tree_count: EstimatedParamSimple;
-    spacing_system: EstimatedParamSimple;
+    year_of_planting: AssessParamYear;
+    rubber_clone: AssessParamSimple;
+    tree_count: AssessParamSimple;
+    spacing_system: AssessParamSimple;
 }
 
-export interface EstimationResponse {
+export interface CarbonAssessResponse {
     polygon_id: string;
     status: StatusMessage;
     ci?: number | null;
-    carbon_profile?: YearlyEstimate[] | null;
-    estimated_parameters?: EstimatedParameters | null;
+    carbon_profile?: YearlyAssess[] | null;
+    assess_parameters?: AssessParameters | null;
 }
 
 export interface LUPolygon {
@@ -75,7 +75,7 @@ export interface LUPolygon {
     area_percent: number;
 }
 
-export interface PlantationInfoResponse {
+export interface PlotsInfoResponse {
     polygon_id: string;
     province_code: string | null;
     geometry: GeoJSON.Geometry;
@@ -89,11 +89,11 @@ export interface PlantationInfoResponse {
  * @param polygons Array of plantation polygons with geometry and optional parameters
  * @returns Array of estimation responses with yearly carbon profiles
  */
-export async function estimateCarbon(
-    polygons: PlantationPolygon[]
-): Promise<EstimationResponse[]> {
+export async function assessCarbon(
+    polygons: CarbonAssessRequest[]
+): Promise<CarbonAssessResponse[]> {
     try {
-        const response = await fetch(`${API_BASE_URL}/estimate`, {
+        const response = await fetch(`${API_BASE_URL}/carbon/assess`, {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
@@ -108,7 +108,7 @@ export async function estimateCarbon(
             );
         }
 
-        const data: EstimationResponse[] = await response.json();
+        const data: CarbonAssessResponse[] = await response.json();
         return data;
     } catch (error) {
         console.error("Carbon estimation API error:", error);
@@ -120,13 +120,13 @@ export async function estimateCarbon(
  * Get land use classification and province for a drawn polygon.
  * @param output_crs CRS for returned geometry: "EPSG:4326" (WGS84 lon/lat, default) or "EPSG:32647" (UTM)
  */
-export async function getPlantationInfo(polygon: {
+export async function getPlotsInfo(polygon: {
     id: string;
     geometry: GeoJSON.Geometry;
     project_type?: string | null;
     output_crs?: string | null;
-}): Promise<PlantationInfoResponse> {
-    const response = await fetch(`${API_BASE_URL}/plantation-info`, {
+}): Promise<PlotsInfoResponse> {
+    const response = await fetch(`${API_BASE_URL}/plots/info`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(polygon),

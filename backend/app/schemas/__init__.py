@@ -1,1 +1,1 @@
-from .plantation import PlantationEstimateRequest, PlantationEstimationResponse, StatusMessage, YearlyEstimate, LUPolygon, PlantationEstimationResponse, PlantationInfoResponse
+from .plots import CarbonAssessRequest, CarbonAssessResponse, StatusMessage, YearlyAssess, LUPolygon, PlotsInfoResponse

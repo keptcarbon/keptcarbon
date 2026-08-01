@@ -4,7 +4,7 @@ import { createPortal } from "react-dom";
 import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { CarbonBarChart, profileToBarPoints, type BarPoint } from "./CarbonBarChart";
-import { estimateCarbon, type PlantationPolygon, type EstimationResponse, type YearlyEstimate } from "@/lib/carbon-api";
+import { assessCarbon, type CarbonAssessRequest, type CarbonAssessResponse, type YearlyAssess } from "@/lib/carbon-api";
 import { PlotDetailCard } from "./PlotDetailCard";
 import {
     type PlotFormData,
@@ -121,7 +121,7 @@ export function ParcelResultsPanel({
 }: Props) {
     const [expandedIdx, setExpandedIdx] = useState<number | null>(0);
     const [expandedResultIdx, setExpandedResultIdx] = useState<number | "total" | null>(null);
-    const [backendResponses, setBackendResponses] = useState<EstimationResponse[] | null>(null);
+    const [backendResponses, setBackendResponses] = useState<CarbonAssessResponse[] | null>(null);
     const { user } = useAuth();
 
     const plots = useMemo(() => parcelFeatures.map(computePlot), [parcelFeatures]);
@@ -486,8 +486,8 @@ export function ParcelResultsPanel({
         stablePlotIdsRef.current = stablePlotIds;
         setPlotIds(stablePlotIds);
 
-        // Build polygons array for the estimateCarbon backend API call, one polygon per plot!
-        const polygons: PlantationPolygon[] = [];
+        // Build polygons array for the assessCarbon backend API call, one polygon per plot!
+        const polygons: CarbonAssessRequest[] = [];
         const featuresToUse = luFeatures.length > 0 ? luFeatures : parcelFeatures;
 
         const allFeatsByPlot: Record<number, typeof featuresToUse> = {};
@@ -550,7 +550,7 @@ export function ParcelResultsPanel({
             return;
         }
 
-        // Now, for each plot `idx`, build its combined geometry and PlantationPolygon!
+        // Now, for each plot `idx`, build its combined geometry and CarbonAssessRequest!
         for (let idx = 0; idx < parcelFeatures.length; idx++) {
             const plotFeats = featsByPlot[idx] || [];
             const form = plotForms[idx] || { plantYear: "", variety: "", treeCount: "", spacing: "2.5*8" };
@@ -616,7 +616,7 @@ export function ParcelResultsPanel({
         }
 
         try {
-            const responses = await estimateCarbon(polygons);
+            const responses = await assessCarbon(polygons);
 
             // Check for errors in the responses (e.g., E04)
             const errResp = responses.find((r: any) => r.status?.status === "error");
@@ -698,9 +698,9 @@ export function ParcelResultsPanel({
                     // 1. ผู้ใช้กรอกปีเอง — ใช้ก่อนเสมอ
                     finalPlantYearBE = userYearBE;
                     yearUsedDetails = `ใช้ตามที่คุณระบุ (พ.ศ. ${userYearBE})`;
-                } else if (resp?.estimated_parameters) {
+                } else if (resp?.assess_parameters) {
                     // 2. ไม่กรอกปี → ใช้ max cohort age (oldest cohort = year น้อยที่สุด) จาก carbon API
-                    const yop = resp.estimated_parameters.year_of_planting;
+                    const yop = resp.assess_parameters.year_of_planting;
                     const allYearsCE: number[] = [];
                     if (typeof yop.value === "number" && yop.value > 0) {
                         allYearsCE.push(yop.value);
@@ -717,7 +717,7 @@ export function ParcelResultsPanel({
                     }
                 }
 
-                // 3. Fallback: ปีจาก parcel API ถ้า estimated_parameters ไม่มี
+                // 3. Fallback: ปีจาก parcel API ถ้า assess_parameters ไม่มี
                 if (finalPlantYearBE === 0 && backendYearBE > 0) {
                     finalPlantYearBE = backendYearBE;
                     yearUsedDetails = `ใช้ปีจากดาวเทียมที่ตรวจพบ (พ.ศ. ${backendYearBE})`;
@@ -741,7 +741,7 @@ export function ParcelResultsPanel({
                     startAge = 1;
                 }
                 const userTrees = form.treeCount ? parseInt(form.treeCount) : 0;
-                const epTrees = typeof resp?.estimated_parameters?.tree_count?.value === "number" ? resp.estimated_parameters.tree_count.value : 0;
+                const epTrees = typeof resp?.assess_parameters?.tree_count?.value === "number" ? resp.assess_parameters.tree_count.value : 0;
                 const finalTrees = userTrees > 0 ? userTrees : (epTrees > 0 ? epTrees : Math.round(totalAreaRai * 76));
                 const co2Now = profile[0]?.stocks?.value ?? 0;
                 const co2NowCi = profile[0]?.stocks?.ci ?? 0;
@@ -857,7 +857,7 @@ export function ParcelResultsPanel({
                     };
                 });
 
-            // Build polygons_payload: ข้อมูลที่ส่งไป backend สำหรับ estimateCarbon
+            // Build polygons_payload: ข้อมูลที่ส่งไป backend สำหรับ assessCarbon
             const polygonsPayload = activePolygons.length > 0
                 ? activePolygons
                 : parcelFeatures.map((feat, i) => {
@@ -913,7 +913,7 @@ export function ParcelResultsPanel({
             const frontendPlots = parcelFeatures.map((feat, i) => {
                 const props = (feat?.properties || {}) as any;
                 const form = plotForms[i] || {};
-                const ep = activeResponses.find((r: any) => r.polygon_id === stablePlotIds[i] || r.polygon_id === `plot-${i}`)?.estimated_parameters;
+                const ep = activeResponses.find((r: any) => r.polygon_id === stablePlotIds[i] || r.polygon_id === `plot-${i}`)?.assess_parameters;
                 const backendResp = activeResponses.find((r: any) => r.polygon_id === stablePlotIds[i] || r.polygon_id === `plot-${i}`);
 
                 const p = computePlot(feat);
@@ -1790,7 +1790,7 @@ export function ParcelResultsPanel({
 
             const profiles = backendResponses
                 .map(r => r.carbon_profile)
-                .filter((p): p is YearlyEstimate[] => Array.isArray(p) && p.length > 0);
+                .filter((p): p is YearlyAssess[] => Array.isArray(p) && p.length > 0);
             if (profiles.length > 0) {
                 const age28Years = profiles.map(p => {
                     const item28 = p.find(item => item.age === 28);
@@ -1935,7 +1935,7 @@ export function ParcelResultsPanel({
                         const form = plotForms[i];
                         const plot = plots[i];
                         const backendResp = backendResponses?.find(r => r.polygon_id === plotIds[i] || r.polygon_id === `plot-${i}`);
-                        const ep = backendResp?.estimated_parameters;
+                        const ep = backendResp?.assess_parameters;
                         const plotDisplayNum = parseInt((parcelFeatures[i]?.properties as any)?.plot_index) || (i + 1);
 
                         const backendProfile = backendResp?.carbon_profile;
