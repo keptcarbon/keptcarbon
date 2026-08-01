@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { estimateCarbon, getCurrentYearBE, type PlantationPolygon } from "@/lib/carbon-api";
+import { assessCarbon, getCurrentYearBE, type CarbonAssessRequest } from "@/lib/carbon-api";
 
-const POLYGON: PlantationPolygon = {
+const POLYGON: CarbonAssessRequest = {
   id: "plot_0",
   geometry: {
     type: "MultiPolygon",
@@ -36,9 +36,9 @@ describe("getCurrentYearBE", () => {
   });
 });
 
-// ── estimateCarbon ────────────────────────────────────────────────────────────
+// ── assessCarbon ────────────────────────────────────────────────────────────
 
-describe("estimateCarbon", () => {
+describe("assessCarbon", () => {
   beforeEach(() => {
     vi.stubGlobal("fetch", vi.fn());
   });
@@ -52,9 +52,9 @@ describe("estimateCarbon", () => {
       ok: true,
       json: async () => SUCCESS_RESPONSE,
     });
-    await estimateCarbon([POLYGON]);
+    await assessCarbon([POLYGON]);
     expect(fetch).toHaveBeenCalledWith(
-      expect.stringContaining("/api/estimate"),
+      expect.stringContaining("/carbon/assess"),
       expect.objectContaining({ method: "POST" }),
     );
   });
@@ -64,17 +64,17 @@ describe("estimateCarbon", () => {
       ok: true,
       json: async () => SUCCESS_RESPONSE,
     });
-    await estimateCarbon([POLYGON]);
+    await assessCarbon([POLYGON]);
     const body = JSON.parse((fetch as ReturnType<typeof vi.fn>).mock.calls[0][1].body);
     expect(body[0].id).toBe("plot_0");
   });
 
-  it("returns parsed EstimationResponse array on success", async () => {
+  it("returns parsed CarbonAssessResponse array on success", async () => {
     (fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
       ok: true,
       json: async () => SUCCESS_RESPONSE,
     });
-    const result = await estimateCarbon([POLYGON]);
+    const result = await assessCarbon([POLYGON]);
     expect(result).toHaveLength(1);
     expect(result[0].polygon_id).toBe("plot_0");
     expect(result[0].carbon_profile).not.toBeNull();
@@ -86,12 +86,12 @@ describe("estimateCarbon", () => {
       status: 500,
       json: async () => ({ detail: "Server error" }),
     });
-    await expect(estimateCarbon([POLYGON])).rejects.toThrow("Backend API error: 500");
+    await expect(assessCarbon([POLYGON])).rejects.toThrow("Backend API error: 500");
   });
 
   it("throws on network failure", async () => {
     (fetch as ReturnType<typeof vi.fn>).mockRejectedValue(new Error("Network unreachable"));
-    await expect(estimateCarbon([POLYGON])).rejects.toThrow("Network unreachable");
+    await expect(assessCarbon([POLYGON])).rejects.toThrow("Network unreachable");
   });
 
   it("sends Content-Type: application/json header", async () => {
@@ -99,7 +99,7 @@ describe("estimateCarbon", () => {
       ok: true,
       json: async () => [],
     });
-    await estimateCarbon([]);
+    await assessCarbon([]);
     const headers = (fetch as ReturnType<typeof vi.fn>).mock.calls[0][1].headers;
     expect(headers["Content-Type"]).toBe("application/json");
   });
@@ -109,7 +109,7 @@ describe("estimateCarbon", () => {
       ok: true,
       json: async () => [],
     });
-    const result = await estimateCarbon([]);
+    const result = await assessCarbon([]);
     expect(result).toEqual([]);
   });
 });

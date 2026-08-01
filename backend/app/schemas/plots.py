@@ -9,11 +9,12 @@ class StatusMessage(BaseModel):
     message: str
 
 
-class CarbonValueEstimate(BaseModel):
+class CarbonValueAssess(BaseModel):
     value: float
     ci: float
     ci_lower: float
     ci_upper: float
+
 class ParamWithSource(BaseModel):
     # Can accept a single value (2010) or multiple values ([2010, 2015, 2018])
     value: Optional[Union[Any, List[Any]]] = None
@@ -21,7 +22,7 @@ class ParamWithSource(BaseModel):
     source: Optional[str] = Field(None, description="Origin tracking: 'user input' or 'calculated'")
 
 
-class EstimationParameters(BaseModel):
+class AssessmentParameters(BaseModel):
     year_of_planting: ParamWithSource = Field(default_factory=ParamWithSource)
     rubber_clone: ParamWithSource = Field(default_factory=ParamWithSource)
     tree_count: ParamWithSource = Field(default_factory=ParamWithSource)
@@ -29,17 +30,17 @@ class EstimationParameters(BaseModel):
 
 
 class CarbonMetric(BaseModel):
-    """A standardized component tracking an estimate along with its 95% Confidence Interval."""
-    estimate: float = Field(..., alias="value")  # 'alias' lets frontend see 'value'
+    """A standardized component tracking an assessment along with its 95% Confidence Interval."""
+    assess: float = Field(..., alias="value")  # 'alias' lets frontend see 'value'
     ci_margin: float = Field(..., alias="ci")
     ci_lower: float = Field(..., alias="ci_lower")
     ci_upper: float = Field(..., alias="ci_upper")
 
     class Config:
-        populate_by_name = True  # Allows you to use either 'estimate' or 'value' in your Python code
+        populate_by_name = True  # Allows you to use either 'assess' or 'value' in your Python code
 
 
-class YearlyEstimate(BaseModel):
+class YearlyAssess(BaseModel):
     year: int
     year_at: int
     age: Optional[int] = None
@@ -59,39 +60,39 @@ class LUPolygon(BaseModel):
     area_percent: float = Field(..., description="Percentage of total area")
 
 
-# ── Estimated Parameters sub-models ──────────────────────────────────────────
+# ── Assess Parameters sub-models ──────────────────────────────────────────
 
-class EstimatedParamYear(BaseModel):
+class AssessParamYear(BaseModel):
     value: Union[int, List[str]]
     note: Optional[List[str]] = None
     source: str
 
 
-class EstimatedParamSimple(BaseModel):
+class AssessParamSimple(BaseModel):
     value: Union[str, int, float]
     note: Optional[str] = None
     source: str
 
 
-class EstimatedParameters(BaseModel):
+class AssessParameters(BaseModel):
     area_m2: float = Field(..., description="Area in square meters")
-    year_of_planting: EstimatedParamYear
-    rubber_clone: EstimatedParamSimple
-    tree_count: EstimatedParamSimple
-    spacing_system: EstimatedParamSimple
+    year_of_planting: AssessParamYear
+    rubber_clone: AssessParamSimple
+    tree_count: AssessParamSimple
+    spacing_system: AssessParamSimple
 
 
-class BasePlantationRequest(BaseModel):
+class BasePlotsRequest(BaseModel):
     """The generalized blueprint for any plantation API call."""
     id: str = Field(..., description="Unique ID from the frontend map")
     geometry: Dict[str, Any] = Field(..., description="GeoJSON Raw Drawn Polygon/MultiPolygon with 'EPSG:4326' = WGS84 lon/lat coordinates")
     project_type: Optional[str] = Field(None, description="e.g., 'replanting', 'existing'")
 
 
-# ── Estimation endpoint (/api/estimate) ──────────────────────────────
+# ── Assessment endpoint (/api/v1/carbon/assess) ──────────────────────────────
 
-class PlantationEstimateRequest(BasePlantationRequest):
-    """Payload for /estimate (Extends base structure with metrics and flags)"""
+class CarbonAssessRequest(BasePlotsRequest):
+    """Payload for /carbon/assess (Extends base structure with metrics and flags)"""
     year_of_planting: Optional[int] = Field(None, description="Manual year. If None, extract from raster.")
     rubber_clone: Optional[str] = Field(None, description="Clone type for growth coefficients")
     tree_count: Optional[int] = Field(None, description="User-defined count. If None, calculate using area and spacing.")
@@ -103,27 +104,41 @@ class PlantationEstimateRequest(BasePlantationRequest):
     )
 
 
-class PlantationEstimationResponse(BaseModel):
+class CarbonAssessResponse(BaseModel):
     polygon_id: str
     status: StatusMessage
-    carbon_profile: Optional[List[YearlyEstimate]] = None
-    estimated_parameters: Optional[EstimatedParameters] = None
+    carbon_profile: Optional[List[YearlyAssess]] = None
+    assess_parameters: Optional[AssessParameters] = None
 
 
-# ── Plantation-info endpoint (/api/v1/plantation-info) ────────────────────
+# ── Plot-info endpoint (/api/v1/plots) ────────────────────
 
-class PlantationInfoRequest(BasePlantationRequest):
-    """Payload for /plantation-info (Extends base structure with output CRS)"""
+class PlotsInfoRequest(BasePlotsRequest):
+    """Payload for /plots/info (Extends base structure with output CRS)"""
     output_crs: Optional[str] = Field('EPSG:4326', description="Desired CRS for returned geometries, e.g. 'EPSG:4326'. Defaults to 'EPSG:4326' if not provided.")
 
 
-class PlantationInfoResponse(BaseModel):
+class PlotsInfoResponse(BaseModel):
     polygon_id: str
     province_code: Optional[str] = Field(None, description="Province code if polygon is within a supported province")
     geometry: Dict[str, Any] = Field(..., description="GeoJSON Polygon or MultiPolygon")
     area_m2: Optional[float] = Field(None, description="Total area in square meters")
     status: StatusMessage
     lu_polygon: Optional[List[LUPolygon]] = None
+
+
+# ── Nav endpoint (/api/v1/plots/nav) ──────────────────────
+
+class PlotsNavRequest(BaseModel):
+    """Payload for /plots/nav (Check whether a point falls in a supported province)"""
+    lat: float = Field(..., description="Latitude in EPSG:4326 (WGS84)")
+    lon: float = Field(..., description="Longitude in EPSG:4326 (WGS84)")
+
+
+class PlotsNavResponse(BaseModel):
+    supported: bool = Field(..., description="True if the point is within a Thai province supported by the system")
+    province_code: Optional[str] = Field(None, description="Matched province code, if any")
+    message: str
 
 
 

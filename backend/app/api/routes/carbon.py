@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException
 from typing import List
-from app.schemas.plantation import PlantationEstimateRequest, PlantationEstimationResponse
+from app.schemas.plots import CarbonAssessRequest, CarbonAssessResponse
 from app.services.carbon_service import CarbonService
 
 router = APIRouter()
@@ -8,8 +8,8 @@ router = APIRouter()
 # Initialize service once to leverage pre-loaded spatial data
 service = CarbonService()
 
-@router.post("/estimate", response_model=List[PlantationEstimationResponse])
-async def estimate_carbon(polygons: List[PlantationEstimateRequest]):
+@router.post("/carbon/assess", response_model=List[CarbonAssessResponse])
+async def assess_carbon(polygons: List[CarbonAssessRequest]):
     results = []
 
     for poly in polygons:

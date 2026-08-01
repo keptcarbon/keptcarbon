@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { profileToBarPoints } from "@/app/components/organisms/ParcelResultsPanel/CarbonBarChart";
-import { estimateCarbon, type PlantationPolygon } from "@/lib/carbon-api";
+import { assessCarbon, type CarbonAssessRequest } from "@/lib/carbon-api";
 import type { SavedPlot } from "./types";
 import { EditPlotModal } from "./EditPlotModal";
 import { PlotCard } from "./PlotCard";
@@ -185,7 +185,7 @@ export default function MyPlotsPage() {
     setEstimatingProject(projectName);
 
     try {
-      const polygons: PlantationPolygon[] = projectPlots.map((plot) => {
+      const polygons: CarbonAssessRequest[] = projectPlots.map((plot) => {
         let geom = plot.geojson as GeoJSON.Geometry;
         if (!geom && plot.boundaryGeojson) {
           geom = plot.boundaryGeojson as GeoJSON.Geometry;
@@ -231,7 +231,7 @@ export default function MyPlotsPage() {
       });
 
       // Process polygons one by one to ensure the backend processes all of them correctly
-      const responsePromises = polygons.map(polygon => estimateCarbon([polygon]));
+      const responsePromises = polygons.map(polygon => assessCarbon([polygon]));
       const responseArrays = await Promise.all(responsePromises);
       // Flatten the results into a single array of responses
       const responses = responseArrays.flat();
@@ -247,7 +247,7 @@ export default function MyPlotsPage() {
           continue;
         }
 
-        const ep = resp.estimated_parameters;
+        const ep = resp.assess_parameters;
 
         const epPlantYearCE = typeof ep?.year_of_planting?.value === "number" ? ep.year_of_planting.value : 0;
         const epPlantYearBE = epPlantYearCE > 0 ? epPlantYearCE + 543 : 0;
