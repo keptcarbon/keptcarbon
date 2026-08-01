@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
 
     const result = await pool.query(
       `SELECT id, email, username, first_name, last_name, display_name, phone, picture_url, provider, role
-       FROM users
+       FROM tbl_users
        WHERE id = $1
        LIMIT 1`,
       [payload.userId]

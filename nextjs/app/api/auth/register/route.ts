@@ -57,7 +57,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if email already exists
-    const existing = await pool.query("SELECT id FROM users WHERE LOWER(email) = LOWER($1)", [
+    const existing = await pool.query("SELECT id FROM tbl_users WHERE LOWER(email) = LOWER($1)", [
       email.trim(),
     ]);
 
@@ -77,7 +77,7 @@ export async function POST(request: NextRequest) {
 
     // Insert user
     const result = await pool.query(
-      `INSERT INTO users (email, username, password_hash, first_name, last_name, display_name, phone, provider, role)
+      `INSERT INTO tbl_users (email, username, password_hash, first_name, last_name, display_name, phone, provider, role)
        VALUES ($1, $2, $3, $4, $5, $6, $7, 'local', 'user')
        RETURNING id, email, username, first_name, last_name, display_name, phone, picture_url, provider, role`,
       [email.trim(), username, hash, first, last, displayName, phone?.trim() || ""]

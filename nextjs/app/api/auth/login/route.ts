@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
     // Look up by email or username
     const result = await pool.query(
       `SELECT id, email, username, password_hash, first_name, last_name, display_name, phone, picture_url, provider, role
-       FROM users
+       FROM tbl_users
        WHERE (LOWER(email) = LOWER($1) OR LOWER(username) = LOWER($1))
          AND provider = 'local'
        LIMIT 1`,

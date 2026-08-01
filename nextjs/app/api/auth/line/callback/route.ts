@@ -91,7 +91,7 @@ export async function GET(request: NextRequest) {
 
     // Check if user exists by line_user_id
     let dbUserResult = await pool.query(
-      `SELECT id, email, role, provider FROM users WHERE line_user_id = $1 LIMIT 1`,
+      `SELECT id, email, role, provider FROM tbl_users WHERE line_user_id = $1 LIMIT 1`,
       [profile.userId]
     );
 
@@ -100,7 +100,7 @@ export async function GET(request: NextRequest) {
     if (dbUserResult.rows.length === 0) {
       // Auto-register LINE user
       const insertResult = await pool.query(
-        `INSERT INTO users (email, username, first_name, display_name, picture_url, provider, line_user_id, role)
+        `INSERT INTO tbl_users (email, username, first_name, display_name, picture_url, provider, line_user_id, role)
          VALUES ($1, $2, $3, $4, $5, 'line', $6, 'user')
          RETURNING id, email, role, provider`,
         [email, username, firstName, displayName, pictureUrl, profile.userId]
@@ -109,7 +109,7 @@ export async function GET(request: NextRequest) {
     } else {
       // User exists, refresh picture + display name in case they changed
       await pool.query(
-        `UPDATE users SET picture_url = $1, display_name = $2 WHERE id = $3`,
+        `UPDATE tbl_users SET picture_url = $1, display_name = $2 WHERE id = $3`,
         [pictureUrl, displayName, dbUserResult.rows[0].id]
       );
       dbUser = dbUserResult.rows[0];

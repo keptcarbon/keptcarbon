@@ -9,7 +9,7 @@ import type { JwtPayload } from "@/lib/jwt";
  */
 export async function getUserUuid(payload: JwtPayload): Promise<string | null> {
   const result = await pool.query(
-    `SELECT uuid FROM users WHERE id = $1`,
+    `SELECT uuid FROM tbl_users WHERE id = $1`,
     [payload.userId]
   );
   return result.rows[0]?.uuid ?? null;

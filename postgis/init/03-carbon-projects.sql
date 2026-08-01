@@ -3,7 +3,7 @@
 -- ==========================================================================
 -- โครงสร้าง:
 --   • id             : SERIAL PRIMARY KEY (Auto Increment)
---   • user_uuid      : FK → users.uuid (ผู้ใช้ที่ล็อกอิน) — NULL ถ้าเป็น guest
+--   • user_uuid      : FK → tbl_users.uuid (ผู้ใช้ที่ล็อกอิน) — NULL ถ้าเป็น guest
 --   • guest_key      : คีย์สุ่มปลอดภัยของ guest เช่น Guest-XXXXXXXXXXXXXXXXXXXX — NULL ถ้าล็อกอิน
 --   • project_name   : ชื่อโครงการ เช่น "Rubber Farm Rayong"
 --   • plantation_info     : JSONB ข้อมูลแปลง
@@ -17,7 +17,7 @@ CREATE TABLE IF NOT EXISTS carbon_projects (
   id                SERIAL        PRIMARY KEY,
 
   -- เจ้าของ: ผู้ใช้ที่ล็อกอิน (user_uuid) หรือ guest (guest_key) — อย่างใดอย่างหนึ่งเสมอ
-  user_uuid         UUID          REFERENCES users(uuid),
+  user_uuid         UUID          REFERENCES tbl_users(uuid),
   guest_key         VARCHAR(100),
 
   -- ชื่อโครงการ เช่น "Rubber Farm Rayong"

@@ -67,7 +67,7 @@ export async function GET(request: NextRequest) {
 
     // Upsert user in DB
     const result = await pool.query(
-      `INSERT INTO users (email, username, first_name, last_name, display_name, picture_url, provider, google_user_id, role)
+      `INSERT INTO tbl_users (email, username, first_name, last_name, display_name, picture_url, provider, google_user_id, role)
        VALUES ($1, $2, $3, $4, $5, $6, 'google', $7, 'user')
        ON CONFLICT (email) DO UPDATE SET
          picture_url = EXCLUDED.picture_url,
@@ -75,7 +75,7 @@ export async function GET(request: NextRequest) {
          last_name = EXCLUDED.last_name,
          display_name = EXCLUDED.display_name,
          provider = EXCLUDED.provider,
-         google_user_id = COALESCE(EXCLUDED.google_user_id, users.google_user_id)
+         google_user_id = COALESCE(EXCLUDED.google_user_id, tbl_users.google_user_id)
        RETURNING id, email, role, provider`,
       [email, `google_${googleUserId?.slice(0, 8) || email}`, firstName, lastName, displayName, pictureUrl, googleUserId]
     );

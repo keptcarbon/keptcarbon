@@ -12,7 +12,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE TABLE IF NOT EXISTS users (
+CREATE TABLE IF NOT EXISTS tbl_users (
   id            SERIAL PRIMARY KEY,               -- internal PK (JWT, FKs use uuid)
   uuid          UUID         NOT NULL DEFAULT gen_random_uuid() UNIQUE,  -- relationship / public key
   email         VARCHAR(255) UNIQUE,
@@ -33,18 +33,18 @@ CREATE TABLE IF NOT EXISTS users (
 );
 
 -- Index for fast login lookups
-CREATE INDEX IF NOT EXISTS idx_users_email    ON users (email);
-CREATE INDEX IF NOT EXISTS idx_users_username ON users (username);
-CREATE INDEX IF NOT EXISTS idx_users_line_uid     ON users (line_user_id);
-CREATE INDEX IF NOT EXISTS idx_users_google_uid   ON users (google_user_id);
-CREATE INDEX IF NOT EXISTS idx_users_facebook_uid ON users (facebook_user_id);
+CREATE INDEX IF NOT EXISTS idx_users_email    ON tbl_users (email);
+CREATE INDEX IF NOT EXISTS idx_users_username ON tbl_users (username);
+CREATE INDEX IF NOT EXISTS idx_users_line_uid     ON tbl_users (line_user_id);
+CREATE INDEX IF NOT EXISTS idx_users_google_uid   ON tbl_users (google_user_id);
+CREATE INDEX IF NOT EXISTS idx_users_facebook_uid ON tbl_users (facebook_user_id);
 
 -- Case-insensitive email uniqueness (Admin@x.com == admin@x.com)
-CREATE UNIQUE INDEX IF NOT EXISTS uq_users_email_lower ON users (LOWER(email));
+CREATE UNIQUE INDEX IF NOT EXISTS uq_users_email_lower ON tbl_users (LOWER(email));
 
-DROP TRIGGER IF EXISTS trg_users_updated_at ON users;
+DROP TRIGGER IF EXISTS trg_users_updated_at ON tbl_users;
 CREATE TRIGGER trg_users_updated_at
-  BEFORE UPDATE ON users
+  BEFORE UPDATE ON tbl_users
   FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
 -- ==========================================================================
@@ -52,7 +52,7 @@ CREATE TRIGGER trg_users_updated_at
 -- username: admin / password: kept@carbon
 -- bcrypt hash generated with cost factor 10
 -- ==========================================================================
-INSERT INTO users (email, username, password_hash, first_name, last_name, display_name, provider, role)
+INSERT INTO tbl_users (email, username, password_hash, first_name, last_name, display_name, provider, role)
 VALUES (
   'admin@keptcarbon.io',
   'admin',

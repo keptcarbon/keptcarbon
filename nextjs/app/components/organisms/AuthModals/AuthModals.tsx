@@ -34,7 +34,7 @@ function AlertBox({ alert }: { alert: AlertState }) {
   if (!alert) return null;
   const isSuccess = alert.type === "success";
   return (
-    <div className={`mb-6 flex items-start gap-3 rounded-xl p-4 text-sm font-medium ${isSuccess ? "bg-green-50 text-green-700" : "bg-red-50 text-red-600"}`}>
+    <div className={`mb-6 flex items-start gap-3 rounded-xl p-4 text-base font-medium ${isSuccess ? "bg-green-50 text-green-700" : "bg-red-50 text-red-600"}`}>
       {isSuccess ? <CheckCircle2 className="mt-0.5 size-5 shrink-0" /> : <AlertCircle className="mt-0.5 size-5 shrink-0" />}
       <span>{alert.msg}</span>
     </div>
@@ -57,7 +57,7 @@ function RequiredStar() {
 function FieldError({ msg }: { msg?: string }) {
   if (!msg) return null;
   return (
-    <p className="flex items-center gap-1 text-xs font-medium text-red-500">
+    <p className="flex items-center gap-1 text-sm font-medium text-red-500">
       <AlertCircle className="size-3.5 shrink-0" />
       <span>{msg}</span>
     </p>
@@ -353,16 +353,15 @@ export function RegisterModal() {
 
   return (
     <ModalShell width={500} onClose={closeModal}>
-      <div className="mb-8 flex flex-col items-center">
+      <div className="mb-4 flex items-center justify-center gap-3">
         <Image
           src="/assets/img/keptcarbon-logo.png"
           alt="KeptCarbon"
           width={48}
           height={48}
-          className="mb-4 h-12 w-auto"
+          className="h-12 w-auto"
         />
-        <h2 className="mb-2 text-2xl font-bold tracking-tight text-[var(--kc-ink)]">สมัครสมาชิก</h2>
-        <p className="text-sm text-[var(--kc-muted)]">สร้างบัญชีเพื่อเริ่มจัดการสวนยางพาราของคุณ</p>
+        <h2 className="text-2xl font-bold tracking-tight text-[var(--kc-ink)]">สมัครสมาชิก</h2>
       </div>
 
       <AlertBox alert={alert} />
@@ -370,7 +369,7 @@ export function RegisterModal() {
       <form onSubmit={onSubmit} className="flex flex-col gap-4">
         <div className="grid grid-cols-2 gap-4">
           <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium text-[var(--kc-ink)]">ชื่อ<RequiredStar /></label>
+            <label className="text-base font-medium text-[var(--kc-ink)]">ชื่อ<RequiredStar /></label>
             <div className="relative">
               <UserIcon className="absolute left-3.5 top-1/2 size-4.5 -translate-y-1/2 text-[var(--kc-sage)]" />
               <input
@@ -383,13 +382,13 @@ export function RegisterModal() {
                 maxLength={50}
                 autoComplete="given-name"
                 aria-invalid={!!errors.firstName}
-                className={`w-full rounded-xl border bg-white py-2.5 pl-10 pr-4 text-sm text-[var(--kc-ink)] outline-none transition-colors placeholder:text-slate-400 ${errBorder(!!errors.firstName)}`}
+                className={`w-full rounded-xl border bg-white py-2.5 pl-10 pr-4 text-base text-[var(--kc-ink)] outline-none transition-colors placeholder:text-slate-400 ${errBorder(!!errors.firstName)}`}
               />
             </div>
             <FieldError msg={errors.firstName} />
           </div>
           <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium text-[var(--kc-ink)]">นามสกุล</label>
+            <label className="text-base font-medium text-[var(--kc-ink)]">นามสกุล</label>
             <div className="relative">
               <UserIcon className="absolute left-3.5 top-1/2 size-4.5 -translate-y-1/2 text-[var(--kc-sage)]" />
               <input
@@ -400,7 +399,7 @@ export function RegisterModal() {
                 maxLength={50}
                 autoComplete="family-name"
                 aria-invalid={!!errors.lastName}
-                className={`w-full rounded-xl border bg-white py-2.5 pl-10 pr-4 text-sm text-[var(--kc-ink)] outline-none transition-colors placeholder:text-slate-400 ${errBorder(!!errors.lastName)}`}
+                className={`w-full rounded-xl border bg-white py-2.5 pl-10 pr-4 text-base text-[var(--kc-ink)] outline-none transition-colors placeholder:text-slate-400 ${errBorder(!!errors.lastName)}`}
               />
             </div>
             <FieldError msg={errors.lastName} />
@@ -409,7 +408,7 @@ export function RegisterModal() {
 
         <div className="grid grid-cols-2 gap-4">
           <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium text-[var(--kc-ink)]">อีเมล<RequiredStar /></label>
+            <label className="text-base font-medium text-[var(--kc-ink)]">อีเมล<RequiredStar /></label>
             <div className="relative">
               <Mail className="absolute left-3.5 top-1/2 size-4.5 -translate-y-1/2 text-[var(--kc-sage)]" />
               <input
@@ -420,13 +419,13 @@ export function RegisterModal() {
                 required
                 autoComplete="email"
                 aria-invalid={!!errors.email}
-                className={`w-full rounded-xl border bg-white py-2.5 pl-10 pr-4 text-sm text-[var(--kc-ink)] outline-none transition-colors placeholder:text-slate-400 ${errBorder(!!errors.email)}`}
+                className={`w-full rounded-xl border bg-white py-2.5 pl-10 pr-4 text-base text-[var(--kc-ink)] outline-none transition-colors placeholder:text-slate-400 ${errBorder(!!errors.email)}`}
               />
             </div>
             <FieldError msg={errors.email} />
           </div>
           <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium text-[var(--kc-ink)]">เบอร์โทร</label>
+            <label className="text-base font-medium text-[var(--kc-ink)]">เบอร์โทร</label>
             <div className="relative">
               <Phone className="absolute left-3.5 top-1/2 size-4.5 -translate-y-1/2 text-[var(--kc-sage)]" />
               <input
@@ -436,7 +435,7 @@ export function RegisterModal() {
                 onChange={(e) => setPhone(formatThaiPhone(e.target.value))}
                 placeholder="090-xxxx-xxxx"
                 maxLength={12}
-                className="w-full rounded-xl border border-[var(--kc-border-input)] bg-white py-2.5 pl-10 pr-4 text-sm text-[var(--kc-ink)] outline-none transition-colors placeholder:text-slate-400 focus:border-[var(--kc-green)] focus:ring-1 focus:ring-[var(--kc-green)]"
+                className="w-full rounded-xl border border-[var(--kc-border-input)] bg-white py-2.5 pl-10 pr-4 text-base text-[var(--kc-ink)] outline-none transition-colors placeholder:text-slate-400 focus:border-[var(--kc-green)] focus:ring-1 focus:ring-[var(--kc-green)]"
               />
             </div>
           </div>
@@ -444,7 +443,7 @@ export function RegisterModal() {
 
         <div className="flex flex-col gap-2">
           <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium text-[var(--kc-ink)]">รหัสผ่าน<RequiredStar /></label>
+            <label className="text-base font-medium text-[var(--kc-ink)]">รหัสผ่าน<RequiredStar /></label>
             <div className="relative">
               <Lock className="absolute left-3.5 top-1/2 size-4.5 -translate-y-1/2 text-[var(--kc-sage)]" />
               <input
@@ -455,7 +454,7 @@ export function RegisterModal() {
                 required
                 minLength={6}
                 aria-invalid={!!errors.password}
-                className={`w-full rounded-xl border bg-white py-2.5 pl-10 pr-10 text-sm text-[var(--kc-ink)] outline-none transition-colors placeholder:text-slate-400 ${errBorder(!!errors.password)}`}
+                className={`w-full rounded-xl border bg-white py-2.5 pl-10 pr-10 text-base text-[var(--kc-ink)] outline-none transition-colors placeholder:text-slate-400 ${errBorder(!!errors.password)}`}
               />
               <button
                 type="button"
@@ -475,7 +474,7 @@ export function RegisterModal() {
             <FieldError msg={errors.password} />
           </div>
           <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium text-[var(--kc-ink)]">ยืนยันรหัสผ่าน<RequiredStar /></label>
+            <label className="text-base font-medium text-[var(--kc-ink)]">ยืนยันรหัสผ่าน<RequiredStar /></label>
             <div className="relative">
               <Lock className="absolute left-3.5 top-1/2 size-4.5 -translate-y-1/2 text-[var(--kc-sage)]" />
               <input
@@ -486,7 +485,7 @@ export function RegisterModal() {
                 required
                 minLength={6}
                 aria-invalid={!!errors.confirmPwd}
-                className={`w-full rounded-xl border bg-white py-2.5 pl-10 pr-10 text-sm text-[var(--kc-ink)] outline-none transition-colors placeholder:text-slate-400 ${errBorder(!!errors.confirmPwd)}`}
+                className={`w-full rounded-xl border bg-white py-2.5 pl-10 pr-10 text-base text-[var(--kc-ink)] outline-none transition-colors placeholder:text-slate-400 ${errBorder(!!errors.confirmPwd)}`}
               />
               <button
                 type="button"
@@ -504,12 +503,12 @@ export function RegisterModal() {
         <button
           type="submit"
           disabled={busy}
-          className="mt-2 w-full rounded-xl border-0 bg-[var(--kc-green)] py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[var(--kc-green-dark)] disabled:opacity-70 cursor-pointer"
+          className="mt-2 w-full rounded-xl border-0 bg-[var(--kc-green)] py-2.5 text-base font-semibold text-white transition-colors hover:bg-[var(--kc-green-dark)] disabled:opacity-70 cursor-pointer"
         >
           {busy ? "กำลังสมัครสมาชิก..." : "สมัครสมาชิก"}
         </button>
 
-        <p className="mt-1 text-center text-xs text-[var(--kc-muted)]">
+        <p className="mt-1 text-center text-sm text-[var(--kc-muted)]">
           เมื่อสมัครสมาชิก คุณยอมรับ{" "}
           <a href="#" className="font-medium text-[var(--kc-green)] no-underline hover:underline">
             เงื่อนไขการใช้งาน
@@ -518,16 +517,16 @@ export function RegisterModal() {
         </p>
       </form>
 
-      <div className="my-6 flex items-center gap-3">
+      <div className="mt-3 mb-6 flex items-center gap-3">
         <div className="h-px flex-1 bg-[var(--kc-border-input)]"></div>
-        <span className="text-xs font-medium uppercase text-[var(--kc-sage)]">หรือ</span>
+        <span className="text-sm font-medium uppercase text-[var(--kc-sage)]">หรือ</span>
         <div className="h-px flex-1 bg-[var(--kc-border-input)]"></div>
       </div>
 
       <div className="flex flex-col gap-2.5">
         <a
           href="/api/auth/line"
-          className="flex w-full items-center justify-center gap-3 rounded-xl border-0 bg-[#06C755] py-2.5 text-sm font-semibold text-white no-underline transition-colors hover:bg-[#05b34c]"
+          className="flex w-full items-center justify-center gap-3 rounded-xl border-0 bg-[#06C755] py-2.5 text-base font-semibold text-white no-underline transition-colors hover:bg-[#05b34c]"
         >
           <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
             <path d="M19.365 9.863c.349 0 .63.285.63.631 0 .345-.281.63-.63.63H17.61v1.125h1.755c.349 0 .63.283.63.63 0 .344-.281.629-.63.629h-2.386c-.345 0-.627-.285-.627-.629V8.108c0-.345.282-.63.63-.63h2.386c.346 0 .627.285.627.63 0 .349-.281.63-.63.63H17.61v1.125h1.755zm-3.855 3.016c0 .27-.174.51-.432.596-.064.021-.133.031-.199.031-.211 0-.391-.09-.51-.25l-2.443-3.317v2.94c0 .344-.279.629-.631.629-.346 0-.626-.285-.626-.629V8.108c0-.271.173-.51.43-.595.06-.023.136-.033.194-.033.195 0 .375.104.495.254l2.462 3.33V8.108c0-.345.282-.63.63-.63.345 0 .63.285.63.63v4.771zm-5.741 0c0 .344-.282.629-.631.629-.345 0-.627-.285-.627-.629V8.108c0-.345.282-.63.63-.63.346 0 .628.285.628.63v4.771zm-2.466.629H4.917c-.345 0-.63-.285-.63-.629V8.108c0-.345.285-.63.63-.63.348 0 .63.285.63.63v4.141h1.756c.348 0 .629.283.629.63 0 .344-.282.629-.629.629M24 10.314C24 4.943 18.615.572 12 .572S0 4.943 0 10.314c0 4.811 4.27 8.842 10.035 9.608.391.082.923.258 1.058.59.12.301.079.766.038 1.08l-.164 1.02c-.045.301-.24 1.186 1.049.645 1.291-.539 6.916-4.078 9.436-6.975C23.176 14.393 24 12.458 24 10.314" />
@@ -537,7 +536,7 @@ export function RegisterModal() {
 
         <a
           href="/api/auth/google"
-          className="flex w-full items-center justify-center gap-3 rounded-xl border border-[var(--kc-border-input)] bg-white py-2.5 text-sm font-semibold text-[var(--kc-ink)] no-underline transition-colors hover:bg-slate-50"
+          className="flex w-full items-center justify-center gap-3 rounded-xl border border-[var(--kc-border-input)] bg-white py-2.5 text-base font-semibold text-[var(--kc-ink)] no-underline transition-colors hover:bg-slate-50"
         >
           <svg width="20" height="20" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
             <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4" />
@@ -550,7 +549,7 @@ export function RegisterModal() {
 
         <a
           href="/api/auth/facebook"
-          className="flex w-full items-center justify-center gap-3 rounded-xl border-0 bg-[#1877F2] py-2.5 text-sm font-semibold text-white no-underline transition-colors hover:bg-[#166fe5]"
+          className="flex w-full items-center justify-center gap-3 rounded-xl border-0 bg-[#1877F2] py-2.5 text-base font-semibold text-white no-underline transition-colors hover:bg-[#166fe5]"
         >
           <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
             <path d="M22 12c0-5.5-4.5-10-10-10S2 6.5 2 12c0 5 3.7 9.2 8.5 9.9v-7h-2.5v-2.9h2.5V9.5c0-2.5 1.5-3.9 3.8-3.9 1.1 0 2 .1 2.2.1v2.5h-1.5c-1.2 0-1.5.6-1.5 1.5v2h3l-.4 2.9h-2.5V22c4.8-.7 8.5-4.9 8.5-9.9z" />
@@ -559,7 +558,7 @@ export function RegisterModal() {
         </a>
       </div>
 
-      <div className="mt-8 text-center text-sm font-medium text-[var(--kc-muted)]">
+      <div className="mt-4 text-center text-base font-medium text-[var(--kc-muted)]">
         มีบัญชีอยู่แล้ว?{" "}
         <a
           onClick={(e) => {
