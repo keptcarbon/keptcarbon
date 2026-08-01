@@ -58,17 +58,16 @@ export async function GET(request: NextRequest) {
     const pictureUrl = profile.picture?.data?.url || "";
     const facebookId = profile.id as string;
 
-    // Upsert user in DB
+    // Upsert user in DB. On an email conflict, this LINKS the Facebook identity
+    // to whatever account already owns that email — it must not overwrite
+    // provider/username/name, or a local (password) account becomes
+    // unreachable via password login (provider would no longer be 'local').
     const result = await pool.query(
       `INSERT INTO tbl_users (email, username, first_name, last_name, display_name, picture_url, provider, facebook_user_id, role)
        VALUES ($1, $2, $3, $4, $5, $6, 'facebook', $7, 'user')
        ON CONFLICT (email) DO UPDATE SET
          picture_url = EXCLUDED.picture_url,
-         first_name = EXCLUDED.first_name,
-         last_name = EXCLUDED.last_name,
-         display_name = EXCLUDED.display_name,
-         provider = EXCLUDED.provider,
-         facebook_user_id = COALESCE(EXCLUDED.facebook_user_id, tbl_users.facebook_user_id)
+         facebook_user_id = EXCLUDED.facebook_user_id
        RETURNING id, email, role, provider`,
       [email, `facebook_${facebookId?.slice(0, 8) || email}`, firstName, lastName, displayName, pictureUrl, facebookId]
     );

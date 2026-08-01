@@ -69,7 +69,7 @@ export default function ProfilePage() {
                 {/* ── Page title ── */}
                 <div className="mb-4">
                     <h1 className="fw-bold mb-1" style={{ letterSpacing: "-0.02em", color: "#1a3d2b", fontSize: 26 }}>บัญชีผู้ใช้งาน</h1>
-                    <div style={{ fontSize: 14, color: "#5a7a65" }}>จัดการข้อมูลส่วนตัวและการเข้าสู่ระบบของคุณ</div>
+                    <div style={{ fontSize: 16, color: "#5a7a65" }}>จัดการข้อมูลส่วนตัวและการเข้าสู่ระบบของคุณ</div>
                 </div>
 
                 {/* ── Two-column: identity rail + form ── */}
@@ -100,14 +100,14 @@ export default function ProfilePage() {
                             <div style={{ fontSize: 13, color: "#5a7a65", wordBreak: "break-all" }}>{user.email || user.username}</div>
                         </div>
                         <div style={{ padding: "16px 20px", display: "flex", flexDirection: "column", gap: 10 }}>
-                            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: 13 }}>
+                            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: 14 }}>
                                 <span style={{ color: "#5a7a65", fontWeight: 600 }}>สิทธิ์การใช้งาน</span>
                                 <span style={{ background: "#edfaf3", color: "#1e7a47", fontWeight: 700, fontSize: 12, padding: "4px 10px", borderRadius: 50 }}>
                                     <i className="bi bi-shield-check me-1" />
                                     {user.role === "admin" ? "ผู้ดูแลระบบ" : "ผู้ใช้งานทั่วไป"}
                                 </span>
                             </div>
-                            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: 13 }}>
+                            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: 14 }}>
                                 <span style={{ color: "#5a7a65", fontWeight: 600 }}>การเข้าสู่ระบบ</span>
                                 {user.provider === "line" ? (
                                     <span style={{ background: "#06C755", color: "#fff", fontWeight: 700, fontSize: 12, padding: "4px 10px", borderRadius: 50 }}>
@@ -125,8 +125,8 @@ export default function ProfilePage() {
                     {/* Right: form card */}
                     <div style={{ flex: 1, width: "100%", background: "#ffffff", border: "1px solid #e6f0ea", borderRadius: 16, boxShadow: "0 1px 2px rgba(16,40,28,0.04)", padding: "28px 28px 24px" }}>
                         <div className="mb-4">
-                            <div className="fw-bold" style={{ color: "#1a3d2b", fontSize: 16 }}>แก้ไขข้อมูลส่วนตัว</div>
-                            <div style={{ fontSize: 13, color: "#5a7a65", marginTop: 2 }}>ข้อมูลนี้จะแสดงในระบบและใช้ติดต่อคุณ</div>
+                            <div className="fw-bold" style={{ color: "#1a3d2b", fontSize: 18 }}>แก้ไขข้อมูลส่วนตัว</div>
+                            <div style={{ fontSize: 14, color: "#5a7a65", marginTop: 2 }}>ข้อมูลนี้จะแสดงในระบบและใช้ติดต่อคุณ</div>
                         </div>
 
                         {message && (
@@ -144,29 +144,28 @@ export default function ProfilePage() {
                         <form onSubmit={handleSubmit}>
                             <div className="row g-4 mb-4">
                                 <div className="col-md-6">
-                                    <label className="fw-medium mb-2 d-block" style={{ fontSize: 13, color: "#1a3d2b" }}>
+                                    <label className="fw-medium mb-2 d-block" style={{ fontSize: 14, color: "#1a3d2b" }}>
                                         ชื่อ <span style={{ color: "#ef4444" }}>*</span>
                                     </label>
                                     <input type="text" style={INPUT_STYLE} value={firstname} onChange={(e) => setFirstname(e.target.value)} placeholder="กรอกชื่อของคุณ" required />
                                 </div>
                                 <div className="col-md-6">
-                                    <label className="fw-medium mb-2 d-block" style={{ fontSize: 13, color: "#1a3d2b" }}>
+                                    <label className="fw-medium mb-2 d-block" style={{ fontSize: 14, color: "#1a3d2b" }}>
                                         นามสกุล
                                     </label>
                                     <input type="text" style={INPUT_STYLE} value={lastname} onChange={(e) => setLastname(e.target.value)} placeholder="กรอกนามสกุลของคุณ" />
                                 </div>
                                 <div className="col-md-6">
-                                    <label className="fw-medium mb-2 d-block" style={{ fontSize: 13, color: "#1a3d2b" }}>อีเมล / ชื่อผู้ใช้</label>
+                                    <label className="fw-medium mb-2 d-block" style={{ fontSize: 14, color: "#1a3d2b" }}>อีเมล / ชื่อผู้ใช้</label>
                                     <input type="text" style={{ ...INPUT_STYLE, background: "#f3f4f6", color: "#9ca3af" }} value={user.email || user.username || ""} disabled />
-                                    <div className="mt-1" style={{ fontSize: 12, color: "#9ca3af" }}>ข้อมูลบัญชีไม่สามารถเปลี่ยนแปลงได้</div>
                                 </div>
                                 <div className="col-md-6">
-                                    <label className="fw-medium mb-2 d-block" style={{ fontSize: 13, color: "#1a3d2b" }}>เบอร์โทรศัพท์</label>
+                                    <label className="fw-medium mb-2 d-block" style={{ fontSize: 14, color: "#1a3d2b" }}>เบอร์โทรศัพท์</label>
                                     <input type="tel" inputMode="numeric" maxLength={12} style={INPUT_STYLE} value={phone} onChange={(e) => setPhone(formatThaiPhone(e.target.value))} placeholder="090-xxxx-xxxx" />
                                 </div>
                             </div>
 
-                            <div className="d-flex justify-content-end pt-4" style={{ borderTop: "1px solid #f1f5f9" }}>
+                            <div className="d-flex justify-content-center pt-4" style={{ borderTop: "1px solid #f1f5f9" }}>
                                 <button
                                     type="submit"
                                     className="btn"
@@ -181,6 +180,7 @@ export default function ProfilePage() {
                                         fontSize: "0.875rem",
                                         boxShadow: "none",
                                         transition: "all 0.15s ease",
+                                        width: "50%",
                                     }}
                                 >
                                     {loading

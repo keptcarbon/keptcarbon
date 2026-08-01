@@ -148,16 +148,16 @@ export default function Header() {
                   <div className="w-52 overflow-hidden rounded-xl border border-[var(--kc-border-input)] bg-white shadow-[var(--kc-shadow-card)]">
                     {/* User info */}
                     <div className="border-b border-[var(--kc-border-input)] px-4 py-3">
-                      <p className="m-0 text-sm font-semibold text-[var(--kc-ink)]">
+                      <p className="m-0 text-base font-semibold text-[var(--kc-ink)]">
                         {user.displayName}
                       </p>
-                      <p className="m-0 mt-0.5 truncate text-xs text-[var(--kc-sage)]">
+                      <p className="m-0 mt-0.5 truncate text-[13px] text-[var(--kc-sage)]">
                         {user.email}
                       </p>
                     </div>
                     <Link
                       href="/my-plots"
-                      className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-[var(--kc-ink)] no-underline transition-colors hover:bg-[var(--kc-green-50)]"
+                      className="flex items-center gap-2.5 px-4 py-2.5 text-base text-[var(--kc-ink)] no-underline transition-colors hover:bg-[var(--kc-green-50)]"
                       onClick={() => setAvatarOpen(false)}
                     >
                       <MapPinned className="size-4 text-[var(--kc-sage)]" />
@@ -165,7 +165,7 @@ export default function Header() {
                     </Link>
                     <Link
                       href="/profile"
-                      className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-[var(--kc-ink)] no-underline transition-colors hover:bg-[var(--kc-green-50)]"
+                      className="flex items-center gap-2.5 px-4 py-2.5 text-base text-[var(--kc-ink)] no-underline transition-colors hover:bg-[var(--kc-green-50)]"
                       onClick={() => setAvatarOpen(false)}
                     >
                       <User className="size-4 text-[var(--kc-sage)]" />
@@ -176,7 +176,7 @@ export default function Header() {
                         <div className="mx-4 border-t border-[var(--kc-border-input)]" />
                         <Link
                           href="/admin/users"
-                          className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-[var(--kc-ink)] no-underline transition-colors hover:bg-[var(--kc-green-50)]"
+                          className="flex items-center gap-2.5 px-4 py-2.5 text-base text-[var(--kc-ink)] no-underline transition-colors hover:bg-[var(--kc-green-50)]"
                           onClick={() => setAvatarOpen(false)}
                         >
                           <Shield className="size-4 text-[var(--kc-sage)]" />
@@ -187,7 +187,7 @@ export default function Header() {
                     <div className="mx-4 border-t border-[var(--kc-border-input)]" />
                     <button
                       type="button"
-                      className="flex w-full items-center gap-2.5 border-0 bg-transparent px-4 py-2.5 text-sm text-[var(--kc-error)] transition-colors hover:bg-red-50 cursor-pointer"
+                      className="flex w-full items-center gap-2.5 border-0 bg-transparent px-4 py-2.5 text-base text-[var(--kc-error)] transition-colors hover:bg-red-50 cursor-pointer"
                       onClick={() => {
                         setAvatarOpen(false);
                         onLogout();

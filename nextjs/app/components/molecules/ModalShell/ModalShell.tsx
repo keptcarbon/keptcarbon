@@ -5,6 +5,8 @@ import React, { useEffect } from "react";
 export interface ModalShellProps {
   /** Max width of modal card */
   width?: number;
+  /** Padding classes for the modal card */
+  padding?: string;
   /** Close handler */
   onClose: () => void;
   children: React.ReactNode;
@@ -12,6 +14,7 @@ export interface ModalShellProps {
 
 export default function ModalShell({
   width = 440,
+  padding = "p-6 sm:p-8",
   onClose,
   children,
 }: ModalShellProps) {
@@ -37,7 +40,7 @@ export default function ModalShell({
         style={{ maxWidth: width }}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="relative overflow-hidden rounded-2xl bg-white p-6 shadow-2xl sm:p-8 border border-[var(--kc-border-input)]">
+        <div className={`relative overflow-hidden rounded-2xl bg-white shadow-2xl border border-[var(--kc-border-input)] ${padding}`}>
           <button
             type="button"
             onClick={onClose}
