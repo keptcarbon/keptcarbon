@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
 
     // Look up by email or username
     const result = await pool.query(
-      `SELECT id, email, username, password_hash, fullname, phone, picture_url, provider, role
+      `SELECT id, email, username, password_hash, first_name, last_name, display_name, phone, picture_url, provider, role
        FROM users
        WHERE (LOWER(email) = LOWER($1) OR LOWER(username) = LOWER($1))
          AND provider = 'local'
@@ -62,7 +62,9 @@ export async function POST(request: NextRequest) {
         id: user.id,
         email: user.email,
         username: user.username,
-        fullname: user.fullname,
+        firstName: user.first_name,
+        lastName: user.last_name,
+        displayName: user.display_name,
         phone: user.phone,
         pictureUrl: user.picture_url,
         role: user.role,

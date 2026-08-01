@@ -19,24 +19,27 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { firstname, lastname, phone } = body;
+    const { firstName, lastName, phone } = body;
 
-    if (!firstname || !lastname) {
+    if (!firstName) {
       return NextResponse.json(
-        { error: "Firstname and lastname are required" },
+        { error: "First name is required" },
         { status: 400 }
       );
     }
 
-    const fullname = `${firstname} ${lastname}`.trim();
+    const first = String(firstName).trim();
+    const last = String(lastName ?? "").trim();
+    const displayName = `${first} ${last}`.trim();
     const phoneVal = phone || "";
 
+    // updated_at handled by the trg_users_updated_at trigger
     await pool.query(
-      `UPDATE users SET fullname = $1, phone = $2, updated_at = NOW() WHERE id = $3`,
-      [fullname, phoneVal, payload.userId]
+      `UPDATE users SET first_name = $1, last_name = $2, display_name = $3, phone = $4 WHERE id = $5`,
+      [first, last, displayName, phoneVal, payload.userId]
     );
 
-    return NextResponse.json({ success: true, fullname, phone: phoneVal });
+    return NextResponse.json({ success: true, firstName: first, lastName: last, displayName, phone: phoneVal });
   } catch (err) {
     console.error("Profile update error:", err);
     return NextResponse.json(

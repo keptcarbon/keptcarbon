@@ -1,80 +1,68 @@
 -- ==========================================================================
 -- Carbon Projects — บันทึกแปลงยางพาราและผลคาร์บอนของผู้ใช้แต่ละคน
 -- ==========================================================================
--- โครงสร้างใหม่:
+-- โครงสร้าง:
 --   • id             : SERIAL PRIMARY KEY (Auto Increment)
---   • user_id        : ชื่อผู้ใช้ หรือ Guest-<timestamp>-<random>
---   • project_id     : ชื่อโครงการ หรือ Guestprojects-<timestamp>-<random>
---   • plantation_info     : JSON ข้อมูลแปลง
---   • polygons_payload    : JSON ข้อมูล polygon ที่ส่งไป backend
---   • backend_responses   : JSON ผลลัพธ์จาก backend
+--   • user_uuid      : FK → users.uuid (ผู้ใช้ที่ล็อกอิน) — NULL ถ้าเป็น guest
+--   • guest_key      : คีย์สุ่มปลอดภัยของ guest เช่น Guest-XXXXXXXXXXXXXXXXXXXX — NULL ถ้าล็อกอิน
+--   • project_name   : ชื่อโครงการ เช่น "Rubber Farm Rayong"
+--   • plantation_info     : JSONB ข้อมูลแปลง
+--   • polygons_payload    : JSONB ข้อมูล polygon ที่ส่งไป backend
+--   • backend_responses   : JSONB ผลลัพธ์จาก backend
+--   • frontend_plots      : JSONB ข้อมูลสำหรับหน้า My Plots
 --   • Soft Delete    : status + deleted_at
---   • History Table  : carbon_projects_history (audit trail)
 -- ==========================================================================
 
--- ==========================================================================
--- 1) Main Table: carbon_projects
--- ==========================================================================
 CREATE TABLE IF NOT EXISTS carbon_projects (
-  -- Primary Key — Auto Increment
   id                SERIAL        PRIMARY KEY,
 
-  -- ผู้ใช้: ถ้ายังไม่ล็อกอิน → Guest-<timestamp>-<random>  เช่น Guest-1748503939-9281
-  --        ถ้าล็อกอินแล้ว   → username ของผู้ใช้            เช่น ponlakrit
-  user_id           VARCHAR(100)  NOT NULL,
+  -- เจ้าของ: ผู้ใช้ที่ล็อกอิน (user_uuid) หรือ guest (guest_key) — อย่างใดอย่างหนึ่งเสมอ
+  user_uuid         UUID          REFERENCES users(uuid),
+  guest_key         VARCHAR(100),
 
-  -- โครงการ: ถ้ายังไม่ล็อกอิน → Guestprojects-<timestamp>-<random>  เช่น Guestprojects-1748503939-1122
-  --          ถ้าล็อกอินแล้ว   → ชื่อโครงการที่ผู้ใช้ตั้ง              เช่น Rubber Farm Rayong
-  project_id        VARCHAR(255)  NOT NULL,
+  -- ชื่อโครงการ เช่น "Rubber Farm Rayong"
+  project_name      VARCHAR(255)  NOT NULL,
 
-  -- ข้อมูลแปลง (JSON) — ส่งมาทั้งก้อน
-  -- ตัวอย่าง: { "polygon_id": "parcel-0-...", "province_code": "RAY", "geometry": {...}, "area_m2": 24968.2684, "status": {...}, "lu_polygon": [...] }
-  plantation_info   JSON          NOT NULL DEFAULT '{}',
+  -- ข้อมูลแปลง (JSONB)
+  plantation_info   JSONB         NOT NULL DEFAULT '{}'::jsonb,
 
-  -- ข้อมูล polygon payload ที่ส่งไป backend (JSON array)
-  -- ตัวอย่าง: [{ "id": "plot-0", "geometry": {...}, "year_of_planting": null, ... }]
-  polygons_payload  JSON          NOT NULL DEFAULT '[]',
+  -- polygon payload ที่ส่งไป backend (JSONB array)
+  polygons_payload  JSONB         NOT NULL DEFAULT '[]'::jsonb,
 
-  -- ผลลัพธ์จาก backend (JSON array)
-  -- ตัวอย่าง: [{ "polygon_id": "plot-0", "status": {...}, "carbon_profile": [...], "estimated_parameters": {...} }]
-  backend_responses JSON          NOT NULL DEFAULT '[]',
+  -- ผลลัพธ์จาก backend (JSONB array)
+  backend_responses JSONB         NOT NULL DEFAULT '[]'::jsonb,
 
-  -- ข้อมูล Plots ที่ประมวลผลแล้วสำหรับแสดงผลหน้า My Plots (JSON array)
-  frontend_plots    JSON          NOT NULL DEFAULT '[]',
+  -- ข้อมูล Plots สำหรับหน้า My Plots (JSONB array)
+  frontend_plots    JSONB         NOT NULL DEFAULT '[]'::jsonb,
 
-  -- Soft Delete: สถานะของ record
-  --   'active'  = ใช้งานปกติ
-  --   'deleted' = ถูกลบแล้ว (ไม่แสดงหน้าเว็บ แต่ยังอยู่ใน DB)
+  -- Soft Delete
   status            VARCHAR(20)   NOT NULL DEFAULT 'active',
-
-  -- Soft Delete: เวลาที่ถูกลบ (NULL = ยังไม่ถูกลบ)
   deleted_at        TIMESTAMPTZ   DEFAULT NULL,
 
-  -- Timestamps
   created_at        TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
-  updated_at        TIMESTAMPTZ   NOT NULL DEFAULT NOW()
+  updated_at        TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
+
+  CONSTRAINT chk_project_status CHECK (status IN ('active', 'deleted')),
+  -- เจ้าของต้องเป็นประเภทเดียวพอดี (member หรือ guest)
+  CONSTRAINT chk_carbon_projects_owner CHECK (num_nonnulls(user_uuid, guest_key) = 1)
 );
 
--- Indexes สำหรับ carbon_projects
-CREATE INDEX IF NOT EXISTS idx_carbon_projects_user_id
-  ON carbon_projects (user_id);
+-- Indexes
+CREATE INDEX IF NOT EXISTS idx_carbon_projects_user_uuid    ON carbon_projects (user_uuid);
+CREATE INDEX IF NOT EXISTS idx_carbon_projects_guest_key    ON carbon_projects (guest_key);
+CREATE INDEX IF NOT EXISTS idx_carbon_projects_project_name ON carbon_projects (project_name);
+CREATE INDEX IF NOT EXISTS idx_carbon_projects_status       ON carbon_projects (status);
 
-CREATE INDEX IF NOT EXISTS idx_carbon_projects_project_id
-  ON carbon_projects (project_id);
+-- One active project per name per owner (members and guests tracked separately).
+CREATE UNIQUE INDEX IF NOT EXISTS uq_carbon_projects_user_project_active
+  ON carbon_projects (user_uuid, project_name)
+  WHERE status = 'active' AND user_uuid IS NOT NULL;
 
-CREATE INDEX IF NOT EXISTS idx_carbon_projects_status
-  ON carbon_projects (status);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_carbon_projects_guest_project_active
+  ON carbon_projects (guest_key, project_name)
+  WHERE status = 'active' AND guest_key IS NOT NULL;
 
--- Partial index: ค้นหาเฉพาะ record ที่ยังไม่ถูกลบ (ใช้บ่อยที่สุด)
-CREATE INDEX IF NOT EXISTS idx_carbon_projects_active
-  ON carbon_projects (user_id, project_id)
-  WHERE status = 'active';
-
-
-
-ALTER TABLE carbon_projects
-  ADD CONSTRAINT chk_project_status
-  CHECK (status IN ('active', 'deleted'));
-
-
-
+DROP TRIGGER IF EXISTS trg_carbon_projects_updated_at ON carbon_projects;
+CREATE TRIGGER trg_carbon_projects_updated_at
+  BEFORE UPDATE ON carbon_projects
+  FOR EACH ROW EXECUTE FUNCTION set_updated_at();

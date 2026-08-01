@@ -57,21 +57,27 @@ export async function GET(request: NextRequest) {
     }
     const profile = await profileRes.json();
     const email = profile.email as string;
-    const fullname = profile.name as string;
+    const displayName = (profile.name as string) || "";
+    // Google gives structured names; fall back to splitting the display name.
+    const firstName = (profile.given_name as string) || displayName.split(" ")[0] || "";
+    const lastName = (profile.family_name as string) ||
+      displayName.split(" ").slice(1).join(" ") || "";
     const googleUserId = profile.id || profile.sub;
     const pictureUrl = profile.picture || "";
 
     // Upsert user in DB
     const result = await pool.query(
-      `INSERT INTO users (email, username, fullname, picture_url, provider, google_user_id, role)
-       VALUES ($1, $2, $3, $4, 'google', $5, 'user')
+      `INSERT INTO users (email, username, first_name, last_name, display_name, picture_url, provider, google_user_id, role)
+       VALUES ($1, $2, $3, $4, $5, $6, 'google', $7, 'user')
        ON CONFLICT (email) DO UPDATE SET
          picture_url = EXCLUDED.picture_url,
-         fullname = EXCLUDED.fullname,
+         first_name = EXCLUDED.first_name,
+         last_name = EXCLUDED.last_name,
+         display_name = EXCLUDED.display_name,
          provider = EXCLUDED.provider,
          google_user_id = COALESCE(EXCLUDED.google_user_id, users.google_user_id)
        RETURNING id, email, role, provider`,
-      [email, `google_${googleUserId?.slice(0, 8) || email}`, fullname, pictureUrl, googleUserId]
+      [email, `google_${googleUserId?.slice(0, 8) || email}`, firstName, lastName, displayName, pictureUrl, googleUserId]
     );
 
     const dbUser = result.rows[0];

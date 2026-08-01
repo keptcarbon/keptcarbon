@@ -14,7 +14,9 @@ export type SessionUser = {
   id: number | string;
   email: string;
   username?: string;
-  fullname: string;
+  firstName: string;
+  lastName: string;
+  displayName: string;
   phone?: string;
   pictureUrl?: string;
   role: string;
@@ -47,6 +49,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (res.ok) {
         const data = await res.json();
         setUser(data.user);
+        // If a guest built projects before signing in, claim them into the
+        // account so their drawn plots follow them. Covers every login path
+        // (local + OAuth redirect) since it runs whenever a user is present.
+        if (data.user && typeof window !== "undefined") {
+          const guestKey = localStorage.getItem("guest_user_id");
+          if (guestKey) {
+            try {
+              const claimRes = await fetch("/api/plots/claim", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ guestKey }),
+              });
+              if (claimRes.ok) localStorage.removeItem("guest_user_id");
+            } catch {
+              /* non-fatal: retried on next load */
+            }
+          }
+        }
       } else {
         setUser(null);
       }

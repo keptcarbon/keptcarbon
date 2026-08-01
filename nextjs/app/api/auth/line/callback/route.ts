@@ -84,7 +84,9 @@ export async function GET(request: NextRequest) {
     // ── Database Upsert (Register or Login) ────────
     const email = `${profile.userId}@line.me`;
     const username = `line_${profile.userId.slice(0, 8)}`;
-    const fullname = profile.displayName;
+    // LINE only provides a single display name — keep it whole.
+    const displayName = profile.displayName || "";
+    const firstName = displayName;
     const pictureUrl = profile.pictureUrl || "";
 
     // Check if user exists by line_user_id
@@ -98,17 +100,17 @@ export async function GET(request: NextRequest) {
     if (dbUserResult.rows.length === 0) {
       // Auto-register LINE user
       const insertResult = await pool.query(
-        `INSERT INTO users (email, username, fullname, picture_url, provider, line_user_id, role)
-         VALUES ($1, $2, $3, $4, 'line', $5, 'user')
+        `INSERT INTO users (email, username, first_name, display_name, picture_url, provider, line_user_id, role)
+         VALUES ($1, $2, $3, $4, $5, 'line', $6, 'user')
          RETURNING id, email, role, provider`,
-        [email, username, fullname, pictureUrl, profile.userId]
+        [email, username, firstName, displayName, pictureUrl, profile.userId]
       );
       dbUser = insertResult.rows[0];
     } else {
-      // User exists, update their profile picture just in case it changed
+      // User exists, refresh picture + display name in case they changed
       await pool.query(
-        `UPDATE users SET picture_url = $1, fullname = $2 WHERE id = $3`,
-        [pictureUrl, fullname, dbUserResult.rows[0].id]
+        `UPDATE users SET picture_url = $1, display_name = $2 WHERE id = $3`,
+        [pictureUrl, displayName, dbUserResult.rows[0].id]
       );
       dbUser = dbUserResult.rows[0];
     }

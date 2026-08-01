@@ -3,22 +3,51 @@ import bcrypt from "bcryptjs";
 import { pool } from "@/lib/db";
 import { signToken, AUTH_COOKIE } from "@/lib/jwt";
 
+// Name rule (First & Last): 1–50 chars; letters (incl. Thai/Unicode), spaces, hyphens, apostrophes.
+const NAME_RE = /^[\p{L}\p{M}][\p{L}\p{M}\s'-]{0,49}$/u;
+
+// Returns an error message for an invalid (already-trimmed) name, or null when valid.
+function nameError(v: string, label: string): string | null {
+  if (!v) return `กรุณากรอก${label}`;
+  if (v.length > 50) return `${label}ต้องมีความยาวไม่เกิน 50 ตัวอักษร`;
+  if (!NAME_RE.test(v)) return `${label}ใช้ได้เฉพาะตัวอักษร เว้นวรรค ขีดกลาง (-) และเครื่องหมาย '`;
+  return null;
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { email, password, fullname, phone } = body as {
+    const { email, password, firstName, lastName, phone } = body as {
       email?: string;
       password?: string;
-      fullname?: string;
+      firstName?: string;
+      lastName?: string;
       phone?: string;
     };
 
-    if (!email || !password || !fullname) {
+    if (!email || !password) {
       return NextResponse.json(
-        { error: "กรุณากรอกข้อมูลให้ครบถ้วน (ชื่อ, อีเมล, รหัสผ่าน)" },
+        { error: "กรุณากรอกข้อมูลให้ครบถ้วน (อีเมล, รหัสผ่าน)" },
         { status: 400 }
       );
     }
+
+    // Trim (normalize) before validating and saving.
+    const first = (firstName ?? "").trim();
+    const last = (lastName ?? "").trim();
+
+    // Validate both names: length 1–50 + allowed-character whitelist (mirrors the frontend).
+    const firstErr = nameError(first, "ชื่อ");
+    if (firstErr) {
+      return NextResponse.json({ error: firstErr }, { status: 400 });
+    }
+    // Last name is optional — only validate the format when something was provided.
+    const lastErr = last ? nameError(last, "นามสกุล") : null;
+    if (lastErr) {
+      return NextResponse.json({ error: lastErr }, { status: 400 });
+    }
+
+    const displayName = `${first} ${last}`.trim();
 
     if (password.length < 6) {
       return NextResponse.json(
@@ -48,10 +77,10 @@ export async function POST(request: NextRequest) {
 
     // Insert user
     const result = await pool.query(
-      `INSERT INTO users (email, username, password_hash, fullname, phone, provider, role)
-       VALUES ($1, $2, $3, $4, $5, 'local', 'user')
-       RETURNING id, email, username, fullname, phone, picture_url, provider, role`,
-      [email.trim(), username, hash, fullname.trim(), phone?.trim() || ""]
+      `INSERT INTO users (email, username, password_hash, first_name, last_name, display_name, phone, provider, role)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, 'local', 'user')
+       RETURNING id, email, username, first_name, last_name, display_name, phone, picture_url, provider, role`,
+      [email.trim(), username, hash, first, last, displayName, phone?.trim() || ""]
     );
 
     const user = result.rows[0];
@@ -70,7 +99,9 @@ export async function POST(request: NextRequest) {
         id: user.id,
         email: user.email,
         username: user.username,
-        fullname: user.fullname,
+        firstName: user.first_name,
+        lastName: user.last_name,
+        displayName: user.display_name,
         phone: user.phone,
         pictureUrl: user.picture_url,
         role: user.role,

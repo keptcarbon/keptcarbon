@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { pool } from "@/lib/db";
 import { verifyToken, AUTH_COOKIE } from "@/lib/jwt";
-import { getUserIdentifier, mergeRawField, rowToProject } from "@/lib/carbon-projects";
+import { getUserUuid, mergeRawField, rowToProject } from "@/lib/carbon-projects";
 
 
 // ---------------------------------------------------------------------------
@@ -35,16 +35,16 @@ export async function GET(
 
     // ตรวจสอบสิทธิ์: admin ดูได้ทุกอัน / เจ้าของเท่านั้น
     if (payload?.role !== "admin") {
-      const userId = payload
-        ? await getUserIdentifier(payload)
-        : null;
-      if (userId !== row.user_id) {
-        // Guest ต้องส่ง guest_user_id มา
-        const { searchParams } = new URL(request.url);
-        const guestUserId = searchParams.get("guest_user_id");
-        if (guestUserId !== row.user_id) {
-          return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-        }
+      const userUuid = payload ? await getUserUuid(payload) : null;
+      const isOwner = row.user_uuid
+        ? userUuid === row.user_uuid
+        : (() => {
+            // Guest project → ต้องส่ง guest_key ที่ตรงกันมา
+            const { searchParams } = new URL(request.url);
+            return searchParams.get("guest_user_id") === row.guest_key;
+          })();
+      if (!isOwner) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
       }
     }
 
@@ -95,16 +95,13 @@ export async function PATCH(
 
       const oldRow = existing.rows[0];
 
-      // ตรวจสอบสิทธิ์
+      // ตรวจสอบสิทธิ์: เจ้าของ (uuid ตรงกัน) หรือ guest ที่ถือ guest_key ตรงกัน
       if (payload?.role !== "admin") {
-        const userId = payload
-          ? await getUserIdentifier(payload)
-          : body.userId;
-
-        // ถ้าโปรเจกต์นี้เป็นของ guest (user_id ขึ้นต้นด้วย guest_) อนุญาตให้อัปเดตได้สำหรับ session ปัจจุบัน
-        const isGuestProject = oldRow.user_id?.startsWith("guest_");
-
-        if (!isGuestProject && userId !== oldRow.user_id) {
+        const userUuid = payload ? await getUserUuid(payload) : null;
+        const isOwner = oldRow.user_uuid
+          ? userUuid === oldRow.user_uuid
+          : body.userId === oldRow.guest_key;
+        if (!isOwner) {
           await client.query("ROLLBACK");
           return NextResponse.json({ error: "Forbidden" }, { status: 403 });
         }
@@ -121,7 +118,7 @@ export async function PATCH(
       };
 
       const fieldMap: Record<string, { col: string; json: boolean }> = {
-        projectId: { col: "project_id", json: false },
+        projectId: { col: "project_name", json: false },
         plantationInfo: { col: "plantation_info", json: true },
         polygonsPayload: { col: "polygons_payload", json: true },
         backendResponses: { col: "backend_responses", json: true },
@@ -166,7 +163,7 @@ export async function PATCH(
       values.push(projectId);
       const updateResult = await client.query(
         `UPDATE carbon_projects
-         SET ${setClauses.join(", ")}, updated_at = NOW()
+         SET ${setClauses.join(", ")}
          WHERE id = $${values.length} AND status = 'active'
          RETURNING *`,
         values
@@ -238,21 +235,22 @@ export async function DELETE(
 
       const oldRow = existing.rows[0];
 
-      // ตรวจสอบสิทธิ์
+      // ตรวจสอบสิทธิ์: เจ้าของ (uuid ตรงกัน) หรือ guest ที่ถือ guest_key ตรงกัน
       if (payload?.role !== "admin") {
-        const userId = payload
-          ? await getUserIdentifier(payload)
-          : guestUserId;
-        if (userId !== oldRow.user_id) {
+        const userUuid = payload ? await getUserUuid(payload) : null;
+        const isOwner = oldRow.user_uuid
+          ? userUuid === oldRow.user_uuid
+          : guestUserId === oldRow.guest_key;
+        if (!isOwner) {
           await client.query("ROLLBACK");
           return NextResponse.json({ error: "Forbidden" }, { status: 403 });
         }
       }
 
-      // Soft Delete: เปลี่ยน status เป็น 'deleted'
+      // Soft Delete: เปลี่ยน status เป็น 'deleted' (updated_at handled by trigger)
       await client.query(
         `UPDATE carbon_projects
-         SET status = 'deleted', deleted_at = NOW(), updated_at = NOW()
+         SET status = 'deleted', deleted_at = NOW()
          WHERE id = $1`,
         [projectId]
       );
