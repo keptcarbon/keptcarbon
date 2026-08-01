@@ -799,7 +799,7 @@ export function ParcelResultsPanel({
 
     // Removed: if (!(searchRunning || searchErr || searchCount !== null)) return null;
 
-    const handleSave = async (overrideResults?: CarbonResult[], overrideResponses?: any[], overridePolygons?: PlantationPolygon[], opts?: { forceGuest?: boolean }) => {
+    const handleSave = async (overrideResults?: CarbonResult[], overrideResponses?: any[], overridePolygons?: CarbonAssessRequest[], opts?: { forceGuest?: boolean }) => {
         if (user && isDuplicateProjectName) {
             setCarbonErr("ชื่อโครงการนี้ถูกใช้งานแล้ว กรุณาใช้ชื่ออื่น");
             return;
