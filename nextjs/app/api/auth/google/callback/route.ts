@@ -2,6 +2,7 @@ import { NextResponse, NextRequest } from "next/server";
 import { GOOGLE_CONFIG } from "@/lib/google-config";
 import { pool } from "@/lib/db";
 import { signToken, AUTH_COOKIE } from "@/lib/jwt";
+import { logAuthEvent } from "@/lib/auth-log";
 
 /**
  * GET /api/auth/google/callback
@@ -75,7 +76,7 @@ export async function GET(request: NextRequest) {
        ON CONFLICT (email) DO UPDATE SET
          picture_url = EXCLUDED.picture_url,
          google_user_id = EXCLUDED.google_user_id
-       RETURNING id, email, role, provider`,
+       RETURNING id, uuid, email, role, provider`,
       [email, `google_${googleUserId?.slice(0, 8) || email}`, firstName, lastName, displayName, pictureUrl, googleUserId]
     );
 
@@ -88,6 +89,8 @@ export async function GET(request: NextRequest) {
       role: dbUser.role,
       provider: dbUser.provider,
     });
+
+    await logAuthEvent(request, { userUuid: dbUser.uuid, email: dbUser.email, eventType: "login", provider: "google" });
 
     const response = NextResponse.redirect(new URL("/", baseUrl));
     response.cookies.set(AUTH_COOKIE, token, {

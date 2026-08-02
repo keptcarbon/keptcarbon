@@ -180,7 +180,7 @@ export default function Header() {
                           onClick={() => setAvatarOpen(false)}
                         >
                           <Shield className="size-4 text-[var(--kc-sage)]" />
-                          จัดการผู้ใช้
+                          จัดการข้อมูล
                         </Link>
                       </>
                     )}
@@ -321,14 +321,14 @@ export default function Header() {
                   </div>
                   <Link
                     href="/admin/users"
-                    className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium no-underline transition-colors ${pathname === "/admin/users"
+                    className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium no-underline transition-colors ${pathname.startsWith("/admin")
                       ? "bg-[var(--kc-green-50)] text-[var(--kc-green)]"
                       : "text-[var(--kc-ink)] hover:bg-[var(--kc-green-50)]"
                       }`}
                     onClick={closeNav}
                   >
                     <Shield className="size-4 shrink-0 opacity-60" />
-                    จัดการผู้ใช้
+                    จัดการข้อมูล
                   </Link>
                 </>
               )}

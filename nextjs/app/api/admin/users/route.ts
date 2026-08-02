@@ -10,7 +10,7 @@ export async function GET(request: NextRequest) {
   try {
     const result = await pool.query(
       `SELECT id, email, username, first_name AS "firstName", last_name AS "lastName",
-              display_name AS "displayName", phone, role, created_at AS "createdAt"
+              display_name AS "displayName", phone, picture_url AS "pictureUrl", role, created_at AS "createdAt"
        FROM tbl_users
        ORDER BY created_at DESC`
     );

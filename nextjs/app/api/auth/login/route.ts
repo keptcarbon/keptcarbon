@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { pool } from "@/lib/db";
 import { signToken, AUTH_COOKIE } from "@/lib/jwt";
+import { logAuthEvent } from "@/lib/auth-log";
 
 /**
  * POST /api/auth/login
@@ -26,7 +27,7 @@ export async function POST(request: NextRequest) {
     // Google using the same email), so provider alone isn't a reliable
     // signal of whether password login should work.
     const result = await pool.query(
-      `SELECT id, email, username, password_hash, first_name, last_name, display_name, phone, picture_url, provider, role
+      `SELECT id, uuid, email, username, password_hash, first_name, last_name, display_name, phone, picture_url, provider, role
        FROM tbl_users
        WHERE (LOWER(email) = LOWER($1) OR LOWER(username) = LOWER($1))
          AND password_hash IS NOT NULL
@@ -59,6 +60,8 @@ export async function POST(request: NextRequest) {
       role: user.role,
       provider: user.provider,
     });
+
+    await logAuthEvent(request, { userUuid: user.uuid, email: user.email, eventType: "login", provider: "local" });
 
     const res = NextResponse.json({
       success: true,

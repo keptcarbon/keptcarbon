@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { LINE_CONFIG } from "@/lib/line-config";
 import { pool } from "@/lib/db";
 import { signToken, AUTH_COOKIE } from "@/lib/jwt";
+import { logAuthEvent } from "@/lib/auth-log";
 
 /**
  * LINE OAuth profile response shape
@@ -91,7 +92,7 @@ export async function GET(request: NextRequest) {
 
     // Check if user exists by line_user_id
     let dbUserResult = await pool.query(
-      `SELECT id, email, role, provider FROM tbl_users WHERE line_user_id = $1 LIMIT 1`,
+      `SELECT id, uuid, email, role, provider FROM tbl_users WHERE line_user_id = $1 LIMIT 1`,
       [profile.userId]
     );
 
@@ -102,7 +103,7 @@ export async function GET(request: NextRequest) {
       const insertResult = await pool.query(
         `INSERT INTO tbl_users (email, username, first_name, display_name, picture_url, provider, line_user_id, role)
          VALUES ($1, $2, $3, $4, $5, 'line', $6, 'user')
-         RETURNING id, email, role, provider`,
+         RETURNING id, uuid, email, role, provider`,
         [email, username, firstName, displayName, pictureUrl, profile.userId]
       );
       dbUser = insertResult.rows[0];
@@ -122,6 +123,8 @@ export async function GET(request: NextRequest) {
       role: dbUser.role,
       provider: dbUser.provider,
     });
+
+    await logAuthEvent(request, { userUuid: dbUser.uuid, email: dbUser.email, eventType: "login", provider: "line" });
 
     // Redirect to home page
     const response = NextResponse.redirect(new URL("/", baseUrl));

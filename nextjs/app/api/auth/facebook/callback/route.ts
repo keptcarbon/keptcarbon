@@ -2,6 +2,7 @@ import { NextResponse, NextRequest } from "next/server";
 import { FACEBOOK_CONFIG } from "@/lib/facebook-config";
 import { pool } from "@/lib/db";
 import { signToken, AUTH_COOKIE } from "@/lib/jwt";
+import { logAuthEvent } from "@/lib/auth-log";
 
 /**
  * GET /api/auth/facebook/callback
@@ -68,7 +69,7 @@ export async function GET(request: NextRequest) {
        ON CONFLICT (email) DO UPDATE SET
          picture_url = EXCLUDED.picture_url,
          facebook_user_id = EXCLUDED.facebook_user_id
-       RETURNING id, email, role, provider`,
+       RETURNING id, uuid, email, role, provider`,
       [email, `facebook_${facebookId?.slice(0, 8) || email}`, firstName, lastName, displayName, pictureUrl, facebookId]
     );
     const dbUser = result.rows[0];
@@ -80,6 +81,8 @@ export async function GET(request: NextRequest) {
       role: dbUser.role,
       provider: dbUser.provider,
     });
+
+    await logAuthEvent(request, { userUuid: dbUser.uuid, email: dbUser.email, eventType: "login", provider: "facebook" });
 
     const response = NextResponse.redirect(new URL("/", baseUrl));
     response.cookies.set(AUTH_COOKIE, token, {
