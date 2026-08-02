@@ -3128,13 +3128,13 @@ nextjs-portal,
 }
 
 .mds-panel-topbar-close {
-  width: 32px;
-  height: 32px;
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
   background: #f3f4f6;
-  border: 1.5px solid #e5e7eb;
+  border: 2px solid #e5e7eb;
   color: #9ca3af;
-  font-size: 14px;
+  font-size: 18px;
   display: flex;
   align-items: center;
   justify-content: center;

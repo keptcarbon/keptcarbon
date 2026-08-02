@@ -9,7 +9,7 @@ export function NodeWarningPopup({ open, onClose }: { open: boolean; onClose: ()
         </div>
         <div className="mds-node-warn-content">
           <h3>ไม่สามารถลบจุดได้</h3>
-          <p>แปลงที่วาดต้องมีอย่างน้อย 3 จุด<br />จึงจะสร้างพื้นที่แปลงได้</p>
+          <p>แปลงที่วาดต้องมี ≥ 3 จุด<br />จึงจะสร้างพื้นที่แปลงได้</p>
         </div>
         <button className="mds-node-warn-btn" onClick={onClose}>
           รับทราบ
