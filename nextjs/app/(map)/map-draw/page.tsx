@@ -15,7 +15,7 @@ import {
   detectUtmZoneAuto,
   sanitizePolygonForApi,
 } from "@/lib/map-utils";
-import { getPlotsInfo } from "@/lib/carbon-api";
+import { getPlotsInfo, getPlotsNav } from "@/lib/carbon-api";
 import { ParcelResultsPanel } from "@/app/components/organisms";
 import { useSearchParams } from "next/navigation";
 import {
@@ -44,6 +44,9 @@ function MapDrawContent() {
   const [coordUtmZone, setCoordUtmZone] = useState<47 | 48>(47);
   const [coordE, setCoordE] = useState("");
   const [coordN, setCoordN] = useState("");
+  const [navSearching, setNavSearching] = useState(false);
+  const [navError, setNavError] = useState<string | null>(null);
+  const navMarkerRef = useRef<maplibregl.Marker | null>(null);
   const boundaryAnimRef = useRef<number>(0);
 
   useEffect(() => {
@@ -1728,6 +1731,8 @@ function MapDrawContent() {
   const startDrawFlow = async () => {
     const map = mapRef.current;
     if (!map) return;
+    navMarkerRef.current?.remove();
+    navMarkerRef.current = null;
     if (isMobile()) {
       setIsPanelOpen(false);
     } else {
@@ -1757,6 +1762,46 @@ function MapDrawContent() {
           }
         }
       }
+    }
+  };
+
+  // "ค้นหาแปลงจากพิกัด" — check the lat/lng against /plots/nav, then zoom + drop a marker if serviced
+  const handleCoordSearch = async () => {
+    const map = mapRef.current;
+    const la = parseFloat(coordLat.replace(/,/g, '')), lo = parseFloat(coordLng.replace(/,/g, ''));
+
+    if (isNaN(la) || isNaN(lo) || la < -90 || la > 90 || lo < -180 || lo > 180) {
+      setNavError("กรุณากรอกพิกัด Latitude/Longitude ให้ถูกต้อง");
+      return;
+    }
+
+    setNavSearching(true);
+    setNavError(null);
+    try {
+      const result = await getPlotsNav({ lat: la, lon: lo });
+
+      if (!result.supported) {
+        setNavError("พิกัดนี้ไม่อยู่ในพื้นที่จังหวัดที่ให้บริการ");
+        navMarkerRef.current?.remove();
+        navMarkerRef.current = null;
+        return;
+      }
+
+      if (map) {
+        map.flyTo({ center: [lo, la], zoom: 16, duration: 2400, essential: true });
+
+        if (!navMarkerRef.current) {
+          const el = document.createElement("div");
+          el.innerHTML = '<i class="bi bi-geo-alt-fill" style="font-size: 42px; color: #dc2626; filter: drop-shadow(0 2px 3px rgba(0,0,0,0.35));"></i>';
+          navMarkerRef.current = new maplibregl.Marker({ element: el, anchor: "bottom" });
+        }
+        navMarkerRef.current.setLngLat([lo, la]).addTo(map);
+      }
+    } catch (err) {
+      console.error("plots/nav search failed:", err);
+      setNavError("เกิดข้อผิดพลาดในการค้นหาพิกัด กรุณาลองใหม่อีกครั้ง");
+    } finally {
+      setNavSearching(false);
     }
   };
 
@@ -2855,11 +2900,23 @@ function MapDrawContent() {
                                   <label style={{ fontSize: 14, fontWeight: 600, color: "#64748b" }}>Longitude</label>
                                   <input className="prp-input" style={{ padding: "8px 5px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: 15, width: "100%", boxSizing: "border-box", transform: "none" }} placeholder="เช่น 100.9925" value={coordLng} onChange={e => setCoordLng(e.target.value)} />
                                 </div>
-                                {/* ค้นหา button (UI only) */}
-                                <button type="button" style={{ padding: "8px 14px", borderRadius: 8, border: "none", background: "#1e7a47", color: "#fff", fontSize: 15, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, whiteSpace: "nowrap", height: 38 }}>
-                                  <i className="bi bi-search" /> ค้นหา
+                                <button
+                                  type="button"
+                                  onClick={handleCoordSearch}
+                                  disabled={navSearching}
+                                  style={{ padding: "8px 14px", borderRadius: 8, border: "none", background: "#1e7a47", color: "#fff", fontSize: 15, fontWeight: 700, cursor: navSearching ? "not-allowed" : "pointer", opacity: navSearching ? 0.7 : 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, whiteSpace: "nowrap", height: 38 }}
+                                >
+                                  {navSearching
+                                    ? <div className="spinner-border spinner-border-sm" role="status" style={{ width: 14, height: 14, borderWidth: 2, color: "#fff" }} />
+                                    : <i className="bi bi-search" />}
+                                  {" "}ค้นหา
                                 </button>
                               </div>
+                              {navError && (
+                                <div style={{ color: "#dc2626", fontSize: 12, fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
+                                  <i className="bi bi-exclamation-circle-fill" /> {navError}
+                                </div>
+                              )}
                             </div>
                           ) : (
                             <div style={{ padding: "10px 12px", background: "#f8fbf9", border: "1px solid rgba(5,150,105,0.18)", borderRadius: 10, display: "flex", flexDirection: "column", gap: 8 }}>

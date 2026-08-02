@@ -7,3 +7,4 @@ shapely
 pyproj
 fiona
 python-multipart
+asyncpg

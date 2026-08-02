@@ -1,6 +1,16 @@
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.api.routes import carbon, plots
+from app.core.database import init_pool, close_pool
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    await init_pool()
+    yield
+    await close_pool()
 
 
 def create_application() -> FastAPI:
@@ -14,6 +24,7 @@ def create_application() -> FastAPI:
         docs_url="/api/v1/docs",
         redoc_url="/api/v1/redoc",
         openapi_url="/api/v1/openapi.json",
+        lifespan=lifespan,
     )
 
     # Configure CORS for the frontend web map to interact with the API
