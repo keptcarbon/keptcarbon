@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { useRouter } from "next/navigation";
-import { Alert, Card, Eyebrow } from "@/app/components";
+import { Alert, Card } from "@/app/components";
 
 type UserRecord = {
     id: string;
@@ -13,7 +13,7 @@ type UserRecord = {
     lastName: string;
     displayName: string;
     phone: string;
-    role: "user" | "farmer" | "editor" | "admin";
+    role: "user" | "officer" | "admin";
     createdAt: string;
 };
 
@@ -25,13 +25,12 @@ const HERO_BG =
 
 const ROLE_META: Record<UserRecord["role"], { bg: string; color: string; label: string }> = {
     admin: { bg: "#fef2f2", color: "#c53030", label: "Admin" },
-    editor: { bg: "rgba(59,130,246,0.10)", color: "#1e40af", label: "Editor" },
-    farmer: { bg: "#edfaf3", color: "#1e7a47", label: "Farmer" },
+    officer: { bg: "rgba(59,130,246,0.10)", color: "#1e40af", label: "Officer" },
     user: { bg: "#f1f6f3", color: "#5a7a65", label: "User" },
 };
 
 const TH_STYLE: React.CSSProperties = {
-    fontWeight: 700, fontSize: 11,
+    fontWeight: 700, fontSize: 13,
     textTransform: "uppercase", letterSpacing: "0.6px", color: "#5a7a65",
 };
 
@@ -179,8 +178,7 @@ export default function UserManagementPage() {
                 <div className="p-4 p-md-5" style={{ background: HERO_BG, borderBottom: "1px solid rgba(0,0,0,0.06)" }}>
                     <div className="d-flex flex-wrap align-items-start justify-content-between gap-3">
                         <div style={{ maxWidth: 640 }}>
-                            <Eyebrow icon="bi-shield-check" className="mb-2">แผงควบคุมผู้ดูแลระบบ</Eyebrow>
-                            <h1 className="fw-bold mb-2" style={{ letterSpacing: "-0.02em", color: "#1a3d2b" }}>จัดการผู้ใช้</h1>
+                            <h1 className="fw-bold mb-2" style={{ letterSpacing: "-0.02em", color: "#1a3d2b", fontSize: 26 }}>จัดการผู้ใช้</h1>
                             <div style={{ color: "#5a7a65", fontSize: 14 }}>
                                 บัญชีผู้ใช้ทั้งหมด <span className="fw-semibold" style={{ color: "#1a3d2b" }}>{users.length}</span> บัญชี
                                 {" · "}กำหนดสิทธิ์และจัดการบัญชีผู้ใช้ในระบบ
@@ -202,6 +200,7 @@ export default function UserManagementPage() {
                                 boxShadow: "none",
                                 transition: "all 0.15s ease",
                                 whiteSpace: "nowrap",
+                                width: "30%",
                             }}
                         >
                             <i className={`bi ${privacyOn ? "bi-eye" : "bi-eye-slash"} me-2`} />
@@ -221,10 +220,7 @@ export default function UserManagementPage() {
             )}
             {success && (
                 <Alert type="success" className="mb-3">
-                    <div className="d-flex align-items-start justify-content-between gap-3 w-100">
-                        <div>{success}</div>
-                        <button className="btn btn-sm btn-light border" onClick={() => setSuccess(null)}>ปิด</button>
-                    </div>
+                    {success}
                 </Alert>
             )}
 
@@ -272,7 +268,7 @@ export default function UserManagementPage() {
                                 const displayEmail = privacyOn ? maskEmail(u.email) : u.email;
                                 const displayPhone = privacyOn ? maskPhone(u.phone) : (u.phone || "-");
                                 const initial = (u.displayName?.[0] || u.email[0]).toUpperCase();
-                                const rm = ROLE_META[u.role];
+                                const rm = ROLE_META[u.role] ?? ROLE_META.user;
                                 const isSelf = u.id === user?.id;
 
                                 return (
@@ -298,26 +294,25 @@ export default function UserManagementPage() {
                                         </td>
                                         <td className="py-3">
                                             <div className="d-flex align-items-center gap-2">
-                                                <span className="badge rounded-pill" style={{ background: rm.bg, color: rm.color, fontWeight: 600, fontSize: 11, padding: "4px 10px" }}>
+                                                <span className="badge rounded-pill" style={{ background: rm.bg, color: rm.color, fontWeight: 600, fontSize: 13, padding: "4px 10px" }}>
                                                     {rm.label}
                                                 </span>
                                                 {!isSelf && (
                                                     <select
                                                         className="form-select form-select-sm"
-                                                        style={{ width: "auto", borderRadius: 8, border: "1px solid #e6f0ea", fontSize: 12, padding: "3px 8px", color: "#1a3d2b" }}
+                                                        style={{ width: "auto", borderRadius: 8, border: "1px solid #e6f0ea", fontSize: 12, padding: "3px 28px 3px 8px", color: "#1a3d2b" }}
                                                         value={u.role}
                                                         onChange={(e) => handleRoleChange(u.id, e.target.value)}
                                                     >
                                                         <option value="user">User</option>
-                                                        <option value="farmer">Farmer</option>
-                                                        <option value="editor">Editor</option>
+                                                        <option value="officer">Officer</option>
                                                         <option value="admin">Admin</option>
                                                     </select>
                                                 )}
                                             </div>
                                         </td>
                                         <td className="py-3" style={{ color: "#5a7a65" }}>{displayPhone}</td>
-                                        <td className="py-3" style={{ fontSize: 12, color: "#5a7a65" }}>
+                                        <td className="py-3" style={{ fontSize: 13, color: "#5a7a65" }}>
                                             {new Date(u.createdAt).toLocaleDateString("th-TH", { year: "numeric", month: "short", day: "numeric" })}
                                         </td>
                                         <td className="px-4 py-3 text-end">

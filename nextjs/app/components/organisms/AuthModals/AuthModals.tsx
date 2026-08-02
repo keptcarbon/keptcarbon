@@ -4,17 +4,9 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { useAuth } from "@/lib/auth-context";
-import { formatThaiPhone } from "@/lib/utils";
+import { formatThaiPhone, strengthFor } from "@/lib/utils";
 import { ModalShell } from "@/app/components/molecules";
 import { Mail, Lock, Eye, EyeOff, User as UserIcon, Phone, CheckCircle2, AlertCircle } from "lucide-react";
-
-function strengthFor(len: number): { width: string; color: string } {
-  if (len === 0) return { width: "0%", color: "transparent" };
-  if (len < 4) return { width: "25%", color: "var(--kc-danger)" };
-  if (len < 6) return { width: "50%", color: "var(--kc-warning)" };
-  if (len < 10) return { width: "75%", color: "var(--kc-warning)" };
-  return { width: "100%", color: "var(--kc-success)" };
-}
 
 type AlertState = { type: "success" | "error"; msg: string } | null;
 

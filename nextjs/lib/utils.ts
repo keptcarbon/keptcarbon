@@ -16,3 +16,12 @@ export function formatThaiPhone(raw: string): string {
   const parts = [d.slice(0, 3), d.slice(3, 6), d.slice(6, 10)].filter(Boolean);
   return parts.join("-");
 }
+
+/** Password-strength meter fill (width + color) driven by character count. */
+export function strengthFor(len: number): { width: string; color: string } {
+  if (len === 0) return { width: "0%", color: "transparent" };
+  if (len < 4) return { width: "25%", color: "var(--kc-danger)" };
+  if (len < 6) return { width: "50%", color: "var(--kc-warning)" };
+  if (len < 10) return { width: "75%", color: "var(--kc-warning)" };
+  return { width: "100%", color: "var(--kc-success)" };
+}
