@@ -33,9 +33,17 @@ import { NodeWarningPopup } from "./components/NodeWarningPopup";
 import { AreaErrorPopup } from "./components/AreaErrorPopup";
 import { ErrorPopup } from "./components/ErrorPopup";
 import { StepWarningPopup } from "./components/StepWarningPopup";
+import { GuestLimitPopup } from "./components/GuestLimitPopup";
+import { setPostAuthRedirect } from "@/lib/post-auth-redirect";
+
+/** Guests (not logged in) may draw at most this many plots. */
+const GUEST_PLOT_LIMIT = 5;
+
+/** sessionStorage key holding a guest's drawn plots across the auth flow. */
+const MAP_DRAW_RESUME_KEY = "mapDrawResume";
 
 function MapDrawContent() {
-  const { user } = useAuth();
+  const { user, openLogin, openRegister } = useAuth();
 
   const [locationMethod, setLocationMethod] = useState<"area" | "coord">("area");
   const [coordMode, setCoordMode] = useState<"latlng" | "utm">("latlng");
@@ -215,6 +223,12 @@ function MapDrawContent() {
 
   useEffect(() => {
     if (projNameParam || isEditingPlotParam) return;
+    // Returning from the guest-limit auth flow: the restore effect will zoom
+    // to the stashed plots — skip the default province auto-select, whose
+    // delayed boundary zoom (ระยอง) would override that fit.
+    try {
+      if (sessionStorage.getItem(MAP_DRAW_RESUME_KEY)) return;
+    } catch { /* storage unavailable — fall through to default */ }
     const tRegion = setTimeout(() => setSelectedRegion("ภาคตะวันออก"), 250);
     const tProvince = setTimeout(() => setSelectedProvince("ระยอง"), 2600);
     return () => { clearTimeout(tRegion); clearTimeout(tProvince); };
@@ -229,6 +243,7 @@ function MapDrawContent() {
   const [projectType, setProjectType] = useState<"replanting" | "existing" | null>(null);
   const [projectName, setProjectName] = useState(projNameParam || "");
   const [stepWarningPopup, setStepWarningPopup] = useState<boolean>(false);
+  const [guestLimitPopup, setGuestLimitPopup] = useState<boolean>(false);
   const [plotsSaved, setPlotsSaved] = useState(false);
 
   const [hiddenProjectPlots, setHiddenProjectPlots] = useState<GeoJSON.Feature[]>([]);
@@ -236,39 +251,8 @@ function MapDrawContent() {
   const [editingPlotId, setEditingPlotId] = useState<string | null>(null);
   const [autoProcessTrigger, setAutoProcessTrigger] = useState(0);
 
-  const [existingProjectNames, setExistingProjectNames] = useState<Set<string>>(new Set());
-
-  useEffect(() => {
-    let url = "";
-    if (user) {
-      url = "/api/plots";
-    } else {
-      const guestId = typeof window !== "undefined" ? localStorage.getItem("guest_user_id") : null;
-      if (guestId) url = `/api/plots?guest_user_id=${guestId}`;
-    }
-
-    if (!url) return;
-
-    fetch(url)
-      .then(res => res.ok ? res.json() : { plots: [] })
-      .then(data => {
-        const plots = Array.isArray(data.plots) ? data.plots : [];
-        const names = new Set<string>();
-        plots.forEach((p: any) => {
-          if (p.name) names.add(String(p.name).trim().toLowerCase());
-        });
-        setExistingProjectNames(names);
-      })
-      .catch(console.error);
-  }, [user]);
-
-  const isDuplicateProjectName = useMemo(() => {
-    if (!projectName.trim()) return false;
-    if (projNameParam && projectName.trim().toLowerCase() === projNameParam.trim().toLowerCase()) {
-      return false;
-    }
-    return existingProjectNames.has(projectName.trim().toLowerCase());
-  }, [projectName, projNameParam, existingProjectNames]);
+  // Duplicate-name detection now lives entirely in step 2 (ParcelResultsPanel),
+  // which validates against the user's saved plots when processing/saving.
 
   const handleStepClick = (n: number) => {
     if (n === currentStep) return;
@@ -283,7 +267,8 @@ function MapDrawContent() {
       if (currentStep === 3) {
         setCurrentStep(2);
       } else if (currentStep === 1) {
-        if (drawnParcels.length > 0 && !(user && (!projectName.trim() || isDuplicateProjectName))) {
+        // Name is collected in step 2, so a drawn plot is enough to advance.
+        if (drawnParcels.length > 0) {
           setCurrentStep(2);
         }
       }
@@ -383,6 +368,91 @@ function MapDrawContent() {
       }
     }
   }, [drawnParcels, getVertFeatures]);
+
+  // Preserve the guest's drawn plots across the auth flow. The plots only live
+  // in React state, and OAuth logins do a full-page redirect that wipes it —
+  // so stash them in sessionStorage (survives same-tab redirects) and mark
+  // where to return with a post-auth redirect.
+  const stashGuestDrawSnapshot = () => {
+    try {
+      sessionStorage.setItem(MAP_DRAW_RESUME_KEY, JSON.stringify({
+        parcels: drawnParcels,
+        // Land-use polygons from plantation-info (A302 ฯลฯ) — shown in the
+        // panel as luFeatures; without them the restore says "ไม่พบข้อมูล"
+        luFeatures: parcelFeatures,
+      }));
+    } catch { /* storage unavailable — plots are lost, but auth still works */ }
+    setPostAuthRedirect("/map-draw");
+  };
+
+  // Restore stashed guest plots after login/register. The snapshot only exists
+  // when the guest chose to auth from the limit popup, so normal visits are
+  // unaffected. Waits for the map + session user, then drops the restored
+  // plots straight into step 2 (the user is now authed — no limit).
+  const resumeLoadedRef = useRef(false);
+  useEffect(() => {
+    if (!mapLoaded || !user || resumeLoadedRef.current) return;
+    let raw: string | null = null;
+    try {
+      raw = sessionStorage.getItem(MAP_DRAW_RESUME_KEY);
+      if (raw) sessionStorage.removeItem(MAP_DRAW_RESUME_KEY);
+    } catch { /* storage unavailable */ }
+    if (!raw) return;
+    resumeLoadedRef.current = true;
+    try {
+      const data = JSON.parse(raw);
+      const feats: GeoJSON.Feature[] = Array.isArray(data?.parcels) ? data.parcels : [];
+      if (feats.length === 0) return;
+      const luFeats: GeoJSON.Feature[] = Array.isArray(data?.luFeatures) ? data.luFeatures : [];
+      setDrawnParcels(feats);
+      setCurrentStep(2);
+      setIsPanelOpen(true);
+      setSearchCount(feats.length);
+      setStatus("เข้าสู่ระบบสำเร็จ — แปลงที่วาดไว้ถูกกู้คืนแล้ว");
+
+      // Zoom to the restored plots (not the default province view)
+      const map = mapRef.current;
+      if (luFeats.length > 0) {
+        setParcelFeatures(luFeats);
+        // Repaint the land-use overlay on the map (same as the edit flow)
+        const luSrc = map?.getSource("matched-parcels") as maplibregl.GeoJSONSource | undefined;
+        if (luSrc) luSrc.setData({ type: "FeatureCollection", features: luFeats });
+      }
+      if (map) {
+        const bounds = new maplibregl.LngLatBounds();
+        feats.forEach(f => {
+          const geom = f.geometry as any;
+          const coords = geom.type === 'Polygon'
+            ? geom.coordinates[0]
+            : geom.coordinates[0][0];
+          coords.forEach((coord: any) => bounds.extend(coord));
+        });
+        if (!bounds.isEmpty()) {
+          // The panel opens in this same commit and resizes the map canvas —
+          // fitting immediately computes the view against stale dimensions and
+          // crops some plots out. Wait for the layout to settle, resize, then
+          // glide in slowly enough to keep the whole group in view.
+          window.setTimeout(() => {
+            map.resize();
+            const isMob = typeof window !== "undefined" && window.innerWidth < 768;
+            // Desktop: the panel is a fixed ~300px overlay on the right, so the
+            // visible map is the area left of it. Reserving 300px + an equal
+            // margin on both sides (left 90 / right 390 = 300 + 90) centers the
+            // group in that visible area. Tighter top/bottom + a higher maxZoom
+            // let the 5 plots fill more of the frame.
+            const pad = isMob
+              ? { top: 50, bottom: 320, left: 50, right: 50 }
+              : { top: 56, bottom: 56, left: 90, right: 390 };
+            try {
+              map.fitBounds(bounds, { padding: pad, duration: 2400, maxZoom: 17, essential: true });
+            } catch {
+              map.fitBounds(bounds, { padding: 60, duration: 2400, maxZoom: 17, essential: true });
+            }
+          }, 450);
+        }
+      }
+    } catch { /* corrupted snapshot — ignore */ }
+  }, [user, mapLoaded]);
 
   // Hide vertex nodes when not on step 1 (not editable at step 2/3)
   // Also hide existing polygon vertices while drawing to prevent accidental snapping
@@ -1729,6 +1799,13 @@ function MapDrawContent() {
   }, []);
 
   const startDrawFlow = async () => {
+    // Guests can draw at most GUEST_PLOT_LIMIT plots. Block starting another
+    // draw once they hit the cap and prompt them to log in / register.
+    // Runs on every click, so the popup re-appears each time after closing.
+    if (!user && drawnParcels.length >= GUEST_PLOT_LIMIT) {
+      setGuestLimitPopup(true);
+      return;
+    }
     const map = mapRef.current;
     if (!map) return;
     navMarkerRef.current?.remove();
@@ -2729,7 +2806,9 @@ function MapDrawContent() {
               const isActive = currentStep === n;
               const isDone = currentStep > n;
 
-              const step2Ready = drawnParcels.length > 0 && !(user && (!projectName.trim() || isDuplicateProjectName));
+              // Project name is entered in step 2 now, so reaching step 2 only
+              // requires at least one drawn plot.
+              const step2Ready = drawnParcels.length > 0;
               const isClickable =
                 (n === 1 && currentStep !== 1) ||
                 (n === 2 && (currentStep === 3 || (currentStep === 1 && step2Ready)));
@@ -2974,37 +3053,8 @@ function MapDrawContent() {
                       </div>
                     )}
 
-                    {user && (
-                      <>
-                        <div style={{ fontSize: 13, fontWeight: 700, color: "#059669", marginBottom: 6, display: "flex", alignItems: "center", gap: 6 }}>
-                          <i className="bi bi-folder2-open" /> ชื่อโครงการ <span style={{ color: "#ef4444" }}>*</span>
-                        </div>
-                        <input
-                          className="prp-input"
-                          style={{
-                            marginBottom: 0,
-                            width: "100%",
-                            padding: "10px 14px",
-                            borderRadius: "10px",
-                            border: "1px solid #cbd5e1",
-                            fontSize: "14px"
-                          }}
-                          placeholder="เช่น โครงการที่1"
-                          value={projectName}
-                          onChange={e => setProjectName(e.target.value)}
-                        />
-                        {isDuplicateProjectName && (
-                          <div style={{ color: "#dc2626", fontSize: 12, marginTop: 6, fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
-                            <i className="bi bi-exclamation-circle-fill" /> ชื่อโครงการนี้ถูกใช้งานแล้ว กรุณาใช้ชื่ออื่น
-                          </div>
-                        )}
-                        {!projectName.trim() && (
-                          <div style={{ color: "#f59e0b", fontSize: 12, marginTop: 6, fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
-                            <i className="bi bi-exclamation-circle-fill" /> กรุณากรอกชื่อโครงการเพื่อดำเนินการต่อ
-                          </div>
-                        )}
-                      </>
-                    )}
+                    {/* Project name moved to step 2 (entered alongside plot details),
+                        so it is no longer collected here in step 1. */}
                   </div>
                 )}
 
@@ -3109,13 +3159,13 @@ function MapDrawContent() {
                             onClick={startDrawFlow}
                             style={{
                               marginBottom: 0,
-                              background: ((user && (!projectName.trim() || isDuplicateProjectName)) || (drawnParcels.length === 0 && locationMethod === "area" && (!selectedRegion || !selectedProvince)) || (drawnParcels.length === 0 && locationMethod === "coord" && ((coordMode === "latlng" && (!coordLat || !coordLng)) || (coordMode === "utm" && (!coordE || !coordN)))) || isEditingPlotParam) ? "#cbd5e1" : undefined,
-                              cursor: ((user && (!projectName.trim() || isDuplicateProjectName)) || (drawnParcels.length === 0 && locationMethod === "area" && (!selectedRegion || !selectedProvince)) || (drawnParcels.length === 0 && locationMethod === "coord" && ((coordMode === "latlng" && (!coordLat || !coordLng)) || (coordMode === "utm" && (!coordE || !coordN)))) || isEditingPlotParam) ? "not-allowed" : "pointer",
-                              boxShadow: ((user && (!projectName.trim() || isDuplicateProjectName)) || (drawnParcels.length === 0 && locationMethod === "area" && (!selectedRegion || !selectedProvince)) || (drawnParcels.length === 0 && locationMethod === "coord" && ((coordMode === "latlng" && (!coordLat || !coordLng)) || (coordMode === "utm" && (!coordE || !coordN)))) || isEditingPlotParam) ? "none" : undefined,
-                              color: ((user && (!projectName.trim() || isDuplicateProjectName)) || (drawnParcels.length === 0 && locationMethod === "area" && (!selectedRegion || !selectedProvince)) || (drawnParcels.length === 0 && locationMethod === "coord" && ((coordMode === "latlng" && (!coordLat || !coordLng)) || (coordMode === "utm" && (!coordE || !coordN)))) || isEditingPlotParam) ? "#fff" : undefined,
-                              border: ((user && (!projectName.trim() || isDuplicateProjectName)) || (drawnParcels.length === 0 && locationMethod === "area" && (!selectedRegion || !selectedProvince)) || (drawnParcels.length === 0 && locationMethod === "coord" && ((coordMode === "latlng" && (!coordLat || !coordLng)) || (coordMode === "utm" && (!coordE || !coordN)))) || isEditingPlotParam) ? "none" : undefined
+                              background: ((drawnParcels.length === 0 && locationMethod === "area" && (!selectedRegion || !selectedProvince)) || (drawnParcels.length === 0 && locationMethod === "coord" && ((coordMode === "latlng" && (!coordLat || !coordLng)) || (coordMode === "utm" && (!coordE || !coordN)))) || isEditingPlotParam) ? "#cbd5e1" : undefined,
+                              cursor: ((drawnParcels.length === 0 && locationMethod === "area" && (!selectedRegion || !selectedProvince)) || (drawnParcels.length === 0 && locationMethod === "coord" && ((coordMode === "latlng" && (!coordLat || !coordLng)) || (coordMode === "utm" && (!coordE || !coordN)))) || isEditingPlotParam) ? "not-allowed" : "pointer",
+                              boxShadow: ((drawnParcels.length === 0 && locationMethod === "area" && (!selectedRegion || !selectedProvince)) || (drawnParcels.length === 0 && locationMethod === "coord" && ((coordMode === "latlng" && (!coordLat || !coordLng)) || (coordMode === "utm" && (!coordE || !coordN)))) || isEditingPlotParam) ? "none" : undefined,
+                              color: ((drawnParcels.length === 0 && locationMethod === "area" && (!selectedRegion || !selectedProvince)) || (drawnParcels.length === 0 && locationMethod === "coord" && ((coordMode === "latlng" && (!coordLat || !coordLng)) || (coordMode === "utm" && (!coordE || !coordN)))) || isEditingPlotParam) ? "#fff" : undefined,
+                              border: ((drawnParcels.length === 0 && locationMethod === "area" && (!selectedRegion || !selectedProvince)) || (drawnParcels.length === 0 && locationMethod === "coord" && ((coordMode === "latlng" && (!coordLat || !coordLng)) || (coordMode === "utm" && (!coordE || !coordN)))) || isEditingPlotParam) ? "none" : undefined
                             }}
-                            disabled={!!((user && (!projectName.trim() || isDuplicateProjectName)) || (drawnParcels.length === 0 && locationMethod === "area" && (!selectedRegion || !selectedProvince)) || (drawnParcels.length === 0 && locationMethod === "coord" && ((coordMode === "latlng" && (!coordLat || !coordLng)) || (coordMode === "utm" && (!coordE || !coordN)))) || isEditingPlotParam)}
+                            disabled={!!((drawnParcels.length === 0 && locationMethod === "area" && (!selectedRegion || !selectedProvince)) || (drawnParcels.length === 0 && locationMethod === "coord" && ((coordMode === "latlng" && (!coordLat || !coordLng)) || (coordMode === "utm" && (!coordE || !coordN)))) || isEditingPlotParam)}
                           >
                             <i className="bi bi-pencil" /> {drawnParcels.length > 0 ? "วาดแปลงเพิ่ม" : "เริ่มวาดแปลง"}
                           </button>
@@ -3123,13 +3173,12 @@ function MapDrawContent() {
                             <button
                               className="mds-btn"
                               style={{
-                                background: (user && (!projectName.trim() || isDuplicateProjectName)) ? "#cbd5e1" : "#1e7a47",
+                                background: "#1e7a47",
                                 color: "#fff",
                                 border: "none",
-                                boxShadow: (user && (!projectName.trim() || isDuplicateProjectName)) ? "none" : "0 4px 10px rgba(13,148,136,0.25)",
-                                cursor: (user && (!projectName.trim() || isDuplicateProjectName)) ? "not-allowed" : "pointer"
+                                boxShadow: "0 4px 10px rgba(13,148,136,0.25)",
+                                cursor: "pointer"
                               }}
-                              disabled={!!(user && (!projectName.trim() || isDuplicateProjectName))}
                               onClick={() => setCurrentStep(2)}
                             >
                               <i className="bi bi-arrow-right-circle" /> กรอกข้อมูลแปลง (ขั้นตอนถัดไป)
@@ -3245,6 +3294,7 @@ function MapDrawContent() {
                 onLandUseChange={handleLandUseChange}
                 onProjectTypeChange={(type) => setProjectType(type)}
                 projectName={projectName}
+                onProjectNameChange={setProjectName}
                 autoProcessTrigger={autoProcessTrigger}
                 onSave={() => setPlotsSaved(true)}
                 existingProjectPlots={existingProjectPlots}
@@ -3322,6 +3372,13 @@ function MapDrawContent() {
       )}
 
       <NodeWarningPopup open={nodeWarningPopup} onClose={() => setNodeWarningPopup(false)} />
+      <GuestLimitPopup
+        open={guestLimitPopup}
+        limit={GUEST_PLOT_LIMIT}
+        onClose={() => setGuestLimitPopup(false)}
+        onLogin={() => { stashGuestDrawSnapshot(); setGuestLimitPopup(false); openLogin(); }}
+        onRegister={() => { stashGuestDrawSnapshot(); setGuestLimitPopup(false); openRegister(); }}
+      />
 
       <AreaErrorPopup error={areaError} onClose={() => setAreaError(null)} />
 

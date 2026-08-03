@@ -3,6 +3,7 @@ import { LINE_CONFIG } from "@/lib/line-config";
 import { pool } from "@/lib/db";
 import { signToken, AUTH_COOKIE } from "@/lib/jwt";
 import { logAuthEvent } from "@/lib/auth-log";
+import { POST_AUTH_REDIRECT_COOKIE, sanitizePostAuthRedirect } from "@/lib/post-auth-redirect";
 
 /**
  * LINE OAuth profile response shape
@@ -126,8 +127,11 @@ export async function GET(request: NextRequest) {
 
     await logAuthEvent(request, { userUuid: dbUser.uuid, email: dbUser.email, eventType: "login", provider: "line" });
 
-    // Redirect to home page
-    const response = NextResponse.redirect(new URL("/", baseUrl));
+    // Return the user to where they started (e.g. the map-draw guest-limit
+    // flow) instead of always bouncing through the home page.
+    const returnTo = sanitizePostAuthRedirect(request.cookies.get(POST_AUTH_REDIRECT_COOKIE)?.value) ?? "/";
+    const response = NextResponse.redirect(new URL(returnTo, baseUrl));
+    response.cookies.delete(POST_AUTH_REDIRECT_COOKIE);
 
     response.cookies.set(AUTH_COOKIE, token, {
       httpOnly: true,

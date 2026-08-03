@@ -53,6 +53,7 @@ type Props = {
     onLandUseChange?: (allPlotsChecked: Record<number, Record<string, boolean>>, focusedPlotIdx?: number | null) => void;
     onProjectTypeChange?: (type: "replanting" | "existing") => void;
     projectName?: string;
+    onProjectNameChange?: (name: string) => void;
     onBeforeProcess?: () => boolean;
     autoProcessTrigger?: number;
     onSave?: () => void;
@@ -113,6 +114,7 @@ export function ParcelResultsPanel({
     onLandUseChange,
     onProjectTypeChange,
     projectName = "",
+    onProjectNameChange,
     onBeforeProcess,
     autoProcessTrigger,
     onSave,
@@ -288,23 +290,6 @@ export function ParcelResultsPanel({
     const searchParams = useSearchParams();
     const initialProjectName = searchParams.get("project") || "";
 
-    const isDuplicateProjectName = useMemo(() => {
-        if (!projectName.trim()) return false;
-        if (initialProjectName && projectName.trim().toLowerCase() === initialProjectName.trim().toLowerCase()) {
-            return false;
-        }
-
-        try {
-            const key = user ? `user_saved_plots_${user.id}` : "global_saved_plots";
-            const existing = JSON.parse(localStorage.getItem(key) || "[]");
-            const names = new Set(existing.map((p: any) => String(p.name || "").trim().toLowerCase()));
-            return names.has(projectName.trim().toLowerCase());
-        } catch (e) {
-            console.error(e);
-            return false;
-        }
-    }, [projectName, initialProjectName, user]);
-
     const [ownerName, setOwnerName] = useState(userDisplayName);
     const [province, setProvince] = useState("");
     const [saveState, setSaveState] = useState<"idle" | "saving" | "done">("idle");
@@ -315,6 +300,68 @@ export function ParcelResultsPanel({
     const [dbProjectId, setDbProjectId] = useState<number | null>(null);
     const [guestUserId, setGuestUserId] = useState<string | null>(null);
     const [plotForms, setPlotForms] = useState<PlotFormData[]>([]);
+
+    // Existing project names for the logged-in user, used to warn about a
+    // duplicate name before saving. Read from the DB (the previous localStorage
+    // check was never populated, so it never actually fired). Re-fetched after
+    // each save so a name saved this session is reflected immediately.
+    const [existingProjects, setExistingProjects] = useState<{ name: string; id: number }[]>([]);
+    useEffect(() => {
+        if (!user) { setExistingProjects([]); return; }
+        let cancelled = false;
+        fetch("/api/plots", { cache: "no-store" })
+            .then(r => (r.ok ? r.json() : { plots: [] }))
+            .then((data) => {
+                if (cancelled) return;
+                const seen = new Map<string, number>();
+                (Array.isArray(data.plots) ? data.plots : []).forEach((p: { name?: string; dbProjectId?: number }) => {
+                    const nm = String(p.name || "").trim().toLowerCase();
+                    if (nm && p.dbProjectId != null && !seen.has(nm)) seen.set(nm, p.dbProjectId);
+                });
+                setExistingProjects(Array.from(seen, ([name, id]) => ({ name, id })));
+            })
+            .catch(() => { if (!cancelled) setExistingProjects([]); });
+        return () => { cancelled = true; };
+    }, [user, saveState]);
+
+    // A name is a duplicate only if it matches another project — not the one
+    // currently being edited/saved (same dbProjectId), and not the name this
+    // page was opened to edit.
+    const isDuplicateProjectName = useMemo(() => {
+        const nm = projectName.trim().toLowerCase();
+        if (!nm) return false;
+        if (initialProjectName && nm === initialProjectName.trim().toLowerCase()) return false;
+        const match = existingProjects.find(p => p.name === nm);
+        return !!match && match.id !== dbProjectId;
+    }, [projectName, initialProjectName, existingProjects, dbProjectId]);
+
+    // Project-name entry uses an explicit confirm step (no real-time checking):
+    // the user types a draft, presses ยืนยัน — only then is the name validated
+    // and committed to `projectName`. A committed name shows read-only with an
+    // แก้ไข button. `nameEditing` = the field is open for editing.
+    const [nameDraft, setNameDraft] = useState(projectName);
+    const [nameEditing, setNameEditing] = useState(!projectName.trim());
+    const [nameError, setNameError] = useState<string | null>(null);
+    // A name arriving from the parent (edit existing / restore after login) is
+    // treated as already confirmed.
+    useEffect(() => {
+        if (projectName.trim()) {
+            setNameDraft(projectName);
+            setNameEditing(false);
+        }
+    }, [projectName]);
+    const confirmName = () => {
+        const nm = nameDraft.trim();
+        if (!nm) { setNameError("กรุณากรอกชื่อโครงการ"); return; }
+        const match = existingProjects.find(p => p.name === nm.toLowerCase());
+        if (match && match.id !== dbProjectId) {
+            setNameError("ชื่อนี้ถูกใช้แล้ว กรุณาใช้ชื่ออื่น");
+            return;
+        }
+        setNameError(null);
+        onProjectNameChange?.(nm);
+        setNameEditing(false);
+    };
 
     // stable IDs ที่ใช้เชื่อม frontend_plots ↔ polygons_payload ↔ backend_responses
     // ref เก็บไว้ให้ handleSave อ่านได้, state ให้ render อ่านได้
@@ -387,13 +434,13 @@ export function ParcelResultsPanel({
 
 
     const sortedPlotIndices = useMemo(() => {
-        // Lowest plot number on top (ascending by plot_index)
+        // Highest plot number on top (descending by plot_index)
         return plots
             .map((_, idx) => idx)
             .sort((a, b) => {
                 const na = parseInt((parcelFeatures[a]?.properties as any)?.plot_index) || (a + 1);
                 const nb = parseInt((parcelFeatures[b]?.properties as any)?.plot_index) || (b + 1);
-                return na - nb;
+                return nb - na;
             });
     }, [plots, parcelFeatures]);
     // Initialize plotForms automatically when ready
@@ -1129,23 +1176,101 @@ export function ParcelResultsPanel({
             <div className="prp-shell" style={{ borderTop: "none", marginTop: 0, paddingTop: 0 }}>
 
 
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
-                    <div className="prp-header-block" style={{ marginBottom: 0 }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14, gap: 10 }}>
+                    <div className="prp-header-block" style={{ marginBottom: 0, flex: 1, minWidth: 0 }}>
                         <div className="prp-main-title" style={{ fontSize: isMobile ? 16 : 18, marginBottom: 0, color: "#1a3d2b", fontWeight: 700, letterSpacing: "-0.2px" }}>
                             {projectName?.trim() ? `โครงการ ${projectName}` : "กรอกข้อมูลแปลง"}
                         </div>
                     </div>
                     <button
                         onClick={() => onBack?.()}
-                        title="ย้อนกลับขั้นตอนที่ 1"
+                        title="กลับไปวาดแปลง (ขั้นตอนที่ 1)"
                         style={{ flexShrink: 0, padding: "5px 12px", fontSize: 12, fontWeight: 600, borderRadius: 8, display: "inline-flex", alignItems: "center", gap: 4, color: "#1e7a47", border: "1px solid #cfe6d9", background: "#ffffff", cursor: "pointer", whiteSpace: "nowrap", transition: "all 0.18s", lineHeight: 1.5 }}
                         onMouseEnter={e => { e.currentTarget.style.background = "#edfaf3"; e.currentTarget.style.borderColor = "#1e7a47"; }}
                         onMouseLeave={e => { e.currentTarget.style.background = "#ffffff"; e.currentTarget.style.borderColor = "#cfe6d9"; }}
                     >
                         <i className="bi bi-chevron-left" style={{ fontSize: 11 }} />
-                        <span>ย้อนกลับ</span>
+                        <span>กลับไปวาดแปลง</span>
                     </button>
                 </div>
+
+                {/* Project name field — the only place a project is named (step 1 no
+                    longer collects it). Given full-width with a plain-language label,
+                    an example, and guidance because many users are not tech-savvy. */}
+                {user && onProjectNameChange && (
+                    <div style={{ marginBottom: 16 }}>
+                        <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 14, fontWeight: 700, color: "#166534", marginBottom: 6 }}>
+                            ตั้งชื่อโครงการของคุณ <span style={{ color: "#dc2626" }}>*</span>
+                        </label>
+
+                        {nameEditing ? (
+                            <>
+                                <div style={{ display: "flex", gap: 8 }}>
+                                    <input
+                                        type="text"
+                                        value={nameDraft}
+                                        onChange={(e) => { setNameDraft(e.target.value); if (nameError) setNameError(null); }}
+                                        onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); confirmName(); } }}
+                                        placeholder="เช่น สวนยางลุงสมชาย"
+                                        maxLength={100}
+                                        className="prp-input"
+                                        style={{
+                                            flex: 1, minWidth: 0, padding: isMobile ? "12px 14px" : "13px 16px",
+                                            fontSize: 16, fontWeight: 600, color: "#1a3d2b",
+                                            borderRadius: 12,
+                                            border: `2px solid ${nameError ? "#dc2626" : "#cbd5e1"}`,
+                                            background: "#fff", outline: "none",
+                                            // Cancel the global .prp-input:focus/:hover translateY lift so the
+                                            // field doesn't jump up when focused.
+                                            transform: "none",
+                                        }}
+                                    />
+                                    <button
+                                        onClick={confirmName}
+                                        style={{
+                                            flexShrink: 0, padding: isMobile ? "0 16px" : "0 20px", borderRadius: 12,
+                                            border: "none", background: "#1e7a47", color: "#fff",
+                                            fontSize: 15, fontWeight: 700, cursor: "pointer",
+                                            display: "inline-flex", alignItems: "center", gap: 6,
+                                        }}
+                                    >
+                                        <i className="bi bi-check-lg" /> ยืนยัน
+                                    </button>
+                                </div>
+                                {nameError && (
+                                    <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 7, fontSize: 13, fontWeight: 600, color: "#dc2626" }}>
+                                        <i className="bi bi-exclamation-circle-fill" />
+                                        {nameError}
+                                    </div>
+                                )}
+                            </>
+                        ) : (
+                            <div style={{
+                                display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8,
+                                padding: isMobile ? "11px 12px 11px 14px" : "12px 14px 12px 16px",
+                                borderRadius: 12, border: "1px solid #cfe6d9", background: "#f3faf6",
+                            }}>
+                                <span style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+                                    <i className="bi bi-check-circle-fill" style={{ color: "#1e7a47", flexShrink: 0 }} />
+                                    <span style={{ fontSize: 16, fontWeight: 700, color: "#1a3d2b", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                        {projectName}
+                                    </span>
+                                </span>
+                                <button
+                                    onClick={() => { setNameDraft(projectName); setNameError(null); setNameEditing(true); }}
+                                    style={{
+                                        flexShrink: 0, padding: "6px 12px", borderRadius: 8,
+                                        border: "1px solid #cfe6d9", background: "#fff", color: "#1e7a47",
+                                        fontSize: 13, fontWeight: 700, cursor: "pointer",
+                                        display: "inline-flex", alignItems: "center", gap: 5,
+                                    }}
+                                >
+                                    <i className="bi bi-pencil" /> แก้ไข
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                )}
 
                 {/* Process/validation error → one-time popup modal (portal to <body> so it
                     centers on the viewport, unaffected by the panel's transforms/overflow) */}
@@ -1193,25 +1318,9 @@ export function ParcelResultsPanel({
                     </div>,
                     document.body
                 )}
-                {user && isDuplicateProjectName && (
-                    <div style={{
-                        marginBottom: 16,
-                        padding: "10px 14px",
-                        background: "rgba(220,38,38,0.06)",
-                        border: "1px solid rgba(220,38,38,0.2)",
-                        borderRadius: 10,
-                        fontSize: 12,
-                        color: "#dc2626",
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 8,
-                        fontWeight: 600
-                    }}>
-                        <i className="bi bi-exclamation-triangle-fill" style={{ flexShrink: 0, color: "#dc2626" }} />
-                        <span>ชื่อโครงการนี้ถูกใช้งานแล้ว กรุณาใช้ชื่ออื่น</span>
-                    </div>
-                )}
-                {!(user && isDuplicateProjectName) && ((user && !projectName.trim()) || hasEmptyStatus) && (
+                {/* Name validation is shown inline under the project-name field
+                    above. This block only nudges about the per-plot status. */}
+                {hasEmptyStatus && (
                     <div style={{
                         marginBottom: 16,
                         padding: "10px 14px",
@@ -1226,14 +1335,7 @@ export function ParcelResultsPanel({
                         fontWeight: 600
                     }}>
                         <i className="bi bi-exclamation-circle-fill" style={{ flexShrink: 0 }} />
-                        <span>
-                            {(user && !projectName.trim()) && hasEmptyStatus
-                                ? 'กรุณากรอก "ชื่อโครงการ" และเลือก "สถานะแปลง" ให้ครบทุกแปลง เพื่อประมวลผลหรือบันทึกข้อมูล'
-                                : (user && !projectName.trim())
-                                    ? 'กรุณากรอก "ชื่อโครงการ" เพื่อประมวลผลหรือบันทึกข้อมูล'
-                                    : 'กรุณาเลือก "สถานะแปลง" ให้ครบทุกแปลง เพื่อประมวลผลหรือบันทึกข้อมูล'
-                            }
-                        </span>
+                        <span>กรุณาเลือก &ldquo;สถานะแปลง&rdquo; ให้ครบทุกแปลง เพื่อประมวลผลหรือบันทึกข้อมูล</span>
                     </div>
                 )}
                 {isDrawing ? (
@@ -1252,63 +1354,63 @@ export function ParcelResultsPanel({
                         </div>
                     </div>
                 ) : (
-                <div style={{ display: "flex", gap: isMobile ? 6 : 8, marginBottom: 16, flexWrap: "wrap", alignItems: "stretch" }}>
-                    {onDrawMore && !isDrawing && (
-                        <button className="prp-btn-ghost" disabled={drawMoreDisabled} style={{ flex: isMobile ? "1 1 100%" : "1 1 calc(33% - 8px)", minWidth: 100, padding: isMobile ? "8px 6px" : "10px 12px", fontSize: isMobile ? 12 : 14, display: "flex", flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 6, background: drawMoreDisabled ? "#cbd5e1" : "#1e7a47", color: "#fff", border: "1px solid transparent", borderRadius: isMobile ? 10 : 12, cursor: drawMoreDisabled ? "not-allowed" : "pointer", boxShadow: drawMoreDisabled ? "none" : "0 4px 10px rgba(30,122,71,0.25)", opacity: drawMoreDisabled ? 0.6 : 1 }} onClick={drawMoreDisabled ? undefined : onDrawMore}>
-                            <i className="bi bi-pencil-square" style={{ fontSize: isMobile ? 14 : 16 }} /> <span style={{ fontWeight: 600, textAlign: "center", whiteSpace: "nowrap" }}>วาดแปลงเพิ่ม</span>
-                        </button>
-                    )}
-                    {onCancelDraw && isDrawing && (
-                        <button className="prp-btn-ghost" style={{ flex: isMobile ? "1 1 100%" : "1 1 calc(33% - 8px)", minWidth: 100, padding: isMobile ? "8px 6px" : "10px 12px", fontSize: isMobile ? 12 : 14, display: "flex", flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 6, background: "#ef4444", color: "#fff", border: "1px solid transparent", borderRadius: isMobile ? 10 : 12, boxShadow: "0 4px 10px rgba(239,68,68,0.25)" }} onClick={onCancelDraw}>
-                            <i className="bi bi-x-circle" style={{ fontSize: isMobile ? 14 : 16 }} /> <span style={{ fontWeight: 600, textAlign: "center", whiteSpace: "nowrap" }}>ยกเลิกการวาด</span>
-                        </button>
-                    )}
-                    <button
-                        className="prp-btn-primary"
-                        onClick={() => handleSave([])}
-                        disabled={!user || !projectName.trim() || isDuplicateProjectName || saveState === "saving"}
-                        style={{
-                            flex: isMobile ? "1 1 calc(50% - 4px)" : "1 1 calc(33% - 8px)", minWidth: 110, padding: isMobile ? "8px 6px" : "10px 12px", fontSize: isMobile ? 12 : 14, display: "flex", flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 6,
-                            background: !user ? "#cbd5e1" : (saveState === "done" ? "#94a3b8" : ((projectName.trim() && !isDuplicateProjectName && !hasEmptyStatus) ? "#0284c7" : "#cbd5e1")),
-                            color: "#fff", border: "1px solid transparent", borderRadius: isMobile ? 10 : 12,
-                            cursor: !user ? "not-allowed" : (saveState !== "idle" ? "not-allowed" : ((projectName.trim() && !isDuplicateProjectName && !hasEmptyStatus) ? "pointer" : "not-allowed")),
-                            boxShadow: !user ? "none" : (saveState === "done" ? "none" : ((projectName.trim() && !isDuplicateProjectName && !hasEmptyStatus) ? "0 4px 10px rgba(2,132,199,0.2)" : "none")),
-                            opacity: !user ? 0.5 : (saveState === "done" ? 0.6 : 1),
-                            transition: "all 0.3s"
-                        }}
-                    >
-                        {saveState === "saving" ? (
-                            <><span className="s1-spin" style={{ width: 14, height: 14, border: "2px solid rgba(255,255,255,0.3)", borderTopColor: "#fff" }} /> <span style={{ fontWeight: 600, textAlign: "center", whiteSpace: "nowrap" }}>บันทึก...</span></>
-                        ) : saveState === "done" ? (
-                            <><i className="bi bi-check-circle-fill" style={{ fontSize: isMobile ? 14 : 16 }} /> <span style={{ fontWeight: 600, textAlign: "center", whiteSpace: "nowrap" }}>บันทึกแล้ว</span></>
-                        ) : (
-                            <><i className="bi bi-save" style={{ fontSize: isMobile ? 14 : 16 }} /> <span style={{ fontWeight: 600, textAlign: "center", whiteSpace: "nowrap" }}>บันทึกข้อมูล</span></>
+                    <div style={{ display: "flex", gap: isMobile ? 6 : 8, marginBottom: 16, flexWrap: "wrap", alignItems: "stretch" }}>
+                        {onDrawMore && !isDrawing && (
+                            <button className="prp-btn-ghost" disabled={drawMoreDisabled} style={{ flex: isMobile ? "1 1 100%" : "1 1 calc(33% - 8px)", minWidth: 100, padding: isMobile ? "8px 6px" : "10px 12px", fontSize: isMobile ? 12 : 14, display: "flex", flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 6, background: drawMoreDisabled ? "#cbd5e1" : "#1e7a47", color: "#fff", border: "1px solid transparent", borderRadius: isMobile ? 10 : 12, cursor: drawMoreDisabled ? "not-allowed" : "pointer", boxShadow: drawMoreDisabled ? "none" : "0 4px 10px rgba(30,122,71,0.25)", opacity: drawMoreDisabled ? 0.6 : 1 }} onClick={drawMoreDisabled ? undefined : onDrawMore}>
+                                <i className="bi bi-pencil-square" style={{ fontSize: isMobile ? 14 : 16 }} /> <span style={{ fontWeight: 600, textAlign: "center", whiteSpace: "nowrap" }}>วาดแปลงเพิ่ม</span>
+                            </button>
                         )}
-                    </button>
-                    <button
-                        className="prp-btn-primary"
-                        onClick={() => {
-                            if (onBeforeProcess && onBeforeProcess()) {
-                                return;
-                            }
-                            void handleProcessCarbon();
-                        }}
-                        disabled={(!!user && (!projectName.trim() || isDuplicateProjectName)) || hasEmptyStatus || processingCarbon}
-                        style={{
-                            flex: isMobile ? "1 1 calc(50% - 4px)" : "1 1 calc(33% - 8px)", minWidth: 110, padding: isMobile ? "8px 6px" : "10px 12px", fontSize: isMobile ? 12 : 14, display: "flex", flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 6,
-                            background: ((!user || (projectName.trim() && !isDuplicateProjectName)) && !hasEmptyStatus && !processingCarbon) ? "#1e7a47" : "#cbd5e1",
-                            color: "#fff", border: "1px solid transparent", borderRadius: isMobile ? 10 : 12,
-                            cursor: ((!user || (projectName.trim() && !isDuplicateProjectName)) && !hasEmptyStatus && !processingCarbon) ? "pointer" : "not-allowed",
-                            boxShadow: ((!user || (projectName.trim() && !isDuplicateProjectName)) && !hasEmptyStatus && !processingCarbon) ? "0 4px 10px rgba(30, 122, 71,0.2)" : "none"
-                        }}
-                    >
-                        {processingCarbon ? (
-                            <><span className="s1-spin" style={{ width: 14, height: 14, border: "2px solid rgba(255,255,255,0.3)", borderTopColor: "#fff" }} /> <span style={{ fontWeight: 600, textAlign: "center", whiteSpace: "nowrap" }}>ประมวลผล</span></>
-                        ) : (
-                            <><i className="bi bi-graph-up-arrow" style={{ fontSize: isMobile ? 14 : 16 }} /> <span style={{ fontWeight: 600, textAlign: "center", whiteSpace: "nowrap" }}>ประมวลผล</span></>
+                        {onCancelDraw && isDrawing && (
+                            <button className="prp-btn-ghost" style={{ flex: isMobile ? "1 1 100%" : "1 1 calc(33% - 8px)", minWidth: 100, padding: isMobile ? "8px 6px" : "10px 12px", fontSize: isMobile ? 12 : 14, display: "flex", flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 6, background: "#ef4444", color: "#fff", border: "1px solid transparent", borderRadius: isMobile ? 10 : 12, boxShadow: "0 4px 10px rgba(239,68,68,0.25)" }} onClick={onCancelDraw}>
+                                <i className="bi bi-x-circle" style={{ fontSize: isMobile ? 14 : 16 }} /> <span style={{ fontWeight: 600, textAlign: "center", whiteSpace: "nowrap" }}>ยกเลิกการวาด</span>
+                            </button>
                         )}
-                    </button>
-                </div>
+                        <button
+                            className="prp-btn-primary"
+                            onClick={() => handleSave([])}
+                            disabled={!user || !projectName.trim() || nameEditing || isDuplicateProjectName || saveState === "saving"}
+                            style={{
+                                flex: isMobile ? "1 1 calc(50% - 4px)" : "1 1 calc(33% - 8px)", minWidth: 110, padding: isMobile ? "8px 6px" : "10px 12px", fontSize: isMobile ? 12 : 14, display: "flex", flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 6,
+                                background: !user ? "#cbd5e1" : (saveState === "done" ? "#94a3b8" : ((projectName.trim() && !nameEditing && !isDuplicateProjectName && !hasEmptyStatus) ? "#0284c7" : "#cbd5e1")),
+                                color: "#fff", border: "1px solid transparent", borderRadius: isMobile ? 10 : 12,
+                                cursor: !user ? "not-allowed" : (saveState !== "idle" ? "not-allowed" : ((projectName.trim() && !nameEditing && !isDuplicateProjectName && !hasEmptyStatus) ? "pointer" : "not-allowed")),
+                                boxShadow: !user ? "none" : (saveState === "done" ? "none" : ((projectName.trim() && !nameEditing && !isDuplicateProjectName && !hasEmptyStatus) ? "0 4px 10px rgba(2,132,199,0.2)" : "none")),
+                                opacity: !user ? 0.5 : (saveState === "done" ? 0.6 : 1),
+                                transition: "all 0.3s"
+                            }}
+                        >
+                            {saveState === "saving" ? (
+                                <><span className="s1-spin" style={{ width: 14, height: 14, border: "2px solid rgba(255,255,255,0.3)", borderTopColor: "#fff" }} /> <span style={{ fontWeight: 600, textAlign: "center", whiteSpace: "nowrap" }}>บันทึก...</span></>
+                            ) : saveState === "done" ? (
+                                <><i className="bi bi-check-circle-fill" style={{ fontSize: isMobile ? 14 : 16 }} /> <span style={{ fontWeight: 600, textAlign: "center", whiteSpace: "nowrap" }}>บันทึกแล้ว</span></>
+                            ) : (
+                                <><i className="bi bi-save" style={{ fontSize: isMobile ? 14 : 16 }} /> <span style={{ fontWeight: 600, textAlign: "center", whiteSpace: "nowrap" }}>บันทึกข้อมูล</span></>
+                            )}
+                        </button>
+                        <button
+                            className="prp-btn-primary"
+                            onClick={() => {
+                                if (onBeforeProcess && onBeforeProcess()) {
+                                    return;
+                                }
+                                void handleProcessCarbon();
+                            }}
+                            disabled={(!!user && (!projectName.trim() || nameEditing || isDuplicateProjectName)) || hasEmptyStatus || processingCarbon}
+                            style={{
+                                flex: isMobile ? "1 1 calc(50% - 4px)" : "1 1 calc(33% - 8px)", minWidth: 110, padding: isMobile ? "8px 6px" : "10px 12px", fontSize: isMobile ? 12 : 14, display: "flex", flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 6,
+                                background: ((!user || (projectName.trim() && !nameEditing && !isDuplicateProjectName)) && !hasEmptyStatus && !processingCarbon) ? "#1e7a47" : "#cbd5e1",
+                                color: "#fff", border: "1px solid transparent", borderRadius: isMobile ? 10 : 12,
+                                cursor: ((!user || (projectName.trim() && !nameEditing && !isDuplicateProjectName)) && !hasEmptyStatus && !processingCarbon) ? "pointer" : "not-allowed",
+                                boxShadow: ((!user || (projectName.trim() && !nameEditing && !isDuplicateProjectName)) && !hasEmptyStatus && !processingCarbon) ? "0 4px 10px rgba(30, 122, 71,0.2)" : "none"
+                            }}
+                        >
+                            {processingCarbon ? (
+                                <><span className="s1-spin" style={{ width: 14, height: 14, border: "2px solid rgba(255,255,255,0.3)", borderTopColor: "#fff" }} /> <span style={{ fontWeight: 600, textAlign: "center", whiteSpace: "nowrap" }}>ประมวลผล</span></>
+                            ) : (
+                                <><i className="bi bi-graph-up-arrow" style={{ fontSize: isMobile ? 14 : 16 }} /> <span style={{ fontWeight: 600, textAlign: "center", whiteSpace: "nowrap" }}>ประมวลผล</span></>
+                            )}
+                        </button>
+                    </div>
                 )}
 
 
@@ -1316,14 +1418,12 @@ export function ParcelResultsPanel({
 
 
                 {/* Summary of drawn parcels */}
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, padding: "12px 16px", background: "#edfaf3", borderRadius: 14, border: "1px solid #d7ede1" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, fontWeight: 700, color: "#17603a" }}>
-                        <i className="bi bi-vector-pen" style={{ fontSize: 15, color: "#1e7a47" }} />
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, padding: "0 4px" }}>
+                    <div style={{ fontSize: 15, fontWeight: 700, color: "#475569" }}>
                         แปลงที่วาดแล้ว
                     </div>
-                    <div style={{ display: "flex", alignItems: "baseline", gap: 4, fontWeight: 800, color: "#1e7a47" }}>
-                        <span style={{ fontSize: 19 }}>{totalArea.toFixed(2)}</span>
-                        <span style={{ fontSize: 13, fontWeight: 700 }}>ไร่</span>
+                    <div style={{ fontSize: 16, fontWeight: 800, color: "#1e7a47" }}>
+                        {totalArea.toFixed(2)} ไร่
                     </div>
                 </div>
 
@@ -1383,329 +1483,323 @@ export function ParcelResultsPanel({
                                     </div>
                                 </div>
                                 <Accordion open={expandedIdx === i}>
-                                        {/* Status Selection */}
-                                        <div style={{ padding: isMobile ? "16px 16px 0" : "20px 24px 0", background: "#fff" }}>
-                                            <div style={{ fontSize: 15, fontWeight: 700, color: "#1a3d2b", marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
-                                                <i className="bi bi-info-circle" style={{ color: "#1e7a47" }} /> สถานะแปลง <span style={{ color: "#ef4444" }}>*</span>
+                                    {/* Status Selection */}
+                                    <div style={{ padding: isMobile ? "16px 16px 0" : "20px 24px 0", background: "#fff" }}>
+                                        <div style={{ fontSize: 15, fontWeight: 700, color: "#1a3d2b", marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
+                                            <i className="bi bi-info-circle" style={{ color: "#1e7a47" }} /> สถานะแปลง <span style={{ color: "#ef4444" }}>*</span>
+                                        </div>
+                                        <div style={{ display: "flex", gap: 24 }}>
+                                            <div onClick={() => {
+                                                setPlotForms(prev => prev.map((f, idx) => {
+                                                    if (idx !== i) return f;
+                                                    const realData = plotsLuRealData[i] || {};
+                                                    const newChecked: Record<string, boolean> = { ...f.luChecked, A: true, A302: true };
+                                                    Object.keys(realData).forEach(k => {
+                                                        if (k.includes("A302")) newChecked[k] = true;
+                                                    });
+                                                    return {
+                                                        ...f,
+                                                        plantStatus: "replanting",
+                                                        plantYear: String(CURRENT_BE),
+                                                        luChecked: newChecked,
+                                                    };
+                                                }));
+                                                onProjectTypeChange?.("replanting");
+                                            }} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 15, cursor: "pointer", userSelect: "none", color: form.plantStatus === "replanting" ? "#1a3d2b" : "#5a7a65", fontWeight: form.plantStatus === "replanting" ? 700 : 500 }}>
+                                                <div style={{ width: 20, height: 20, borderRadius: "50%", border: "2px solid", borderColor: form.plantStatus === "replanting" ? "#1e7a47" : "#cbd5e1", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "all 0.2s" }}>
+                                                    {form.plantStatus === "replanting" && <div style={{ width: 10, height: 10, borderRadius: "50%", background: "#1e7a47" }} />}
+                                                </div>
+                                                เริ่มปลูกใหม่
                                             </div>
-                                            <div style={{ display: "flex", gap: 24 }}>
-                                                <div onClick={() => {
-                                                    setPlotForms(prev => prev.map((f, idx) => {
-                                                        if (idx !== i) return f;
-                                                        const realData = plotsLuRealData[i] || {};
-                                                        const newChecked: Record<string, boolean> = { ...f.luChecked, A: true, A302: true };
-                                                        Object.keys(realData).forEach(k => {
-                                                            if (k.includes("A302")) newChecked[k] = true;
-                                                        });
-                                                        return {
-                                                            ...f,
-                                                            plantStatus: "replanting",
-                                                            plantYear: String(CURRENT_BE),
-                                                            luChecked: newChecked,
-                                                        };
-                                                    }));
-                                                    onProjectTypeChange?.("replanting");
-                                                }} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 15, cursor: "pointer", userSelect: "none", color: form.plantStatus === "replanting" ? "#1a3d2b" : "#5a7a65", fontWeight: form.plantStatus === "replanting" ? 700 : 500 }}>
-                                                    <div style={{ width: 20, height: 20, borderRadius: "50%", border: "2px solid", borderColor: form.plantStatus === "replanting" ? "#1e7a47" : "#cbd5e1", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "all 0.2s" }}>
-                                                        {form.plantStatus === "replanting" && <div style={{ width: 10, height: 10, borderRadius: "50%", background: "#1e7a47" }} />}
-                                                    </div>
-                                                    เริ่มปลูกใหม่
+                                            <div onClick={() => {
+                                                // Auto-check A sub-types and F detected by backend for existing plots
+                                                setPlotForms(prev => prev.map((f, idx) => {
+                                                    if (idx !== i) return f;
+                                                    const realData = plotsLuRealData[i] || {};
+                                                    const newChecked: Record<string, boolean> = { ...f.luChecked, A: true, A302: true };
+                                                    Object.keys(realData).forEach(k => {
+                                                        if (k.includes("A302")) newChecked[k] = true;
+                                                    });
+                                                    return {
+                                                        ...f,
+                                                        plantStatus: "existing",
+                                                        plantYear: "",
+                                                        luChecked: newChecked,
+                                                    };
+                                                }));
+                                                onProjectTypeChange?.("existing");
+                                            }} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 15, cursor: "pointer", userSelect: "none", color: form.plantStatus === "existing" ? "#1a3d2b" : "#5a7a65", fontWeight: form.plantStatus === "existing" ? 700 : 500 }}>
+                                                <div style={{ width: 20, height: 20, borderRadius: "50%", border: "2px solid", borderColor: form.plantStatus === "existing" ? "#1e7a47" : "#cbd5e1", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "all 0.2s" }}>
+                                                    {form.plantStatus === "existing" && <div style={{ width: 10, height: 10, borderRadius: "50%", background: "#1e7a47" }} />}
                                                 </div>
-                                                <div onClick={() => {
-                                                    // Auto-check A sub-types and F detected by backend for existing plots
-                                                    setPlotForms(prev => prev.map((f, idx) => {
-                                                        if (idx !== i) return f;
-                                                        const realData = plotsLuRealData[i] || {};
-                                                        const newChecked: Record<string, boolean> = { ...f.luChecked, A: true, A302: true };
-                                                        Object.keys(realData).forEach(k => {
-                                                            if (k.includes("A302")) newChecked[k] = true;
-                                                        });
-                                                        return {
-                                                            ...f,
-                                                            plantStatus: "existing",
-                                                            plantYear: "",
-                                                            luChecked: newChecked,
-                                                        };
-                                                    }));
-                                                    onProjectTypeChange?.("existing");
-                                                }} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 15, cursor: "pointer", userSelect: "none", color: form.plantStatus === "existing" ? "#1a3d2b" : "#5a7a65", fontWeight: form.plantStatus === "existing" ? 700 : 500 }}>
-                                                    <div style={{ width: 20, height: 20, borderRadius: "50%", border: "2px solid", borderColor: form.plantStatus === "existing" ? "#1e7a47" : "#cbd5e1", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "all 0.2s" }}>
-                                                        {form.plantStatus === "existing" && <div style={{ width: 10, height: 10, borderRadius: "50%", background: "#1e7a47" }} />}
-                                                    </div>
-                                                    ปลูกมาแล้ว
-                                                </div>
+                                                ปลูกมาแล้ว
                                             </div>
-                                            {!form.plantStatus && (
-                                                <div style={{ fontSize: 11, color: "#f59e0b", marginTop: 8, display: "flex", alignItems: "center", gap: 4 }}>
-                                                    <i className="bi bi-exclamation-circle-fill" /> กรุณาเลือกสถานะแปลงก่อนจึงจะกรอกข้อมูลด้านล่างได้
+                                        </div>
+                                        {!form.plantStatus && (
+                                            <div style={{ fontSize: 11, color: "#f59e0b", marginTop: 8, display: "flex", alignItems: "center", gap: 4 }}>
+                                                <i className="bi bi-exclamation-circle-fill" /> กรุณาเลือกสถานะแปลงก่อนจึงจะกรอกข้อมูลด้านล่างได้
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Fields grid */}
+                                    <div style={{
+                                        position: "relative",
+                                        opacity: form.plantStatus ? 1 : 0.4,
+                                        transition: "opacity 0.3s",
+                                        pointerEvents: form.plantStatus ? "auto" : "none",
+                                    }}>
+                                        {!form.plantStatus && (
+                                            <div style={{
+                                                position: "absolute", inset: 0, background: "rgba(248,250,252,0.6)",
+                                                zIndex: 5, borderRadius: 8,
+                                                display: "flex", alignItems: "center", justifyContent: "center",
+                                                fontSize: 12, color: "#94a3b8", gap: 6
+                                            }}>
+                                                <i className="bi bi-lock-fill" /> รอเลือกสถานะแปลงก่อน
+                                            </div>
+                                        )}
+                                        <div style={{
+                                            display: "grid",
+                                            gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr",
+                                            gap: "16px 20px",
+                                            padding: isMobile ? "16px" : "20px 24px",
+                                            background: "#fff"
+                                        }}>
+                                            <div className="prp-field-group">
+                                                <div style={{ fontSize: 15, fontWeight: 700, color: "#1a3d2b", marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
+                                                    <i className="bi bi-calendar-event" style={{ color: "#1e7a47" }} /> ปีที่ปลูก (พ.ศ.)
                                                 </div>
-                                            )}
+                                                <select
+                                                    className="prp-input"
+                                                    style={{ marginBottom: 0, height: 46, borderRadius: 10, border: "1.5px solid #e6f0ea", padding: "0 12px" }}
+                                                    value={form.plantYear}
+                                                    onChange={e => updateForm(i, "plantYear", e.target.value)}
+                                                    disabled={!form.plantStatus}
+                                                >
+                                                    <option value="">— เลือกปีที่ปลูก —</option>
+                                                    {(form.plantStatus === "replanting" ? NEW_YEAR_OPTIONS : form.plantStatus === "existing" ? OLD_YEAR_OPTIONS : []).map(y => <option key={y} value={y}>{y}</option>)}
+                                                </select>
+                                            </div>
+                                            <div className="prp-field-group">
+                                                <div style={{ fontSize: 15, fontWeight: 700, color: "#1a3d2b", marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
+                                                    <i className="bi bi-tags" style={{ color: "#1e7a47" }} /> พันธุ์ยาง
+                                                </div>
+                                                <select
+                                                    className="prp-input"
+                                                    style={{ marginBottom: 0, height: 46, borderRadius: 10, border: "1.5px solid #e6f0ea", padding: "0 12px" }}
+                                                    value={form.variety}
+                                                    onChange={e => updateForm(i, "variety", e.target.value)}
+                                                    disabled={!form.plantStatus}
+                                                >
+                                                    <option value="">— เลือกสายพันธุ์ยาง —</option>
+                                                    {VARIETY_OPTIONS.map(v => <option key={v} value={v}>{v}</option>)}
+                                                </select>
+                                            </div>
+                                            <div className="prp-field-group">
+                                                <div style={{ fontSize: 15, fontWeight: 700, color: "#1a3d2b", marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
+                                                    <i className="bi bi-tree" style={{ color: "#1e7a47" }} /> จำนวนต้นยาง
+                                                </div>
+                                                <input
+                                                    className="prp-input"
+                                                    style={{ marginBottom: 0, height: 46, borderRadius: 10, border: "1.5px solid #e6f0ea", padding: "0 12px" }}
+                                                    type="number"
+                                                    step="any"
+                                                    min="0"
+                                                    placeholder="ระบุจำนวนต้น"
+                                                    value={form.treeCount}
+                                                    onChange={e => updateForm(i, "treeCount", e.target.value)}
+                                                    onBlur={e => {
+                                                        const val = parseFloat(e.target.value);
+                                                        if (!isNaN(val)) {
+                                                            updateForm(i, "treeCount", Math.round(val).toString());
+                                                        }
+                                                    }}
+                                                    disabled={!form.plantStatus}
+                                                />
+                                            </div>
+                                            <div className="prp-field-group">
+                                                <div style={{ fontSize: 15, fontWeight: 700, color: "#1a3d2b", marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
+                                                    <i className="bi bi-arrows-expand" style={{ color: "#1e7a47" }} /> ระยะปลูก (ม.)
+                                                </div>
+                                                <select
+                                                    className="prp-input"
+                                                    style={{ marginBottom: 0, height: 46, borderRadius: 10, border: "1.5px solid #e6f0ea", padding: "0 12px" }}
+                                                    value={form.spacing}
+                                                    onChange={e => updateForm(i, "spacing", e.target.value)}
+                                                    disabled={!form.plantStatus}
+                                                >
+                                                    <option value="">— เลือกระยะปลูก —</option>
+                                                    {SPACING_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
+                                                </select>
+                                            </div>
                                         </div>
 
-                                        {/* Fields grid */}
-                                        <div style={{
-                                            position: "relative",
-                                            opacity: form.plantStatus ? 1 : 0.4,
-                                            transition: "opacity 0.3s",
-                                            pointerEvents: form.plantStatus ? "auto" : "none",
-                                        }}>
-                                            {!form.plantStatus && (
-                                                <div style={{
-                                                    position: "absolute", inset: 0, background: "rgba(248,250,252,0.6)",
-                                                    zIndex: 5, borderRadius: 8,
-                                                    display: "flex", alignItems: "center", justifyContent: "center",
-                                                    fontSize: 12, color: "#94a3b8", gap: 6
-                                                }}>
-                                                    <i className="bi bi-lock-fill" /> รอเลือกสถานะแปลงก่อน
-                                                </div>
-                                            )}
-                                            <div style={{
-                                                display: "grid",
-                                                gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr",
-                                                gap: "16px 20px",
-                                                padding: isMobile ? "16px" : "20px 24px",
-                                                background: "#fff"
-                                            }}>
-                                                <div className="prp-field-group">
-                                                    <div style={{ fontSize: 15, fontWeight: 700, color: "#1a3d2b", marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
-                                                        <i className="bi bi-calendar-event" style={{ color: "#1e7a47" }} /> ปีที่ปลูก (พ.ศ.)
-                                                    </div>
-                                                    <select
-                                                        className="prp-input"
-                                                        style={{ marginBottom: 0, height: 46, borderRadius: 10, border: "1.5px solid #e6f0ea", padding: "0 12px" }}
-                                                        value={form.plantYear}
-                                                        onChange={e => updateForm(i, "plantYear", e.target.value)}
-                                                        disabled={!form.plantStatus}
-                                                    >
-                                                        <option value="">— เลือกปีที่ปลูก —</option>
-                                                        {(form.plantStatus === "replanting" ? NEW_YEAR_OPTIONS : form.plantStatus === "existing" ? OLD_YEAR_OPTIONS : []).map(y => <option key={y} value={y}>{y}</option>)}
-                                                    </select>
-                                                </div>
-                                                <div className="prp-field-group">
-                                                    <div style={{ fontSize: 15, fontWeight: 700, color: "#1a3d2b", marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
-                                                        <i className="bi bi-tags" style={{ color: "#1e7a47" }} /> พันธุ์ยาง
-                                                    </div>
-                                                    <select
-                                                        className="prp-input"
-                                                        style={{ marginBottom: 0, height: 46, borderRadius: 10, border: "1.5px solid #e6f0ea", padding: "0 12px" }}
-                                                        value={form.variety}
-                                                        onChange={e => updateForm(i, "variety", e.target.value)}
-                                                        disabled={!form.plantStatus}
-                                                    >
-                                                        <option value="">— เลือกสายพันธุ์ยาง —</option>
-                                                        {VARIETY_OPTIONS.map(v => <option key={v} value={v}>{v}</option>)}
-                                                    </select>
-                                                </div>
-                                                <div className="prp-field-group">
-                                                    <div style={{ fontSize: 15, fontWeight: 700, color: "#1a3d2b", marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
-                                                        <i className="bi bi-tree" style={{ color: "#1e7a47" }} /> จำนวนต้นยาง
-                                                    </div>
-                                                    <input
-                                                        className="prp-input"
-                                                        style={{ marginBottom: 0, height: 46, borderRadius: 10, border: "1.5px solid #e6f0ea", padding: "0 12px" }}
-                                                        type="number"
-                                                        step="any"
-                                                        min="0"
-                                                        placeholder="ระบุจำนวนต้น"
-                                                        value={form.treeCount}
-                                                        onChange={e => updateForm(i, "treeCount", e.target.value)}
-                                                        onBlur={e => {
-                                                            const val = parseFloat(e.target.value);
-                                                            if (!isNaN(val)) {
-                                                                updateForm(i, "treeCount", Math.round(val).toString());
-                                                            }
-                                                        }}
-                                                        disabled={!form.plantStatus}
-                                                    />
-                                                </div>
-                                                <div className="prp-field-group">
-                                                    <div style={{ fontSize: 15, fontWeight: 700, color: "#1a3d2b", marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
-                                                        <i className="bi bi-arrows-expand" style={{ color: "#1e7a47" }} /> ระยะปลูก (ม.)
-                                                    </div>
-                                                    <select
-                                                        className="prp-input"
-                                                        style={{ marginBottom: 0, height: 46, borderRadius: 10, border: "1.5px solid #e6f0ea", padding: "0 12px" }}
-                                                        value={form.spacing}
-                                                        onChange={e => updateForm(i, "spacing", e.target.value)}
-                                                        disabled={!form.plantStatus}
-                                                    >
-                                                        <option value="">— เลือกระยะปลูก —</option>
-                                                        {SPACING_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
-                                                    </select>
-                                                </div>
+                                        {/* Land Use Checkboxes */}
+                                        <div style={{ padding: isMobile ? "0 16px 16px" : "0 24px 20px", background: "#fff" }}>
+                                            <div style={{ fontSize: 15, fontWeight: 700, color: "#1e293b", marginBottom: 12, display: "flex", alignItems: "center", gap: 6 }}>
+                                                <i className="bi bi-layers" style={{ color: "#10b981" }} /> ชั้นข้อมูลการใช้ประโยชน์ที่ดิน (กรมพัฒนาที่ดิน)
                                             </div>
 
-                                            {/* Land Use Checkboxes */}
-                                            <div style={{ padding: isMobile ? "0 16px 16px" : "0 24px 20px", background: "#fff" }}>
-                                                <div style={{ fontSize: 15, fontWeight: 700, color: "#1a3d2b", marginBottom: 12, display: "flex", alignItems: "center", gap: 6 }}>
-                                                    <i className="bi bi-layers" style={{ color: "#1e7a47" }} /> ชั้นข้อมูลการใช้ประโยชน์ที่ดิน (กรมพัฒนาที่ดิน)
-                                                </div>
+                                            {(() => {
+                                                const plotLUData = plotsLuRealData[i] || {};
+                                                const hasAnyDetected = Object.values(plotLUData).some(v => v.rai > 0);
+                                                const effectiveCount = Object.entries(form.luChecked || {})
+                                                    .filter(([cls, on]) => cls !== "A" && on && (plotLUData[cls]?.rai ?? 0) > 0).length;
+                                                const showNoLuWarning = form.plantStatus && hasAnyDetected && effectiveCount === 0;
 
+                                                return showNoLuWarning ? (
+                                                    <div style={{
+                                                        marginBottom: 12, padding: "8px 12px",
+                                                        background: "rgba(245,158,11,0.10)", border: "1px solid rgba(245,158,11,0.35)",
+                                                        borderRadius: 10, display: "flex", alignItems: "center", gap: 8,
+                                                        fontSize: 12, color: "#92400e", fontWeight: 600
+                                                    }}>
+                                                        <i className="bi bi-exclamation-triangle-fill" style={{ color: "#f59e0b", flexShrink: 0 }} />
+                                                        <span>กรุณาเลือกประเภทการใช้ที่ดินอย่างน้อย 1 ประเภทเพื่อประมวลผล</span>
+                                                    </div>
+                                                ) : null;
+                                            })()}
+
+                                            <div style={{ display: "flex", flexDirection: "column", gap: 10, fontSize: 14 }}>
                                                 {(() => {
                                                     const plotLUData = plotsLuRealData[i] || {};
-                                                    const hasAnyDetected = Object.values(plotLUData).some(v => v.rai > 0);
-                                                    const effectiveCount = Object.entries(form.luChecked || {})
-                                                        .filter(([cls, on]) => cls !== "A" && on && (plotLUData[cls]?.rai ?? 0) > 0).length;
-                                                    const showNoLuWarning = form.plantStatus && hasAnyDetected && effectiveCount === 0;
+                                                    const isNew = form.plantStatus === "replanting";
+                                                    const isOld = form.plantStatus === "existing";
 
-                                                    return showNoLuWarning ? (
-                                                        <div style={{
-                                                            marginBottom: 12, padding: "8px 12px",
-                                                            background: "rgba(245,158,11,0.10)", border: "1px solid rgba(245,158,11,0.35)",
-                                                            borderRadius: 10, display: "flex", alignItems: "center", gap: 8,
-                                                            fontSize: 12, color: "#92400e", fontWeight: 600
-                                                        }}>
-                                                            <i className="bi bi-exclamation-triangle-fill" style={{ color: "#f59e0b", flexShrink: 0 }} />
-                                                            <span>กรุณาเลือกประเภทการใช้ที่ดินอย่างน้อย 1 ประเภทเพื่อประมวลผล</span>
-                                                        </div>
-                                                    ) : null;
-                                                })()}
+                                                    // Behavior differs by plantStatus:
+                                                    // All types (A, U, M, W, F, A-sub) are now checkable for both replanting and existing
+                                                    const baseLU = [
+                                                        { id: "U", color: "#ef4444" },
+                                                        { id: "A", color: "#84cc16", defaultChecked: true },
+                                                        { id: "F", color: "#166534" },
+                                                        { id: "W", color: "#3b82f6" },
+                                                        { id: "M", color: "#9ca3af" }
+                                                    ];
+                                                    const displayLU: any[] = [];
+                                                    baseLU.forEach(base => {
+                                                        // Only show types that were detected by the API
+                                                        const hasBase = plotLUData[base.id] && plotLUData[base.id].rai > 0;
+                                                        if (!hasBase) return;
+                                                        const desc = LU_DESC_MAP[base.id];
+                                                        displayLU.push({ ...base, label: desc ? (desc.startsWith(base.id) ? desc : `${base.id} ${desc}`) : base.id });
 
-                                                <div style={{ display: "flex", flexDirection: "column", gap: 10, fontSize: 14 }}>
-                                                    {(() => {
-                                                        const plotLUData = plotsLuRealData[i] || {};
-                                                        const isNew = form.plantStatus === "replanting";
-                                                        const isOld = form.plantStatus === "existing";
-
-                                                        // Behavior differs by plantStatus:
-                                                        // All types (A, U, M, W, F, A-sub) are now checkable for both replanting and existing
-                                                        const baseLU = [
-                                                            { id: "U", color: "#ef4444" },
-                                                            { id: "A", color: "#84cc16", defaultChecked: true },
-                                                            { id: "F", color: "#17603a" },
-                                                            { id: "W", color: "#3b82f6" },
-                                                            { id: "M", color: "#9ca3af" }
-                                                        ];
-                                                        const displayLU: any[] = [];
-                                                        baseLU.forEach(base => {
-                                                            // Only show types that were detected by the API
-                                                            const hasBase = plotLUData[base.id] && plotLUData[base.id].rai > 0;
-                                                            if (!hasBase) return;
-                                                            const desc = LU_DESC_MAP[base.id];
-                                                            displayLU.push({ ...base, label: desc ? (desc.startsWith(base.id) ? desc : `${base.id} ${desc}`) : base.id });
-
-                                                            if (base.id === "A") {
-                                                                const aSubtypes = Object.keys(plotLUData).filter(k => k.startsWith("A") && k !== "A").sort();
-                                                                aSubtypes.forEach(sub => {
-                                                                    const realSubData = plotLUData[sub];
-                                                                    if (realSubData && realSubData.rai > 0) {
-                                                                        const desc = realSubData.desc || "";
-                                                                        const isA302 = sub.includes("A302");
-                                                                        displayLU.push({
-                                                                            id: sub,
-                                                                            label: desc ? (desc.startsWith(sub) ? desc : `${sub} ${desc}`) : sub,
-                                                                            defaultChecked: isA302,
-                                                                            indent: true,
-                                                                            color: "#84cc16"
-                                                                        });
-                                                                    }
-                                                                });
-                                                            }
-                                                        });
-
-                                                        if (displayLU.length === 0) {
-                                                            return <div style={{ color: "#94a3b8", fontSize: 12 }}>ไม่พบข้อมูลการใช้ประโยชน์ที่ดินในแปลงนี้</div>;
-                                                        }
-
-                                                        return displayLU.map(lu => {
-                                                            const isDisabled = !form.plantStatus || lu.displayOnly;
-                                                            const isChecked = lu.displayOnly ? false : (form.luChecked?.[lu.id] ?? lu.defaultChecked ?? false);
-                                                            const realData = plotLUData[lu.id];
-                                                            const hasArea = realData && realData.rai > 0;
-                                                            return (
-                                                                <label key={lu.id} style={{
-                                                                    display: "flex", alignItems: "center", gap: 10,
-                                                                    cursor: isDisabled ? "not-allowed" : "pointer",
-                                                                    marginLeft: lu.indent ? 22 : 0,
-                                                                    padding: "9px 12px", borderRadius: 10,
-                                                                    background: isChecked ? "#f3faf6" : "#ffffff",
-                                                                    border: `1px solid ${isChecked ? "#d7ede1" : "#eef3f0"}`,
-                                                                    opacity: (isDisabled && !isChecked) ? 0.65 : 1,
-                                                                    transition: "all 0.18s"
-                                                                }}>
-                                                                    <input
-                                                                        type="checkbox"
-                                                                        checked={isChecked}
-                                                                        disabled={isDisabled}
-                                                                        style={{ accentColor: isChecked ? lu.color : "#94a3b8", width: 16, height: 16, flexShrink: 0 }}
-                                                                        onChange={(e) => {
-                                                                            const newChecked = { ...form.luChecked, [lu.id]: e.target.checked };
-                                                                            setPlotForms(prev => {
-                                                                                const updated = prev.map((f, idx) => idx === i ? { ...f, luChecked: newChecked } : f);
-                                                                                const allChecked: Record<number, Record<string, boolean>> = {};
-                                                                                updated.forEach((f, idx) => { allChecked[idx] = f.luChecked; });
-                                                                                setTimeout(() => onLandUseChange?.(allChecked, i), 0);
-                                                                                return updated;
-                                                                            });
-                                                                        }}
-                                                                    />
-                                                                    <span style={{ width: 11, height: 11, borderRadius: 3, backgroundColor: lu.color, flexShrink: 0, boxShadow: isChecked ? `0 0 0 3px ${lu.color}22` : "none", transition: "box-shadow 0.18s" }} />
-                                                                    <span style={{ flex: 1, color: "#1a3d2b", fontWeight: isChecked ? 700 : 500, fontSize: 13.5 }}>{lu.label}</span>
-                                                                    <span style={{ fontSize: 12.5, fontWeight: 700, color: isChecked ? lu.color : "#5a7a65", background: isChecked ? `${lu.color}14` : "#f1f5f3", padding: "3px 9px", borderRadius: 8, whiteSpace: "nowrap", flexShrink: 0 }}>
-                                                                        {hasArea ? `${realData.rai.toFixed(2)} ไร่` : "0.00 ไร่"}
-                                                                        {hasArea && (
-                                                                            <span style={{ opacity: 0.75, fontWeight: 600 }}> ({realData.pct}%)</span>
-                                                                        )}
-                                                                    </span>
-                                                                </label>
-                                                            );
-                                                        });
-                                                    })()}
-                                                </div>
-                                                {/* Selected area summary */}
-                                                {(() => {
-                                                    const plotLUData = plotsLuRealData[i] || {};
-                                                    const activeLeafIds: string[] = [];
-
-                                                    const allFormKeys = Object.keys(form.luChecked || {});
-                                                    const allDataKeys = Object.keys(plotLUData);
-                                                    const allKeys = new Set([...allDataKeys, ...allFormKeys]);
-
-                                                    allKeys.forEach(k => {
-                                                        if (k === "A") return;
-                                                        const isSubA = k.startsWith("A") && k !== "A";
-                                                        const isTopLevel = !k.startsWith("A");
-
-                                                        if (isSubA) {
-                                                            const defaultOn = k.includes("A302");
-                                                            const isChecked = form.luChecked?.[k] ?? defaultOn;
-                                                            if (isChecked) activeLeafIds.push(k);
-                                                        } else if (isTopLevel) {
-                                                            const isChecked = form.luChecked?.[k] ?? false;
-                                                            if (isChecked) activeLeafIds.push(k);
+                                                        if (base.id === "A") {
+                                                            const aSubtypes = Object.keys(plotLUData).filter(k => k.startsWith("A") && k !== "A").sort();
+                                                            aSubtypes.forEach(sub => {
+                                                                const realSubData = plotLUData[sub];
+                                                                if (realSubData && realSubData.rai > 0) {
+                                                                    const desc = realSubData.desc || "";
+                                                                    const isA302 = sub.includes("A302");
+                                                                    displayLU.push({
+                                                                        id: sub,
+                                                                        label: desc ? (desc.startsWith(sub) ? desc : `${sub} ${desc}`) : sub,
+                                                                        defaultChecked: isA302,
+                                                                        indent: true,
+                                                                        color: "#84cc16"
+                                                                    });
+                                                                }
+                                                            });
                                                         }
                                                     });
 
-                                                    const hasCheckedA = activeLeafIds.some(id => id.startsWith("A"));
-                                                    if (!hasCheckedA && plotLUData["A"]) {
-                                                        activeLeafIds.push("A");
+                                                    if (displayLU.length === 0) {
+                                                        return <div style={{ color: "#94a3b8", fontSize: 12 }}>ไม่พบข้อมูลการใช้ประโยชน์ที่ดินในแปลงนี้</div>;
                                                     }
 
-                                                    const selectedRai = activeLeafIds.reduce((sum, cls) => {
-                                                        const realRai = plotLUData[cls]?.rai || 0;
-                                                        return sum + realRai;
-                                                    }, 0);
-
-                                                    const hasAnyDetected = Object.values(plotLUData).some(v => v.rai > 0);
-                                                    // Exclude "A" (parent, always auto-checked) — only count actual leaf LU classes
-                                                    const effectiveCount = Object.entries(form.luChecked || {})
-                                                        .filter(([cls, on]) => cls !== "A" && on && (plotLUData[cls]?.rai ?? 0) > 0).length;
-                                                    const showNoLuWarning = form.plantStatus && hasAnyDetected && effectiveCount === 0;
-
-                                                    return selectedRai > 0 ? (
-                                                        <div style={{ marginTop: 14, padding: "12px 14px", background: "rgba(249,115,22,0.08)", borderRadius: 12, border: "1px solid rgba(249,115,22,0.22)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                                                            <span style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13.5, color: "#92400e", fontWeight: 700 }}>
-                                                                <i className="bi bi-check2-square" style={{ fontSize: 15, color: "#ea580c" }} /> พื้นที่ที่เลือก
-                                                            </span>
-                                                            <span style={{ display: "flex", alignItems: "baseline", gap: 4, color: "#c2410c", fontWeight: 800 }}>
-                                                                <span style={{ fontSize: 17 }}>{selectedRai.toFixed(2)}</span>
-                                                                <span style={{ fontSize: 12.5, fontWeight: 700 }}>ไร่</span>
-                                                            </span>
-                                                        </div>
-                                                    ) : null;
+                                                    return displayLU.map(lu => {
+                                                        const isDisabled = !form.plantStatus || lu.displayOnly;
+                                                        const isChecked = lu.displayOnly ? false : (form.luChecked?.[lu.id] ?? lu.defaultChecked ?? false);
+                                                        const realData = plotLUData[lu.id];
+                                                        const hasArea = realData && realData.rai > 0;
+                                                        return (
+                                                            <label key={lu.id} style={{
+                                                                display: "flex", alignItems: "center", gap: 8,
+                                                                cursor: isDisabled ? "not-allowed" : "pointer",
+                                                                paddingLeft: lu.indent ? 24 : 0
+                                                            }}>
+                                                                <input
+                                                                    type="checkbox"
+                                                                    checked={isChecked}
+                                                                    disabled={isDisabled}
+                                                                    style={{ accentColor: isChecked ? lu.color : "#94a3b8", width: 16, height: 16 }}
+                                                                    onChange={(e) => {
+                                                                        const newChecked = { ...form.luChecked, [lu.id]: e.target.checked };
+                                                                        setPlotForms(prev => {
+                                                                            const updated = prev.map((f, idx) => idx === i ? { ...f, luChecked: newChecked } : f);
+                                                                            const allChecked: Record<number, Record<string, boolean>> = {};
+                                                                            updated.forEach((f, idx) => { allChecked[idx] = f.luChecked; });
+                                                                            setTimeout(() => onLandUseChange?.(allChecked, i), 0);
+                                                                            return updated;
+                                                                        });
+                                                                    }}
+                                                                />
+                                                                <div style={{ width: 12, height: 12, borderRadius: 2, backgroundColor: lu.color, flexShrink: 0 }} />
+                                                                <span style={{ flex: 1, color: "#0f172a", fontWeight: isChecked ? 600 : 400 }}>{lu.label}</span>
+                                                                <span style={{ color: isChecked ? lu.color : "#64748b", fontSize: 14, fontWeight: 700 }}>
+                                                                    {hasArea ? `${realData.rai.toFixed(2)} ไร่` : "0.00 ไร่"}
+                                                                    {hasArea && (
+                                                                        <span style={{ opacity: 0.7, fontSize: 13 }}> ({realData.pct}%)</span>
+                                                                    )}
+                                                                </span>
+                                                            </label>
+                                                        );
+                                                    });
                                                 })()}
                                             </div>
+                                            {/* Selected area summary */}
+                                            {(() => {
+                                                const plotLUData = plotsLuRealData[i] || {};
+                                                const activeLeafIds: string[] = [];
+
+                                                const allFormKeys = Object.keys(form.luChecked || {});
+                                                const allDataKeys = Object.keys(plotLUData);
+                                                const allKeys = new Set([...allDataKeys, ...allFormKeys]);
+
+                                                allKeys.forEach(k => {
+                                                    if (k === "A") return;
+                                                    const isSubA = k.startsWith("A") && k !== "A";
+                                                    const isTopLevel = !k.startsWith("A");
+
+                                                    if (isSubA) {
+                                                        const defaultOn = k.includes("A302");
+                                                        const isChecked = form.luChecked?.[k] ?? defaultOn;
+                                                        if (isChecked) activeLeafIds.push(k);
+                                                    } else if (isTopLevel) {
+                                                        const isChecked = form.luChecked?.[k] ?? false;
+                                                        if (isChecked) activeLeafIds.push(k);
+                                                    }
+                                                });
+
+                                                const hasCheckedA = activeLeafIds.some(id => id.startsWith("A"));
+                                                if (!hasCheckedA && plotLUData["A"]) {
+                                                    activeLeafIds.push("A");
+                                                }
+
+                                                const selectedRai = activeLeafIds.reduce((sum, cls) => {
+                                                    const realRai = plotLUData[cls]?.rai || 0;
+                                                    return sum + realRai;
+                                                }, 0);
+
+                                                const hasAnyDetected = Object.values(plotLUData).some(v => v.rai > 0);
+                                                // Exclude "A" (parent, always auto-checked) — only count actual leaf LU classes
+                                                const effectiveCount = Object.entries(form.luChecked || {})
+                                                    .filter(([cls, on]) => cls !== "A" && on && (plotLUData[cls]?.rai ?? 0) > 0).length;
+                                                const showNoLuWarning = form.plantStatus && hasAnyDetected && effectiveCount === 0;
+
+                                                return selectedRai > 0 ? (
+                                                    <div style={{ marginTop: 12, padding: "8px 12px", background: "rgba(249,115,22,0.08)", borderRadius: 8, border: "1px solid rgba(249,115,22,0.2)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                                                        <span style={{ fontSize: 14, color: "#92400e", fontWeight: 600 }}>
+                                                            <i className="bi bi-check2-square me-1" /> พื้นที่ที่เลือก
+                                                        </span>
+                                                        <span style={{ fontSize: 15, color: "#c2410c", fontWeight: 700 }}>
+                                                            {selectedRai.toFixed(2)} ไร่
+                                                        </span>
+                                                    </div>
+                                                ) : null;
+                                            })()}
                                         </div>
+                                    </div>
                                 </Accordion>
                             </div>
                         );
@@ -2005,36 +2099,36 @@ export function ParcelResultsPanel({
                                 </div>
 
                                 <Accordion open={expandedResultIdx === i}>
-                                        {/* Current Carbon Overview Card */}
-                                        <div style={{ padding: "14px 14px 0" }}>
-                                            <div style={{
-                                                background: "#f8fbf9",
-                                                border: "1px solid #e6f0ea",
-                                                borderRadius: 10,
-                                                padding: "16px 16px",
-                                                display: "flex",
-                                                flexDirection: "column",
-                                                justifyContent: "center",
-                                                alignItems: "center"
-                                            }}>
-                                                <div style={{ fontSize: 12.5, color: "#5a7a65", fontWeight: 600, marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
-                                                    ปริมาณคาร์บอนสะสม ณ ปีปัจจุบัน
-                                                </div>
-                                                <div style={{ fontWeight: 800, color: "#1e7a47", fontSize: isMobile ? 24 : 28, lineHeight: 1.1, letterSpacing: "-0.5px" }}>
-                                                    {Math.floor(cr.co2Now).toLocaleString()} <span style={{ fontSize: isMobile ? 16 : 18, color: "#5a7a65", fontWeight: 600 }}>± {(Math.floor((cr.co2NowCi || 0) * 10) / 10).toLocaleString("th-TH", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}</span> <span style={{ fontSize: 15, fontWeight: 600, color: "#5a7a65" }}>tCO₂eq</span>
-                                                </div>
+                                    {/* Current Carbon Overview Card */}
+                                    <div style={{ padding: "14px 14px 0" }}>
+                                        <div style={{
+                                            background: "#f8fbf9",
+                                            border: "1px solid #e6f0ea",
+                                            borderRadius: 10,
+                                            padding: "16px 16px",
+                                            display: "flex",
+                                            flexDirection: "column",
+                                            justifyContent: "center",
+                                            alignItems: "center"
+                                        }}>
+                                            <div style={{ fontSize: 12.5, color: "#5a7a65", fontWeight: 600, marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
+                                                ปริมาณคาร์บอนสะสม ณ ปีปัจจุบัน
+                                            </div>
+                                            <div style={{ fontWeight: 800, color: "#1e7a47", fontSize: isMobile ? 24 : 28, lineHeight: 1.1, letterSpacing: "-0.5px" }}>
+                                                {Math.floor(cr.co2Now).toLocaleString()} <span style={{ fontSize: isMobile ? 16 : 18, color: "#5a7a65", fontWeight: 600 }}>± {(Math.floor((cr.co2NowCi || 0) * 10) / 10).toLocaleString("th-TH", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}</span> <span style={{ fontSize: 15, fontWeight: 600, color: "#5a7a65" }}>tCO₂eq</span>
                                             </div>
                                         </div>
+                                    </div>
 
-                                        {/* Plot chart */}
-                                        <div style={{ padding: "12px 12px 4px" }}>
-                                            <CarbonBarChart pts={plotPts} isMobile={isMobile} narrowMode={!isMobile} showAge={showPlotAge} />
-                                        </div>
+                                    {/* Plot chart */}
+                                    <div style={{ padding: "12px 12px 4px" }}>
+                                        <CarbonBarChart pts={plotPts} isMobile={isMobile} narrowMode={!isMobile} showAge={showPlotAge} />
+                                    </div>
 
-                                        {/* Plot details */}
-                                        <div style={{ padding: "8px 14px 14px" }}>
-                                            <PlotDetailCard form={form} cr={cr} ep={ep || null} areaRai={cr.selectedAreaRai} />
-                                        </div>
+                                    {/* Plot details */}
+                                    <div style={{ padding: "8px 14px 14px" }}>
+                                        <PlotDetailCard form={form} cr={cr} ep={ep || null} areaRai={cr.selectedAreaRai} />
+                                    </div>
                                 </Accordion>
                             </div>
                         );
