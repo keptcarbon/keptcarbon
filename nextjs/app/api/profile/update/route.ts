@@ -35,7 +35,7 @@ export async function PUT(request: NextRequest) {
 
     // updated_at handled by the trg_users_updated_at trigger
     await pool.query(
-      `UPDATE users SET first_name = $1, last_name = $2, display_name = $3, phone = $4 WHERE id = $5`,
+      `UPDATE tbl_users SET first_name = $1, last_name = $2, display_name = $3, phone = $4 WHERE id = $5`,
       [first, last, displayName, phoneVal, payload.userId]
     );
 

@@ -1,91 +1,62 @@
 """
-Province detection via spatial index (sindex) — faster than full overlay.
+Province / service-area detection via PostGIS (geo_thailand table).
+
+Replaces the old in-memory geopandas + TH_PROVINCE.gpkg sindex lookup: the
+polygon (or point, for /plots/nav) is matched against geo_thailand with a
+single ST_Intersects/ST_Intersection query, ranked by overlap area computed
+on the geography type (spheroidal area in m², independent of UTM zone).
 """
-import geopandas as gpd
-from shapely.geometry import shape
+import json
+
 from fastapi import HTTPException
-from pathlib import Path
-import zipfile
+
+from app.core.database import get_pool
 
 
 class ProvinceService:
-    def __init__(self):
-        self.file_path = Path("app/data/shp/TH_PROVINCE.gpkg")
-        self.target_crs = "EPSG:32647"
+    # `best` only has a row when something actually intersects; the LEFT JOIN
+    # keeps the outer row (and therefore target_area_m2) even when it's empty.
+    _QUERY = """
+        WITH target AS (
+            SELECT ST_SetSRID(ST_GeomFromGeoJSON($1), 4326) AS geom
+        ),
+        best AS (
+            SELECT gt.p_code,
+                   ST_Area(ST_Intersection(gt.geom, target.geom)::geography) AS intersect_area_m2
+            FROM geo_thailand gt, target
+            WHERE ST_Intersects(gt.geom, target.geom)
+            ORDER BY intersect_area_m2 DESC
+            LIMIT 1
+        )
+        SELECT ST_Area(target.geom::geography) AS target_area_m2, best.p_code AS p_code
+        FROM target
+        LEFT JOIN best ON TRUE
+    """
 
-        if not self.file_path.exists():
-            zip_path = self.file_path.with_suffix(".gpkg.zip")
-            if zip_path.exists():
-                with zipfile.ZipFile(zip_path, "r") as z:
-                    z.extractall(self.file_path.parent)
-
-        if self.file_path.exists():
-            try:
-                self._provinces_gdf = gpd.read_file(self.file_path).to_crs(self.target_crs)
-            except Exception as e:
-                self._provinces_gdf = None
-                raise HTTPException(
-                    status_code=500,
-                    detail=f"FAILED TO LOAD PROVINCE BOUNDARIES: {str(e)}"
-                )
-        else:
-            self._provinces_gdf = None
-            print("Warning: Provincial boundary file not found.")
-
-    def get_province(self, poly_data: dict):
-        if self._provinces_gdf is None:
-            raise HTTPException(status_code=500, detail="PROVINCE BOUNDARY FILE NOT FOUND.")
-
+    async def get_province(self, poly_data: dict) -> dict:
         try:
-            plantation_geom = shape(poly_data["geometry"])
-            plantation_gdf = gpd.GeoDataFrame(
-                index=[0], crs="EPSG:4326", geometry=[plantation_geom]
-            ).to_crs(self.target_crs)
-
-            target_geom = plantation_gdf.geometry.iloc[0]
-            poly_data["total_area_m2"] = round(target_geom.area, 4)
-
-            # Fast spatial index query — only evaluate precise intersection on candidates
-            possible_matches_index = self._provinces_gdf.sindex.query(
-                target_geom, predicate="intersects"
-            )
-            candidates = self._provinces_gdf.iloc[possible_matches_index]
-
-            if candidates.empty:
-                poly_data["province_code"] = None
-                poly_data["status"] = {
-                    "status": "error", "status_code": "E01",
-                    "message": "DRAWN POLYGON DOES NOT INTERSECT WITH ANY SUPPORTED THAI PROVINCES."
-                }
-                return poly_data
-
-            # Pick the province with the largest intersection area.
-            # Starts below zero so zero-area intersections (e.g. a Point target) still match.
-            best_match = None
-            max_intersect_area = -1.0
-            for _, prov_row in candidates.iterrows():
-                inter_geom = target_geom.intersection(prov_row.geometry)
-                if not inter_geom.is_empty and inter_geom.area > max_intersect_area:
-                    max_intersect_area = inter_geom.area
-                    best_match = prov_row
-
-            if best_match is None:
-                poly_data["province_code"] = None
-                poly_data["status"] = {
-                    "status": "error", "status_code": "E01",
-                    "message": "NO VALID INTERSECTION FOUND."
-                }
-                return poly_data
-
-            poly_data["province_code"] = str(best_match["P_CODE"])
-            poly_data["status"] = {
-                "status": "success", "status_code": "S01",
-                "message": f"EXTRACT P_CODE: {poly_data['province_code']} SUCCESSFULLY."
-            }
-            return poly_data
-
+            pool = get_pool()
+            async with pool.acquire() as conn:
+                row = await conn.fetchrow(self._QUERY, json.dumps(poly_data["geometry"]))
         except Exception as e:
             raise HTTPException(
                 status_code=500,
                 detail=f"PROVINCE IDENTIFICATION FAILED: {str(e)}"
             )
+
+        poly_data["total_area_m2"] = round(row["target_area_m2"], 4)
+
+        if row["p_code"] is None:
+            poly_data["province_code"] = None
+            poly_data["status"] = {
+                "status": "error", "status_code": "E01",
+                "message": "DRAWN POLYGON DOES NOT INTERSECT WITH ANY SUPPORTED THAI PROVINCES."
+            }
+            return poly_data
+
+        poly_data["province_code"] = row["p_code"]
+        poly_data["status"] = {
+            "status": "success", "status_code": "S01",
+            "message": f"EXTRACT P_CODE: {poly_data['province_code']} SUCCESSFULLY."
+        }
+        return poly_data

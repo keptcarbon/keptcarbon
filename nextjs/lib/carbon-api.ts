@@ -138,6 +138,31 @@ export async function getPlotsInfo(polygon: {
     return response.json();
 }
 
+export interface PlotsNavResponse {
+    supported: boolean;
+    province_code: string | null;
+    message: string;
+}
+
+/**
+ * Check whether a lat/lon point falls within a province the system services.
+ */
+export async function getPlotsNav(point: {
+    lat: number;
+    lon: number;
+}): Promise<PlotsNavResponse> {
+    const response = await fetch(`${API_BASE_URL}/plots/nav`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(point),
+    });
+    if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        throw new Error(`Backend API error: ${response.status} ${JSON.stringify(err)}`);
+    }
+    return response.json();
+}
+
 /**
  * Get the current year in Buddhist Era (BE)
  * @returns Current year in BE

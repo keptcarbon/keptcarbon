@@ -2,8 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/lib/auth-context";
-import { useRouter } from "next/navigation";
-import { Alert, Card, Eyebrow } from "@/app/components";
+import { Alert, Card } from "@/app/components";
 
 type UserRecord = {
     id: string;
@@ -13,9 +12,12 @@ type UserRecord = {
     lastName: string;
     displayName: string;
     phone: string;
-    role: "user" | "farmer" | "editor" | "admin";
+    pictureUrl: string | null;
+    role: "user" | "officer" | "admin";
     createdAt: string;
 };
+
+const PAGE_SIZE = 10;
 
 // Minimal brand green hero — aligned with the redesigned authenticated pages
 const HERO_BG =
@@ -25,46 +27,28 @@ const HERO_BG =
 
 const ROLE_META: Record<UserRecord["role"], { bg: string; color: string; label: string }> = {
     admin: { bg: "#fef2f2", color: "#c53030", label: "Admin" },
-    editor: { bg: "rgba(59,130,246,0.10)", color: "#1e40af", label: "Editor" },
-    farmer: { bg: "#edfaf3", color: "#1e7a47", label: "Farmer" },
+    officer: { bg: "rgba(59,130,246,0.10)", color: "#1e40af", label: "Officer" },
     user: { bg: "#f1f6f3", color: "#5a7a65", label: "User" },
 };
 
 const TH_STYLE: React.CSSProperties = {
-    fontWeight: 700, fontSize: 11,
+    fontWeight: 700, fontSize: 13,
     textTransform: "uppercase", letterSpacing: "0.6px", color: "#5a7a65",
 };
 
-function maskEmail(email: string) {
-    const [local, domain] = email.split("@");
-    if (!domain) return "***";
-    return `${local[0] ?? "*"}${"*".repeat(Math.min(local.length - 1, 4))}@${domain}`;
-}
-
-function maskName(name: string) {
-    if (!name) return "ไม่ระบุชื่อ";
-    return name.split(" ").map((p) => (p[0] ?? "") + "*".repeat(Math.min(p.length - 1, 3))).join(" ");
-}
-
-function maskPhone(phone: string) {
-    if (!phone || phone.length < 4) return "-";
-    return phone.slice(0, 3) + "*".repeat(phone.length - 6) + phone.slice(-3);
-}
-
 export default function UserManagementPage() {
-    const { ready, user } = useAuth();
-    const router = useRouter();
+    const { user } = useAuth();
     const [users, setUsers] = useState<UserRecord[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState<string | null>(null);
-    const [privacyOn, setPrivacyOn] = useState(false);
     const [search, setSearch] = useState("");
     // Two-step delete confirmation: pendingDelete holds the target user,
     // confirmStep advances 1 → 2 so the admin has to confirm twice.
     const [pendingDelete, setPendingDelete] = useState<UserRecord | null>(null);
     const [confirmStep, setConfirmStep] = useState<1 | 2>(1);
     const [deleting, setDeleting] = useState(false);
+    const [page, setPage] = useState(1);
 
     const filteredUsers = useMemo(() => {
         const q = search.trim().toLowerCase();
@@ -76,15 +60,17 @@ export default function UserManagementPage() {
         );
     }, [users, search]);
 
+    // Reset to page 1 whenever the search narrows/widens the result set.
     useEffect(() => {
-        if (ready) {
-            if (!user || user.role !== "admin") {
-                router.replace("/");
-            } else {
-                fetchUsers();
-            }
-        }
-    }, [ready, user, router]);
+        setPage(1);
+    }, [search]);
+
+    const totalPages = Math.max(1, Math.ceil(filteredUsers.length / PAGE_SIZE));
+    const paginatedUsers = filteredUsers.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
+    useEffect(() => {
+        fetchUsers();
+    }, []);
 
     async function fetchUsers() {
         try {
@@ -163,7 +149,7 @@ export default function UserManagementPage() {
         }
     }
 
-    if (!ready || loading) {
+    if (loading) {
         return (
             <div className="d-flex align-items-center justify-content-center" style={{ minHeight: 300 }}>
                 <div className="spinner-border text-success" role="status" />
@@ -172,41 +158,14 @@ export default function UserManagementPage() {
     }
 
     return (
-        <div className="container py-5" style={{ marginTop: "60px" }}>
-
+        <>
             {/* ── Hero card ── */}
             <Card className="border-0 shadow-sm mb-4 overflow-hidden">
                 <div className="p-4 p-md-5" style={{ background: HERO_BG, borderBottom: "1px solid rgba(0,0,0,0.06)" }}>
-                    <div className="d-flex flex-wrap align-items-start justify-content-between gap-3">
-                        <div style={{ maxWidth: 640 }}>
-                            <Eyebrow icon="bi-shield-check" className="mb-2">แผงควบคุมผู้ดูแลระบบ</Eyebrow>
-                            <h1 className="fw-bold mb-2" style={{ letterSpacing: "-0.02em", color: "#1a3d2b" }}>จัดการผู้ใช้</h1>
-                            <div style={{ color: "#5a7a65", fontSize: 14 }}>
-                                บัญชีผู้ใช้ทั้งหมด <span className="fw-semibold" style={{ color: "#1a3d2b" }}>{users.length}</span> บัญชี
-                                {" · "}กำหนดสิทธิ์และจัดการบัญชีผู้ใช้ในระบบ
-                            </div>
-                        </div>
-                        <button
-                            className="btn"
-                            onClick={() => setPrivacyOn((v) => !v)}
-                            style={{
-                                background: privacyOn
-                                    ? "linear-gradient(135deg, #374151 0%, #4b5563 100%)"
-                                    : "linear-gradient(135deg, #0f172a 0%, #334155 100%)",
-                                color: "white",
-                                border: "none",
-                                borderRadius: 10,
-                                padding: "9px 18px",
-                                fontWeight: 600,
-                                fontSize: "0.85rem",
-                                boxShadow: "none",
-                                transition: "all 0.15s ease",
-                                whiteSpace: "nowrap",
-                            }}
-                        >
-                            <i className={`bi ${privacyOn ? "bi-eye" : "bi-eye-slash"} me-2`} />
-                            {privacyOn ? "แสดงข้อมูลจริง" : "ซ่อนข้อมูลส่วนตัว"}
-                        </button>
+                    <h1 className="fw-bold mb-2" style={{ letterSpacing: "-0.02em", color: "#1a3d2b", fontSize: 26 }}>จัดการผู้ใช้</h1>
+                    <div style={{ color: "#5a7a65", fontSize: 14 }}>
+                        บัญชีผู้ใช้ทั้งหมด <span className="fw-semibold" style={{ color: "#1a3d2b" }}>{users.length}</span> บัญชี
+                        {" · "}กำหนดสิทธิ์และจัดการบัญชีผู้ใช้ในระบบ
                     </div>
                 </div>
             </Card>
@@ -221,10 +180,7 @@ export default function UserManagementPage() {
             )}
             {success && (
                 <Alert type="success" className="mb-3">
-                    <div className="d-flex align-items-start justify-content-between gap-3 w-100">
-                        <div>{success}</div>
-                        <button className="btn btn-sm btn-light border" onClick={() => setSuccess(null)}>ปิด</button>
-                    </div>
+                    {success}
                 </Alert>
             )}
 
@@ -267,26 +223,35 @@ export default function UserManagementPage() {
                             </tr>
                         </thead>
                         <tbody>
-                            {filteredUsers.map((u) => {
-                                const displayName = privacyOn ? maskName(u.displayName) : (u.displayName || "ไม่ระบุชื่อ");
-                                const displayEmail = privacyOn ? maskEmail(u.email) : u.email;
-                                const displayPhone = privacyOn ? maskPhone(u.phone) : (u.phone || "-");
+                            {paginatedUsers.map((u) => {
+                                const displayName = u.displayName || "ไม่ระบุชื่อ";
+                                const displayEmail = u.email;
+                                const displayPhone = u.phone || "-";
                                 const initial = (u.displayName?.[0] || u.email[0]).toUpperCase();
-                                const rm = ROLE_META[u.role];
+                                const rm = ROLE_META[u.role] ?? ROLE_META.user;
                                 const isSelf = u.id === user?.id;
 
                                 return (
                                     <tr key={u.id}>
                                         <td className="px-4 py-3">
                                             <div className="d-flex align-items-center gap-3">
-                                                <div style={{
-                                                    width: 40, height: 40, borderRadius: "50%", flexShrink: 0,
-                                                    background: "linear-gradient(135deg, #1e7a47 0%, #2d9e5f 100%)",
-                                                    display: "flex", alignItems: "center", justifyContent: "center",
-                                                    color: "white", fontSize: 14, fontWeight: 700,
-                                                }}>
-                                                    {initial}
-                                                </div>
+                                                {u.pictureUrl ? (
+                                                    <img
+                                                        src={u.pictureUrl}
+                                                        alt={displayName}
+                                                        referrerPolicy="no-referrer"
+                                                        style={{ width: 40, height: 40, borderRadius: "50%", flexShrink: 0, objectFit: "cover" }}
+                                                    />
+                                                ) : (
+                                                    <div style={{
+                                                        width: 40, height: 40, borderRadius: "50%", flexShrink: 0,
+                                                        background: "linear-gradient(135deg, #1e7a47 0%, #2d9e5f 100%)",
+                                                        display: "flex", alignItems: "center", justifyContent: "center",
+                                                        color: "white", fontSize: 14, fontWeight: 700,
+                                                    }}>
+                                                        {initial}
+                                                    </div>
+                                                )}
                                                 <div>
                                                     <div className="fw-semibold" style={{ color: "#1a3d2b" }}>
                                                         {displayName}
@@ -298,26 +263,25 @@ export default function UserManagementPage() {
                                         </td>
                                         <td className="py-3">
                                             <div className="d-flex align-items-center gap-2">
-                                                <span className="badge rounded-pill" style={{ background: rm.bg, color: rm.color, fontWeight: 600, fontSize: 11, padding: "4px 10px" }}>
+                                                <span className="badge rounded-pill" style={{ background: rm.bg, color: rm.color, fontWeight: 600, fontSize: 13, padding: "4px 10px" }}>
                                                     {rm.label}
                                                 </span>
                                                 {!isSelf && (
                                                     <select
                                                         className="form-select form-select-sm"
-                                                        style={{ width: "auto", borderRadius: 8, border: "1px solid #e6f0ea", fontSize: 12, padding: "3px 8px", color: "#1a3d2b" }}
+                                                        style={{ width: "auto", borderRadius: 8, border: "1px solid #e6f0ea", fontSize: 12, padding: "3px 28px 3px 8px", color: "#1a3d2b" }}
                                                         value={u.role}
                                                         onChange={(e) => handleRoleChange(u.id, e.target.value)}
                                                     >
                                                         <option value="user">User</option>
-                                                        <option value="farmer">Farmer</option>
-                                                        <option value="editor">Editor</option>
+                                                        <option value="officer">Officer</option>
                                                         <option value="admin">Admin</option>
                                                     </select>
                                                 )}
                                             </div>
                                         </td>
                                         <td className="py-3" style={{ color: "#5a7a65" }}>{displayPhone}</td>
-                                        <td className="py-3" style={{ fontSize: 12, color: "#5a7a65" }}>
+                                        <td className="py-3" style={{ fontSize: 13, color: "#5a7a65" }}>
                                             {new Date(u.createdAt).toLocaleDateString("th-TH", { year: "numeric", month: "short", day: "numeric" })}
                                         </td>
                                         <td className="px-4 py-3 text-end">
@@ -343,7 +307,7 @@ export default function UserManagementPage() {
                                     </tr>
                                 );
                             })}
-                            {filteredUsers.length === 0 && (
+                            {paginatedUsers.length === 0 && (
                                 <tr>
                                     <td colSpan={5} className="text-center py-5" style={{ color: "#5a7a65" }}>
                                         <i className="bi bi-search d-block mb-2" style={{ fontSize: 26, color: "#c7dbcf" }} />
@@ -356,6 +320,33 @@ export default function UserManagementPage() {
                         </tbody>
                     </table>
                 </div>
+
+                {/* ── Pagination ── */}
+                {totalPages > 1 && (
+                    <div className="d-flex align-items-center justify-content-between gap-2 px-4 py-3" style={{ borderTop: "1px solid #f1f5f9" }}>
+                        <div style={{ fontSize: 13, color: "#5a7a65" }}>
+                            หน้า {page} จาก {totalPages}
+                        </div>
+                        <div className="d-flex gap-2">
+                            <button
+                                className="btn btn-sm"
+                                disabled={page <= 1}
+                                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                                style={{ border: "1px solid #e6f0ea", borderRadius: 8, color: "#1a3d2b", background: "#fff" }}
+                            >
+                                <i className="bi bi-chevron-left" />
+                            </button>
+                            <button
+                                className="btn btn-sm"
+                                disabled={page >= totalPages}
+                                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                                style={{ border: "1px solid #e6f0ea", borderRadius: 8, color: "#1a3d2b", background: "#fff" }}
+                            >
+                                <i className="bi bi-chevron-right" />
+                            </button>
+                        </div>
+                    </div>
+                )}
             </div>
 
             {/* ── Two-step delete confirmation modal ── */}
@@ -452,6 +443,6 @@ export default function UserManagementPage() {
                     </div>
                 </div>
             )}
-        </div>
+        </>
     );
 }

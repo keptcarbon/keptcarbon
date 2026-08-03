@@ -10,8 +10,8 @@ export async function GET(request: NextRequest) {
   try {
     const result = await pool.query(
       `SELECT id, email, username, first_name AS "firstName", last_name AS "lastName",
-              display_name AS "displayName", phone, role, created_at AS "createdAt"
-       FROM users
+              display_name AS "displayName", phone, picture_url AS "pictureUrl", role, created_at AS "createdAt"
+       FROM tbl_users
        ORDER BY created_at DESC`
     );
     return NextResponse.json({ users: result.rows });
@@ -35,7 +35,7 @@ export async function PATCH(request: NextRequest) {
 
     // display_name is derived from first + last when either is provided.
     const result = await pool.query(
-      `UPDATE users
+      `UPDATE tbl_users
        SET role = COALESCE($1, role),
            first_name = COALESCE($2, first_name),
            last_name = COALESCE($3, last_name),
@@ -75,17 +75,17 @@ export async function DELETE(request: NextRequest) {
 
     await client.query("BEGIN");
 
-    // Hard delete: remove the user's projects first (they FK to users.uuid,
+    // Hard delete: remove the user's projects first (they FK to tbl_users.uuid,
     // so they must go before the user row), then the user. Both are permanent.
     const projects = await client.query(
       `DELETE FROM carbon_projects
-       WHERE user_uuid = (SELECT uuid FROM users WHERE id = $1)
+       WHERE user_uuid = (SELECT uuid FROM tbl_users WHERE id = $1)
        RETURNING id`,
       [id]
     );
 
     const result = await client.query(
-      "DELETE FROM users WHERE id = $1 RETURNING id",
+      "DELETE FROM tbl_users WHERE id = $1 RETURNING id",
       [id]
     );
 

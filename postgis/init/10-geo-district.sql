@@ -921,3 +921,5 @@ SELECT pg_catalog.setval('public.geo_district_id_seq', 879, true);
 
 ALTER TABLE ONLY public.geo_district
     ADD CONSTRAINT geo_district_pkey PRIMARY KEY (id);
+
+CREATE INDEX geo_district_geom_idx ON public.geo_district USING gist (geom);

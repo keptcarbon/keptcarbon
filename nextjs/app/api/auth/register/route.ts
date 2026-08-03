@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { pool } from "@/lib/db";
 import { signToken, AUTH_COOKIE } from "@/lib/jwt";
+import { logAuthEvent } from "@/lib/auth-log";
 
 // Name rule (First & Last): 1–50 chars; letters (incl. Thai/Unicode), spaces, hyphens, apostrophes.
 const NAME_RE = /^[\p{L}\p{M}][\p{L}\p{M}\s'-]{0,49}$/u;
@@ -57,7 +58,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if email already exists
-    const existing = await pool.query("SELECT id FROM users WHERE LOWER(email) = LOWER($1)", [
+    const existing = await pool.query("SELECT id FROM tbl_users WHERE LOWER(email) = LOWER($1)", [
       email.trim(),
     ]);
 
@@ -77,9 +78,9 @@ export async function POST(request: NextRequest) {
 
     // Insert user
     const result = await pool.query(
-      `INSERT INTO users (email, username, password_hash, first_name, last_name, display_name, phone, provider, role)
+      `INSERT INTO tbl_users (email, username, password_hash, first_name, last_name, display_name, phone, provider, role)
        VALUES ($1, $2, $3, $4, $5, $6, $7, 'local', 'user')
-       RETURNING id, email, username, first_name, last_name, display_name, phone, picture_url, provider, role`,
+       RETURNING id, uuid, email, username, first_name, last_name, display_name, phone, picture_url, provider, role`,
       [email.trim(), username, hash, first, last, displayName, phone?.trim() || ""]
     );
 
@@ -92,6 +93,9 @@ export async function POST(request: NextRequest) {
       role: user.role,
       provider: user.provider,
     });
+
+    // Registration auto-logs the user in — record it as a login event.
+    await logAuthEvent(request, { userUuid: user.uuid, email: user.email, eventType: "login", provider: "local" });
 
     const res = NextResponse.json({
       success: true,

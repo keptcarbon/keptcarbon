@@ -12,6 +12,6 @@ export async function isAdmin(request: NextRequest): Promise<boolean> {
   const payload = verifyToken(token);
   if (!payload) return false;
 
-  const result = await pool.query("SELECT role FROM users WHERE id = $1", [payload.userId]);
+  const result = await pool.query("SELECT role FROM tbl_users WHERE id = $1", [payload.userId]);
   return result.rows[0]?.role === "admin";
 }

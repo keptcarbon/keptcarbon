@@ -2,6 +2,7 @@ import { NextResponse, NextRequest } from "next/server";
 import { GOOGLE_CONFIG } from "@/lib/google-config";
 import { pool } from "@/lib/db";
 import { signToken, AUTH_COOKIE } from "@/lib/jwt";
+import { logAuthEvent } from "@/lib/auth-log";
 
 /**
  * GET /api/auth/google/callback
@@ -65,18 +66,17 @@ export async function GET(request: NextRequest) {
     const googleUserId = profile.id || profile.sub;
     const pictureUrl = profile.picture || "";
 
-    // Upsert user in DB
+    // Upsert user in DB. On an email conflict, this LINKS the Google identity
+    // to whatever account already owns that email — it must not overwrite
+    // provider/username/name, or a local (password) account becomes
+    // unreachable via password login (provider would no longer be 'local').
     const result = await pool.query(
-      `INSERT INTO users (email, username, first_name, last_name, display_name, picture_url, provider, google_user_id, role)
+      `INSERT INTO tbl_users (email, username, first_name, last_name, display_name, picture_url, provider, google_user_id, role)
        VALUES ($1, $2, $3, $4, $5, $6, 'google', $7, 'user')
        ON CONFLICT (email) DO UPDATE SET
          picture_url = EXCLUDED.picture_url,
-         first_name = EXCLUDED.first_name,
-         last_name = EXCLUDED.last_name,
-         display_name = EXCLUDED.display_name,
-         provider = EXCLUDED.provider,
-         google_user_id = COALESCE(EXCLUDED.google_user_id, users.google_user_id)
-       RETURNING id, email, role, provider`,
+         google_user_id = EXCLUDED.google_user_id
+       RETURNING id, uuid, email, role, provider`,
       [email, `google_${googleUserId?.slice(0, 8) || email}`, firstName, lastName, displayName, pictureUrl, googleUserId]
     );
 
@@ -89,6 +89,8 @@ export async function GET(request: NextRequest) {
       role: dbUser.role,
       provider: dbUser.provider,
     });
+
+    await logAuthEvent(request, { userUuid: dbUser.uuid, email: dbUser.email, eventType: "login", provider: "google" });
 
     const response = NextResponse.redirect(new URL("/", baseUrl));
     response.cookies.set(AUTH_COOKIE, token, {

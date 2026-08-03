@@ -9,7 +9,7 @@ class PlotsService:
         self.lu_svc = LanduseService()
 
     async def get_plots_info(self, poly_data: dict) -> dict:
-        poly_data = self.pro_svc.get_province(poly_data)
+        poly_data = await self.pro_svc.get_province(poly_data)
         if poly_data.get("province_code") is None:
             return {
                 "polygon_id": poly_data.get("id"),
@@ -39,7 +39,7 @@ class PlotsService:
                 "coordinates": [latlon_data["lon"], latlon_data["lat"]]
             }
         }
-        point_data = self.pro_svc.get_province(point_data)
+        point_data = await self.pro_svc.get_province(point_data)
         province_code = point_data.get("province_code")
 
         if province_code is None:

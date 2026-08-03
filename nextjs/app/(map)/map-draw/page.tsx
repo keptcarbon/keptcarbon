@@ -15,7 +15,7 @@ import {
   detectUtmZoneAuto,
   sanitizePolygonForApi,
 } from "@/lib/map-utils";
-import { getPlotsInfo } from "@/lib/carbon-api";
+import { getPlotsInfo, getPlotsNav } from "@/lib/carbon-api";
 import { ParcelResultsPanel } from "@/app/components/organisms";
 import { useSearchParams } from "next/navigation";
 import {
@@ -44,6 +44,9 @@ function MapDrawContent() {
   const [coordUtmZone, setCoordUtmZone] = useState<47 | 48>(47);
   const [coordE, setCoordE] = useState("");
   const [coordN, setCoordN] = useState("");
+  const [navSearching, setNavSearching] = useState(false);
+  const [navError, setNavError] = useState<string | null>(null);
+  const navMarkerRef = useRef<maplibregl.Marker | null>(null);
   const boundaryAnimRef = useRef<number>(0);
 
   useEffect(() => {
@@ -146,7 +149,7 @@ function MapDrawContent() {
   const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(1);
 
   // Panel toggle state
-  const [isPanelOpen, setIsPanelOpen] = useState(true);
+  const [isPanelOpen, setIsPanelOpen] = useState(false);
   // Mobile bottom-sheet: expanded = panel covers full height over the map
   const [panelExpanded, setPanelExpanded] = useState(false);
   const [dragMapH, setDragMapH] = useState<number | null>(null); // live map-side height (px) while dragging
@@ -157,7 +160,14 @@ function MapDrawContent() {
   const mapHStartRef = useRef(0);
   const shellHRef = useRef(0);
   const dragMapHRef = useRef(0);
-  const [showWelcomeHint, setShowWelcomeHint] = useState(true);
+  const [showWelcomeHint, setShowWelcomeHint] = useState(false);
+  useEffect(() => {
+    if (!localStorage.getItem("mapDrawWelcomeHintSeen")) setShowWelcomeHint(true);
+  }, []);
+  const dismissWelcomeHint = () => {
+    setShowWelcomeHint(false);
+    localStorage.setItem("mapDrawWelcomeHintSeen", "1");
+  };
 
   // Collapse the bottom-sheet whenever the panel is closed so it reopens at normal height
   useEffect(() => {
@@ -1721,6 +1731,8 @@ function MapDrawContent() {
   const startDrawFlow = async () => {
     const map = mapRef.current;
     if (!map) return;
+    navMarkerRef.current?.remove();
+    navMarkerRef.current = null;
     if (isMobile()) {
       setIsPanelOpen(false);
     } else {
@@ -1750,6 +1762,46 @@ function MapDrawContent() {
           }
         }
       }
+    }
+  };
+
+  // "ค้นหาแปลงจากพิกัด" — check the lat/lng against /plots/nav, then zoom + drop a marker if serviced
+  const handleCoordSearch = async () => {
+    const map = mapRef.current;
+    const la = parseFloat(coordLat.replace(/,/g, '')), lo = parseFloat(coordLng.replace(/,/g, ''));
+
+    if (isNaN(la) || isNaN(lo) || la < -90 || la > 90 || lo < -180 || lo > 180) {
+      setNavError("กรุณากรอกพิกัด Latitude/Longitude ให้ถูกต้อง");
+      return;
+    }
+
+    setNavSearching(true);
+    setNavError(null);
+    try {
+      const result = await getPlotsNav({ lat: la, lon: lo });
+
+      if (!result.supported) {
+        setNavError("พิกัดนี้ไม่อยู่ในพื้นที่จังหวัดที่ให้บริการ");
+        navMarkerRef.current?.remove();
+        navMarkerRef.current = null;
+        return;
+      }
+
+      if (map) {
+        map.flyTo({ center: [lo, la], zoom: 16, duration: 2400, essential: true });
+
+        if (!navMarkerRef.current) {
+          const el = document.createElement("div");
+          el.innerHTML = '<i class="bi bi-geo-alt-fill" style="font-size: 42px; color: #dc2626; filter: drop-shadow(0 2px 3px rgba(0,0,0,0.35));"></i>';
+          navMarkerRef.current = new maplibregl.Marker({ element: el, anchor: "bottom" });
+        }
+        navMarkerRef.current.setLngLat([lo, la]).addTo(map);
+      }
+    } catch (err) {
+      console.error("plots/nav search failed:", err);
+      setNavError("เกิดข้อผิดพลาดในการค้นหาพิกัด กรุณาลองใหม่อีกครั้ง");
+    } finally {
+      setNavSearching(false);
     }
   };
 
@@ -2430,7 +2482,7 @@ function MapDrawContent() {
 
             {/* Close */}
             <button
-              onClick={() => setShowWelcomeHint(false)}
+              onClick={dismissWelcomeHint}
               style={{
                 position: "absolute", top: 8, right: 8,
                 background: "none", border: "none", cursor: "pointer",
@@ -2456,37 +2508,12 @@ function MapDrawContent() {
                 <div style={{ fontSize: 13, fontWeight: 800, color: "#065f46", lineHeight: 1.2 }}>
                   เริ่มต้นที่นี่!
                 </div>
-                <div style={{ fontSize: 11, color: "#64748b", marginTop: 2 }}>ขั้นตอนแรก</div>
               </div>
             </div>
 
-            <p style={{ fontSize: 12.5, color: "#475569", lineHeight: 1.6, margin: "0 0 14px", paddingRight: 8 }}>
-              กดปุ่ม{" "}
-              <span style={{
-                display: "inline-flex", alignItems: "center", justifyContent: "center",
-                background: "#1e7a47",
-                color: "#fff", borderRadius: "50%", width: 18, height: 18,
-                fontSize: 9, verticalAlign: "middle"
-              }}>
-                <i className="bi bi-clipboard2-data-fill" />
-              </span>{" "}
-              <strong style={{ color: "#059669" }}>สีเขียว</strong> ด้านบนขวา<br />
-              เพื่อเปิดแผงและเริ่มวาดแปลง
+            <p style={{ fontSize: 12.5, color: "#475569", lineHeight: 1.6, margin: 0, paddingRight: 8 }}>
+              กดปุ่มนี้เพื่อเปิดแผงเครื่องมือและเริ่มวาดแปลง
             </p>
-
-            <button
-              onClick={() => { setShowWelcomeHint(false); setIsPanelOpen(true); }}
-              style={{
-                width: "100%", padding: "9px 0", borderRadius: 10,
-                background: "#1e7a47",
-                color: "#fff", border: "none", fontSize: 12.5, fontWeight: 700,
-                cursor: "pointer", display: "flex", alignItems: "center",
-                justifyContent: "center", gap: 6,
-                boxShadow: "0 4px 12px rgba(5,150,105,0.3)"
-              }}
-            >
-              <i className="bi bi-clipboard2-data-fill" /> เปิดแผงเครื่องมือ
-            </button>
 
             <style>{`
               @keyframes welcomeCardIn {
@@ -2604,7 +2631,7 @@ function MapDrawContent() {
       {!isPanelOpen && (
         <button
           className="mds-panel-toggle-btn"
-          onClick={() => setIsPanelOpen(true)}
+          onClick={() => { dismissWelcomeHint(); setIsPanelOpen(true); }}
           title="เปิดแผงเครื่องมือ"
         >
           <i className="bi bi-clipboard2-data-fill" />
@@ -2751,9 +2778,9 @@ function MapDrawContent() {
                 <div className="mds-s1-hd">
                   <div>
 
-                    <h2 className="mds-s1-title">กำหนดขอบเขตแปลง</h2>
+                    <h2 className="mds-s1-title" style={{ marginBottom: 12 }}>กำหนดขอบเขตแปลง</h2>
                     <p className="mds-s1-sub">
-                      วาดหรือนำเข้าพื้นที่บนแผนที่เพื่อค้นหาแปลงยางในฐานข้อมูล
+                      วาดแปลงบนแผนที่เพื่อกำหนดพื้นที่ประเมินคาร์บอนเครดิต
                     </p>
                   </div>
                 </div>
@@ -2853,11 +2880,17 @@ function MapDrawContent() {
                                 </div>
                               </div>
 
+                              {!selectedRegion || !selectedProvince ? (
+                                <div style={{ color: "#f59e0b", fontSize: 11, fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
+                                  <i className="bi bi-exclamation-circle-fill" /> กรุณาเลือกภาคและจังหวัดเพื่อดำเนินการต่อ
+                                </div>
+                              ) : null}
+
                               {/* ── grey divider ── */}
                               <div style={{ height: 1, background: "#e2e8f0", margin: "14px 0 10px" }} />
 
                               {/* Latitude / Longitude / ค้นหา (optional) */}
-                              <label style={{ fontSize: 14, fontWeight: 600, color: "#64748b" }}>พิกัดกลางแปลง <span style={{ fontWeight: 400, color: "#94a3b8" }}>(ไม่บังคับ)</span></label>
+                              <label style={{ fontSize: 15, fontWeight: 600, color: "#64748b" }}>ค้นหาแปลงจากพิกัด</label>
                               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr auto", gap: 6, alignItems: "end" }}>
                                 <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
                                   <label style={{ fontSize: 14, fontWeight: 600, color: "#64748b" }}>Latitude</label>
@@ -2867,17 +2900,23 @@ function MapDrawContent() {
                                   <label style={{ fontSize: 14, fontWeight: 600, color: "#64748b" }}>Longitude</label>
                                   <input className="prp-input" style={{ padding: "8px 5px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: 15, width: "100%", boxSizing: "border-box", transform: "none" }} placeholder="เช่น 100.9925" value={coordLng} onChange={e => setCoordLng(e.target.value)} />
                                 </div>
-                                {/* ค้นหา button (UI only) */}
-                                <button type="button" style={{ padding: "8px 14px", borderRadius: 8, border: "none", background: "#1e7a47", color: "#fff", fontSize: 15, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, whiteSpace: "nowrap", height: 38 }}>
-                                  <i className="bi bi-search" /> ค้นหา
+                                <button
+                                  type="button"
+                                  onClick={handleCoordSearch}
+                                  disabled={navSearching}
+                                  style={{ padding: "8px 14px", borderRadius: 8, border: "none", background: "#1e7a47", color: "#fff", fontSize: 15, fontWeight: 700, cursor: navSearching ? "not-allowed" : "pointer", opacity: navSearching ? 0.7 : 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, whiteSpace: "nowrap", height: 38 }}
+                                >
+                                  {navSearching
+                                    ? <div className="spinner-border spinner-border-sm" role="status" style={{ width: 14, height: 14, borderWidth: 2, color: "#fff" }} />
+                                    : <i className="bi bi-search" />}
+                                  {" "}ค้นหา
                                 </button>
                               </div>
-
-                              {!selectedRegion || !selectedProvince ? (
-                                <div style={{ color: "#f59e0b", fontSize: 11, fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
-                                  <i className="bi bi-exclamation-circle-fill" /> กรุณาเลือกภาคและจังหวัดเพื่อดำเนินการต่อ
+                              {navError && (
+                                <div style={{ color: "#dc2626", fontSize: 12, fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
+                                  <i className="bi bi-exclamation-circle-fill" /> {navError}
                                 </div>
-                              ) : null}
+                              )}
                             </div>
                           ) : (
                             <div style={{ padding: "10px 12px", background: "#f8fbf9", border: "1px solid rgba(5,150,105,0.18)", borderRadius: 10, display: "flex", flexDirection: "column", gap: 8 }}>
@@ -2969,24 +3008,6 @@ function MapDrawContent() {
                   </div>
                 )}
 
-                {/* Method selector */}
-                {!drawing && (
-                  <div className="mds-method-toggle">
-                    <button
-                      className={`mds-mtab${tab === "draw" ? " active" : ""}`}
-                      onClick={() => setTab("draw")}
-                    >
-                      <i className="bi bi-pencil-square" /> วาดแปลง
-                    </button>
-                    <button
-                      className={`mds-mtab${tab === "shp" ? " active" : ""}`}
-                      onClick={() => setTab("shp")}
-                    >
-                      <i className="bi bi-file-earmark-zip" /> นำเข้า SHP
-                    </button>
-                  </div>
-                )}
-
                 {/* ── Draw tab ── */}
                 {tab === "draw" && (
                   <div className="mds-action-content">
@@ -3068,7 +3089,7 @@ function MapDrawContent() {
                         {drawnParcels.length === 0 && (
                           <ol className="mds-instr-list">
                             <li>คลิกปุ่ม <strong>&ldquo;เริ่มวาดแปลง&rdquo;</strong></li>
-                            <li>คลิกบนแผนที่เพื่อเพิ่มจุดขอบเขต (อย่างน้อย 3 จุด)</li>
+                            <li>คลิกบนแผนที่เพื่อเพิ่มจุดขอบเขต (≥ 3 จุด)</li>
                             <li>
                               <span>จบการวาดด้วย</span>
                               <span style={{ display: "inline-flex", flexWrap: "wrap", alignItems: "center", gap: "5px", marginLeft: "5px" }}>
@@ -3087,6 +3108,7 @@ function MapDrawContent() {
                             className="mds-btn mds-btn-solid"
                             onClick={startDrawFlow}
                             style={{
+                              marginBottom: 0,
                               background: ((user && (!projectName.trim() || isDuplicateProjectName)) || (drawnParcels.length === 0 && locationMethod === "area" && (!selectedRegion || !selectedProvince)) || (drawnParcels.length === 0 && locationMethod === "coord" && ((coordMode === "latlng" && (!coordLat || !coordLng)) || (coordMode === "utm" && (!coordE || !coordN)))) || isEditingPlotParam) ? "#cbd5e1" : undefined,
                               cursor: ((user && (!projectName.trim() || isDuplicateProjectName)) || (drawnParcels.length === 0 && locationMethod === "area" && (!selectedRegion || !selectedProvince)) || (drawnParcels.length === 0 && locationMethod === "coord" && ((coordMode === "latlng" && (!coordLat || !coordLng)) || (coordMode === "utm" && (!coordE || !coordN)))) || isEditingPlotParam) ? "not-allowed" : "pointer",
                               boxShadow: ((user && (!projectName.trim() || isDuplicateProjectName)) || (drawnParcels.length === 0 && locationMethod === "area" && (!selectedRegion || !selectedProvince)) || (drawnParcels.length === 0 && locationMethod === "coord" && ((coordMode === "latlng" && (!coordLat || !coordLng)) || (coordMode === "utm" && (!coordE || !coordN)))) || isEditingPlotParam) ? "none" : undefined,

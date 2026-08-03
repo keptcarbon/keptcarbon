@@ -166,7 +166,7 @@ class CarbonService:
         current_calendar_year = datetime.now().year
 
         # Step 1: Determine province code
-        poly_data = self.pro_svc.get_province(poly_data)
+        poly_data = await self.pro_svc.get_province(poly_data)
 
         if poly_data.get("province_code") is None:
             return {
