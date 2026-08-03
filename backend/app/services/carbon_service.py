@@ -177,7 +177,7 @@ class CarbonService:
             }
 
         # Step 2: Multi-Polygon Dissolve & Geometry Merge
-        poly_data = self.lu_svc.find_rubber_cultivation_area(poly_data)
+        poly_data = await self.lu_svc.find_rubber_cultivation_area(poly_data)
         if poly_data["A302_geometry"] is None:
             return {
                 "polygon_id": poly_data.get("id"),

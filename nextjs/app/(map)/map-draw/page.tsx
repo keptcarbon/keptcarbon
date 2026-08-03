@@ -1788,7 +1788,7 @@ function MapDrawContent() {
       }
 
       if (map) {
-        map.flyTo({ center: [lo, la], zoom: 16, duration: 2400, essential: true });
+        map.flyTo({ center: [lo, la], zoom: 17, duration: 2400, essential: true });
 
         if (!navMarkerRef.current) {
           const el = document.createElement("div");
