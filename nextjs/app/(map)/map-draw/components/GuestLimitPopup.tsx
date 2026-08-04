@@ -32,16 +32,15 @@ export function GuestLimitPopup({
         <div className={styles.iconMinimal}>
           <i className="bi bi-unlock" />
         </div>
-        <h3 className={styles.title}>ต้องเข้าสู่ระบบก่อน</h3>
-        <p className={styles.desc}>
-          กรุณาเข้าสู่ระบบหรือสมัครสมาชิกเพื่อวาดแปลงเพิ่ม
-        </p>
         <div className={styles.chip}>
           <i className="bi bi-info-circle" />
           <span>
             ผู้ใช้ทั่วไปวาดได้สูงสุด <b>{limit} แปลง</b>
           </span>
         </div>
+        <p className={styles.desc}>
+          กรุณาเข้าสู่ระบบหรือสมัครสมาชิกเพื่อวาดแปลงเพิ่ม
+        </p>
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           <button onClick={onLogin} className={styles.buttonPrimary}>
             เข้าสู่ระบบ

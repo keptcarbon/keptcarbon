@@ -41,6 +41,10 @@ const GUEST_PLOT_LIMIT = 5;
 
 /** sessionStorage key holding a guest's drawn plots across the auth flow. */
 const MAP_DRAW_RESUME_KEY = "mapDrawResume";
+// A stashed snapshot older than this is treated as an abandoned auth flow, so
+// its "skip the default province auto-select" flag no longer applies. OAuth
+// redirects return in seconds; this only guards against never-consumed keys.
+const MAP_DRAW_RESUME_TTL_MS = 5 * 60 * 1000;
 
 function MapDrawContent() {
   const { user, openLogin, openRegister } = useAuth();
@@ -66,6 +70,11 @@ function MapDrawContent() {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MLMap | null>(null);
   const mapLoadedRef = useRef(false);
+  // While a guest snapshot is being restored we re-apply the saved ภาค/จังหวัด
+  // so step 1 shows them again — but their boundary layers must NOT hijack the
+  // camera away from the zoom-to-restored-plots fit. Held true only for that
+  // restore window; cleared once the user touches a selector.
+  const suppressBoundaryZoomRef = useRef(false);
   const searchAbortRef = useRef<AbortController | null>(null);
   const refPlotsLoadedRef = useRef(false);
 
@@ -117,7 +126,7 @@ function MapDrawContent() {
     amphoesFromDb,
     tambonsFromDb,
     tambonsLoading,
-  } = useBoundarySelection({ mapRef, mapLoadedRef, mapLoaded });
+  } = useBoundarySelection({ mapRef, mapLoadedRef, mapLoaded, suppressAutoZoomRef: suppressBoundaryZoomRef });
 
   // SHP state
   const [shpFile, setShpFile] = useState<File | null>(null);
@@ -226,8 +235,21 @@ function MapDrawContent() {
     // Returning from the guest-limit auth flow: the restore effect will zoom
     // to the stashed plots — skip the default province auto-select, whose
     // delayed boundary zoom (ระยอง) would override that fit.
+    //
+    // Only skip for a *fresh* stash. A real OAuth round-trip lands back here in
+    // seconds; if the guest tapped login/register but then abandoned auth, the
+    // key is never consumed (the restore effect needs a logged-in user) and
+    // would otherwise disable the default ภาคตะวันออก/ระยอง auto-select for the
+    // rest of the tab session. Treat a stale key as abandoned: clear it and
+    // fall through to the default.
     try {
-      if (sessionStorage.getItem(MAP_DRAW_RESUME_KEY)) return;
+      const raw = sessionStorage.getItem(MAP_DRAW_RESUME_KEY);
+      if (raw) {
+        let ts = 0;
+        try { ts = JSON.parse(raw)?.ts ?? 0; } catch { /* legacy/no ts — treat as stale */ }
+        if (ts && Date.now() - ts < MAP_DRAW_RESUME_TTL_MS) return;
+        sessionStorage.removeItem(MAP_DRAW_RESUME_KEY);
+      }
     } catch { /* storage unavailable — fall through to default */ }
     const tRegion = setTimeout(() => setSelectedRegion("ภาคตะวันออก"), 250);
     const tProvince = setTimeout(() => setSelectedProvince("ระยอง"), 2600);
@@ -376,10 +398,18 @@ function MapDrawContent() {
   const stashGuestDrawSnapshot = () => {
     try {
       sessionStorage.setItem(MAP_DRAW_RESUME_KEY, JSON.stringify({
+        ts: Date.now(),
         parcels: drawnParcels,
         // Land-use polygons from plantation-info (A302 ฯลฯ) — shown in the
         // panel as luFeatures; without them the restore says "ไม่พบข้อมูล"
         luFeatures: parcelFeatures,
+        // The guest's ภาค/จังหวัด/อำเภอ/ตำบล picks. The OAuth redirect reloads the
+        // page and wipes this React state, so without stashing it the dropdowns
+        // come back empty when the user steps back to step 1 after logging in.
+        region: selectedRegion,
+        province: selectedProvince,
+        amphoe: selectedAmphoe,
+        tambon: selectedTambon,
       }));
     } catch { /* storage unavailable — plots are lost, but auth still works */ }
     setPostAuthRedirect("/map-draw");
@@ -409,6 +439,17 @@ function MapDrawContent() {
       setIsPanelOpen(true);
       setSearchCount(feats.length);
       setStatus("เข้าสู่ระบบสำเร็จ — แปลงที่วาดไว้ถูกกู้คืนแล้ว");
+
+      // Re-apply the guest's ภาค/จังหวัด/อำเภอ/ตำบล so stepping back to step 1
+      // shows them again. Suppress the boundary hook's auto-zoom for this window
+      // so it doesn't pull the camera off the zoom-to-plots fit below.
+      if (data?.region) {
+        suppressBoundaryZoomRef.current = true;
+        setSelectedRegion(data.region);
+        if (data?.province) setSelectedProvince(data.province);
+        if (data?.amphoe) setSelectedAmphoe(data.amphoe);
+        if (data?.tambon) setSelectedTambon(data.tambon);
+      }
 
       // Zoom to the restored plots (not the default province view)
       const map = mapRef.current;
@@ -1886,6 +1927,10 @@ function MapDrawContent() {
   const zoomToSelectedProvince = useCallback(() => {
     const map = mapRef.current;
     if (!map || !mapLoadedRef.current || !selectedProvince) return;
+    // An explicit "zoom to province" cancels any restore-time zoom suppression —
+    // otherwise the boundary-hook redraw below (amphoe-clear branch) would skip
+    // its zoom and the map would stay parked on the restored plots.
+    suppressBoundaryZoomRef.current = false;
     if (selectedAmphoe || selectedTambon) {
       // Clearing อำเภอ/ตำบล makes the boundary hook redraw + zoom to the province.
       setSelectedAmphoe("");
@@ -2905,7 +2950,7 @@ function MapDrawContent() {
                               {/* ภาค (Region) */}
                               <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
                                 <label style={{ fontSize: 14, fontWeight: 600, color: "#64748b" }}>ภาค</label>
-                                <select className="prp-input" style={{ padding: "8px 5px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: 15, background: "#fff", width: "100%" }} value={selectedRegion} onChange={(e) => { setSelectedRegion(e.target.value); setSelectedProvince(""); setSelectedAmphoe(""); setSelectedTambon(""); }}>
+                                <select className="prp-input" style={{ padding: "8px 5px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: 15, background: "#fff", width: "100%" }} value={selectedRegion} onChange={(e) => { suppressBoundaryZoomRef.current = false; setSelectedRegion(e.target.value); setSelectedProvince(""); setSelectedAmphoe(""); setSelectedTambon(""); }}>
                                   <option value="">เลือกภาค...</option>
                                   {REGIONS_DATA.filter(r => r.name === "ภาคตะวันออก").map(r => <option key={r.name} value={r.name}>{r.name}</option>)}
                                 </select>
@@ -2915,7 +2960,7 @@ function MapDrawContent() {
                               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6 }}>
                                 <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
                                   <label style={{ fontSize: 14, fontWeight: 600, color: "#64748b" }}>จังหวัด</label>
-                                  <select className="prp-input" style={{ padding: "8px 5px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: 15, background: selectedRegion ? "#fff" : "#f8fafc", color: selectedRegion ? "#0f172a" : "#94a3b8", width: "100%" }} value={selectedProvince} onChange={(e) => { setSelectedProvince(e.target.value); setSelectedAmphoe(""); setSelectedTambon(""); }} disabled={!selectedRegion}>
+                                  <select className="prp-input" style={{ padding: "8px 5px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: 15, background: selectedRegion ? "#fff" : "#f8fafc", color: selectedRegion ? "#0f172a" : "#94a3b8", width: "100%" }} value={selectedProvince} onChange={(e) => { suppressBoundaryZoomRef.current = false; setSelectedProvince(e.target.value); setSelectedAmphoe(""); setSelectedTambon(""); }} disabled={!selectedRegion}>
                                     <option value="">เลือกจังหวัด...</option>
                                     {selectedRegion && REGIONS_DATA.find(r => r.name === selectedRegion)?.provinces.filter(p => p === "ระยอง").map(p => <option key={p} value={p}>{p}</option>)}
                                   </select>

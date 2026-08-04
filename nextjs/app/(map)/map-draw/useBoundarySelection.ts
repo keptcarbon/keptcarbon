@@ -18,10 +18,15 @@ export function useBoundarySelection({
   mapRef,
   mapLoadedRef,
   mapLoaded,
+  suppressAutoZoomRef,
 }: {
   mapRef: MutableRefObject<MLMap | null>;
   mapLoadedRef: MutableRefObject<boolean>;
   mapLoaded: boolean;
+  // When true, boundary layers still redraw but skip their fit-to-bounds zoom.
+  // Used during a guest-plot restore so re-applying ภาค/จังหวัด doesn't pull the
+  // camera off the restored plots.
+  suppressAutoZoomRef?: MutableRefObject<boolean>;
 }) {
   const [selectedRegion, setSelectedRegion] = useState("");
   const [selectedProvince, setSelectedProvince] = useState("");
@@ -65,7 +70,7 @@ export function useBoundarySelection({
           features: (fc.features || []).filter(f => f.properties?.name_th === selectedRegion),
         };
         src.setData(filtered);
-        if (filtered.features.length) zoomToGeoJSONFeatures(filtered.features, map);
+        if (filtered.features.length && !suppressAutoZoomRef?.current) zoomToGeoJSONFeatures(filtered.features, map);
       })
       .catch(console.error);
   }, [selectedRegion, selectedProvince, mapLoaded]);
@@ -84,7 +89,7 @@ export function useBoundarySelection({
       .then(r => r.json())
       .then(fc => {
         src.setData(fc);
-        if (fc.features) zoomToGeoJSONFeatures(fc.features, map);
+        if (fc.features && !suppressAutoZoomRef?.current) zoomToGeoJSONFeatures(fc.features, map);
       })
       .catch(console.error);
   }, [selectedProvince, selectedAmphoe, mapLoaded]);
@@ -131,7 +136,7 @@ export function useBoundarySelection({
       .then(r => r.json())
       .then(fc => {
         src.setData(fc);
-        if (fc.features) zoomToGeoJSONFeatures(fc.features, map);
+        if (fc.features && !suppressAutoZoomRef?.current) zoomToGeoJSONFeatures(fc.features, map);
       })
       .catch(console.error);
   }, [selectedAmphoe, selectedProvince, selectedTambon, mapLoaded]);
@@ -147,7 +152,7 @@ export function useBoundarySelection({
       .then(r => r.json())
       .then(fc => {
         src.setData(fc);
-        if (fc.features) zoomToGeoJSONFeatures(fc.features, map);
+        if (fc.features && !suppressAutoZoomRef?.current) zoomToGeoJSONFeatures(fc.features, map);
       })
       .catch(console.error);
   }, [selectedTambon, selectedAmphoe, mapLoaded]);

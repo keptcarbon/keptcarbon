@@ -1932,13 +1932,13 @@ export function ParcelResultsPanel({
                             setSaveState("idle");
                             onStepChange(2);
                         }}
-                        title="จัดการแปลงพื้นที่"
+                        title="จัดการข้อมูลแปลง"
                         style={{ flexShrink: 0, alignSelf: "flex-start", padding: "5px 12px", fontSize: 12, fontWeight: 600, borderRadius: 8, display: "inline-flex", alignItems: "center", gap: 4, color: "#1e7a47", border: "1px solid #cfe6d9", background: "#ffffff", cursor: "pointer", whiteSpace: "nowrap", transition: "all 0.18s", lineHeight: 1.5 }}
                         onMouseEnter={e => { e.currentTarget.style.background = "#edfaf3"; e.currentTarget.style.borderColor = "#1e7a47"; }}
                         onMouseLeave={e => { e.currentTarget.style.background = "#ffffff"; e.currentTarget.style.borderColor = "#cfe6d9"; }}
                     >
                         <i className="bi bi-chevron-left" style={{ fontSize: 11 }} />
-                        <span>จัดการแปลงพื้นที่</span>
+                        <span>จัดการข้อมูลแปลง</span>
                     </button>
                 </div>
 
