@@ -8,7 +8,15 @@ import { formatThaiPhone, strengthFor } from "@/lib/utils";
 const ROLE_LABEL: Record<string, string> = {
     user: "ผู้ใช้งานทั่วไป",
     officer: "เจ้าหน้าที่รัฐ",
+    rd: "R&D",
     admin: "ผู้ดูแลระบบ",
+};
+
+const PROVIDER_BADGE: Record<string, { bg: string; color: string; icon: string; label: string }> = {
+    line: { bg: "#06C755", color: "#fff", icon: "bi-line", label: "LINE" },
+    google: { bg: "rgba(66,133,244,0.10)", color: "#1a73e8", icon: "bi-google", label: "Google" },
+    facebook: { bg: "rgba(24,119,242,0.10)", color: "#1877f2", icon: "bi-facebook", label: "Facebook" },
+    local: { bg: "#f1f6f3", color: "#1a3d2b", icon: "bi-envelope", label: "อีเมล" },
 };
 
 const INPUT_STYLE: React.CSSProperties = {
@@ -153,15 +161,14 @@ export default function ProfilePage() {
                         <div style={{ padding: "16px 20px", display: "flex", flexDirection: "column", gap: 10 }}>
                             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: 14 }}>
                                 <span style={{ color: "#5a7a65", fontWeight: 600 }}>การเข้าสู่ระบบ</span>
-                                {user.provider === "line" ? (
-                                    <span style={{ background: "#06C755", color: "#fff", fontWeight: 700, fontSize: 12, padding: "4px 10px", borderRadius: 50 }}>
-                                        <i className="bi bi-line me-1" />LINE
-                                    </span>
-                                ) : (
-                                    <span style={{ background: "#f1f6f3", color: "#1a3d2b", fontWeight: 700, fontSize: 12, padding: "4px 10px", borderRadius: 50 }}>
-                                        <i className="bi bi-envelope me-1" />อีเมล
-                                    </span>
-                                )}
+                                {(() => {
+                                    const pb = PROVIDER_BADGE[user.provider ?? "local"] ?? PROVIDER_BADGE.local;
+                                    return (
+                                        <span style={{ background: pb.bg, color: pb.color, fontWeight: 700, fontSize: 12, padding: "4px 10px", borderRadius: 50 }}>
+                                            <i className={`bi ${pb.icon} me-1`} />{pb.label}
+                                        </span>
+                                    );
+                                })()}
                             </div>
                             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: 14 }}>
                                 <span style={{ color: "#5a7a65", fontWeight: 600 }}>สิทธิ์การใช้งาน</span>

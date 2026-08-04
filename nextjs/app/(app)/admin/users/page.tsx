@@ -13,7 +13,7 @@ type UserRecord = {
     displayName: string;
     phone: string;
     pictureUrl: string | null;
-    role: "user" | "officer" | "admin";
+    role: "user" | "officer" | "admin" | "rd";
     createdAt: string;
 };
 
@@ -28,6 +28,7 @@ const HERO_BG =
 const ROLE_META: Record<UserRecord["role"], { bg: string; color: string; label: string }> = {
     admin: { bg: "#fef2f2", color: "#c53030", label: "Admin" },
     officer: { bg: "rgba(59,130,246,0.10)", color: "#1e40af", label: "Officer" },
+    rd: { bg: "rgba(168,85,247,0.10)", color: "#7e22ce", label: "R&D" },
     user: { bg: "#f1f6f3", color: "#5a7a65", label: "User" },
 };
 
@@ -275,6 +276,7 @@ export default function UserManagementPage() {
                                                     >
                                                         <option value="user">User</option>
                                                         <option value="officer">Officer</option>
+                                                        <option value="rd">R&D</option>
                                                         <option value="admin">Admin</option>
                                                     </select>
                                                 )}
