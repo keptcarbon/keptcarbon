@@ -189,6 +189,22 @@ export function LoginModal() {
             </button>
           </div>
           <FieldError msg={errors.password} />
+          {process.env.NEXT_PUBLIC_ENABLE_PASSWORD_RESET === "true" && (
+            <div className="flex justify-end">
+              <a
+                href="/forgot-password"
+                onClick={(e) => {
+                  e.preventDefault();
+                  closeModal();
+                  router.push("/forgot-password");
+                }}
+                className="text-sm font-medium text-[var(--kc-green)] pt-3 underline hover:underline"
+                tabIndex={-1}
+              >
+                ลืมรหัสผ่าน?
+              </a>
+            </div>
+          )}
         </div>
 
         <button
