@@ -56,7 +56,9 @@ export default function MyPlotsPage() {
       }
 
       if (url) {
-        fetch(url)
+        // no-store so a page refresh always reflects the latest saved data
+        // (e.g. edits made in map-draw) instead of a cached response.
+        fetch(url, { cache: "no-store" })
           .then(r => r.ok ? r.json() : { plots: [] })
           .then(data => setPlots(Array.isArray(data.plots) ? data.plots : []))
           .catch(() => setPlots([]));

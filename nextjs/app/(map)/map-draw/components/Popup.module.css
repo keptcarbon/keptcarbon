@@ -1,6 +1,13 @@
 @keyframes popupIn {
-  from { opacity: 0; transform: scale(0.95) translateY(10px); }
-  to { opacity: 1; transform: scale(1) translateY(0); }
+  from {
+    opacity: 0;
+    transform: scale(0.95) translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
 }
 
 .overlay {
@@ -16,6 +23,7 @@
 }
 
 .modal {
+  position: relative;
   background: #fff;
   border-radius: 20px;
   padding: 28px 24px 24px;
@@ -24,6 +32,96 @@
   text-align: center;
   box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(0, 0, 0, 0.05);
   animation: popupIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.closeBtn {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: #94a3b8;
+  font-size: 20px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.18s;
+}
+
+.closeBtn:hover {
+  background: #f1f5f3;
+  color: #1a3d2b;
+}
+
+.iconMinimal {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 30px;
+  color: #1e7a47;
+  margin: 14px auto 24px;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 16px;
+  margin: 0 auto 22px;
+  background: #f6faf8;
+  border: 1px solid #e6f0ea;
+  border-radius: 999px;
+  font-size: 13.5px;
+  color: #5a7a65;
+  font-weight: 500;
+}
+
+.chip i {
+  color: #1e7a47;
+  font-size: 15px;
+}
+
+.chip b {
+  color: #1a3d2b;
+  font-weight: 800;
+}
+
+.buttonOutline {
+  width: 100%;
+  padding: 12px;
+  border-radius: 12px;
+  background: #fff;
+  color: #1a3d2b;
+  border: 1px solid #e2e8f0;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.buttonOutline:hover {
+  background: #f6faf8;
+  border-color: #cfe6d9;
+}
+
+.buttonText {
+  width: 100%;
+  padding: 10px;
+  background: transparent;
+  color: #64748b;
+  border: none;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.buttonText:hover {
+  color: #1a3d2b;
 }
 
 .iconCircle {
@@ -89,6 +187,15 @@
   font-weight: 700;
   cursor: pointer;
   transition: all 0.2s;
+}
+
+.buttonPrimary {
+  composes: button;
+  background: #1e7a47;
+}
+
+.buttonPrimary:hover {
+  background: #17603a;
 }
 
 .buttonInfo {

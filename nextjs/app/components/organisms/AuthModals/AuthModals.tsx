@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { useAuth } from "@/lib/auth-context";
+import { consumePostAuthRedirect } from "@/lib/post-auth-redirect";
 import { formatThaiPhone, strengthFor } from "@/lib/utils";
 import { ModalShell } from "@/app/components/molecules";
 import { Mail, Lock, Eye, EyeOff, User as UserIcon, Phone, CheckCircle2, AlertCircle } from "lucide-react";
@@ -110,7 +111,9 @@ export function LoginModal() {
         await refresh();
         setTimeout(() => {
           closeModal();
-          router.push("/");
+          // Return to where the guest started (e.g. map-draw guest-limit flow),
+          // falling back to the home page.
+          router.push(consumePostAuthRedirect() ?? "/");
         }, 800);
       } else {
         setAlert({ type: "error", msg: data.error || "เข้าสู่ระบบไม่สำเร็จ" });
@@ -186,6 +189,22 @@ export function LoginModal() {
             </button>
           </div>
           <FieldError msg={errors.password} />
+          {process.env.NEXT_PUBLIC_ENABLE_PASSWORD_RESET === "true" && (
+            <div className="flex justify-end">
+              <a
+                href="/forgot-password"
+                onClick={(e) => {
+                  e.preventDefault();
+                  closeModal();
+                  router.push("/forgot-password");
+                }}
+                className="text-sm font-medium text-[var(--kc-green)] pt-3 underline hover:underline"
+                tabIndex={-1}
+              >
+                ลืมรหัสผ่าน?
+              </a>
+            </div>
+          )}
         </div>
 
         <button
@@ -330,7 +349,9 @@ export function RegisterModal() {
         setAlert({ type: "success", msg: "✓ สมัครสมาชิกสำเร็จ! กำลังนำไปยังหน้าหลัก..." });
         setTimeout(() => {
           closeModal();
-          router.push("/");
+          // Return to where the guest started (e.g. map-draw guest-limit flow),
+          // falling back to the home page.
+          router.push(consumePostAuthRedirect() ?? "/");
         }, 900);
       } else {
         setAlert({ type: "error", msg: data.error || "สมัครสมาชิกไม่สำเร็จ" });
