@@ -1,8 +1,7 @@
 from datetime import datetime
 from typing import List, Dict
-from pathlib import Path
-import pandas as pd
 from fastapi import HTTPException
+from app.core.database import get_pool
 from app.services.province_service import ProvinceService
 from app.services.landuse_service import LanduseService
 from app.services.tree_service import TreeService
@@ -32,10 +31,9 @@ class CarbonService:
         self.age_map_svc = AgeMapService()
         self.tree_svc = TreeService()
         self.spatial_svc = SpatialUtils()
-        self.lookup_file_path = Path("app/data/lookup_tables")
 
 
-    def generate_carbon_profile(self, poly_data, cohorts) -> list:
+    async def generate_carbon_profile(self, poly_data, cohorts) -> list:
         """
         Generates a yearly carbon stock profile (tCO2e) with 95% CI
         by aggregating multiple age cohorts from age 0 to GROWTH_MODEL_YEAR.
@@ -52,20 +50,28 @@ class CarbonService:
         growth_model = config.get("model_used", "cubic_poly")
         allometry = config.get("biomass_assessment_method", "hytonen_2018")
 
-        table_key = (clone, growth_model, allometry)
-        file_name = config["biomass_assessment_tables"].get(table_key)
-        if file_name is None:
-            available = list(config["biomass_assessment_tables"].keys())
+        try:
+            pool = get_pool()
+            async with pool.acquire() as conn:
+                rows = await conn.fetch(
+                    """
+                    SELECT age, biomass_est, biomass_ci_lower, biomass_ci_upper
+                    FROM tbl_biomass_profile
+                    WHERE p_code = $1 AND clone = $2 AND growth_model = $3 AND allometry = $4
+                    """,
+                    p_code, clone, growth_model, allometry,
+                )
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to load biomass profile: {str(e)}")
+
+        if not rows:
             raise HTTPException(
                 status_code=422,
-                detail=f"No lookup table for clone='{clone}', model='{growth_model}', allometry='{allometry}'. "
-                       f"Available combinations: {available}"
+                detail=f"No biomass profile for p_code='{p_code}', clone='{clone}', model='{growth_model}', "
+                       f"allometry='{allometry}'."
             )
 
-        try:
-            lookup_df = pd.read_csv(self.lookup_file_path / file_name)
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Failed to load lookup file: {str(e)}")
+        lookup_by_age = {row["age"]: row for row in rows}
 
         if poly_data.get("project_type") == "existing":
             start_year = datetime.now().year
@@ -103,15 +109,14 @@ class CarbonService:
                 else:
                     at_age = None
 
-                # Check cohort eligibility within the 35-year modeled window 
+                # Check cohort eligibility within the 35-year modeled window
                 if future_age <= GROWTH_MODEL_YEAR:
-                    row = lookup_df[lookup_df['Age'] == future_age]
-                    if not row.empty:
-                        data = row.iloc[0]
+                    data = lookup_by_age.get(future_age)
+                    if data is not None:
                         count = cohort['tree_count']
-                        sum_biomass_est += data['Biomass_Est'] * count
-                        sum_biomass_lower += data['Biomass_CI_Lower'] * count
-                        sum_biomass_upper += data['Biomass_CI_Upper'] * count
+                        sum_biomass_est += data['biomass_est'] * count
+                        sum_biomass_lower += data['biomass_ci_lower'] * count
+                        sum_biomass_upper += data['biomass_ci_upper'] * count
             
             # Convert aggregated biomass (kg) to Total Carbon (tC)
             if sum_biomass_est > 0:
@@ -177,7 +182,7 @@ class CarbonService:
             }
 
         # Step 2: Multi-Polygon Dissolve & Geometry Merge
-        poly_data = self.lu_svc.find_rubber_cultivation_area(poly_data)
+        poly_data = await self.lu_svc.find_rubber_cultivation_area(poly_data)
         if poly_data["A302_geometry"] is None:
             return {
                 "polygon_id": poly_data.get("id"),
@@ -188,14 +193,14 @@ class CarbonService:
 
         # Step 3: Check user input year of planting and tree count for reliability
         # Cache the counts for later use in age cohort extraction to avoid duplicate raster I/O
-        poly_data = self.age_map_svc.get_plantation_year_count(poly_data)
+        poly_data = await self.age_map_svc.get_plantation_year_count(poly_data)
 
         if poly_data.get("year_of_planting") is not None:
 
             if poly_data.get("project_type") == "existing":
                 # User input year of planting is available — use it directly to calculate age
                 age = current_calendar_year - poly_data["year_of_planting"]
-                planning_year_info = self.age_map_svc.get_plantation_year_of_planting_info(poly_data)
+                planning_year_info = await self.age_map_svc.get_plantation_year_of_planting_info(poly_data)
             else:  # replanting — starts at age 0, no raster-derived planting-year info
                 age = 0
                 planning_year_info = None
@@ -208,7 +213,7 @@ class CarbonService:
                         "tree_count": tree_info['tree_count']}
                     ]
 
-            profile = self.generate_carbon_profile(poly_data, cohorts)
+            profile = await self.generate_carbon_profile(poly_data, cohorts)
 
             message_flag = "CALCULATED" if tree_info['is_calculated'] else "RELIABLE"
 
@@ -245,7 +250,7 @@ class CarbonService:
             
 
         else:
-            cohorts = self.age_map_svc.get_plantation_age_cohorts(poly_data)
+            cohorts = await self.age_map_svc.get_plantation_age_cohorts(poly_data)
 
             # Find the dictionary containing the maximum proportion value
             dominant_cohort = max(cohorts, key=lambda c: c['proportion'])
@@ -303,7 +308,7 @@ class CarbonService:
             # Safe calculation that falls back to 0 if 'tree_count' is None or missing
             total_tree_count = sum((cohort.get('tree_count') or 0) for cohort in cohorts)
 
-            planning_year_info = self.age_map_svc.get_plantation_year_of_planting_info(poly_data)
+            planning_year_info = await self.age_map_svc.get_plantation_year_of_planting_info(poly_data)
 
             formatted_years = []
 
@@ -321,7 +326,7 @@ class CarbonService:
                 formatted_str = f"{int(planting_year)} ({percentage:.1f}%)"
                 formatted_years.append(formatted_str)
 
-            profile = self.generate_carbon_profile(poly_data, cohorts)
+            profile = await self.generate_carbon_profile(poly_data, cohorts)
 
             reliable_mgs = (
                 "CARBON PROFILE GENERATED USING CALCULATED YEAR "

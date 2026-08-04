@@ -20,7 +20,7 @@ class PlotsService:
                 "lu_polygon": None
             }
 
-        poly_data = self.lu_svc.find_lu_class_area(poly_data)
+        poly_data = await self.lu_svc.find_lu_class_area(poly_data)
 
         return {
             "polygon_id": poly_data.get("id"),
