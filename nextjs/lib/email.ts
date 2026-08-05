@@ -2,9 +2,9 @@ import path from "path";
 import nodemailer from "nodemailer";
 
 /**
- * Shared Gmail SMTP transport. Reuses the exact credentials/config already
- * proven in production by the contact form (app/api/contact/route.ts):
- * GMAIL_USER + GMAIL_APP_PASSWORD (app password, spaces stripped).
+ * Shared Gmail SMTP transport, used by both this module and the contact form
+ * (app/api/contact/route.ts). Config: GMAIL_USER + GMAIL_APP_PASSWORD (app
+ * password, spaces stripped).
  *
  * Singleton across hot-reloads in dev to avoid leaking connections.
  */
