@@ -135,7 +135,7 @@ export default function ProfilePage() {
                 <div className="d-flex flex-column flex-md-row align-items-start" style={{ gap: 20 }}>
 
                     {/* Left: identity rail */}
-                    <div style={{ width: "100%", maxWidth: 300, flexShrink: 0, background: "#ffffff", border: "1px solid #e6f0ea", borderRadius: 16, boxShadow: "0 1px 2px rgba(16,40,28,0.04)", overflow: "hidden", alignSelf: "stretch" }} className="mx-auto mx-md-0">
+                    <div style={{ width: "100%", flexShrink: 0, background: "#ffffff", border: "1px solid #e6f0ea", borderRadius: 16, boxShadow: "0 1px 2px rgba(16,40,28,0.04)", overflow: "hidden", alignSelf: "stretch" }} className="mx-auto mx-md-0 md:max-w-[300px]">
                         <div style={{ padding: "28px 20px 22px", textAlign: "center", borderBottom: "1px solid #e6f0ea" }}>
                             {user.pictureUrl ? (
                                 <img
