@@ -22,6 +22,10 @@ const MIN_PASSWORD_LEN = 6;
 // Rate limit: max 10 submit attempts per IP per 15 minutes.
 const RL = { limit: 10, windowMs: 15 * 60 * 1000 };
 
+// Rate limit for the read-only validate check: looser than POST since the
+// page fires it automatically on load, but still throttles token-guessing.
+const RL_CHECK = { limit: 20, windowMs: 15 * 60 * 1000 };
+
 /**
  * GET — is this token currently valid (exists + not expired)?
  * Returns { valid: boolean }. The token itself is the secret, so revealing
@@ -30,6 +34,14 @@ const RL = { limit: 10, windowMs: 15 * 60 * 1000 };
 export async function GET(request: NextRequest) {
   if (!isPasswordResetEnabled()) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
+  const rl = checkRateLimit(`reset-check:${clientIp(request)}`, RL_CHECK);
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { valid: false },
+      { status: 429, headers: { "Retry-After": String(rl.retryAfter) } }
+    );
   }
 
   const token = request.nextUrl.searchParams.get("token")?.trim();

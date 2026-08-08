@@ -28,6 +28,8 @@ CREATE TABLE IF NOT EXISTS tbl_users (
   google_user_id   VARCHAR(100) UNIQUE,   -- Google sub, NULL for non-Google users
   facebook_user_id VARCHAR(100) UNIQUE,   -- Facebook id, NULL for non-Facebook users
   role          VARCHAR(20)  NOT NULL DEFAULT 'user',    -- 'user' | 'admin'
+  reset_token         TEXT,             -- SHA-256 hash of the emailed reset token, NULL when unused
+  reset_token_expires TIMESTAMPTZ,      -- 15-minute TTL for reset_token
   created_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
   updated_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
@@ -38,6 +40,10 @@ CREATE INDEX IF NOT EXISTS idx_users_username ON tbl_users (username);
 CREATE INDEX IF NOT EXISTS idx_users_line_uid     ON tbl_users (line_user_id);
 CREATE INDEX IF NOT EXISTS idx_users_google_uid   ON tbl_users (google_user_id);
 CREATE INDEX IF NOT EXISTS idx_users_facebook_uid ON tbl_users (facebook_user_id);
+
+-- Partial: only rows with an active reset in flight are worth indexing.
+CREATE INDEX IF NOT EXISTS idx_tbl_users_reset_token
+  ON tbl_users (reset_token) WHERE reset_token IS NOT NULL;
 
 -- Case-insensitive email uniqueness (Admin@x.com == admin@x.com)
 CREATE UNIQUE INDEX IF NOT EXISTS uq_users_email_lower ON tbl_users (LOWER(email));

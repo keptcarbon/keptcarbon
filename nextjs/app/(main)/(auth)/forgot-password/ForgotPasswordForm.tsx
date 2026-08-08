@@ -46,7 +46,8 @@ export function ForgotPasswordForm() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: value }),
       });
-      // Enumeration-safe: any non-4xx/5xx is treated as "request accepted".
+      // Enumeration-safe: the server returns 200 whether or not the email
+      // exists, so a 2xx here just means "request accepted".
       if (res.ok) {
         setSent(true);
       } else {
