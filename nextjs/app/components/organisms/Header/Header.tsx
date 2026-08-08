@@ -18,6 +18,8 @@ import {
   FileText,
   LayoutGrid,
   Shield,
+  Users,
+  History,
 } from "lucide-react";
 
 /* ── Nav data ────────────────────────────────────────────────────────────── */
@@ -26,6 +28,12 @@ const navLinks = [
   { label: "เกี่ยวกับโครงการ", href: "/about-project", icon: FileText },
   { label: "แดชบอร์ด", href: "/dashboard", icon: BarChart3 },
   { label: "ประเมินคาร์บอน", href: "/map-draw", icon: Map },
+] as const;
+
+/* Shown instead of navLinks while browsing the admin/R&D area. */
+const adminNavLinks = [
+  { label: "ข้อมูลผู้ใช้", href: "/admin/users", icon: Users },
+  { label: "บันทึกการเข้าสู่ระบบ", href: "/admin/auth-logs", icon: History },
 ] as const;
 
 /* ── Component ───────────────────────────────────────────────────────────── */
@@ -65,8 +73,8 @@ export default function Header() {
   }, [navOpen]);
 
   const closeNav = () => setNavOpen(false);
-  const onLogout = () => {
-    logout();
+  const onLogout = async () => {
+    await logout();
     closeNav();
     router.push("/");
   };
@@ -75,6 +83,16 @@ export default function Header() {
     if (href === "/") return pathname === "/";
     return pathname.startsWith(href);
   };
+
+  /* Admin/R&D area gets its own nav set and drops the general-user links.
+     /profile is a carve-out: admins may view it, and it should look like
+     the admin area for them — but regular users on /profile still get the
+     normal navbar. */
+  const isAdminArea =
+    pathname.startsWith("/admin") ||
+    pathname.startsWith("/rnd") ||
+    (pathname.startsWith("/profile") && user?.role === "admin");
+  const activeNavLinks = isAdminArea ? adminNavLinks : navLinks;
 
   /* Shared link classes (desktop center nav) */
   const navLinkClass = (active: boolean) =>
@@ -107,7 +125,7 @@ export default function Header() {
 
           {/* ── Desktop Center Nav (hidden below xl) ─────────────────── */}
           <nav className="absolute left-1/2 hidden -translate-x-1/2 items-center gap-1 xl:flex">
-            {navLinks.map(({ label, href }) => (
+            {activeNavLinks.map(({ label, href }) => (
               <Link key={href} href={href} className={navLinkClass(isActive(href))}>
                 {label}
               </Link>
@@ -155,14 +173,16 @@ export default function Header() {
                         {user.email}
                       </p>
                     </div>
-                    <Link
-                      href="/my-plots"
-                      className="flex items-center gap-2.5 px-4 py-2.5 text-base text-[var(--kc-ink)] no-underline transition-colors hover:bg-[var(--kc-green-50)]"
-                      onClick={() => setAvatarOpen(false)}
-                    >
-                      <MapPinned className="size-4 text-[var(--kc-sage)]" />
-                      แปลงของฉัน
-                    </Link>
+                    {!isAdminArea && (
+                      <Link
+                        href="/my-plots"
+                        className="flex items-center gap-2.5 px-4 py-2.5 text-base text-[var(--kc-ink)] no-underline transition-colors hover:bg-[var(--kc-green-50)]"
+                        onClick={() => setAvatarOpen(false)}
+                      >
+                        <MapPinned className="size-4 text-[var(--kc-sage)]" />
+                        แปลงของฉัน
+                      </Link>
+                    )}
                     <Link
                       href="/profile"
                       className="flex items-center gap-2.5 px-4 py-2.5 text-base text-[var(--kc-ink)] no-underline transition-colors hover:bg-[var(--kc-green-50)]"
@@ -270,7 +290,7 @@ export default function Header() {
 
         {/* Drawer body (scrollable) */}
         <div className="flex-1 overflow-y-auto px-4 py-4">
-          {navLinks.map(({ label, href, icon: Icon }) => (
+          {activeNavLinks.map(({ label, href, icon: Icon }) => (
             <Link
               key={href}
               href={href}
@@ -293,7 +313,7 @@ export default function Header() {
               </div>
               <Link
                 href="/profile"
-                className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium no-underline transition-colors ${pathname === "/profile"
+                className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium no-underline transition-colors ${isActive("/profile")
                   ? "bg-[var(--kc-green-50)] text-[var(--kc-green)]"
                   : "text-[var(--kc-ink)] hover:bg-[var(--kc-green-50)]"
                   }`}
@@ -302,17 +322,19 @@ export default function Header() {
                 <User className="size-4 shrink-0 opacity-60" />
                 โปรไฟล์
               </Link>
-              <Link
-                href="/my-plots"
-                className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium no-underline transition-colors ${pathname === "/my-plots"
-                  ? "bg-[var(--kc-green-50)] text-[var(--kc-green)]"
-                  : "text-[var(--kc-ink)] hover:bg-[var(--kc-green-50)]"
-                  }`}
-                onClick={closeNav}
-              >
-                <MapPinned className="size-4 shrink-0 opacity-60" />
-                แปลงของฉัน
-              </Link>
+              {!isAdminArea && (
+                <Link
+                  href="/my-plots"
+                  className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium no-underline transition-colors ${isActive("/my-plots")
+                    ? "bg-[var(--kc-green-50)] text-[var(--kc-green)]"
+                    : "text-[var(--kc-ink)] hover:bg-[var(--kc-green-50)]"
+                    }`}
+                  onClick={closeNav}
+                >
+                  <MapPinned className="size-4 shrink-0 opacity-60" />
+                  แปลงของฉัน
+                </Link>
+              )}
 
               {user.role === "admin" && (
                 <>

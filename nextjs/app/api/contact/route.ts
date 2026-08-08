@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import nodemailer from "nodemailer";
+import { transporter } from "@/lib/email";
 
 const RECIPIENTS: Record<string, { label: string; email: string }> = {
   keptcarbon: {
@@ -11,19 +11,6 @@ const RECIPIENTS: Record<string, { label: string; email: string }> = {
     email: "engrids2025@gmail.com",
   },
 };
-
-const transporter = nodemailer.createTransport({
-  host: "smtp.gmail.com",
-  port: 587,
-  secure: false,
-  auth: {
-    user: process.env.GMAIL_USER,
-    pass: process.env.GMAIL_APP_PASSWORD?.replace(/\s/g, ""),
-  },
-  connectionTimeout: 10000,
-  greetingTimeout: 10000,
-  socketTimeout: 15000,
-});
 
 export async function POST(req: NextRequest) {
   try {
