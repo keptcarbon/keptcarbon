@@ -29,16 +29,16 @@ class TestGetTreeCountUserInput:
             {"id": "p1", "a302_geometry": {}, "tree_count": None, "spacing_system": "2.5x8"}
         )
         assert result["tree_count"] == 500         # 1 ha × 500 trees/ha
-        assert result["is_reliable"] is True
+        assert result["is_calculated"] is True
 
-    def test_user_within_threshold_is_reliable(self, svc):
+    def test_user_within_threshold_is_used(self, svc):
         # calculated = 500; user = 502 → diff = 0.4% < 5%
         svc.spatial_utils.calculate_area_ha.return_value = 1.0
         result = svc.get_tree_count_user_input(
             {"id": "p1", "a302_geometry": {}, "tree_count": 502, "spacing_system": "2.5x8"}
         )
         assert result["tree_count"] == 502
-        assert result["is_reliable"] is True
+        assert result["is_calculated"] is False
 
     def test_user_outside_threshold_uses_calculated(self, svc):
         # calculated = 500; user = 1000 → diff = 100% > 5%
@@ -47,16 +47,16 @@ class TestGetTreeCountUserInput:
             {"id": "p1", "a302_geometry": {}, "tree_count": 1000, "spacing_system": "2.5x8"}
         )
         assert result["tree_count"] == 500
-        assert result["is_reliable"] is False
+        assert result["is_calculated"] is True
 
     def test_zero_calculated_uses_user_input(self, svc):
-        # area = 0 → calculated = 0; must fall back to user input
+        # area = 0 → calculated = 0; can't validate, so trust user input as-is
         svc.spatial_utils.calculate_area_ha.return_value = 0.0
         result = svc.get_tree_count_user_input(
             {"id": "p1", "a302_geometry": {}, "tree_count": 300, "spacing_system": "2.5x8"}
         )
         assert result["tree_count"] == 300
-        assert result["is_reliable"] is False
+        assert result["is_calculated"] is False
 
     def test_default_spacing_used_when_not_provided(self, svc):
         svc.spatial_utils.calculate_area_ha.return_value = 1.0
@@ -74,14 +74,14 @@ class TestGetTreeCountUserInput:
         )
         assert result["tree_count"] == density
 
-    def test_exact_threshold_boundary_is_reliable(self, svc):
-        # diff exactly == TREE_COUNT_VALIDATION_THRESHOLD (5%) → reliable
+    def test_exact_threshold_boundary_uses_user_input(self, svc):
+        # diff exactly == TREE_COUNT_VALIDATION_THRESHOLD (5%) → still within bound
         svc.spatial_utils.calculate_area_ha.return_value = 1.0
         boundary_user = int(500 * (1 + TREE_COUNT_VALIDATION_THRESHOLD))
         result = svc.get_tree_count_user_input(
             {"id": "p1", "a302_geometry": {}, "tree_count": boundary_user, "spacing_system": "2.5x8"}
         )
-        assert result["is_reliable"] is True
+        assert result["is_calculated"] is False
 
 
 # ── get_tree_count_raster_pixel ───────────────────────────────────────────────
@@ -89,16 +89,17 @@ class TestGetTreeCountUserInput:
 class TestGetTreeCountRasterPixel:
 
     def test_homogeneous_uses_full_area(self, svc):
-        # 90/100 pixels = 90% > 80% threshold
+        # 95/100 pixels = 95% > TREE_AGE_HOMOLOGOUS_THRESHOLD (90%)
         svc.spatial_utils.calculate_area_ha.return_value = 2.0
         result = svc.get_tree_count_raster_pixel(
             {"id": "p1", "a302_geometry": {}, "spacing_system": "2.5x8"},
-            num_pixel=90, total_pixels=100,
+            num_pixel=95, total_pixels=100,
         )
         assert result["tree_count"] == 1000  # 2 ha × 500
+        assert result["is_calculated"] is True
 
     def test_heterogeneous_adjusts_by_pixel_ratio(self, svc):
-        # 50/100 = 50% < 80% → area × ratio
+        # 50/100 = 50% < 90% threshold → area × ratio
         svc.spatial_utils.calculate_area_ha.return_value = 2.0
         result = svc.get_tree_count_raster_pixel(
             {"id": "p1", "a302_geometry": {}, "spacing_system": None},
@@ -106,4 +107,4 @@ class TestGetTreeCountRasterPixel:
         )
         # adjusted_area = 2.0 × 0.5 = 1.0 ha; density=500
         assert result["tree_count"] == 500
-        assert result["is_reliable"] is False
+        assert result["is_calculated"] is True

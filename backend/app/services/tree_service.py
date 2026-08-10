@@ -25,11 +25,20 @@ class TreeService:
 
         user_tree_count = poly_data.get("tree_count")
 
-        if user_tree_count is None or calculated_count == 0:
+        if user_tree_count is None:
             return {
                 "tree_count": calculated_count,
                 "is_calculated": True,
                 "note": "CALCULATED FROM AREA AND SPACING."
+            }
+
+        if calculated_count == 0:
+            # Can't validate against a zero-area calculation — trust the
+            # user's number as-is rather than reporting 0 trees.
+            return {
+                "tree_count": user_tree_count,
+                "is_calculated": False,
+                "note": "USER INPUT USED — CALCULATED AREA IS ZERO, CANNOT VALIDATE."
             }
 
         positive_diff_percent = (user_tree_count - calculated_count) / calculated_count
