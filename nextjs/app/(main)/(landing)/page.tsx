@@ -57,9 +57,9 @@ export default function Home() {
       {/* ── Section A: Hero ─────────────────────────────────────────── */}
       <section
         className="relative flex min-h-screen flex-col items-center justify-center px-4 pt-32 pb-16 text-center sm:px-6 md:pt-48 md:pb-32 lg:px-8 bg-cover bg-center bg-no-repeat"
-        style={{ backgroundImage: "url('/assets/img/hero-bg.webp')" }}
+        style={{ backgroundImage: "url('/assets/img/web-bg-1.webp')" }}
       >
-        <div className="absolute inset-0 bg-black/60 z-0"></div>
+        <div className="absolute inset-0 bg-black/40 z-0"></div>
         <div className="relative z-10 flex flex-col items-center">
           <span className="mb-6 inline-flex items-center rounded-full border border-white/20 bg-white/10 px-3.5 py-1.5 text-xs font-medium text-white backdrop-blur-sm md:text-sm">
             GeoAI Platform for Carbon Credit Estimation

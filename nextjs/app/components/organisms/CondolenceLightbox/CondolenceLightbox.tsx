@@ -74,7 +74,7 @@ export function CondolenceLightbox() {
         {/* Image with an elegant frame */}
         <div className="relative flex items-center justify-center overflow-hidden rounded-2xl bg-black shadow-2xl ring-1 ring-white/10">
           <img
-            src="/assets/img/keptcarbon_.webp"
+            src="/assets/img/princess-condolence.webp"
             alt="คำไว้อาลัย"
             className="block h-auto w-full max-h-[86vh] object-contain"
           />
