@@ -2,7 +2,7 @@ name: Deploy to UAT
 
 on:
   push:
-    branches: [main]
+    branches: [uat]
 
 concurrency:
   group: deploy-uat
@@ -109,9 +109,9 @@ jobs:
             set -e
             cd "${{ secrets.UAT_DEPLOY_PATH }}"
             echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
-            git fetch origin main
-            git checkout main
-            git reset --hard origin/main
+            git fetch origin uat
+            git checkout uat
+            git reset --hard origin/uat
             export TAG=${{ needs.build-and-push.outputs.tag }}
             docker compose -f docker-compose.yml -f docker-compose.uat.yml pull nextjs backend
             docker compose -f docker-compose.yml -f docker-compose.uat.yml up -d --remove-orphans
