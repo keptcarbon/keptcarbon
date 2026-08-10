@@ -16,10 +16,25 @@ if (fs.existsSync(rootEnv)) {
   }
 }
 
+const isNoindex = process.env.ENABLE_NOINDEX === "true";
+
 const nextConfig: NextConfig = {
   output: "standalone",
   images: { unoptimized: true },
   trailingSlash: true,
+  async headers() {
+    const securityHeaders = [
+      { key: "Strict-Transport-Security", value: "max-age=31536000; includeSubDomains" },
+      { key: "X-Frame-Options", value: "SAMEORIGIN" },
+      { key: "X-Content-Type-Options", value: "nosniff" },
+      { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+      { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
+    ];
+    if (isNoindex) {
+      securityHeaders.push({ key: "X-Robots-Tag", value: "noindex, nofollow" });
+    }
+    return [{ source: "/:path*", headers: securityHeaders }];
+  },
 };
 
 export default nextConfig;
