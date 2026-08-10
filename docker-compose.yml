@@ -10,6 +10,7 @@ services:
       dockerfile: Dockerfile
       args:
         NEXT_PUBLIC_BACKEND_API_URL: ${NEXT_PUBLIC_BACKEND_API_URL}
+        NEXT_PUBLIC_ENABLE_PASSWORD_RESET: ${NEXT_PUBLIC_ENABLE_PASSWORD_RESET:-false}
     ports:
       - "${NEXTJS_HOST_PORT:-3000}:3000"
     container_name: keptcarbon-nextjs

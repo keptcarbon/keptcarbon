@@ -86,6 +86,7 @@ jobs:
           push: true
           build-args: |
             NEXT_PUBLIC_BACKEND_API_URL=${{ secrets.NEXT_PUBLIC_BACKEND_API_URL }}
+            NEXT_PUBLIC_ENABLE_PASSWORD_RESET=true
           tags: |
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}-nextjs:${{ steps.tag.outputs.tag }}
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}-nextjs:uat-latest

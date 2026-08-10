@@ -252,6 +252,22 @@ class CarbonService:
         else:
             cohorts = await self.age_map_svc.get_plantation_age_cohorts(poly_data)
 
+            if not cohorts:
+                return {
+                    "polygon_id": poly_data["id"],
+                    "status": {
+                        "status": "error",
+                        "status_code": "E05",
+                        "message": (
+                            "NO PLANTING-YEAR RASTER DATA FOUND FOR THE SELECTED LAND USE "
+                            "CLASSES IN THIS PLOT. PLEASE VERIFY THE SELECTED LAND USE TYPES "
+                            "OR PROVIDE A PLANTING YEAR MANUALLY."
+                        )
+                    },
+                    "carbon_profile": None,
+                    "assess_parameters": None
+                }
+
             # Find the dictionary containing the maximum proportion value
             dominant_cohort = max(cohorts, key=lambda c: c['proportion'])
 

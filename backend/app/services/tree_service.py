@@ -25,7 +25,7 @@ class TreeService:
 
         user_tree_count = poly_data.get("tree_count")
 
-        if user_tree_count is None:
+        if user_tree_count is None or calculated_count == 0:
             return {
                 "tree_count": calculated_count,
                 "is_calculated": True,

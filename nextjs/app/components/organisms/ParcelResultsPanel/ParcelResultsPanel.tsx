@@ -59,6 +59,7 @@ type Props = {
     onSave?: () => void;
     existingProjectPlots?: any[];
     editingPlotId?: string | null;
+    onPlotFormsChange?: (forms: PlotFormData[]) => void;
 };
 
 
@@ -120,6 +121,7 @@ export function ParcelResultsPanel({
     onSave,
     existingProjectPlots,
     editingPlotId,
+    onPlotFormsChange,
 }: Props) {
     const [expandedIdx, setExpandedIdx] = useState<number | null>(0);
     const [expandedResultIdx, setExpandedResultIdx] = useState<number | "total" | null>(null);
@@ -301,6 +303,14 @@ export function ParcelResultsPanel({
     const [guestUserId, setGuestUserId] = useState<string | null>(null);
     const [plotForms, setPlotForms] = useState<PlotFormData[]>([]);
 
+    // Let the parent know the latest plotForms (e.g. plantStatus/"ปลูกมาแล้ว")
+    // so it can include them when stashing a guest-session snapshot before an
+    // auth redirect — plotForms lives only here and never writes back into
+    // parcelFeatures on its own.
+    useEffect(() => {
+        onPlotFormsChange?.(plotForms);
+    }, [plotForms, onPlotFormsChange]);
+
     // Existing project names for the logged-in user, used to warn about a
     // duplicate name before saving. Read from the DB (the previous localStorage
     // check was never populated, so it never actually fired). Re-fetched after
@@ -463,7 +473,7 @@ export function ParcelResultsPanel({
                     }
 
                     const savedLU = props.luChecked;
-                    const initialLU = (savedLU && typeof savedLU === 'object' && !Array.isArray(savedLU))
+                    const initialLU = (savedLU && typeof savedLU === 'object' && !Array.isArray(savedLU) && Object.keys(savedLU).length > 0)
                         ? savedLU
                         : { A: true, A302: true };
 
@@ -652,6 +662,19 @@ export function ParcelResultsPanel({
 
         if (polygons.length === 0) {
             setCarbonErr("ไม่พบขอบเขตพื้นที่ที่สามารถประมวลผลได้");
+            setProcessingCarbon(false);
+            return;
+        }
+
+        // Catch this here with an accurate, plot-specific message — sending an
+        // empty selected_lu_classes to the backend crashes it (max() on an
+        // empty cohort list) and surfaces as a generic, misleading 500.
+        const emptyLuPlots = polygons
+            .map((p, i) => ({ p, plotNum: i + 1 }))
+            .filter(({ p }) => !p.selected_lu_classes || p.selected_lu_classes.length === 0);
+        if (emptyLuPlots.length > 0) {
+            const plotList = emptyLuPlots.map(({ plotNum }) => plotNum).join(", ");
+            setCarbonErr(`กรุณาเลือกประเภทการใช้ที่ดินอย่างน้อย 1 ประเภท (ที่แปลง ${plotList})`);
             setProcessingCarbon(false);
             return;
         }
@@ -1023,7 +1046,9 @@ export function ParcelResultsPanel({
                     trees,
                     variety,
                     spacing,
-                    luChecked: form?.luChecked || props.luChecked || { A: true, A302: true },
+                    luChecked: (form?.luChecked && Object.keys(form.luChecked).length > 0)
+                        ? form.luChecked
+                        : ((props.luChecked && Object.keys(props.luChecked).length > 0) ? props.luChecked : { A: true, A302: true }),
                     plantStatus: form?.plantStatus || props.plantStatus || "",
                     confidence: p.confidence,
                     ownerName: ownerName || props.owner_name || props.ownerName || "",
@@ -1367,7 +1392,7 @@ export function ParcelResultsPanel({
                         )}
                         <button
                             className="prp-btn-primary"
-                            onClick={() => handleSave([])}
+                            onClick={() => handleSave()}
                             disabled={!user || !projectName.trim() || nameEditing || isDuplicateProjectName || saveState === "saving"}
                             style={{
                                 flex: isMobile ? "1 1 calc(50% - 4px)" : "1 1 calc(33% - 8px)", minWidth: 110, padding: isMobile ? "8px 6px" : "10px 12px", fontSize: isMobile ? 12 : 14, display: "flex", flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 6,
