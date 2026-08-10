@@ -1,4 +1,9 @@
-"""Integration tests for POST /api/estimate."""
+"""Integration tests for POST /api/v1/carbon/assess.
+
+The route lives in app/api/routes/carbon.py (not app/api/routes/estimate —
+that module doesn't exist) and is mounted under the /api/v1 prefix set in
+app/main.py, so the real path is /api/v1/carbon/assess.
+"""
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from httpx import AsyncClient, ASGITransport
@@ -18,10 +23,17 @@ GOOD_PAYLOAD = [{
     "rubber_clone": "RRIM 600",
     "tree_count": 500,
     "spacing_system": "2.5x8",
+    "selected_lu_classes": ["A302"],
 }]
 
 SUCCESS_PROFILE = [
-    {"year": 2026, "total_carbon_tCO2e": 50.0, "ci_lower_tCO2e": 45.0, "ci_upper_tCO2e": 55.0}
+    {
+        "year": 2026,
+        "year_at": 0,
+        "age": 16,
+        "stocks": {"value": 50.0, "ci": 5.0, "ci_lower": 45.0, "ci_upper": 55.0},
+        "gain": {"value": 0.0, "ci": 0.0, "ci_lower": 0.0, "ci_upper": 0.0},
+    }
 ]
 
 SUCCESS_RESPONSE = {
@@ -41,15 +53,15 @@ def mock_service():
 @pytest.fixture
 def app(mock_service):
     """Return the FastAPI app with the route-level service replaced."""
-    with patch("app.api.routes.estimate.service", mock_service):
+    with patch("app.api.routes.carbon.service", mock_service):
         from app.main import app as _app
         yield _app
 
 
 @pytest.mark.asyncio
-async def test_estimate_success(app, mock_service):
+async def test_assess_success(app, mock_service):
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
-        resp = await ac.post("/api/estimate", json=GOOD_PAYLOAD)
+        resp = await ac.post("/api/v1/carbon/assess", json=GOOD_PAYLOAD)
     assert resp.status_code == 200
     data = resp.json()
     assert isinstance(data, list)
@@ -58,38 +70,47 @@ async def test_estimate_success(app, mock_service):
 
 
 @pytest.mark.asyncio
-async def test_estimate_returns_list(app, mock_service):
+async def test_assess_returns_list(app, mock_service):
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
-        resp = await ac.post("/api/estimate", json=GOOD_PAYLOAD)
+        resp = await ac.post("/api/v1/carbon/assess", json=GOOD_PAYLOAD)
     assert isinstance(resp.json(), list)
     assert len(resp.json()) == 1
 
 
 @pytest.mark.asyncio
-async def test_estimate_empty_body_returns_200_empty(app):
+async def test_assess_empty_body_returns_200_empty(app):
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
-        resp = await ac.post("/api/estimate", json=[])
+        resp = await ac.post("/api/v1/carbon/assess", json=[])
     assert resp.status_code == 200
     assert resp.json() == []
 
 
 @pytest.mark.asyncio
-async def test_estimate_service_error_returns_500(app, mock_service):
+async def test_assess_service_error_returns_500(app, mock_service):
     from fastapi import HTTPException
     mock_service.get_carbon_profile = AsyncMock(
         side_effect=HTTPException(status_code=500, detail="Internal error")
     )
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
-        resp = await ac.post("/api/estimate", json=GOOD_PAYLOAD)
+        resp = await ac.post("/api/v1/carbon/assess", json=GOOD_PAYLOAD)
     assert resp.status_code == 500
     assert "Internal error" in resp.json()["detail"]
 
 
 @pytest.mark.asyncio
-async def test_estimate_invalid_json_returns_422(app):
+async def test_assess_missing_selected_lu_classes_returns_422(app):
+    # selected_lu_classes is a required field on CarbonAssessRequest
+    bad_payload = [{k: v for k, v in GOOD_PAYLOAD[0].items() if k != "selected_lu_classes"}]
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
-        resp = await ac.post("/api/estimate", content=b"not-json",
-                             headers={"Content-Type": "application/json"})
+        resp = await ac.post("/api/v1/carbon/assess", json=bad_payload)
+    assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_assess_invalid_json_returns_422(app):
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+        resp = await ac.post("/api/v1/carbon/assess", content=b"not-json",
+                              headers={"Content-Type": "application/json"})
     assert resp.status_code == 422
 
 
