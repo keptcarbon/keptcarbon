@@ -1,0 +1,79 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  frontend:
+    name: Frontend (Next.js)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: nextjs
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: nextjs/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type check
+        run: npx tsc --noEmit
+
+      - name: Build
+        run: npm run build
+        env:
+          NEXT_PUBLIC_BACKEND_API_URL: http://localhost:8000
+
+      - name: Unit tests
+        run: npm test
+
+  backend:
+    name: Backend (FastAPI)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: |
+            backend/requirements.txt
+            backend/requirements-test.txt
+
+      - name: Install system deps (GDAL/GEOS/PROJ)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends gcc g++ libgdal-dev libgeos-dev libproj-dev
+
+      - name: Install Python deps
+        run: pip install -r requirements.txt -r requirements-test.txt
+
+      - name: Run tests
+        run: pytest tests/ -v
+
+  migration-check:
+    name: Flag DB migration changes
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Warn if PR touches postgis/migrations
+        run: |
+          CHANGED=$(git diff --name-only origin/${{ github.base_ref }}...HEAD -- postgis/migrations/)
+          if [ -n "$CHANGED" ]; then
+            echo "::warning::PR แตะไฟล์ migration ใน postgis/migrations/ — ตรวจว่ามี runbook (แบบ 001_DEPLOY_RUNBOOK.md), pre-check script, และแผน maintenance window แนบมาด้วย ก่อน merge. Auto-deploy จะ SKIP และรอ deploy มือสำหรับ commit นี้"
+            echo "$CHANGED"
+          fi
