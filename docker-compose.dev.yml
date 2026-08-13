@@ -1,0 +1,79 @@
+# ─────────────────────────────────────────────────────────────
+# dev.keptcarbon.net stack — runs ALONGSIDE the production stack
+# on the same server, sharing the same `postgis` container but a
+# separate `keptcarbon_dev` database.
+#
+# Deploy (server, after the prod stack is already up):
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml \
+#     up -d --build nextjs-dev backend-dev
+#
+# Do NOT run this with a bare `docker compose up` — always target
+# the two dev services explicitly so the prod `nextjs`/`backend`
+# services and the shared `postgis` service are left untouched.
+# ─────────────────────────────────────────────────────────────
+
+services:
+  nextjs-dev:
+    build:
+      context: ./nextjs
+      dockerfile: Dockerfile
+      # Stop at the builder stage — full node_modules + source,
+      # so we can run `next dev` instead of the standalone build.
+      target: builder
+    command: npm run dev
+    container_name: keptcarbon-dev
+    ports:
+      - "3500:3000"
+    networks:
+      - keptcarbon
+    volumes:
+      - ./nextjs:/app
+      - /app/node_modules
+    environment:
+      - WATCHPACK_POLLING=true
+      - DATABASE_URL=${DEV_DATABASE_URL}
+      - LINE_CHANNEL_ID=${LINE_CHANNEL_ID}
+      - LINE_CHANNEL_SECRET=${LINE_CHANNEL_SECRET}
+      - LINE_CALLBACK_URL=${DEV_LINE_CALLBACK_URL}
+      - JWT_SECRET=${JWT_SECRET}
+      - NEXT_PUBLIC_BACKEND_API_URL=${DEV_NEXT_PUBLIC_BACKEND_API_URL}
+      - NEXT_PUBLIC_ENABLE_PASSWORD_RESET=${NEXT_PUBLIC_ENABLE_PASSWORD_RESET}
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+      - GOOGLE_CALLBACK_URL=${DEV_GOOGLE_CALLBACK_URL}
+      - FACEBOOK_APP_ID=${FACEBOOK_APP_ID}
+      - FACEBOOK_APP_SECRET=${FACEBOOK_APP_SECRET}
+      - FACEBOOK_CALLBACK_URL=${DEV_FACEBOOK_CALLBACK_URL}
+      - GMAIL_USER=${GMAIL_USER}
+      - GMAIL_APP_PASSWORD=${GMAIL_APP_PASSWORD}
+    depends_on:
+      postgis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  backend-dev:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    container_name: keptcarbon-backend-dev
+    networks:
+      - keptcarbon
+    depends_on:
+      postgis:
+        condition: service_healthy
+    environment:
+      DATABASE_HOST: postgis
+      DATABASE_PORT: 5432
+      DATABASE_USER: ${POSTGRES_USER:-postgres}
+      DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      DATABASE_NAME: ${DEV_POSTGRES_DB:-keptcarbon_dev}
+      PYTHONPATH: /app
+    ports:
+      - "8001:8000"
+    volumes:
+      - ./backend:/app
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+    restart: unless-stopped

@@ -1,0 +1,18 @@
+# ─────────────────────────────────────────────────────────────
+# Production overlay — explicit counterpart to docker-compose.dev.yml.
+# Pins the lean `runner` build stage (no devDependencies) and adds
+# a memory ceiling to match the `backend` service in the base file.
+#
+# Deploy (server):
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml \
+#     up -d --build
+# ─────────────────────────────────────────────────────────────
+
+services:
+  nextjs:
+    build:
+      target: runner
+    deploy:
+      resources:
+        limits:
+          memory: 2G
