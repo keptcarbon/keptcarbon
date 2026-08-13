@@ -20,6 +20,9 @@ const nextConfig: NextConfig = {
   output: "standalone",
   images: { unoptimized: true },
   trailingSlash: true,
+  // Dev server is reverse-proxied under dev.keptcarbon.net (not localhost),
+  // so it must be explicitly allowlisted or Next.js blocks HMR/RSC requests.
+  allowedDevOrigins: ["dev.keptcarbon.net"],
 };
 
 export default nextConfig;
