@@ -46,7 +46,8 @@ class CarbonService:
                 detail=f"Province code '{p_code}' is not supported. Supported: {list(REGION_CONFIG.keys())}"
             )
 
-        clone = poly_data.get("rubber_clone") or DEFAULT_RUBBER_CLONE
+        # Use the rubber clone from poly_data if available, otherwise default to DEFAULT_RUBBER_CLONE
+        clone = DEFAULT_RUBBER_CLONE #poly_data.get("rubber_clone") or DEFAULT_RUBBER_CLONE
         growth_model = config.get("model_used", "cubic_poly")
         allometry = config.get("biomass_assessment_method", "hytonen_2018")
 
