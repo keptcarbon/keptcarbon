@@ -17,6 +17,7 @@ import {
 } from "@/lib/map-utils";
 import { getPlotsInfo, getPlotsNav } from "@/lib/carbon-api";
 import { ParcelResultsPanel } from "@/app/components/organisms";
+import type { PlotFormData } from "@/app/components/organisms/ParcelResultsPanel/utils";
 import { useSearchParams } from "next/navigation";
 import {
   type Tab,
@@ -309,6 +310,10 @@ function MapDrawContent() {
   // Multi-parcel support
   const [drawnParcels, setDrawnParcels] = useState<GeoJSON.Feature[]>([]);
   const drawnParcelsRef = useRef<GeoJSON.Feature[]>([]);
+  // Mirrors ParcelResultsPanel's plotForms (plantStatus/"ปลูกมาแล้ว" etc.) — that
+  // state lives entirely in the child and never writes back into drawnParcels,
+  // so we track it here to fold into the guest-session snapshot on auth redirect.
+  const plotFormsRef = useRef<PlotFormData[]>([]);
 
   const findSnapTarget = useCallback((
     screenPt: { x: number; y: number },
@@ -397,9 +402,25 @@ function MapDrawContent() {
   // where to return with a post-auth redirect.
   const stashGuestDrawSnapshot = () => {
     try {
+      // Fold in plotForms (plantStatus/"ปลูกมาแล้ว" etc.) using the same
+      // backendData.form / plantStatus shape ParcelResultsPanel already
+      // restores plots from when reloading a previously-saved project — so no
+      // changes are needed on the restore side.
+      const parcelsWithForms = drawnParcels.map((feat, i) => {
+        const form = plotFormsRef.current[i];
+        if (!form) return feat;
+        return {
+          ...feat,
+          properties: {
+            ...(feat.properties as any),
+            plantStatus: form.plantStatus,
+            backendData: { ...((feat.properties as any)?.backendData), form },
+          },
+        };
+      });
       sessionStorage.setItem(MAP_DRAW_RESUME_KEY, JSON.stringify({
         ts: Date.now(),
-        parcels: drawnParcels,
+        parcels: parcelsWithForms,
         // Land-use polygons from plantation-info (A302 ฯลฯ) — shown in the
         // panel as luFeatures; without them the restore says "ไม่พบข้อมูล"
         luFeatures: parcelFeatures,
@@ -1198,7 +1219,7 @@ function MapDrawContent() {
               const initialChecked: Record<number, Record<string, boolean>> = {};
               allProjectPlots.forEach((_: any, idx: number) => {
                 const savedLU = allProjectPlots[idx]?.luChecked;
-                initialChecked[idx] = (savedLU && typeof savedLU === "object" && !Array.isArray(savedLU))
+                initialChecked[idx] = (savedLU && typeof savedLU === "object" && !Array.isArray(savedLU) && Object.keys(savedLU).length > 0)
                   ? savedLU
                   : { A: true, A302: true };
               });
@@ -1321,7 +1342,7 @@ function MapDrawContent() {
               const initialChecked: Record<number, Record<string, boolean>> = {};
               visibleFeats.forEach((f, idx) => {
                 const saved = (f.properties as any)?.luChecked;
-                initialChecked[idx] = (saved && typeof saved === 'object' && !Array.isArray(saved))
+                initialChecked[idx] = (saved && typeof saved === 'object' && !Array.isArray(saved) && Object.keys(saved).length > 0)
                   ? saved
                   : { A: true, A302: true };
               });
@@ -3344,6 +3365,7 @@ function MapDrawContent() {
                 onSave={() => setPlotsSaved(true)}
                 existingProjectPlots={existingProjectPlots}
                 editingPlotId={editingPlotId}
+                onPlotFormsChange={(forms) => { plotFormsRef.current = forms; }}
                 onBeforeProcess={() => {
                   if (hiddenProjectPlots.length > 0) {
                     const merged = [...drawnParcels, ...hiddenProjectPlots];
