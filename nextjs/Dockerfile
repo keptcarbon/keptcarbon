@@ -14,6 +14,11 @@ ENV NEXT_PUBLIC_BACKEND_API_URL=$NEXT_PUBLIC_BACKEND_API_URL
 ARG NEXT_PUBLIC_ENABLE_PASSWORD_RESET
 ENV NEXT_PUBLIC_ENABLE_PASSWORD_RESET=$NEXT_PUBLIC_ENABLE_PASSWORD_RESET
 
+# Server-side only (not NEXT_PUBLIC_) — read by next.config.ts's headers()
+# and app/robots.ts at build time, never sent to the client bundle.
+ARG ENABLE_NOINDEX
+ENV ENABLE_NOINDEX=$ENABLE_NOINDEX
+
 RUN npm run build
 
 # ── Stage 2: production runtime ───────────────────────────────────

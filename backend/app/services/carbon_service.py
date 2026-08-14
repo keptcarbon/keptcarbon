@@ -125,8 +125,11 @@ class CarbonService:
                 total_carbon_ci_lower_tCO2e = round((sum_biomass_lower * CARBON_FRACTION * CARBON_EQUIVALENT_FACTOR) / 1000.0, 4)
                 total_carbon_ci_upper_tCO2e = round((sum_biomass_upper * CARBON_FRACTION * CARBON_EQUIVALENT_FACTOR) / 1000.0, 4)
 
-                # CRITICAL CAPTURE: Establish the absolute first year baseline values
-                if year_offset == 0:
+                # CRITICAL CAPTURE: Establish the baseline from the first year
+                # that actually has biomass — not always year_offset == 0,
+                # since a cohort planted at age 0 has zero biomass in its
+                # first year and that entry gets skipped above.
+                if baseline_carbon is None:
                     baseline_carbon = total_carbon_tCO2e
                     baseline_ci = total_carbon_ci_tCO2e
                     baseline_lower = total_carbon_ci_lower_tCO2e
@@ -251,6 +254,22 @@ class CarbonService:
 
         else:
             cohorts = await self.age_map_svc.get_plantation_age_cohorts(poly_data)
+
+            if not cohorts:
+                return {
+                    "polygon_id": poly_data["id"],
+                    "status": {
+                        "status": "error",
+                        "status_code": "E05",
+                        "message": (
+                            "NO PLANTING-YEAR RASTER DATA FOUND FOR THE SELECTED LAND USE "
+                            "CLASSES IN THIS PLOT. PLEASE VERIFY THE SELECTED LAND USE TYPES "
+                            "OR PROVIDE A PLANTING YEAR MANUALLY."
+                        )
+                    },
+                    "carbon_profile": None,
+                    "assess_parameters": None
+                }
 
             # Find the dictionary containing the maximum proportion value
             dominant_cohort = max(cohorts, key=lambda c: c['proportion'])

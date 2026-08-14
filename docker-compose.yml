@@ -12,7 +12,7 @@ services:
         NEXT_PUBLIC_BACKEND_API_URL: ${NEXT_PUBLIC_BACKEND_API_URL}
         NEXT_PUBLIC_ENABLE_PASSWORD_RESET: ${NEXT_PUBLIC_ENABLE_PASSWORD_RESET}
     ports:
-      - "3000:3000"
+      - "${NEXTJS_HOST_PORT:-3000}:3000"
     container_name: keptcarbon-nextjs
     networks:
       - keptcarbon
@@ -41,7 +41,7 @@ services:
   postgis:
     build: ./postgis
     ports:
-      - "4533:5432"
+      - "${POSTGIS_HOST_PORT:-4533}:5432"
     container_name: keptcarbon-postgis
     networks:
       - keptcarbon
@@ -75,7 +75,7 @@ services:
       DATABASE_NAME: ${POSTGRES_DB:-keptcarbon}
       PYTHONPATH: /app
     ports:
-      - '8000:8000'
+      - '${BACKEND_HOST_PORT:-8000}:8000'
     volumes:
       - ./backend:/app
     deploy:

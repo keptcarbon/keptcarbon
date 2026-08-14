@@ -1,0 +1,29 @@
+# ─────────────────────────────────────────────────────────────
+# UAT deploy override — used on the UAT server only.
+# Points nextjs/backend at pre-built images from GHCR instead of
+# building locally, so the shared VPS never has to compile
+# anything (GDAL/GEOS build, next build, etc. all happen on
+# GitHub Actions runners).
+#
+# Usage (run from the server, in the repo checkout):
+#   export TAG=uat-latest   # or a specific git-sha tag
+#   docker compose -f docker-compose.yml -f docker-compose.uat.yml pull nextjs backend
+#   docker compose -f docker-compose.yml -f docker-compose.uat.yml up -d --remove-orphans
+#
+# postgis is intentionally left alone here — it isn't rebuilt as
+# part of app deploys; schema changes go through the manual
+# migration runbook (see postgis/migrations/*_DEPLOY_RUNBOOK.md).
+# ─────────────────────────────────────────────────────────────
+
+# NOTE: base docker-compose.yml still has `build:` for these services
+# (needed for local dev). Adding `image:` here does NOT trigger a
+# rebuild — as long as you `pull` before `up` (see usage above), the
+# named image already exists locally under that tag, so `up` (without
+# --build) just runs it instead of building from source.
+
+services:
+  nextjs:
+    image: ghcr.io/keptcarbon/keptcarbon-nextjs:${TAG:-uat-latest}
+
+  backend:
+    image: ghcr.io/keptcarbon/keptcarbon-backend:${TAG:-uat-latest}

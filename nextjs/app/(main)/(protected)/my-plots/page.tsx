@@ -293,12 +293,19 @@ export default function MyPlotsPage() {
         const finalPlantYear = userPlantYear > 0 ? userPlantYear : epPlantYearBE;
 
         const rawProfile = resp.carbon_profile ?? [];
-        const co2Now = rawProfile[0]?.stocks?.value ?? 0;
-        const carbonProfile = rawProfile.length > 0 ? profileToBarPoints(rawProfile, age) : [];
+        const hasNewResult = rawProfile.length > 0;
+        if (!hasNewResult) {
+          console.warn('[ประเมินคาร์บอน] ⚠️ Empty carbon_profile for plot id:', plot.id, resp.status);
+        }
+        // Only flip to processed when this attempt actually returned profile data —
+        // otherwise a failed/partial backend response would show the green
+        // "ประมวลผลแล้ว" badge while the graph tab (gated on carbonProfile) stays empty.
+        const co2Now = hasNewResult ? (rawProfile[0]?.stocks?.value ?? 0) : (plot.carbonTotal || 0);
+        const carbonProfile = hasNewResult ? profileToBarPoints(rawProfile, age) : (plot.carbonProfile || []);
 
         const updatedPlot: SavedPlot = {
           ...plot,
-          processed: true,
+          processed: hasNewResult ? true : (plot.processed || false),
           carbonTotal: co2Now,
           rubberAge: age,
           plantYearBE: finalPlantYear,
