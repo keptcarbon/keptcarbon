@@ -190,11 +190,6 @@ export function getFriendlyErrorMessage(err: unknown, plots: PlotInfo[], plotFor
         return `ระบบไม่สามารถประมวลผลได้: ${backendMessage} กรุณาลองใหม่อีกครั้ง${plotSuffix}`;
     }
 
-    // Backend 500 errors
-    if (msg.includes("Backend API error: 500")) {
-        return `กรุณาเลือกประเภทการใช้ที่ดินอย่างน้อย 1 ประเภทในแต่ละแปลงก่อนประมวลผล${plotSuffix}`;
-    }
-
     // Network / connection errors
     if (msg.includes("fetch") || msg.includes("NetworkError") || msg.includes("Failed to fetch")) {
         return `ไม่สามารถเชื่อมต่อกับระบบประมวลผลคาร์บอนเครดิตได้${plotSuffix}`;
