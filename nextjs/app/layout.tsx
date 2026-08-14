@@ -53,7 +53,7 @@ export default function RootLayout({
         <link rel="stylesheet" href="/assets/css/map-split.css?v=38" />
         <link rel="stylesheet" href="/assets/css/modal-auth.css?v=3" />
       </head>
-      <body>
+      <body suppressHydrationWarning>
         <AuthProvider>
           <Header />
           {children}
