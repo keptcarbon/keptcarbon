@@ -246,6 +246,7 @@ export function LoginModal() {
           เข้าสู่ระบบด้วย Google
         </a>
 
+        {/*
         <a
           href="/api/auth/facebook"
           className="flex w-full items-center justify-center gap-3 rounded-xl border-0 bg-[#1877F2] py-2.5 text-base font-semibold text-white no-underline transition-colors hover:bg-[#166fe5]"
@@ -255,6 +256,7 @@ export function LoginModal() {
           </svg>
           เข้าสู่ระบบด้วย Facebook
         </a>
+        */}
       </div>
 
       <div className="mt-4 text-center text-base font-medium text-[var(--kc-muted)]">
@@ -559,6 +561,7 @@ export function RegisterModal() {
           สมัครสมาชิกด้วย Google
         </a>
 
+        {/*
         <a
           href="/api/auth/facebook"
           className="flex w-full items-center justify-center gap-3 rounded-xl border-0 bg-[#1877F2] py-2.5 text-base font-semibold text-white no-underline transition-colors hover:bg-[#166fe5]"
@@ -568,6 +571,7 @@ export function RegisterModal() {
           </svg>
           สมัครสมาชิกด้วย Facebook
         </a>
+        */}
       </div>
 
       <div className="mt-3 mb-0 text-center text-base font-medium text-[var(--kc-muted)]">
