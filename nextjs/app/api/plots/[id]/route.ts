@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { pool } from "@/lib/db";
 import { verifyToken, AUTH_COOKIE } from "@/lib/jwt";
 import { getUserUuid, mergeRawField, rowToProject } from "@/lib/carbon-projects";
+import { shadowUpsertProject, shadowSoftDeleteProjectById } from "@/lib/normalized-plots";
 
 
 // ---------------------------------------------------------------------------
@@ -178,6 +179,29 @@ export async function PATCH(
 
       await client.query("COMMIT");
 
+      try {
+        await shadowUpsertProject(
+          {
+            id: newRow.id,
+            userUuid: newRow.user_uuid,
+            guestUuid: newRow.guest_key,
+            projectName: newRow.project_name,
+            status: newRow.status,
+            deletedAt: newRow.deleted_at,
+            createdAt: newRow.created_at,
+            updatedAt: newRow.updated_at,
+          },
+          {
+            plantationInfo: body.plantationInfo,
+            polygonsPayload: body.polygonsPayload,
+            backendResponses: body.backendResponses,
+            frontendPlots: body.frontendPlots,
+          }
+        );
+      } catch (shadowErr) {
+        console.error("[normalized-plots] shadow write failed for project", newRow.id, shadowErr);
+      }
+
       return NextResponse.json({
         success: true,
         project: rowToProject(newRow),
@@ -256,6 +280,13 @@ export async function DELETE(
       );
 
       await client.query("COMMIT");
+
+      try {
+        await shadowSoftDeleteProjectById(projectId);
+      } catch (shadowErr) {
+        console.error("[normalized-plots] shadow soft-delete (single) failed for project", projectId, shadowErr);
+      }
+
       return NextResponse.json({ success: true });
     } catch (err) {
       await client.query("ROLLBACK");

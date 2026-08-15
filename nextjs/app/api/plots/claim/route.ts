@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { pool } from "@/lib/db";
 import { verifyToken, AUTH_COOKIE } from "@/lib/jwt";
 import { getUserUuid } from "@/lib/carbon-projects";
+import { shadowClaimProjects } from "@/lib/normalized-plots";
 
 // ---------------------------------------------------------------------------
 // POST /api/plots/claim — attach a guest's projects to the logged-in account.
@@ -54,6 +55,13 @@ export async function POST(request: NextRequest) {
     );
 
     await client.query("COMMIT");
+
+    try {
+      await shadowClaimProjects({ guestUuid: guestKey, userUuid });
+    } catch (shadowErr) {
+      console.error("[normalized-plots] shadow claim failed", { guestKey, userUuid }, shadowErr);
+    }
+
     return NextResponse.json({ success: true, claimed: moved.rowCount ?? 0 });
   } catch (err) {
     await client.query("ROLLBACK");

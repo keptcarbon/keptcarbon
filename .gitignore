@@ -174,3 +174,6 @@ build/
 dist/
 *.egg-info/
 .eggs/
+
+# Local DB backups (pg_dump snapshots taken before running migrations)
+postgis/backups/

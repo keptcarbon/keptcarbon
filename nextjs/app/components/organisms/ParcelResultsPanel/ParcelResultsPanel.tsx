@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { CarbonBarChart, profileToBarPoints, type BarPoint } from "./CarbonBarChart";
 import { assessCarbon, type CarbonAssessRequest, type CarbonAssessResponse, type YearlyAssess } from "@/lib/carbon-api";
+import { generatePolygonId } from "@/lib/map-utils";
 import { PlotDetailCard } from "./PlotDetailCard";
 import {
     type PlotFormData,
@@ -538,7 +539,7 @@ export function ParcelResultsPanel({
         // ID เดียวกันนี้จะถูกใช้ใน polygons_payload, backend_responses, และ frontend_plots
         const stablePlotIds = parcelFeatures.map((feat) => {
             const props = (feat?.properties || {}) as any;
-            return (props.id as string) || Math.random().toString(36).substring(7);
+            return (props.id as string) || generatePolygonId();
         });
         stablePlotIdsRef.current = stablePlotIds;
         setPlotIds(stablePlotIds);
@@ -892,7 +893,7 @@ export function ParcelResultsPanel({
                 ? stablePlotIdsRef.current
                 : parcelFeatures.map((feat) => {
                     const props = (feat?.properties || {}) as any;
-                    return (props.id as string) || Math.random().toString(36).substring(7);
+                    return (props.id as string) || generatePolygonId();
                 });
 
             // Build plantation_info: ใช้ rawPlantationInfo ที่ส่งมาจาก API จริงๆ ถ้ามี

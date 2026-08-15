@@ -14,6 +14,7 @@ import {
   detectUtmFromPrj,
   detectUtmZoneAuto,
   sanitizePolygonForApi,
+  generatePolygonId,
 } from "@/lib/map-utils";
 import { getPlotsInfo, getPlotsNav } from "@/lib/carbon-api";
 import { ParcelResultsPanel } from "@/app/components/organisms";
@@ -1518,7 +1519,7 @@ function MapDrawContent() {
       type: "Feature",
       geometry: { type: "Polygon", coordinates: [ring] },
       properties: {
-        id: Math.random().toString(36).substring(7),
+        id: generatePolygonId(),
         rai: rai,
         status: null, // "new" | "old"
         year: null,

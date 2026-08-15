@@ -3,6 +3,7 @@ import { randomUUID } from "crypto";
 import { pool } from "@/lib/db";
 import { verifyToken, AUTH_COOKIE } from "@/lib/jwt";
 import { getUserUuid, generateGuestKey, mergeRawField, rowToProject } from "@/lib/carbon-projects";
+import { shadowUpsertProject, shadowSoftDeleteProjectsByOwner } from "@/lib/normalized-plots";
 
 function generateGuestProjectName(): string {
   return `Guestprojects-${randomUUID()}`;
@@ -192,6 +193,31 @@ export async function POST(request: NextRequest) {
 
       await client.query("COMMIT");
 
+      try {
+        await shadowUpsertProject(
+          {
+            id: savedRow.id,
+            userUuid: savedRow.user_uuid,
+            guestUuid: savedRow.guest_key,
+            projectName: savedRow.project_name,
+            status: savedRow.status,
+            deletedAt: savedRow.deleted_at,
+            createdAt: savedRow.created_at,
+            updatedAt: savedRow.updated_at,
+          },
+          {
+            // Raw body fields, NOT the `?? {}`/`?? []`-defaulted consts above --
+            // shadowUpsertProject needs to tell "not sent" from "sent empty".
+            plantationInfo: body.plantationInfo,
+            polygonsPayload: body.polygonsPayload,
+            backendResponses: body.backendResponses,
+            frontendPlots: body.frontendPlots,
+          }
+        );
+      } catch (shadowErr) {
+        console.error("[normalized-plots] shadow write failed for project", savedRow.id, shadowErr);
+      }
+
       return NextResponse.json({
         success: true,
         project: rowToProject(savedRow),
@@ -253,6 +279,15 @@ export async function DELETE(request: NextRequest) {
 
 
     await client.query("COMMIT");
+
+    try {
+      await shadowSoftDeleteProjectsByOwner(
+        payload ? { userUuid, guestUuid: null } : { userUuid: null, guestUuid: guestUserId }
+      );
+    } catch (shadowErr) {
+      console.error("[normalized-plots] shadow soft-delete (bulk) failed", shadowErr);
+    }
+
     return NextResponse.json({
       success: true,
       deletedCount: existing.rowCount,
