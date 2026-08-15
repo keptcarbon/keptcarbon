@@ -2,8 +2,8 @@ import { pool } from "@/lib/db";
 
 /**
  * Shadow-write mirror of every carbon_projects save/delete/claim into the
- * normalized schema (projects/plots/plot_landuse_overlaps/plot_assessments/
- * plot_carbon_yearly, see postgis/migrations/009 + 010). Every exported
+ * normalized schema (tbl_projects/tbl_plots/tbl_plot_landuse_overlaps/tbl_plot_assessments/
+ * tbl_plot_carbon_yearly, see postgis/migrations/009 + 010). Every exported
  * function here is best-effort: it can log, but it must NEVER throw or
  * reject, since it always runs after the real carbon_projects write has
  * already committed. A bug here can only add latency to a request, never
@@ -71,7 +71,7 @@ function toArray(raw: unknown): AnyRecord[] | undefined {
 }
 
 const UPSERT_PROJECT_SQL = `
-  INSERT INTO projects (id, user_uuid, guest_uuid, project_name, status, deleted_at, created_at, updated_at)
+  INSERT INTO tbl_projects (id, user_uuid, guest_uuid, project_name, status, deleted_at, created_at, updated_at)
   VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
   ON CONFLICT (id) DO UPDATE SET
     user_uuid    = EXCLUDED.user_uuid,
@@ -83,31 +83,32 @@ const UPSERT_PROJECT_SQL = `
 `;
 
 const UPSERT_PLOT_SQL = `
-  INSERT INTO plots (
+  INSERT INTO tbl_plots (
     project_id, polygon_id, geometry, area_m2, province_code,
     status, status_code, message,
     year_of_planting, rubber_clone, tree_count, spacing_system, project_type,
-    selected_lu_classes, deleted_at
+    selected_lu_classes, owner_name, deleted_at
   )
   VALUES (
     $1, $2,
     CASE WHEN $3::text IS NULL THEN NULL ELSE ST_SetSRID(ST_GeomFromGeoJSON($3::text), 4326) END,
     $4, $5, $6, $7, $8, $9, $10, $11, $12, $13,
-    COALESCE($14::text[], '{}'), NULL
+    COALESCE($14::text[], '{}'), $15, NULL
   )
   ON CONFLICT (project_id, polygon_id) DO UPDATE SET
-    geometry            = COALESCE(EXCLUDED.geometry, plots.geometry),
-    area_m2              = COALESCE(EXCLUDED.area_m2, plots.area_m2),
-    province_code        = COALESCE(EXCLUDED.province_code, plots.province_code),
-    status                = COALESCE(EXCLUDED.status, plots.status),
-    status_code           = COALESCE(EXCLUDED.status_code, plots.status_code),
-    message               = COALESCE(EXCLUDED.message, plots.message),
-    year_of_planting      = COALESCE(EXCLUDED.year_of_planting, plots.year_of_planting),
-    rubber_clone          = COALESCE(EXCLUDED.rubber_clone, plots.rubber_clone),
-    tree_count            = COALESCE(EXCLUDED.tree_count, plots.tree_count),
-    spacing_system        = COALESCE(EXCLUDED.spacing_system, plots.spacing_system),
-    project_type          = COALESCE(EXCLUDED.project_type, plots.project_type),
-    selected_lu_classes   = COALESCE($14::text[], plots.selected_lu_classes),
+    geometry            = COALESCE(EXCLUDED.geometry, tbl_plots.geometry),
+    area_m2              = COALESCE(EXCLUDED.area_m2, tbl_plots.area_m2),
+    province_code        = COALESCE(EXCLUDED.province_code, tbl_plots.province_code),
+    status                = COALESCE(EXCLUDED.status, tbl_plots.status),
+    status_code           = COALESCE(EXCLUDED.status_code, tbl_plots.status_code),
+    message               = COALESCE(EXCLUDED.message, tbl_plots.message),
+    year_of_planting      = COALESCE(EXCLUDED.year_of_planting, tbl_plots.year_of_planting),
+    rubber_clone          = COALESCE(EXCLUDED.rubber_clone, tbl_plots.rubber_clone),
+    tree_count            = COALESCE(EXCLUDED.tree_count, tbl_plots.tree_count),
+    spacing_system        = COALESCE(EXCLUDED.spacing_system, tbl_plots.spacing_system),
+    project_type          = COALESCE(EXCLUDED.project_type, tbl_plots.project_type),
+    selected_lu_classes   = COALESCE($14::text[], tbl_plots.selected_lu_classes),
+    owner_name            = COALESCE(EXCLUDED.owner_name, tbl_plots.owner_name),
     deleted_at            = NULL
 `;
 
@@ -156,6 +157,7 @@ async function upsertPlots(
       payload?.spacing_system ?? null,
       payload?.project_type ?? null,
       selectedLuClasses,
+      fp?.ownerName || null,
     ]);
   }
 
@@ -164,7 +166,7 @@ async function upsertPlots(
 
 async function reconcileRemovedPlots(client: any, projectId: number, activeIds: Set<string>): Promise<void> {
   await client.query(
-    `UPDATE plots
+    `UPDATE tbl_plots
      SET deleted_at = NOW()
      WHERE project_id = $1
        AND deleted_at IS NULL
@@ -187,18 +189,18 @@ async function recomputeLandUseOverlaps(
     if (!entry || !Array.isArray(entry.lu_polygon)) continue;
 
     const plotRes = await client.query(
-      `SELECT id FROM plots WHERE project_id = $1 AND polygon_id = $2`,
+      `SELECT id FROM tbl_plots WHERE project_id = $1 AND polygon_id = $2`,
       [projectId, polygonId]
     );
     const plotId = plotRes.rows[0]?.id;
     if (!plotId) continue;
 
-    await client.query(`DELETE FROM plot_landuse_overlaps WHERE plot_id = $1`, [plotId]);
+    await client.query(`DELETE FROM tbl_plot_landuse_overlaps WHERE plot_id = $1`, [plotId]);
 
     for (const lu of entry.lu_polygon) {
       if (!lu?.geometry) continue;
       await client.query(
-        `INSERT INTO plot_landuse_overlaps (plot_id, lu_class, lu_class_desc_th, geometry, area_m2, area_percent)
+        `INSERT INTO tbl_plot_landuse_overlaps (plot_id, lu_class, lu_class_desc_th, geometry, area_m2, area_percent)
          VALUES ($1, $2, $3, ST_SetSRID(ST_GeomFromGeoJSON($4::text), 4326), $5, $6)`,
         [
           plotId,
@@ -219,16 +221,16 @@ async function appendAssessments(client: any, projectId: number, backendResponse
     if (!polygonId) continue;
 
     const plotRes = await client.query(
-      `SELECT id FROM plots WHERE project_id = $1 AND polygon_id = $2`,
+      `SELECT id FROM tbl_plots WHERE project_id = $1 AND polygon_id = $2`,
       [projectId, polygonId]
     );
     const plotId = plotRes.rows[0]?.id;
     if (!plotId) continue;
 
-    await client.query(`UPDATE plot_assessments SET is_current = FALSE WHERE plot_id = $1 AND is_current`, [plotId]);
+    await client.query(`UPDATE tbl_plot_assessments SET is_current = FALSE WHERE plot_id = $1 AND is_current`, [plotId]);
 
     const assessRes = await client.query(
-      `INSERT INTO plot_assessments (plot_id, status, status_code, message, message_th, ci, assess_parameters, model_version, is_current)
+      `INSERT INTO tbl_plot_assessments (plot_id, status, status_code, message, message_th, ci, assess_parameters, model_version, is_current)
        VALUES ($1,$2,$3,$4,$5,$6,$7,NULL,TRUE) RETURNING id`,
       [
         plotId,
@@ -244,7 +246,7 @@ async function appendAssessments(client: any, projectId: number, backendResponse
 
     for (const yr of br?.carbon_profile ?? []) {
       await client.query(
-        `INSERT INTO plot_carbon_yearly (
+        `INSERT INTO tbl_plot_carbon_yearly (
            assessment_id, year, year_at, age,
            stock_value, stock_ci, stock_ci_lower, stock_ci_upper,
            gain_value, gain_ci, gain_ci_lower, gain_ci_upper
@@ -323,7 +325,7 @@ async function upsertProjectHeader(header: ProjectHeader): Promise<void> {
 export async function shadowSoftDeleteProjectById(id: number): Promise<void> {
   try {
     await pool.query(
-      `UPDATE projects SET status = 'deleted', deleted_at = NOW(), updated_at = NOW() WHERE id = $1`,
+      `UPDATE tbl_projects SET status = 'deleted', deleted_at = NOW(), updated_at = NOW() WHERE id = $1`,
       [id]
     );
   } catch (err) {
@@ -337,7 +339,7 @@ export async function shadowSoftDeleteProjectsByOwner(owner: {
 }): Promise<void> {
   try {
     await pool.query(
-      `UPDATE projects SET status = 'deleted', deleted_at = NOW(), updated_at = NOW()
+      `UPDATE tbl_projects SET status = 'deleted', deleted_at = NOW(), updated_at = NOW()
        WHERE status = 'active' AND (
          ($1::uuid IS NOT NULL AND user_uuid = $1) OR
          ($2::text IS NOT NULL AND guest_uuid = $2)
@@ -346,27 +348,5 @@ export async function shadowSoftDeleteProjectsByOwner(owner: {
     );
   } catch (err) {
     console.error("[normalized-plots] shadowSoftDeleteProjectsByOwner failed", owner, err);
-  }
-}
-
-export async function shadowClaimProjects(params: { guestUuid: string; userUuid: string }): Promise<void> {
-  const { guestUuid, userUuid } = params;
-  try {
-    await pool.query(
-      `UPDATE projects p SET status = 'deleted', deleted_at = NOW(), updated_at = NOW()
-       WHERE p.guest_uuid = $1 AND p.status = 'active'
-         AND EXISTS (
-           SELECT 1 FROM projects u
-           WHERE u.user_uuid = $2 AND u.status = 'active' AND u.project_name = p.project_name
-         )`,
-      [guestUuid, userUuid]
-    );
-    await pool.query(
-      `UPDATE projects SET user_uuid = $2, guest_uuid = NULL, updated_at = NOW()
-       WHERE guest_uuid = $1 AND status = 'active'`,
-      [guestUuid, userUuid]
-    );
-  } catch (err) {
-    console.error("[normalized-plots] shadowClaimProjects failed", params, err);
   }
 }

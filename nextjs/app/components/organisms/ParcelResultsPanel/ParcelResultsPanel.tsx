@@ -58,6 +58,9 @@ type Props = {
     onBeforeProcess?: () => boolean;
     autoProcessTrigger?: number;
     onSave?: () => void;
+    onProjectSaved?: (info: { projectId: number; guestKey: string | null }) => void;
+    /** Bump this to detach from the current DB project (e.g. it was soft-deleted upstream) so the next save creates a new one. */
+    resetProjectToken?: number;
     existingProjectPlots?: any[];
     editingPlotId?: string | null;
     onPlotFormsChange?: (forms: PlotFormData[]) => void;
@@ -120,6 +123,8 @@ export function ParcelResultsPanel({
     onBeforeProcess,
     autoProcessTrigger,
     onSave,
+    onProjectSaved,
+    resetProjectToken,
     existingProjectPlots,
     editingPlotId,
     onPlotFormsChange,
@@ -302,6 +307,33 @@ export function ParcelResultsPanel({
     }, [projectName]);
     const [dbProjectId, setDbProjectId] = useState<number | null>(null);
     const [guestUserId, setGuestUserId] = useState<string | null>(null);
+
+    // Parent bumps resetProjectToken after soft-deleting our current project
+    // (e.g. guest discarded it to start a new area) — detach so the next save
+    // POSTs a fresh project instead of PATCHing the now-deleted one.
+    useEffect(() => {
+        if (resetProjectToken === undefined) return;
+        setDbProjectId(null);
+        setGuestUserId(null);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [resetProjectToken]);
+
+    // auth-context's refresh() auto-claims any guest project sitting in
+    // localStorage as soon as `user` goes truthy on login — server-side that
+    // clones it into a new user-owned row and soft-deletes this one. Detach
+    // here too so the next save POSTs (finds/merges into the clone by
+    // user_uuid+name) instead of PATCHing the now-deleted guest row.
+    const prevUserRef = useRef(user);
+    useEffect(() => {
+        const justLoggedIn = !prevUserRef.current && !!user;
+        prevUserRef.current = user;
+        if (justLoggedIn && guestUserId) {
+            setDbProjectId(null);
+            setGuestUserId(null);
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [user]);
+
     const [plotForms, setPlotForms] = useState<PlotFormData[]>([]);
 
     // Let the parent know the latest plotForms (e.g. plantStatus/"ปลูกมาแล้ว")
@@ -1132,15 +1164,31 @@ export function ParcelResultsPanel({
                     }
                 }
 
+                if (data.project?.id) {
+                    onProjectSaved?.({
+                        projectId: data.project.id,
+                        guestKey: data.project.userId ?? guestUserId ?? null,
+                    });
+                }
+
                 // กด "บันทึกข้อมูล" โดย user ที่ล็อกอิน → claim draft (guest_key) เข้าบัญชี
-                // → row ถูกย้ายไป user_uuid แล้วจะโผล่ใน My Plots
+                // → server clones the guest row into a new project owned by
+                // the user and soft-deletes the guest one, so dbProjectId
+                // must follow the clone or the next save 404s (PATCHing a
+                // now-deleted row).
                 if (!isDraft && user && guestUserId) {
                     try {
-                        await fetch("/api/plots/claim", {
+                        const claimRes = await fetch("/api/plots/claim", {
                             method: "POST",
                             headers: { "Content-Type": "application/json" },
                             body: JSON.stringify({ guestKey: guestUserId }),
                         });
+                        if (claimRes.ok) {
+                            const claimData = await claimRes.json();
+                            const claimedProjects: { id: number; projectName: string }[] = claimData.projects ?? [];
+                            const clonedProject = claimedProjects.find(p => p.projectName === projectId) ?? claimedProjects[0];
+                            if (clonedProject?.id) setDbProjectId(clonedProject.id);
+                        }
                         setGuestUserId(null);
                     } catch (e) {
                         console.error("claim error:", e);

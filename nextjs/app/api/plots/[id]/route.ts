@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { pool } from "@/lib/db";
 import { verifyToken, AUTH_COOKIE } from "@/lib/jwt";
-import { getUserUuid, mergeRawField, rowToProject } from "@/lib/carbon-projects";
+import { getUserUuid, mergeRawField, rowToProject, rowToProjectFromNormalized } from "@/lib/carbon-projects";
 import { shadowUpsertProject, shadowSoftDeleteProjectById } from "@/lib/normalized-plots";
 
 
@@ -24,7 +24,7 @@ export async function GET(
     }
 
     const result = await pool.query(
-      `SELECT * FROM carbon_projects WHERE id = $1 AND status = 'active'`,
+      `SELECT * FROM tbl_projects WHERE id = $1 AND status = 'active'`,
       [projectId]
     );
 
@@ -42,14 +42,14 @@ export async function GET(
         : (() => {
             // Guest project → ต้องส่ง guest_key ที่ตรงกันมา
             const { searchParams } = new URL(request.url);
-            return searchParams.get("guest_user_id") === row.guest_key;
+            return searchParams.get("guest_user_id") === row.guest_uuid;
           })();
       if (!isOwner) {
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
       }
     }
 
-    return NextResponse.json({ project: rowToProject(row) });
+    return NextResponse.json({ project: rowToProjectFromNormalized(row) });
   } catch (err) {
     console.error("GET /api/plots/[id] error:", err);
     return NextResponse.json(

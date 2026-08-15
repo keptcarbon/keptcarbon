@@ -1,15 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { pool } from "@/lib/db";
 import { verifyToken, AUTH_COOKIE } from "@/lib/jwt";
-import { getUserUuid } from "@/lib/carbon-projects";
-import { shadowClaimProjects } from "@/lib/normalized-plots";
+import { getUserUuid, rowToProject } from "@/lib/carbon-projects";
+import { shadowUpsertProject, shadowSoftDeleteProjectById } from "@/lib/normalized-plots";
 
 // ---------------------------------------------------------------------------
 // POST /api/plots/claim — attach a guest's projects to the logged-in account.
 //   Body: { guestKey: string }
-//   Moves every active project owned by that guest_key to the caller's
-//   user_uuid. Requires auth; the unguessable guest_key acts as the proof the
-//   caller owned that guest session.
+//   Clones every active project owned by that guest_key into a brand-new row
+//   owned by the caller's user_uuid, then soft-deletes the guest row. The
+//   guest row's ownership is never reassigned in place — it's cloned then
+//   discarded, so a guest-drawn project's identity never mutates into a
+//   user-owned one. Requires auth; the unguessable guest_key acts as the
+//   proof the caller owned that guest session.
 // ---------------------------------------------------------------------------
 export async function POST(request: NextRequest) {
   const token = request.cookies.get(AUTH_COOKIE)?.value;
@@ -34,7 +37,7 @@ export async function POST(request: NextRequest) {
 
     // Avoid violating the (user_uuid, project_name) unique index: if the user
     // already has an active project with the same name, keep theirs and
-    // soft-delete the guest copy instead of moving it.
+    // soft-delete the guest copy instead of cloning it.
     await client.query(
       `UPDATE carbon_projects g
        SET status = 'deleted', deleted_at = NOW()
@@ -47,22 +50,62 @@ export async function POST(request: NextRequest) {
       [guestKey, userUuid]
     );
 
-    const moved = await client.query(
-      `UPDATE carbon_projects
-       SET user_uuid = $2, guest_key = NULL
-       WHERE guest_key = $1 AND status = 'active'`,
+    // Clone every remaining active guest project into a new row owned by the
+    // user. The source guest row is left untouched here and soft-deleted
+    // below, so its guest_key/ownership are never mutated in place.
+    const cloned = await client.query(
+      `INSERT INTO carbon_projects
+         (user_uuid, project_name, plantation_info, polygons_payload, backend_responses, frontend_plots, status)
+       SELECT $2, project_name, plantation_info, polygons_payload, backend_responses, frontend_plots, 'active'
+       FROM carbon_projects
+       WHERE guest_key = $1 AND status = 'active'
+       RETURNING *`,
       [guestKey, userUuid]
+    );
+
+    const deletedGuestProjects = await client.query(
+      `UPDATE carbon_projects
+       SET status = 'deleted', deleted_at = NOW()
+       WHERE guest_key = $1 AND status = 'active'
+       RETURNING id`,
+      [guestKey]
     );
 
     await client.query("COMMIT");
 
     try {
-      await shadowClaimProjects({ guestUuid: guestKey, userUuid });
+      for (const row of cloned.rows) {
+        await shadowUpsertProject(
+          {
+            id: row.id,
+            userUuid: row.user_uuid,
+            guestUuid: row.guest_key,
+            projectName: row.project_name,
+            status: row.status,
+            deletedAt: row.deleted_at,
+            createdAt: row.created_at,
+            updatedAt: row.updated_at,
+          },
+          {
+            plantationInfo: row.plantation_info,
+            polygonsPayload: row.polygons_payload,
+            backendResponses: row.backend_responses,
+            frontendPlots: row.frontend_plots,
+          }
+        );
+      }
+      for (const row of deletedGuestProjects.rows) {
+        await shadowSoftDeleteProjectById(row.id);
+      }
     } catch (shadowErr) {
       console.error("[normalized-plots] shadow claim failed", { guestKey, userUuid }, shadowErr);
     }
 
-    return NextResponse.json({ success: true, claimed: moved.rowCount ?? 0 });
+    return NextResponse.json({
+      success: true,
+      claimed: cloned.rowCount ?? 0,
+      projects: cloned.rows.map(rowToProject),
+    });
   } catch (err) {
     await client.query("ROLLBACK");
     console.error("POST /api/plots/claim error:", err);

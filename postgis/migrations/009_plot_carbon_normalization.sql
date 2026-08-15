@@ -1,6 +1,6 @@
 -- ============================================================================
--- Migration 009 — normalized plot/carbon schema (projects, plots,
---                 plot_landuse_overlaps, plot_assessments, plot_carbon_yearly)
+-- Migration 009 — normalized plot/carbon schema (tbl_projects, tbl_plots,
+--                 tbl_plot_landuse_overlaps, tbl_plot_assessments, tbl_plot_carbon_yearly)
 -- ============================================================================
 -- Run against an EXISTING database (the postgis/init/*.sql scripts only run
 -- when the Docker volume is created fresh):
@@ -18,12 +18,12 @@
 -- backend_responses, frontend_plots) merged by id on every save. This
 -- migration stands up the normalized replacement alongside it:
 --
---   projects                 -- header only (was: carbon_projects row)
---   plots                    -- one row per polygon (was: plantation_info[] x polygons_payload[])
---   plot_landuse_overlaps    -- one row per LU overlap (was: plantation_info[].lu_polygon[])
---   plot_assessments         -- one row per backend run, APPENDED not overwritten
---                                (was: backend_responses[], previously clobbered on save)
---   plot_carbon_yearly       -- one row per (assessment, year) (was: backend_responses[].carbon_profile[])
+--   tbl_projects                 -- header only (was: carbon_projects row)
+--   tbl_plots                    -- one row per polygon (was: plantation_info[] x polygons_payload[])
+--   tbl_plot_landuse_overlaps    -- one row per LU overlap (was: plantation_info[].lu_polygon[])
+--   tbl_plot_assessments         -- one row per backend run, APPENDED not overwritten
+--                                    (was: backend_responses[], previously clobbered on save)
+--   tbl_plot_carbon_yearly       -- one row per (assessment, year) (was: backend_responses[].carbon_profile[])
 --
 -- frontend_plots has no replacement table here — in the normalized schema
 -- it becomes a view/query over the tables above instead of a fourth
@@ -41,18 +41,18 @@ DO $$
 BEGIN
   IF EXISTS (
     SELECT 1 FROM information_schema.tables
-    WHERE table_schema = 'public' AND table_name = 'projects'
+    WHERE table_schema = 'public' AND table_name = 'tbl_projects'
   ) THEN
-    RAISE EXCEPTION 'projects already exists -- migration 009 already applied, aborting.';
+    RAISE EXCEPTION 'tbl_projects already exists -- migration 009 already applied, aborting.';
   END IF;
 END $$;
 
 CREATE EXTENSION IF NOT EXISTS postgis;
 
 -- ============================================================================
--- 1) projects — header (owner + name); was the carbon_projects row itself
+-- 1) tbl_projects — header (owner + name); was the carbon_projects row itself
 -- ============================================================================
-CREATE TABLE projects (
+CREATE TABLE tbl_projects (
   id            SERIAL        PRIMARY KEY,
 
   -- Owner: logged-in user (user_uuid) or guest (guest_uuid) — exactly one.
@@ -71,31 +71,31 @@ CREATE TABLE projects (
   CONSTRAINT chk_projects_owner CHECK (num_nonnulls(user_uuid, guest_uuid) = 1)
 );
 
-CREATE INDEX idx_projects_user_uuid    ON projects (user_uuid);
-CREATE INDEX idx_projects_guest_uuid   ON projects (guest_uuid);
-CREATE INDEX idx_projects_project_name ON projects (project_name);
-CREATE INDEX idx_projects_status       ON projects (status);
+CREATE INDEX idx_projects_user_uuid    ON tbl_projects (user_uuid);
+CREATE INDEX idx_projects_guest_uuid   ON tbl_projects (guest_uuid);
+CREATE INDEX idx_projects_project_name ON tbl_projects (project_name);
+CREATE INDEX idx_projects_status       ON tbl_projects (status);
 
 -- One active project per name per owner (members and guests tracked separately).
 CREATE UNIQUE INDEX uq_projects_user_project_active
-  ON projects (user_uuid, project_name)
+  ON tbl_projects (user_uuid, project_name)
   WHERE status = 'active' AND user_uuid IS NOT NULL;
 
 CREATE UNIQUE INDEX uq_projects_guest_project_active
-  ON projects (guest_uuid, project_name)
+  ON tbl_projects (guest_uuid, project_name)
   WHERE status = 'active' AND guest_uuid IS NOT NULL;
 
 CREATE TRIGGER trg_projects_updated_at
-  BEFORE UPDATE ON projects
+  BEFORE UPDATE ON tbl_projects
   FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
 -- ============================================================================
--- 2) plots — one row per polygon; was plantation_info[] merged with
+-- 2) tbl_plots — one row per polygon; was plantation_info[] merged with
 --    polygons_payload[] by polygon_id
 -- ============================================================================
-CREATE TABLE plots (
+CREATE TABLE tbl_plots (
   id                    SERIAL        PRIMARY KEY,
-  project_id            INTEGER       NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  project_id            INTEGER       NOT NULL REFERENCES tbl_projects(id) ON DELETE CASCADE,
 
   -- Client-generated stable id for a polygon within a project (was: polygon_id).
   polygon_id            VARCHAR(100)  NOT NULL,
@@ -125,22 +125,22 @@ CREATE TABLE plots (
   updated_at            TIMESTAMPTZ   NOT NULL DEFAULT NOW()
 );
 
-CREATE UNIQUE INDEX uq_plots_project_polygon ON plots (project_id, polygon_id);
-CREATE INDEX idx_plots_project_id     ON plots (project_id);
-CREATE INDEX idx_plots_geometry       ON plots USING GIST (geometry);
-CREATE INDEX idx_plots_province_code  ON plots (province_code);
+CREATE UNIQUE INDEX uq_plots_project_polygon ON tbl_plots (project_id, polygon_id);
+CREATE INDEX idx_plots_project_id     ON tbl_plots (project_id);
+CREATE INDEX idx_plots_geometry       ON tbl_plots USING GIST (geometry);
+CREATE INDEX idx_plots_province_code  ON tbl_plots (province_code);
 
 CREATE TRIGGER trg_plots_updated_at
-  BEFORE UPDATE ON plots
+  BEFORE UPDATE ON tbl_plots
   FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
 -- ============================================================================
--- 3) plot_landuse_overlaps — one row per LU overlap polygon; was
+-- 3) tbl_plot_landuse_overlaps — one row per LU overlap polygon; was
 --    plantation_info[].lu_polygon[]
 -- ============================================================================
-CREATE TABLE plot_landuse_overlaps (
+CREATE TABLE tbl_plot_landuse_overlaps (
   id                  SERIAL        PRIMARY KEY,
-  plot_id             INTEGER       NOT NULL REFERENCES plots(id) ON DELETE CASCADE,
+  plot_id             INTEGER       NOT NULL REFERENCES tbl_plots(id) ON DELETE CASCADE,
 
   lu_class            VARCHAR(50),
   lu_class_desc_th    VARCHAR(255),
@@ -153,17 +153,17 @@ CREATE TABLE plot_landuse_overlaps (
   created_at          TIMESTAMPTZ   NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_plot_landuse_overlaps_plot_id  ON plot_landuse_overlaps (plot_id);
-CREATE INDEX idx_plot_landuse_overlaps_geometry ON plot_landuse_overlaps USING GIST (geometry);
-CREATE INDEX idx_plot_landuse_overlaps_lu_class ON plot_landuse_overlaps (lu_class);
+CREATE INDEX idx_plot_landuse_overlaps_plot_id  ON tbl_plot_landuse_overlaps (plot_id);
+CREATE INDEX idx_plot_landuse_overlaps_geometry ON tbl_plot_landuse_overlaps USING GIST (geometry);
+CREATE INDEX idx_plot_landuse_overlaps_lu_class ON tbl_plot_landuse_overlaps (lu_class);
 
 -- ============================================================================
--- 4) plot_assessments — one row per backend /carbon/assess run, APPENDED
+-- 4) tbl_plot_assessments — one row per backend /carbon/assess run, APPENDED
 --    (was: backend_responses[], previously overwritten in place on save)
 -- ============================================================================
-CREATE TABLE plot_assessments (
+CREATE TABLE tbl_plot_assessments (
   id                   SERIAL        PRIMARY KEY,
-  plot_id              INTEGER       NOT NULL REFERENCES plots(id) ON DELETE CASCADE,
+  plot_id              INTEGER       NOT NULL REFERENCES tbl_plots(id) ON DELETE CASCADE,
 
   status               VARCHAR(20),
   status_code          VARCHAR(50),
@@ -179,19 +179,19 @@ CREATE TABLE plot_assessments (
   created_at           TIMESTAMPTZ   NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_plot_assessments_plot_id ON plot_assessments (plot_id);
+CREATE INDEX idx_plot_assessments_plot_id ON tbl_plot_assessments (plot_id);
 
 CREATE UNIQUE INDEX uq_plot_assessments_current
-  ON plot_assessments (plot_id)
+  ON tbl_plot_assessments (plot_id)
   WHERE is_current;
 
 -- ============================================================================
--- 5) plot_carbon_yearly — one row per (assessment, year); was
+-- 5) tbl_plot_carbon_yearly — one row per (assessment, year); was
 --    backend_responses[].carbon_profile[]
 -- ============================================================================
-CREATE TABLE plot_carbon_yearly (
+CREATE TABLE tbl_plot_carbon_yearly (
   id                SERIAL        PRIMARY KEY,
-  assessment_id     INTEGER       NOT NULL REFERENCES plot_assessments(id) ON DELETE CASCADE,
+  assessment_id     INTEGER       NOT NULL REFERENCES tbl_plot_assessments(id) ON DELETE CASCADE,
 
   year              SMALLINT      NOT NULL,
   year_at           SMALLINT,
@@ -209,7 +209,7 @@ CREATE TABLE plot_carbon_yearly (
 );
 
 CREATE UNIQUE INDEX uq_plot_carbon_yearly_assessment_year
-  ON plot_carbon_yearly (assessment_id, year);
-CREATE INDEX idx_plot_carbon_yearly_assessment_id ON plot_carbon_yearly (assessment_id);
+  ON tbl_plot_carbon_yearly (assessment_id, year);
+CREATE INDEX idx_plot_carbon_yearly_assessment_id ON tbl_plot_carbon_yearly (assessment_id);
 
 COMMIT;

@@ -269,6 +269,12 @@ function MapDrawContent() {
   const [stepWarningPopup, setStepWarningPopup] = useState<boolean>(false);
   const [guestLimitPopup, setGuestLimitPopup] = useState<boolean>(false);
   const [plotsSaved, setPlotsSaved] = useState(false);
+  // Tracks the currently active DB project for this drawing session (set once
+  // the guest's first assessment/save writes a row), so it can be soft-deleted
+  // if the guest discards it by starting a new area.
+  const [activeDbProjectId, setActiveDbProjectId] = useState<number | null>(null);
+  const [activeGuestKey, setActiveGuestKey] = useState<string | null>(null);
+  const [resetProjectToken, setResetProjectToken] = useState(0);
 
   const [hiddenProjectPlots, setHiddenProjectPlots] = useState<GeoJSON.Feature[]>([]);
   const [existingProjectPlots, setExistingProjectPlots] = useState<any[]>([]);
@@ -303,6 +309,17 @@ function MapDrawContent() {
 
   const handleConfirmStep1 = () => {
     setStepWarningPopup(false);
+    // Guest discarding a drawn/assessed area to start over → soft-delete the
+    // project row already written to the DB so it doesn't linger as "active".
+    if (!user && activeDbProjectId) {
+      const guestParam = activeGuestKey
+        ? `?guest_user_id=${encodeURIComponent(activeGuestKey)}`
+        : "";
+      fetch(`/api/plots/${activeDbProjectId}${guestParam}`, { method: "DELETE" }).catch(console.error);
+    }
+    setActiveDbProjectId(null);
+    setActiveGuestKey(null);
+    setResetProjectToken(t => t + 1);
     clearDraw();
     setCurrentStep(1);
     setProjectName("");
@@ -3364,6 +3381,11 @@ function MapDrawContent() {
                 onProjectNameChange={setProjectName}
                 autoProcessTrigger={autoProcessTrigger}
                 onSave={() => setPlotsSaved(true)}
+                onProjectSaved={({ projectId, guestKey }) => {
+                  setActiveDbProjectId(projectId);
+                  setActiveGuestKey(guestKey);
+                }}
+                resetProjectToken={resetProjectToken}
                 existingProjectPlots={existingProjectPlots}
                 editingPlotId={editingPlotId}
                 onPlotFormsChange={(forms) => { plotFormsRef.current = forms; }}

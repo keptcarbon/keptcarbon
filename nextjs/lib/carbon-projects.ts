@@ -107,3 +107,29 @@ export function rowToProject(row: any) {
     updatedAt: row.updated_at,
   };
 }
+
+/**
+ * Convert a tbl_projects row into the same shape rowToProject() returns from
+ * carbon_projects. tbl_projects is header-only (no plantation_info/
+ * polygons_payload/backend_responses columns -- that data now lives in
+ * tbl_plots/tbl_plot_assessments), so those three fields are always empty:
+ * this endpoint has no caller today that reads them (GET /api/plots is the
+ * one callers use for per-plot data).
+ */
+export function rowToProjectFromNormalized(row: any) {
+  return {
+    id: row.id,
+    userUuid: row.user_uuid ?? null,
+    guestKey: row.guest_uuid ?? null,
+    userId: row.guest_uuid ?? row.user_uuid ?? null,
+    projectName: row.project_name,
+    projectId: row.project_name,
+    plantationInfo: {},
+    polygonsPayload: [],
+    backendResponses: [],
+    status: row.status,
+    deletedAt: row.deleted_at,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
