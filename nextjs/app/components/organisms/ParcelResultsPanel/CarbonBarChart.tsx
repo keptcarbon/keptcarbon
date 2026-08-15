@@ -58,6 +58,7 @@ export function CarbonBarChart({
   narrowMode = false,
   showAge = true,
   initialMaxYearBE,
+  baseline,
 }: {
   pts: BarPoint[];
   isMobile?: boolean;
@@ -65,6 +66,8 @@ export function CarbonBarChart({
   narrowMode?: boolean;
   showAge?: boolean;
   initialMaxYearBE?: number;
+  /** Current-year carbon stock, shown under the title as "Baseline: value ± ci". */
+  baseline?: { value: number; ci: number };
 }) {
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
@@ -158,8 +161,13 @@ export function CarbonBarChart({
       justifyContent: "center"
     }}>
       {title && (
-        <div style={{ textAlign: "center", fontSize: isMobile ? 14 : (narrowMode ? 15 : 17), fontWeight: 800, color: "#17603a", marginTop: isMobile ? 0 : 4, marginBottom: isMobile ? 6 : 10 }}>
+        <div style={{ textAlign: "center", fontSize: isMobile ? 14 : (narrowMode ? 15 : 17), fontWeight: 800, color: "#17603a", marginTop: isMobile ? 0 : 4, marginBottom: baseline ? 2 : (isMobile ? 6 : 10) }}>
           {title === "ปริมาณการกักเก็บคาร์บอนสะสม (tCO₂)" ? "ปริมาณการกักเก็บคาร์บอนสะสม (tCO₂eq)" : title}
+        </div>
+      )}
+      {baseline && (
+        <div style={{ textAlign: "center", fontSize: isMobile ? 12 : 14, fontWeight: 600, color: "#5a7a65", marginBottom: isMobile ? 6 : 10 }}>
+          Baseline: <span style={{ fontSize: isMobile ? 16 : 18, color: "#17603a", fontWeight: 800 }}>{Math.floor(baseline.value).toLocaleString()}</span> ± {(Math.floor(baseline.ci * 10) / 10).toLocaleString("th-TH", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
         </div>
       )}
 
@@ -338,26 +346,23 @@ export function CarbonBarChart({
                   <span style={{ fontSize: 18, fontWeight: 800, color: "#fff", lineHeight: 1 }}>
                     {co2Val.toLocaleString("th-TH")}
                   </span>
-                  <span style={{ fontSize: 11, color: "rgba(255,255,255,0.6)", fontWeight: 500 }}>
-                    ±{co2Ci}
+                  <span style={{ fontSize: 14, color: "rgba(255,255,255,0.6)", fontWeight: 600 }}>
+                    ± {co2Ci}
                   </span>
                 </div>
               </div>
               <div style={{ width: "80%", height: 1, background: "rgba(255,255,255,0.12)" }} />
               <div style={{ textAlign: "center" }}>
-                <div style={{ color: "rgba(56,189,248,0.9)", fontSize: 11, fontWeight: 600, marginBottom: 1 }}>
+                <div style={{ fontSize: 11, color: "rgba(56,189,248,0.9)", fontWeight: 600, marginBottom: 1 }}>
                   คาร์บอนเครดิต
                 </div>
                 <div style={{ display: "flex", alignItems: "baseline", justifyContent: "center", gap: 3 }}>
-                  <span style={{ fontSize: 20, fontWeight: 800, color: "#38bdf8", lineHeight: 1 }}>
+                  <span style={{ fontSize: 18, fontWeight: 800, color: "#38bdf8", lineHeight: 1 }}>
                     {gainVal}
                   </span>
-                  <span style={{ fontSize: 11, color: "rgba(56,189,248,0.6)", fontWeight: 500 }}>
-                    ±{gainCiVal}
+                  <span style={{ fontSize: 14, color: "rgba(56,189,248,0.9)", fontWeight: 600 }}>
+                    ± {gainCiVal}
                   </span>
-                </div>
-                <div style={{ color: "rgba(186,230,253,0.7)", fontSize: 10, fontWeight: 500, marginTop: 2 }}>
-                  tCO₂eq
                 </div>
               </div>
               </div>

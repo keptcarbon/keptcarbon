@@ -1271,13 +1271,13 @@ export function ParcelResultsPanel({
                     </div>
                     <button
                         onClick={() => onBack?.()}
-                        title="กลับไปวาดแปลง (ขั้นตอนที่ 1)"
+                        title="เริ่มวาดแปลงในพื้นที่ใหม่ (ขั้นตอนที่ 1)"
                         style={{ flexShrink: 0, padding: "5px 12px", fontSize: 12, fontWeight: 600, borderRadius: 8, display: "inline-flex", alignItems: "center", gap: 4, color: "#1e7a47", border: "1px solid #cfe6d9", background: "#ffffff", cursor: "pointer", whiteSpace: "nowrap", transition: "all 0.18s", lineHeight: 1.5 }}
                         onMouseEnter={e => { e.currentTarget.style.background = "#edfaf3"; e.currentTarget.style.borderColor = "#1e7a47"; }}
                         onMouseLeave={e => { e.currentTarget.style.background = "#ffffff"; e.currentTarget.style.borderColor = "#cfe6d9"; }}
                     >
                         <i className="bi bi-chevron-left" style={{ fontSize: 11 }} />
-                        <span>กลับไปวาดแปลง</span>
+                        <span>เริ่มวาดแปลงในพื้นที่ใหม่</span>
                     </button>
                 </div>
 
@@ -1427,10 +1427,12 @@ export function ParcelResultsPanel({
                 )}
                 {isDrawing ? (
                     <div style={{ marginBottom: 16, width: "100%", padding: "16px", background: "rgba(220,38,38,0.04)", border: "1px dashed rgba(220,38,38,0.3)", borderRadius: 14, display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
-                        <div style={{ width: 40, height: 40, borderRadius: "50%", background: "rgba(220,38,38,0.1)", color: "#dc2626", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17 }}>
-                            <i className="bi bi-vector-pen" />
+                        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                            <div style={{ width: 40, height: 40, borderRadius: "50%", background: "rgba(220,38,38,0.1)", color: "#dc2626", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17, flexShrink: 0 }}>
+                                <i className="bi bi-vector-pen" />
+                            </div>
+                            <div style={{ fontSize: 14, fontWeight: 700, color: "#0f172a" }}>กำลังวาดแปลง...</div>
                         </div>
-                        <div style={{ textAlign: "center", fontSize: 14, fontWeight: 700, color: "#0f172a" }}>กำลังวาดแปลง...</div>
                         <div style={{ display: "flex", gap: 8, width: "100%" }}>
                             <button onClick={() => onFinishDraw?.()} disabled={drawVertCount < 3} style={{ flex: 1, padding: "11px", background: drawVertCount < 3 ? "#f1f5f9" : "#1e7a47", color: drawVertCount < 3 ? "#94a3b8" : "#fff", border: drawVertCount < 3 ? "1px solid #e2e8f0" : "1px solid transparent", borderRadius: 10, fontWeight: 700, fontSize: 13, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, cursor: drawVertCount < 3 ? "not-allowed" : "pointer", boxShadow: drawVertCount < 3 ? "none" : "0 4px 12px rgba(30,122,71,0.25)", transition: "all 0.2s" }}>
                                 <i className="bi bi-check-circle-fill" /> เสร็จสิ้น
@@ -1443,7 +1445,7 @@ export function ParcelResultsPanel({
                 ) : (
                     <div style={{ display: "flex", gap: isMobile ? 6 : 8, marginBottom: 16, flexWrap: "wrap", alignItems: "stretch" }}>
                         {onDrawMore && !isDrawing && (
-                            <button className="prp-btn-ghost" disabled={drawMoreDisabled} style={{ flex: isMobile ? "1 1 100%" : "1 1 calc(33% - 8px)", minWidth: 100, padding: isMobile ? "8px 6px" : "10px 12px", fontSize: isMobile ? 12 : 14, display: "flex", flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 6, background: drawMoreDisabled ? "#cbd5e1" : "#1e7a47", color: "#fff", border: "1px solid transparent", borderRadius: isMobile ? 10 : 12, cursor: drawMoreDisabled ? "not-allowed" : "pointer", boxShadow: drawMoreDisabled ? "none" : "0 4px 10px rgba(30,122,71,0.25)", opacity: drawMoreDisabled ? 0.6 : 1 }} onClick={drawMoreDisabled ? undefined : onDrawMore}>
+                            <button className="prp-btn-ghost" disabled={drawMoreDisabled} style={{ flex: isMobile ? "1 1 100%" : "1 1 calc(33% - 8px)", minWidth: 100, padding: isMobile ? "8px 6px" : "10px 12px", fontSize: isMobile ? 12 : 14, display: "flex", flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 6, background: drawMoreDisabled ? "#cbd5e1" : "#1e7a47", color: "#fff", border: "1px solid transparent", borderRadius: isMobile ? 10 : 12, cursor: drawMoreDisabled ? "not-allowed" : "pointer", boxShadow: drawMoreDisabled ? "none" : "0 4px 10px rgba(30,122,71,0.25)", opacity: drawMoreDisabled ? 0.6 : 1 }} onClick={drawMoreDisabled ? undefined : () => { setExpandedIdx(null); onDrawMore?.(); }}>
                                 <i className="bi bi-pencil-square" style={{ fontSize: isMobile ? 14 : 16 }} /> <span style={{ fontWeight: 600, textAlign: "center", whiteSpace: "nowrap" }}>วาดแปลงเพิ่ม</span>
                             </button>
                         )}
@@ -2082,28 +2084,9 @@ export function ParcelResultsPanel({
 
                     <Accordion open={expandedResultIdx === "total"}>
                         <div style={{ padding: "14px 14px 16px" }}>
-                            <div style={{
-                                background: "#f8fbf9",
-                                border: "1px solid #e6f0ea",
-                                borderRadius: 10,
-                                padding: "16px",
-                                marginBottom: 16,
-                                display: "flex",
-                                flexDirection: "column",
-                                justifyContent: "center",
-                                alignItems: "center"
-                            }}>
-                                <div style={{ fontSize: 12.5, color: "#5a7a65", fontWeight: 600, marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
-                                    ปริมาณคาร์บอนสะสมรวม ณ ปีปัจจุบัน
-                                </div>
-                                <div style={{ fontWeight: 800, color: "#1e7a47", fontSize: isMobile ? 24 : 28, lineHeight: 1.1, letterSpacing: "-0.5px" }}>
-                                    {Math.floor(summaryTotalCo2).toLocaleString()} <span style={{ fontSize: isMobile ? 18 : 20, color: "#5a7a65", fontWeight: 600 }}>± {(Math.floor(summaryTotalCo2Ci * 10) / 10).toLocaleString("th-TH", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}</span> <span style={{ fontSize: 15, fontWeight: 600, color: "#5a7a65" }}>tCO₂eq</span>
-                                </div>
-                            </div>
-
                             {aggregatePts.length > 0 && (
                                 <div>
-                                    <CarbonBarChart pts={aggregatePts} isMobile={isMobile} narrowMode={!isMobile} showAge={false} initialMaxYearBE={aggregateMinEndYearBE > 0 ? aggregateMinEndYearBE : undefined} />
+                                    <CarbonBarChart pts={aggregatePts} isMobile={isMobile} narrowMode={!isMobile} showAge={false} initialMaxYearBE={aggregateMinEndYearBE > 0 ? aggregateMinEndYearBE : undefined} baseline={{ value: summaryTotalCo2, ci: summaryTotalCo2Ci || 0 }} />
                                 </div>
                             )}
                         </div>
@@ -2186,30 +2169,9 @@ export function ParcelResultsPanel({
                                 </div>
 
                                 <Accordion open={expandedResultIdx === i}>
-                                    {/* Current Carbon Overview Card */}
-                                    <div style={{ padding: "14px 14px 0" }}>
-                                        <div style={{
-                                            background: "#f8fbf9",
-                                            border: "1px solid #e6f0ea",
-                                            borderRadius: 10,
-                                            padding: "16px 16px",
-                                            display: "flex",
-                                            flexDirection: "column",
-                                            justifyContent: "center",
-                                            alignItems: "center"
-                                        }}>
-                                            <div style={{ fontSize: 12.5, color: "#5a7a65", fontWeight: 600, marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
-                                                ปริมาณคาร์บอนสะสม ณ ปีปัจจุบัน
-                                            </div>
-                                            <div style={{ fontWeight: 800, color: "#1e7a47", fontSize: isMobile ? 24 : 28, lineHeight: 1.1, letterSpacing: "-0.5px" }}>
-                                                {Math.floor(cr.co2Now).toLocaleString()} <span style={{ fontSize: isMobile ? 16 : 18, color: "#5a7a65", fontWeight: 600 }}>± {(Math.floor((cr.co2NowCi || 0) * 10) / 10).toLocaleString("th-TH", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}</span> <span style={{ fontSize: 15, fontWeight: 600, color: "#5a7a65" }}>tCO₂eq</span>
-                                            </div>
-                                        </div>
-                                    </div>
-
                                     {/* Plot chart */}
                                     <div style={{ padding: "12px 12px 4px" }}>
-                                        <CarbonBarChart pts={plotPts} isMobile={isMobile} narrowMode={!isMobile} showAge={showPlotAge} />
+                                        <CarbonBarChart pts={plotPts} isMobile={isMobile} narrowMode={!isMobile} showAge={showPlotAge} baseline={{ value: cr.co2Now, ci: cr.co2NowCi || 0 }} />
                                     </div>
 
                                     {/* Plot details */}

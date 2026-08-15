@@ -1400,10 +1400,16 @@ function MapDrawContent() {
                 const pad = isMob
                   ? { top: 60, bottom: 350, left: 60, right: 60 }
                   : { top: 80, bottom: 80, left: 80, right: 420 };
+                // action=calc with no plotId only happens on the post-login
+                // guest-project claim redirect (auth-context.tsx) — match the
+                // >5-plot popup restore's slower reveal there. The My Plots
+                // "edit a plot" deep link always pairs action with plotId and
+                // keeps the snappier duration since that's a deliberate click.
+                const duration = action && !plotId ? 2400 : 700;
                 try {
-                  map.fitBounds(bounds, { padding: pad, duration: 700, maxZoom: 17 });
+                  map.fitBounds(bounds, { padding: pad, duration, maxZoom: 17 });
                 } catch (e) {
-                  map.fitBounds(bounds, { padding: 60, duration: 700, maxZoom: 17 });
+                  map.fitBounds(bounds, { padding: 60, duration, maxZoom: 17 });
                 }
               }
             }
@@ -2064,8 +2070,14 @@ function MapDrawContent() {
       (map.getSource("draw-fill") as maplibregl.GeoJSONSource).setData(emptyFC());
       (map.getSource("draw-verts") as maplibregl.GeoJSONSource).setData(emptyFC());
     }
-    zoomToSelectedProvince();
-  }, [zoomToSelectedProvince]);
+    // Cancelling a "draw more" pass with existing plots should return to
+    // those plots, not zoom all the way back out to the step-1 region.
+    if (drawnParcels.length > 0 && map) {
+      zoomToGeoJSONFeatures(drawnParcels, map);
+    } else {
+      zoomToSelectedProvince();
+    }
+  }, [zoomToSelectedProvince, drawnParcels]);
 
   const cancelSearch = useCallback(() => {
     searchAbortRef.current?.abort();
@@ -3160,17 +3172,18 @@ function MapDrawContent() {
                         gap: isMobile() ? 16 : 8,
                         animation: "pulse-soft 2s infinite"
                       }}>
-                        <div style={{
-                          width: isMobile() ? "48px" : "36px",
-                          height: isMobile() ? "48px" : "36px",
-                          borderRadius: "50%",
-                          background: "rgba(220, 38, 38, 0.1)", color: "#dc2626",
-                          display: "flex", alignItems: "center", justifyContent: "center",
-                          fontSize: isMobile() ? "20px" : "16px"
-                        }}>
-                          <i className="bi bi-vector-pen" />
-                        </div>
-                        <div style={{ textAlign: "center" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: isMobile() ? 12 : 8 }}>
+                          <div style={{
+                            width: isMobile() ? "48px" : "36px",
+                            height: isMobile() ? "48px" : "36px",
+                            borderRadius: "50%",
+                            background: "rgba(220, 38, 38, 0.1)", color: "#dc2626",
+                            display: "flex", alignItems: "center", justifyContent: "center",
+                            fontSize: isMobile() ? "20px" : "16px",
+                            flexShrink: 0
+                          }}>
+                            <i className="bi bi-vector-pen" />
+                          </div>
                           <h3 style={{ margin: 0, fontSize: isMobile() ? "16px" : "14px", fontWeight: 700, color: "#0f172a" }}>กำลังวาดแปลง...</h3>
                         </div>
                         <div style={{ display: "flex", gap: 8, width: "100%" }}>
