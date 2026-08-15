@@ -6,7 +6,9 @@ import { getUserUuid, generateGuestKey, mergeRawField, rowToProject } from "@/li
 import { shadowUpsertProject, shadowSoftDeleteProjectsByOwner } from "@/lib/normalized-plots";
 
 function generateGuestProjectName(): string {
-  return `Guestprojects-${randomUUID()}`;
+  // Just a display label (not a credential like generateGuestKey), so a
+  // short hex suffix is fine — e.g. "Guest-77a345c76d1d".
+  return `Guest-${randomUUID().replace(/-/g, "").slice(0, 8)}`;
 }
 
 const CURRENT_YEAR_BE = new Date().getFullYear() + 543;

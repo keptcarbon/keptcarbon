@@ -108,12 +108,14 @@ export function LoginModal() {
 
       if (res.ok && data.success) {
         setAlert({ type: "success", msg: "✓ เข้าสู่ระบบสำเร็จ! กำลังนำไปยังหน้าหลัก..." });
-        await refresh();
+        const claimRedirected = await refresh();
         setTimeout(() => {
           closeModal();
-          // Return to where the guest started (e.g. map-draw guest-limit flow),
-          // falling back to the home page.
-          router.push(consumePostAuthRedirect() ?? "/");
+          // Always consume so a stale cookie doesn't leak into a later login.
+          const target = consumePostAuthRedirect();
+          // If refresh() already redirected to a freshly-claimed guest
+          // project, don't clobber it with the fallback target.
+          if (!claimRedirected) router.push(target ?? "/");
         }, 800);
       } else {
         setAlert({ type: "error", msg: data.error || "เข้าสู่ระบบไม่สำเร็จ" });
@@ -347,13 +349,15 @@ export function RegisterModal() {
       const data = await res.json();
 
       if (res.ok && data.success) {
-        await refresh();
+        const claimRedirected = await refresh();
         setAlert({ type: "success", msg: "✓ สมัครสมาชิกสำเร็จ! กำลังนำไปยังหน้าหลัก..." });
         setTimeout(() => {
           closeModal();
-          // Return to where the guest started (e.g. map-draw guest-limit flow),
-          // falling back to the home page.
-          router.push(consumePostAuthRedirect() ?? "/");
+          // Always consume so a stale cookie doesn't leak into a later login.
+          const target = consumePostAuthRedirect();
+          // If refresh() already redirected to a freshly-claimed guest
+          // project, don't clobber it with the fallback target.
+          if (!claimRedirected) router.push(target ?? "/");
         }, 900);
       } else {
         setAlert({ type: "error", msg: data.error || "สมัครสมาชิกไม่สำเร็จ" });

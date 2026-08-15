@@ -367,6 +367,19 @@ export function ParcelResultsPanel({
         return () => { cancelled = true; };
     }, [user, saveState]);
 
+    // Seed dbProjectId from the project this panel was opened to edit (My
+    // Plots "edit"/"add plot", or a freshly-claimed guest project landing via
+    // /map-draw?project=...). Without this, save has no id to PATCH and falls
+    // back to POST's upsert-by-name, which only updates in place if the name
+    // is left untouched — renaming (or renaming after adding plots) creates a
+    // brand-new duplicate row instead of updating this one.
+    useEffect(() => {
+        if (dbProjectId != null || !initialProjectName) return;
+        const nm = initialProjectName.trim().toLowerCase();
+        const match = existingProjects.find(p => p.name === nm);
+        if (match) setDbProjectId(match.id);
+    }, [existingProjects, initialProjectName, dbProjectId]);
+
     // A name is a duplicate only if it matches another project — not the one
     // currently being edited/saved (same dbProjectId), and not the name this
     // page was opened to edit.
