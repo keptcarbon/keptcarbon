@@ -12,12 +12,13 @@ from app.core.constants import CARBON_FRACTION, CARBON_EQUIVALENT_FACTOR
 
 # ── helpers ───────────────────────────────────────────────────────────────────
 
-def _poly(province_code="RAY", rubber_clone="RRIM 600", year_of_planting=2015):
+def _poly(province_code="RAY", rubber_clone="RRIM 600", year_of_planting=2015, project_type="existing"):
     return {
         "id": "p1",
         "province_code": province_code,
         "rubber_clone": rubber_clone,
         "year_of_planting": year_of_planting,
+        "project_type": project_type,
     }
 
 
@@ -75,7 +76,7 @@ class TestCarbonFormula:
                 _poly(), [_cohort(age, tree_count)]
             )
 
-        current_year_entry = profile[0]
+        current_year_entry = next(e for e in profile if e["year_at"] == 0)
         expected = round((biomass_est * tree_count * CARBON_FRACTION * CARBON_EQUIVALENT_FACTOR) / 1000, 4)
         assert current_year_entry["stocks"]["value"] == expected
 
@@ -120,26 +121,43 @@ class TestProfileStructure:
         assert all(years[i + 1] - years[i] == 1 for i in range(len(years) - 1))
 
     @pytest.mark.asyncio
-    async def test_profile_length_respects_age_limit(self, mock_carbon_service, patch_db_fetch, biomass_rows):
-        # cohort age=10 → limit = 35-10 = 25 years of profile → offsets 0-25 inclusive
+    async def test_profile_is_always_fixed_36_rows(self, mock_carbon_service, patch_db_fetch, biomass_rows):
+        # Fixed age-0..35 window regardless of cohort age → always 36 rows.
         with patch_db_fetch(rows=biomass_rows):
             profile = await mock_carbon_service.generate_carbon_profile(_poly(), [_cohort(10, 100)])
-        assert len(profile) == 26
+        assert len(profile) == 36
+        assert [e["age"] for e in profile] == list(range(36))
 
     @pytest.mark.asyncio
-    async def test_old_plantation_shorter_profile(self, mock_carbon_service, patch_db_fetch, biomass_rows):
+    async def test_old_and_young_plantation_same_length(self, mock_carbon_service, patch_db_fetch, biomass_rows):
         with patch_db_fetch(rows=biomass_rows):
             young = await mock_carbon_service.generate_carbon_profile(_poly(), [_cohort(5, 100)])
             old = await mock_carbon_service.generate_carbon_profile(_poly(), [_cohort(20, 100)])
-        assert len(young) > len(old)
+        assert len(young) == len(old) == 36
 
     @pytest.mark.asyncio
-    async def test_zero_biomass_entries_excluded(self, mock_carbon_service, patch_db_fetch, biomass_rows):
-        # Age 0 has biomass_est = 0 → that offset should not appear in projections
+    async def test_zero_biomass_entries_kept_as_zero(self, mock_carbon_service, patch_db_fetch, biomass_rows):
+        # Age 0 has biomass_est = 0 in the lookup table → row is still emitted,
+        # with an explicit zero value, so every plot yields a uniform row count.
         with patch_db_fetch(rows=biomass_rows):
             profile = await mock_carbon_service.generate_carbon_profile(_poly(), [_cohort(0, 100)])
-        co2_values = [e["stocks"]["value"] for e in profile]
-        assert all(v > 0 for v in co2_values)
+        assert len(profile) == 36
+        assert profile[0]["age"] == 0
+        assert profile[0]["stocks"]["value"] == 0
+
+    @pytest.mark.asyncio
+    async def test_year_at_zero_matches_dominant_cohort_current_age(
+        self, mock_carbon_service, patch_db_fetch, biomass_rows
+    ):
+        # year_at should be 0 at the calendar year matching the cohort's
+        # current age, negative walking back to age 0, positive walking
+        # forward past today.
+        with patch_db_fetch(rows=biomass_rows):
+            profile = await mock_carbon_service.generate_carbon_profile(_poly(), [_cohort(10, 100)])
+        row = next(e for e in profile if e["age"] == 10)
+        assert row["year_at"] == 0
+        assert profile[0]["year_at"] == -10
+        assert profile[-1]["year_at"] == 25
 
 
 # ── multiple cohorts ──────────────────────────────────────────────────────────

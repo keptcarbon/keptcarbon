@@ -35,8 +35,9 @@ class CarbonService:
 
     async def generate_carbon_profile(self, poly_data, cohorts) -> list:
         """
-        Generates a yearly carbon stock profile (tCO2e) with 95% CI
-        by aggregating multiple age cohorts from age 0 to GROWTH_MODEL_YEAR.
+        Generates a fixed-length yearly carbon stock profile (tCO2e) with 95% CI,
+        spanning the full modeled lifecycle age 0 to GROWTH_MODEL_YEAR, by
+        aggregating multiple age cohorts.
         """
         p_code = poly_data.get("province_code")
         config = REGION_CONFIG.get(p_code)
@@ -47,9 +48,9 @@ class CarbonService:
             )
 
         # Use the rubber clone from poly_data if available, otherwise default to DEFAULT_RUBBER_CLONE
-        clone = DEFAULT_RUBBER_CLONE #poly_data.get("rubber_clone") or DEFAULT_RUBBER_CLONE
-        growth_model = config.get("model_used", "cubic_poly")
-        allometry = config.get("biomass_assessment_method", "hytonen_2018")
+        clone = config.get("DEFAULT_RUBBER_CLONE")  #poly_data.get("rubber_clone") or config.get("DEFAULT_RUBBER_CLONE")
+        growth_model = config.get("DEFAULT_MODEL")
+        allometry = config.get("DEFAULT_BIOMASS_ASSESSMENT_METHOD")
 
         try:
             pool = get_pool()
@@ -74,16 +75,24 @@ class CarbonService:
 
         lookup_by_age = {row["age"]: row for row in rows}
 
+        current_calendar_year = datetime.now().year
+
         if poly_data.get("project_type") == "existing":
-            start_year = datetime.now().year
+            start_year = current_calendar_year
         else:
             start_year = poly_data.get("year_of_planting")
 
-        projections = []
+        # Row axis (age 0..GROWTH_MODEL_YEAR) is anchored on the dominant
+        # (highest-proportion) cohort's current age -- for the common
+        # single-cohort case this is simply that cohort's age. Ref_age only
+        # decides which calendar year each age label maps to; it does not
+        # change what gets summed for a given calendar year (future_age below
+        # is still computed per-cohort).
+        dominant_cohort = max(cohorts, key=lambda c: c.get('proportion', 1))
+        ref_age = dominant_cohort['age']
+        planting_year = start_year - ref_age  # calendar year at which age == 0
 
-        # Using max() with a generator expression
-        max_age = max(cohort['age'] for cohort in cohorts)
-        limit_year = start_year + (GROWTH_MODEL_YEAR - max_age)  # Filter threshold
+        projections = []
 
         # Initialize baseline variables before entering the loop
         baseline_carbon = None
@@ -91,82 +100,71 @@ class CarbonService:
         baseline_lower = None
         baseline_upper = None
 
-        for year_offset in range(0, GROWTH_MODEL_YEAR):
+        for age in range(0, GROWTH_MODEL_YEAR + 1):  # fixed 0..35 -> 36 rows
 
-            target_year = start_year + year_offset
-
-            if target_year > limit_year:
-                break # Exit the loop once pass year threshold
+            target_year = planting_year + age
+            year_at = target_year - current_calendar_year
 
             sum_biomass_est = 0.0
             sum_biomass_lower = 0.0
             sum_biomass_upper = 0.0
 
             for cohort in cohorts:
-                future_age = cohort['age'] + year_offset
+                future_age = cohort['age'] + (target_year - start_year)
 
-                if len(cohorts) == 1:
-                    at_age = cohort['age'] + year_offset
-                else:
-                    at_age = None
+                data = lookup_by_age.get(future_age)
+                if data is not None:
+                    count = cohort['tree_count']
+                    sum_biomass_est += data['biomass_est'] * count
+                    sum_biomass_lower += data['biomass_ci_lower'] * count
+                    sum_biomass_upper += data['biomass_ci_upper'] * count
 
-                # Check cohort eligibility within the 35-year modeled window
-                if future_age <= GROWTH_MODEL_YEAR:
-                    data = lookup_by_age.get(future_age)
-                    if data is not None:
-                        count = cohort['tree_count']
-                        sum_biomass_est += data['biomass_est'] * count
-                        sum_biomass_lower += data['biomass_ci_lower'] * count
-                        sum_biomass_upper += data['biomass_ci_upper'] * count
-            
-            # Convert aggregated biomass (kg) to Total Carbon (tC)
-            if sum_biomass_est > 0:
-                total_carbon_tCO2e = round((sum_biomass_est * CARBON_FRACTION * CARBON_EQUIVALENT_FACTOR) / 1000.0, 4)
-                total_carbon_ci_tCO2e = round(((sum_biomass_upper - sum_biomass_lower)/2 * CARBON_FRACTION * CARBON_EQUIVALENT_FACTOR) / 1000.0, 4) 
-                total_carbon_ci_lower_tCO2e = round((sum_biomass_lower * CARBON_FRACTION * CARBON_EQUIVALENT_FACTOR) / 1000.0, 4)
-                total_carbon_ci_upper_tCO2e = round((sum_biomass_upper * CARBON_FRACTION * CARBON_EQUIVALENT_FACTOR) / 1000.0, 4)
+            # Convert aggregated biomass (kg) to Total Carbon (tC) -- always
+            # computed, even when zero, so every plot emits the same 36 rows.
+            total_carbon_tCO2e = round((sum_biomass_est * CARBON_FRACTION * CARBON_EQUIVALENT_FACTOR) / 1000.0, 4)
+            total_carbon_ci_tCO2e = round(((sum_biomass_upper - sum_biomass_lower)/2 * CARBON_FRACTION * CARBON_EQUIVALENT_FACTOR) / 1000.0, 4)
+            total_carbon_ci_lower_tCO2e = round((sum_biomass_lower * CARBON_FRACTION * CARBON_EQUIVALENT_FACTOR) / 1000.0, 4)
+            total_carbon_ci_upper_tCO2e = round((sum_biomass_upper * CARBON_FRACTION * CARBON_EQUIVALENT_FACTOR) / 1000.0, 4)
 
-                # CRITICAL CAPTURE: Establish the baseline from the first year
-                # that actually has biomass — not always year_offset == 0,
-                # since a cohort planted at age 0 has zero biomass in its
-                # first year and that entry gets skipped above.
-                if baseline_carbon is None:
-                    baseline_carbon = total_carbon_tCO2e
-                    baseline_ci = total_carbon_ci_tCO2e
-                    baseline_lower = total_carbon_ci_lower_tCO2e
-                    baseline_upper = total_carbon_ci_upper_tCO2e
+            # Baseline is always the first row (age 0) now that every age in
+            # the fixed 0..35 window is emitted.
+            if baseline_carbon is None:
+                baseline_carbon = total_carbon_tCO2e
+                baseline_ci = total_carbon_ci_tCO2e
+                baseline_lower = total_carbon_ci_lower_tCO2e
+                baseline_upper = total_carbon_ci_upper_tCO2e
 
-                # Calculate cumulative gain by finding the difference from the baseline year
-                total_carbon_gain_tCO2e = round(total_carbon_tCO2e - baseline_carbon, 4)
+            # Calculate cumulative gain by finding the difference from the baseline year
+            total_carbon_gain_tCO2e = round(total_carbon_tCO2e - baseline_carbon, 4)
 
-                # LINEAR PROPAGATION: Subtract baseline boundaries directly to track the true variance channel
-                total_carbon_gain_ci_lower_tCO2e = round(total_carbon_ci_lower_tCO2e - baseline_lower, 4)
-                total_carbon_gain_ci_upper_tCO2e = round(total_carbon_ci_upper_tCO2e - baseline_upper, 4)
+            # LINEAR PROPAGATION: Subtract baseline boundaries directly to track the true variance channel
+            total_carbon_gain_ci_lower_tCO2e = round(total_carbon_ci_lower_tCO2e - baseline_lower, 4)
+            total_carbon_gain_ci_upper_tCO2e = round(total_carbon_ci_upper_tCO2e - baseline_upper, 4)
 
-                # Re-calculate the half-width margin of error for the gain
-                total_carbon_gain_ci_tCO2e = round((total_carbon_gain_ci_upper_tCO2e - total_carbon_gain_ci_lower_tCO2e) / 2.0, 4)
+            # Re-calculate the half-width margin of error for the gain
+            total_carbon_gain_ci_tCO2e = round((total_carbon_gain_ci_upper_tCO2e - total_carbon_gain_ci_lower_tCO2e) / 2.0, 4)
 
-                # Match layout configuration of your structural YearlyAssess schema
-                projections.append({
-                    "year": target_year,
-                    "year_at": year_offset,
-                    "age": at_age,
-                    
-                    
-                    "stocks": {
-                        "value": total_carbon_tCO2e,
-                        "ci": total_carbon_ci_tCO2e,
-                        "ci_lower": total_carbon_ci_lower_tCO2e,
-                        "ci_upper": total_carbon_ci_upper_tCO2e
-                    },
-                    
-                    "gain": {
-                        "value": total_carbon_gain_tCO2e,
-                        "ci": total_carbon_gain_ci_tCO2e,
-                        "ci_lower": total_carbon_gain_ci_lower_tCO2e,
-                        "ci_upper": total_carbon_gain_ci_upper_tCO2e
-                    }
-                })
+            # Match layout configuration of your structural YearlyAssess schema
+            projections.append({
+                "year": target_year,
+                "year_at": year_at,
+                "age": age,
+
+
+                "stocks": {
+                    "value": total_carbon_tCO2e,
+                    "ci": total_carbon_ci_tCO2e,
+                    "ci_lower": total_carbon_ci_lower_tCO2e,
+                    "ci_upper": total_carbon_ci_upper_tCO2e
+                },
+
+                "gain": {
+                    "value": total_carbon_gain_tCO2e,
+                    "ci": total_carbon_gain_ci_tCO2e,
+                    "ci_lower": total_carbon_gain_ci_lower_tCO2e,
+                    "ci_upper": total_carbon_gain_ci_upper_tCO2e
+                }
+            })
 
         return projections
 

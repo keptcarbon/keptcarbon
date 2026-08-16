@@ -841,9 +841,13 @@ export function ParcelResultsPanel({
 
                 let startAge = finalPlantYearBE > 0 ? CURRENT_BE_NOW - finalPlantYearBE : 0;
 
+                // Profile is a fixed age-0..35 window keyed to calendar year; the
+                // "now" row is wherever year_at === 0, not necessarily index 0.
+                const nowEntry = profile.find(p => p.year_at === 0) ?? profile[0];
+
                 // 4. Fallback: อายุจาก profile โดยตรง ถ้ายังเป็น 0
-                if (startAge === 0 && profile.length > 0) {
-                    const profileAge = profile[0].age;
+                if (startAge === 0 && nowEntry) {
+                    const profileAge = nowEntry.age;
                     if (profileAge != null && !isNaN(profileAge)) {
                         startAge = profileAge;
                         if (finalPlantYearBE === 0) {
@@ -859,8 +863,8 @@ export function ParcelResultsPanel({
                 const userTrees = form.treeCount ? parseInt(form.treeCount) : 0;
                 const epTrees = typeof resp?.assess_parameters?.tree_count?.value === "number" ? resp.assess_parameters.tree_count.value : 0;
                 const finalTrees = userTrees > 0 ? userTrees : (epTrees > 0 ? epTrees : Math.round(totalAreaRai * 76));
-                const co2Now = profile[0]?.stocks?.value ?? 0;
-                const co2NowCi = profile[0]?.stocks?.ci ?? 0;
+                const co2Now = nowEntry?.stocks?.value ?? 0;
+                const co2NowCi = nowEntry?.stocks?.ci ?? 0;
 
                 const hasValidM2s = Object.values(classM2s).some(m2 => m2 > 0);
                 const finalBreakdown = hasValidM2s ? luBreakdown : (((parcelFeatures[idx]?.properties as any)?.luBreakdown) || {});
@@ -1983,11 +1987,17 @@ export function ParcelResultsPanel({
             }
         }
 
+        // aggregatePts spans each profile's full age-0..35 window, so index 0 is
+        // the earliest plot's planting year, not "now" — find the row for the
+        // current calendar year instead.
+        const aggregateNowYearBE = new Date().getFullYear() + 543;
+        const aggregateNowPt = aggregatePts.find(p => p.yearBE === aggregateNowYearBE) ?? aggregatePts[0];
+
         const summaryTotalCo2 = aggregatePts.length > 0
-            ? aggregatePts[0].co2
+            ? (aggregateNowPt?.co2 ?? 0)
             : carbonResults.reduce((sum, c) => sum + Math.floor(c.co2Now || 0), 0);
         const summaryTotalCo2Ci = aggregatePts.length > 0
-            ? aggregatePts[0].ci
+            ? (aggregateNowPt?.ci ?? 0)
             : Math.round(carbonResults.reduce((sum, c) => sum + Math.floor((c.co2NowCi || 0) * 10) / 10, 0) * 10) / 10;
 
         const showAggregateAge = carbonResults.some((c, idx) => {

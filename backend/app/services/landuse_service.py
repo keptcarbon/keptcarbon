@@ -29,6 +29,7 @@ import re
 
 from fastapi import HTTPException
 
+from app.core.constants import REGION_CONFIG
 from app.core.database import get_pool
 
 
@@ -118,33 +119,31 @@ class LanduseService:
     """
 
     @staticmethod
-    async def _latest_lu_year(conn, p_code: str) -> int | None:
-        return await conn.fetchval(
-            "SELECT MAX(lu_year) FROM geo_landuse WHERE p_code = $1", p_code
-        )
+    def _latest_lu_year(p_code: str) -> int | None:
+        version = REGION_CONFIG.get(p_code, {}).get("LU_MAP_VERSION")
+        return int(version) if version is not None else None
 
     # ── Existing endpoint (/api/carbon/assess) ─────────────────────────────────────
 
     async def find_rubber_cultivation_area(self, poly_data: dict) -> dict:
         """Filter A302 rubber parcels intersecting the drawn polygon."""
         p_code = poly_data.get("province_code")
+        lu_year = self._latest_lu_year(p_code)
+
+        if lu_year is None:
+            poly_data["A302_geometry"] = None
+            poly_data["status"] = {
+                "status": "error", "status_code": "E02",
+                "message": (
+                    "LAND USE DATA NOT AVAILABLE FOR THE SPECIFIED "
+                    f"PROVINCE. (P_CODE: {p_code})"
+                )
+            }
+            return poly_data
 
         try:
             pool = get_pool()
             async with pool.acquire() as conn:
-                lu_year = await self._latest_lu_year(conn, p_code)
-
-                if lu_year is None:
-                    poly_data["A302_geometry"] = None
-                    poly_data["status"] = {
-                        "status": "error", "status_code": "E02",
-                        "message": (
-                            "LAND USE DATA NOT AVAILABLE FOR THE SPECIFIED "
-                            f"PROVINCE. (P_CODE: {p_code})"
-                        )
-                    }
-                    return poly_data
-
                 row = await conn.fetchrow(
                     self._RUBBER_AREA_QUERY,
                     json.dumps(poly_data["geometry"]),
@@ -172,20 +171,19 @@ class LanduseService:
     async def find_lu_class_area(self, poly_data: dict) -> dict:
         """Classify all land use types within the drawn polygon using spatial indexing."""
         p_code = poly_data.get("province_code")
+        lu_year = self._latest_lu_year(p_code)
+
+        if lu_year is None:
+            poly_data["lu_polygon"] = []
+            poly_data["status"] = {
+                "status": "error", "status_code": "E02",
+                "message": f"LAND USE DATA NOT AVAILABLE FOR PROVINCE. (P_CODE: {p_code})"
+            }
+            return poly_data
 
         try:
             pool = get_pool()
             async with pool.acquire() as conn:
-                lu_year = await self._latest_lu_year(conn, p_code)
-
-                if lu_year is None:
-                    poly_data["lu_polygon"] = []
-                    poly_data["status"] = {
-                        "status": "error", "status_code": "E02",
-                        "message": f"LAND USE DATA NOT AVAILABLE FOR PROVINCE. (P_CODE: {p_code})"
-                    }
-                    return poly_data
-
                 geometry_json = json.dumps(poly_data["geometry"])
                 total_area_m2 = await conn.fetchval(
                     "SELECT ST_Area(ST_SetSRID(ST_GeomFromGeoJSON($1), 4326)::geography)",
