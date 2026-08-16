@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "crypto";
 import { pool } from "@/lib/db";
 import { verifyToken, AUTH_COOKIE } from "@/lib/jwt";
-import { getUserUuid, generateGuestKey, mergeRawField, rowToProject } from "@/lib/carbon-projects";
-import { shadowUpsertProject, shadowSoftDeleteProjectsByOwner } from "@/lib/normalized-plots";
+import { getUserUuid, generateGuestKey, rowToProjectFromNormalized } from "@/lib/carbon-projects";
+import { upsertProjectAndPlots, softDeleteProjectsByOwner } from "@/lib/normalized-plots";
 
 function generateGuestProjectName(): string {
   // Just a display label (not a credential like generateGuestKey), so a
@@ -53,9 +53,10 @@ function yearlyRowsToBarPoints(rows: any[], baseAge: number) {
 // GET /api/plots — list projects (soft delete: แสดงเฉพาะ status = 'active')
 // Reads the normalized schema (tbl_projects/tbl_plots/tbl_plot_landuse_
 // overlaps/tbl_plot_assessments/tbl_plot_carbon_yearly) and reconstructs the
-// same `plots[]` shape ParcelResultsPanel used to persist verbatim into
-// carbon_projects.frontend_plots. Writes still target carbon_projects (see
-// POST/PATCH/DELETE below) -- only reads have moved.
+// same `plots[]` shape ParcelResultsPanel used to persist verbatim into the
+// old carbon_projects.frontend_plots (now retired, see
+// postgis/migrations/012_retire_carbon_projects.sql). POST/PATCH/DELETE below
+// write the same normalized schema.
 // ---------------------------------------------------------------------------
 export async function GET(request: NextRequest) {
   // ตรวจสอบว่ามี token หรือไม่ (ถ้าไม่มี = guest)
@@ -276,11 +277,6 @@ export async function POST(request: NextRequest) {
     // กำหนดชื่อโครงการ
     const projectName: string = body.projectId || generateGuestProjectName();
 
-    const plantationInfo = body.plantationInfo ?? {};
-    const polygonsPayload = body.polygonsPayload ?? [];
-    const backendResponses = body.backendResponses ?? [];
-    const frontendPlots = body.frontendPlots ?? [];
-
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
@@ -288,11 +284,11 @@ export async function POST(request: NextRequest) {
       // Check if project already exists (match on the owner that applies)
       const ownerClause = userUuid
         ? "user_uuid = $1"
-        : "guest_key = $1";
+        : "guest_uuid = $1";
       const ownerValue = userUuid ?? guestKey;
 
       const existing = await client.query(
-        `SELECT id FROM carbon_projects
+        `SELECT id FROM tbl_projects
          WHERE ${ownerClause} AND project_name = $2 AND status = 'active'`,
         [ownerValue, projectName]
       );
@@ -300,82 +296,48 @@ export async function POST(request: NextRequest) {
       let savedRow;
 
       if ((existing.rowCount ?? 0) > 0) {
-        // ดึงข้อมูลเดิมก่อน update เพื่อ merge raw fields
-        const oldResult = await client.query(
-          `SELECT plantation_info, polygons_payload, backend_responses FROM carbon_projects WHERE id = $1`,
-          [existing.rows[0].id]
-        );
-        const oldRow = oldResult.rows[0] ?? {};
-
         // Update existing record (updated_at handled by trigger)
-        const mergedPlantationInfo = mergeRawField(oldRow.plantation_info, plantationInfo);
-        const mergedPolygonsPayload = mergeRawField(oldRow.polygons_payload, polygonsPayload);
-        const mergedBackendResponses = mergeRawField(oldRow.backend_responses, backendResponses);
-
         const updateResult = await client.query(
-          `UPDATE carbon_projects
-           SET plantation_info = $1, polygons_payload = $2, backend_responses = $3, frontend_plots = $4
-           WHERE id = $5
-           RETURNING *`,
-          [
-            JSON.stringify(mergedPlantationInfo),
-            JSON.stringify(mergedPolygonsPayload),
-            JSON.stringify(mergedBackendResponses),
-            JSON.stringify(frontendPlots),
-            existing.rows[0].id
-          ]
+          `UPDATE tbl_projects SET updated_at = NOW() WHERE id = $1 RETURNING *`,
+          [existing.rows[0].id]
         );
         savedRow = updateResult.rows[0];
       } else {
         // Insert new record
         const insertResult = await client.query(
-          `INSERT INTO carbon_projects
-             (user_uuid, guest_key, project_name, plantation_info, polygons_payload, backend_responses, frontend_plots)
-           VALUES ($1, $2, $3, $4, $5, $6, $7)
+          `INSERT INTO tbl_projects (user_uuid, guest_uuid, project_name, status)
+           VALUES ($1, $2, $3, 'active')
            RETURNING *`,
-          [
-            userUuid,
-            guestKey,
-            projectName,
-            JSON.stringify(plantationInfo),
-            JSON.stringify(polygonsPayload),
-            JSON.stringify(backendResponses),
-            JSON.stringify(frontendPlots),
-          ]
+          [userUuid, guestKey, projectName]
         );
         savedRow = insertResult.rows[0];
       }
 
-      await client.query("COMMIT");
+      await upsertProjectAndPlots(
+        client,
+        {
+          id: savedRow.id,
+          userUuid: savedRow.user_uuid,
+          guestUuid: savedRow.guest_uuid,
+          projectName: savedRow.project_name,
+          status: savedRow.status,
+          deletedAt: savedRow.deleted_at,
+          createdAt: savedRow.created_at,
+          updatedAt: savedRow.updated_at,
+        },
+        {
+          plantationInfo: body.plantationInfo,
+          polygonsPayload: body.polygonsPayload,
+          backendResponses: body.backendResponses,
+          frontendPlots: body.frontendPlots,
+        }
+      );
 
-      try {
-        await shadowUpsertProject(
-          {
-            id: savedRow.id,
-            userUuid: savedRow.user_uuid,
-            guestUuid: savedRow.guest_key,
-            projectName: savedRow.project_name,
-            status: savedRow.status,
-            deletedAt: savedRow.deleted_at,
-            createdAt: savedRow.created_at,
-            updatedAt: savedRow.updated_at,
-          },
-          {
-            // Raw body fields, NOT the `?? {}`/`?? []`-defaulted consts above --
-            // shadowUpsertProject needs to tell "not sent" from "sent empty".
-            plantationInfo: body.plantationInfo,
-            polygonsPayload: body.polygonsPayload,
-            backendResponses: body.backendResponses,
-            frontendPlots: body.frontendPlots,
-          }
-        );
-      } catch (shadowErr) {
-        console.error("[normalized-plots] shadow write failed for project", savedRow.id, shadowErr);
-      }
+      await client.query("COMMIT");
 
       return NextResponse.json({
         success: true,
-        project: rowToProject(savedRow),
+        project: rowToProjectFromNormalized(savedRow),
       });
     } catch (err) {
       await client.query("ROLLBACK");
@@ -404,9 +366,9 @@ export async function DELETE(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const guestUserId = searchParams.get("guest_user_id");
 
-  // ล็อกอิน → ลบด้วย user_uuid, guest → ลบด้วย guest_key
+  // ล็อกอิน → ลบด้วย user_uuid, guest → ลบด้วย guest_uuid
   const userUuid = payload ? await getUserUuid(payload) : null;
-  const ownerClause = payload ? "user_uuid = $1" : "guest_key = $1";
+  const ownerClause = payload ? "user_uuid = $1" : "guest_uuid = $1";
   const ownerValue = payload ? userUuid : guestUserId;
 
   if (!ownerValue) {
@@ -419,29 +381,17 @@ export async function DELETE(request: NextRequest) {
 
     // ดึงข้อมูลเดิมก่อน soft delete
     const existing = await client.query(
-      `SELECT id FROM carbon_projects WHERE ${ownerClause} AND status = 'active'`,
+      `SELECT id FROM tbl_projects WHERE ${ownerClause} AND status = 'active'`,
       [ownerValue]
     );
 
-    // Soft Delete (updated_at handled by trigger)
-    await client.query(
-      `UPDATE carbon_projects
-       SET status = 'deleted', deleted_at = NOW()
-       WHERE ${ownerClause} AND status = 'active'`,
-      [ownerValue]
+    // Soft Delete
+    await softDeleteProjectsByOwner(
+      client,
+      payload ? { userUuid, guestUuid: null } : { userUuid: null, guestUuid: guestUserId }
     );
-
-
 
     await client.query("COMMIT");
-
-    try {
-      await shadowSoftDeleteProjectsByOwner(
-        payload ? { userUuid, guestUuid: null } : { userUuid: null, guestUuid: guestUserId }
-      );
-    } catch (shadowErr) {
-      console.error("[normalized-plots] shadow soft-delete (bulk) failed", shadowErr);
-    }
 
     return NextResponse.json({
       success: true,

@@ -1,20 +1,16 @@
-import { pool } from "@/lib/db";
-
 /**
- * Shadow-write mirror of every carbon_projects save/delete/claim into the
- * normalized schema (tbl_projects/tbl_plots/tbl_plot_landuse_overlaps/tbl_plot_assessments/
- * tbl_plot_carbon_yearly, see postgis/migrations/009 + 010). Every exported
- * function here is best-effort: it can log, but it must NEVER throw or
- * reject, since it always runs after the real carbon_projects write has
- * already committed. A bug here can only add latency to a request, never
- * change its outcome. carbon_projects remains the sole source of truth read
- * by the app -- these tables aren't read by anything yet.
+ * Primary write path for the normalized schema (tbl_projects/tbl_plots/
+ * tbl_plot_landuse_overlaps/tbl_plot_assessments/tbl_plot_carbon_yearly, see
+ * postgis/migrations/009 + 010). carbon_projects has been retired (see
+ * postgis/migrations/012_retire_carbon_projects.sql) -- these tables are now
+ * the sole source of truth for both reads and writes, so every function here
+ * throws on failure and must run inside the caller's transaction.
  */
 
 export interface ProjectHeader {
   id: number;
   userUuid: string | null;
-  guestUuid: string | null; // == carbon_projects.guest_key
+  guestUuid: string | null; // == tbl_projects.guest_uuid
   projectName: string;
   status: string; // 'active' | 'deleted'
   deletedAt: Date | string | null;
@@ -271,46 +267,36 @@ async function appendAssessments(client: any, projectId: number, backendResponse
   }
 }
 
-export async function shadowUpsertProject(header: ProjectHeader, raw: RawShadowPayload): Promise<void> {
-  try {
-    await upsertProjectHeader(header);
+/**
+ * Upserts a project header + its plots/overlaps/assessments/yearly rows.
+ * Must run inside the caller's own transaction (client already BEGIN'd) --
+ * this function never opens or commits a transaction itself, so a failure
+ * here rolls back alongside whatever else the caller is doing.
+ */
+export async function upsertProjectAndPlots(client: any, header: ProjectHeader, raw: RawShadowPayload): Promise<void> {
+  await upsertProjectHeader(client, header);
 
-    const frontendPlots = toArray(raw.frontendPlots);
-    if (!frontendPlots) return; // nothing to anchor plot-processing on
+  const frontendPlots = toArray(raw.frontendPlots);
+  if (!frontendPlots) return; // nothing to anchor plot-processing on
 
-    const polygonsPayload = toArray(raw.polygonsPayload);
-    const backendResponses = toArray(raw.backendResponses);
-    const plantationInfoMap = normalizePlantationInfo(raw.plantationInfo, polygonsPayload);
+  const polygonsPayload = toArray(raw.polygonsPayload);
+  const backendResponses = toArray(raw.backendResponses);
+  const plantationInfoMap = normalizePlantationInfo(raw.plantationInfo, polygonsPayload);
 
-    const client = await pool.connect();
-    try {
-      await client.query("BEGIN");
+  const activeIds = await upsertPlots(client, header.id, frontendPlots, polygonsPayload, plantationInfoMap);
+  await reconcileRemovedPlots(client, header.id, activeIds);
 
-      const activeIds = await upsertPlots(client, header.id, frontendPlots, polygonsPayload, plantationInfoMap);
-      await reconcileRemovedPlots(client, header.id, activeIds);
+  if (plantationInfoMap.size > 0) {
+    await recomputeLandUseOverlaps(client, header.id, frontendPlots, plantationInfoMap);
+  }
 
-      if (plantationInfoMap.size > 0) {
-        await recomputeLandUseOverlaps(client, header.id, frontendPlots, plantationInfoMap);
-      }
-
-      if (backendResponses) {
-        await appendAssessments(client, header.id, backendResponses);
-      }
-
-      await client.query("COMMIT");
-    } catch (err) {
-      await client.query("ROLLBACK");
-      throw err;
-    } finally {
-      client.release();
-    }
-  } catch (err) {
-    console.error("[normalized-plots] shadowUpsertProject failed for project", header.id, err);
+  if (backendResponses) {
+    await appendAssessments(client, header.id, backendResponses);
   }
 }
 
-async function upsertProjectHeader(header: ProjectHeader): Promise<void> {
-  await pool.query(UPSERT_PROJECT_SQL, [
+async function upsertProjectHeader(client: any, header: ProjectHeader): Promise<void> {
+  await client.query(UPSERT_PROJECT_SQL, [
     header.id,
     header.userUuid,
     header.guestUuid,
@@ -322,31 +308,25 @@ async function upsertProjectHeader(header: ProjectHeader): Promise<void> {
   ]);
 }
 
-export async function shadowSoftDeleteProjectById(id: number): Promise<void> {
-  try {
-    await pool.query(
-      `UPDATE tbl_projects SET status = 'deleted', deleted_at = NOW(), updated_at = NOW() WHERE id = $1`,
-      [id]
-    );
-  } catch (err) {
-    console.error("[normalized-plots] shadowSoftDeleteProjectById failed", id, err);
-  }
+/** Must run inside the caller's own transaction -- see upsertProjectAndPlots. */
+export async function softDeleteProjectById(client: any, id: number): Promise<void> {
+  await client.query(
+    `UPDATE tbl_projects SET status = 'deleted', deleted_at = NOW(), updated_at = NOW() WHERE id = $1`,
+    [id]
+  );
 }
 
-export async function shadowSoftDeleteProjectsByOwner(owner: {
+/** Must run inside the caller's own transaction -- see upsertProjectAndPlots. */
+export async function softDeleteProjectsByOwner(client: any, owner: {
   userUuid: string | null;
   guestUuid: string | null;
 }): Promise<void> {
-  try {
-    await pool.query(
-      `UPDATE tbl_projects SET status = 'deleted', deleted_at = NOW(), updated_at = NOW()
-       WHERE status = 'active' AND (
-         ($1::uuid IS NOT NULL AND user_uuid = $1) OR
-         ($2::text IS NOT NULL AND guest_uuid = $2)
-       )`,
-      [owner.userUuid, owner.guestUuid]
-    );
-  } catch (err) {
-    console.error("[normalized-plots] shadowSoftDeleteProjectsByOwner failed", owner, err);
-  }
+  await client.query(
+    `UPDATE tbl_projects SET status = 'deleted', deleted_at = NOW(), updated_at = NOW()
+     WHERE status = 'active' AND (
+       ($1::uuid IS NOT NULL AND user_uuid = $1) OR
+       ($2::text IS NOT NULL AND guest_uuid = $2)
+     )`,
+    [owner.userUuid, owner.guestUuid]
+  );
 }

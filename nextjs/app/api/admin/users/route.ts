@@ -77,8 +77,10 @@ export async function DELETE(request: NextRequest) {
 
     // Hard delete: remove the user's projects first (they FK to tbl_users.uuid,
     // so they must go before the user row), then the user. Both are permanent.
+    // tbl_plots/tbl_plot_landuse_overlaps/tbl_plot_assessments/
+    // tbl_plot_carbon_yearly all cascade from tbl_projects.
     const projects = await client.query(
-      `DELETE FROM carbon_projects
+      `DELETE FROM tbl_projects
        WHERE user_uuid = (SELECT uuid FROM tbl_users WHERE id = $1)
        RETURNING id`,
       [id]

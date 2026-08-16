@@ -3,7 +3,7 @@ import { pool } from "@/lib/db";
 import type { JwtPayload } from "@/lib/jwt";
 
 /**
- * Resolve the stable UUID used as carbon_projects.user_uuid for a logged-in
+ * Resolve the stable UUID used as tbl_projects.user_uuid for a logged-in
  * user. This is immutable — unlike the old fullname-based identifier it never
  * changes when the user edits their profile, so projects stay linked.
  */
@@ -27,94 +27,11 @@ export function generateGuestKey(): string {
 }
 
 /**
- * Merge raw JSON arrays — new items replace by id/polygon_id, extra old items preserved.
- * Prevents raw data from disappearing when only some parcels are reprocessed and saved.
- */
-export function mergeRawArray(oldArr: any[], newArr: any[]): any[] {
-  if (!Array.isArray(oldArr) || oldArr.length === 0) return newArr;
-  if (!Array.isArray(newArr) || newArr.length === 0) return oldArr;
-
-  // Create a map of new items by ID
-  const newItemsMap = new Map();
-  let hasIds = false;
-
-  newArr.forEach(item => {
-    if (item && typeof item === 'object') {
-      const key = item.id || item.polygon_id;
-      if (key) {
-        newItemsMap.set(key, item);
-        hasIds = true;
-      }
-    }
-  });
-
-  // If no items have IDs, fallback to original index-based logic
-  if (!hasIds) {
-    if (newArr.length >= oldArr.length) return newArr;
-    return [...newArr, ...oldArr.slice(newArr.length)];
-  }
-
-  // If we have stable IDs, merge properly:
-  // Start with all new items
-  const result = [...newArr];
-
-  // Append old items that are NOT in the new payload
-  oldArr.forEach(oldItem => {
-    if (oldItem && typeof oldItem === 'object') {
-      const key = oldItem.id || oldItem.polygon_id;
-      if (key && !newItemsMap.has(key)) {
-        result.push(oldItem);
-      }
-    } else {
-      result.push(oldItem);
-    }
-  });
-
-  return result;
-}
-
-export function mergeRawField(oldValue: any, newValue: any): any {
-  if (Array.isArray(newValue) && Array.isArray(oldValue)) {
-    return mergeRawArray(oldValue, newValue);
-  }
-  if (
-    newValue !== null && typeof newValue === "object" &&
-    oldValue !== null && typeof oldValue === "object" &&
-    !Array.isArray(newValue) && !Array.isArray(oldValue)
-  ) {
-    return { ...oldValue, ...newValue };
-  }
-  return newValue;
-}
-
-/** Convert a carbon_projects DB row into the shape returned by the API. */
-export function rowToProject(row: any) {
-  return {
-    id: row.id,
-    userUuid: row.user_uuid ?? null,
-    guestKey: row.guest_key ?? null,
-    // Backward-compatible: the frontend stores `project.userId` as its guest
-    // key (guests) and ignores it for logged-in users.
-    userId: row.guest_key ?? row.user_uuid ?? null,
-    projectName: row.project_name,
-    projectId: row.project_name,
-    plantationInfo: row.plantation_info ?? {},
-    polygonsPayload: row.polygons_payload ?? [],
-    backendResponses: row.backend_responses ?? [],
-    status: row.status,
-    deletedAt: row.deleted_at,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
-  };
-}
-
-/**
- * Convert a tbl_projects row into the same shape rowToProject() returns from
- * carbon_projects. tbl_projects is header-only (no plantation_info/
- * polygons_payload/backend_responses columns -- that data now lives in
- * tbl_plots/tbl_plot_assessments), so those three fields are always empty:
- * this endpoint has no caller today that reads them (GET /api/plots is the
- * one callers use for per-plot data).
+ * Convert a tbl_projects row into the API project shape. tbl_projects is
+ * header-only (no plantation_info/polygons_payload/backend_responses columns
+ * -- that data lives in tbl_plots/tbl_plot_assessments), so those three
+ * fields are always empty: no caller reads them off this shape today (GET
+ * /api/plots is the one callers use for per-plot data).
  */
 export function rowToProjectFromNormalized(row: any) {
   return {
