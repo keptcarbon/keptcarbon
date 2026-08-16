@@ -73,8 +73,8 @@ export function CarbonBarChart({
   const wrapperRef = useRef<HTMLDivElement>(null);
   if (!pts.length) return null;
 
-  // ถ้าส่งอายุมา (กราฟเดี่ยว) ให้แสดงถึงอายุ 35 
-  // ถ้าไม่ส่งอายุ (กราฟรวม) จะดึงข้อมูลทั้งหมดที่สรุปมาแล้ว
+  // If an age is passed (single-plot chart), show up to age 35.
+  // If no age is passed (combined chart), pull in all the already-summarized data.
   const allPts = showAge ? pts.filter(p => p.age <= 35) : pts;
   if (!allPts.length) return null;
 
@@ -82,7 +82,7 @@ export function CarbonBarChart({
   const [range, setRange] = useState<[number, number]>([0, actualMaxIdx]);
 
   useEffect(() => {
-    // เริ่มต้นโชว์ตั้งแต่ปีที่ 0 ไปจนถึงสูงสุด 15 แท่ง ถ้าอยากดูเพิ่มให้เลื่อนเอาเอง
+    // Start out showing from year 0 up to 15 bars max; scroll for more.
     const idx0 = allPts.findIndex(p => p.year_at === 0);
     const startIdx = idx0 !== -1 ? idx0 : 0;
     const initialMax = Math.min(startIdx + 14, actualMaxIdx);
@@ -129,7 +129,7 @@ export function CarbonBarChart({
     .map((p, i) => (i === 0 ? `M ${p.x},${p.y}` : `L ${p.x},${p.y}`))
     .join(" ");
 
-  // ตัดสินว่า tooltip อยู่ที่ไหน
+  // Determine where the tooltip sits
   const hoveredPt = hoverIdx !== null ? displayPts[hoverIdx] : null;
 
   return (
@@ -254,7 +254,7 @@ export function CarbonBarChart({
 
           {/* X-axis labels (cycle boundary) */}
           {displayPts.map((p, i) => {
-            // แสดง label ทุกๆ 7 ปี เริ่มจากปีแรก (ปี 0)
+            // Show a label every 7 years, starting from the first year (year 0)
             if (i % 7 !== 0) return null;
 
             const x = startX + i * (barW + gap) + barW / 2;

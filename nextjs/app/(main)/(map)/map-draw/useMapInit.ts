@@ -98,7 +98,8 @@ export function useMapInit({
       }),
       "bottom-right",
     );
-    // เพิ่มปุ่มเข็มทิศแยกต่างหาก เพื่อให้อยู่ด้านบนสุด (ลำดับการแอดหลังสุดสำหรับ bottom-right จะอยู่บนสุด)
+    // Add the compass button separately so it ends up on top (for bottom-right,
+    // controls added last appear at the top)
     map.addControl(new maplibregl.NavigationControl({ showCompass: true, showZoom: false }), "bottom-right");
 
     map.on("load", () => {

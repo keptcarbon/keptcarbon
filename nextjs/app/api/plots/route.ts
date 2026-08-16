@@ -50,7 +50,7 @@ function yearlyRowsToBarPoints(rows: any[], baseAge: number) {
 }
 
 // ---------------------------------------------------------------------------
-// GET /api/plots — list projects (soft delete: แสดงเฉพาะ status = 'active')
+// GET /api/plots — list projects (soft delete: only shows status = 'active')
 // Reads the normalized schema (tbl_projects/tbl_plots/tbl_plot_landuse_
 // overlaps/tbl_plot_assessments/tbl_plot_carbon_yearly) and reconstructs the
 // same `plots[]` shape ParcelResultsPanel used to persist verbatim into the
@@ -59,17 +59,17 @@ function yearlyRowsToBarPoints(rows: any[], baseAge: number) {
 // write the same normalized schema.
 // ---------------------------------------------------------------------------
 export async function GET(request: NextRequest) {
-  // ตรวจสอบว่ามี token หรือไม่ (ถ้าไม่มี = guest)
+  // Check whether there's a token (if not = guest)
   const token = request.cookies.get(AUTH_COOKIE)?.value;
   const payload = token ? verifyToken(token) : null;
 
   const { searchParams } = new URL(request.url);
 
-  // Admin สามารถดูทั้งหมดได้
+  // Admin can view everything
   const showAll =
     payload?.role === "admin" && searchParams.get("all") === "true";
 
-  // Guest ต้องส่ง user_id มาเพื่อดึงข้อมูล
+  // Guest must send user_id to fetch data
   const guestUserId = searchParams.get("guest_user_id");
 
   try {
@@ -77,7 +77,7 @@ export async function GET(request: NextRequest) {
     let params: unknown[];
 
     if (showAll) {
-      // Admin: ดูทั้งหมด (เฉพาะ active)
+      // Admin: view everything (active only)
       query = `
         SELECT *
         FROM tbl_projects
@@ -86,7 +86,7 @@ export async function GET(request: NextRequest) {
       `;
       params = [];
     } else if (payload) {
-      // ผู้ใช้ที่ล็อกอิน: ค้นหาด้วย uuid (คงที่ ไม่เปลี่ยนตามชื่อ)
+      // Logged-in user: look up by uuid (stable, doesn't change with name)
       const userUuid = await getUserUuid(payload);
       query = `
         SELECT *
@@ -96,7 +96,7 @@ export async function GET(request: NextRequest) {
       `;
       params = [userUuid];
     } else if (guestUserId) {
-      // Guest: ดูเฉพาะ guest_key ที่ส่งมา
+      // Guest: only view the guest_uuid that was sent
       query = `
         SELECT *
         FROM tbl_projects
@@ -248,7 +248,7 @@ export async function GET(request: NextRequest) {
 }
 
 // ---------------------------------------------------------------------------
-// POST /api/plots — สร้าง project ใหม่ + บันทึก history (CREATE)
+// POST /api/plots — create a new project + save history (CREATE)
 // ---------------------------------------------------------------------------
 export async function POST(request: NextRequest) {
   const token = request.cookies.get(AUTH_COOKIE)?.value;
@@ -257,24 +257,24 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
 
-    // กำหนดเจ้าของ: ล็อกอิน → user_uuid, guest → guest_key (อย่างใดอย่างหนึ่ง)
+    // Determine the owner: logged in → user_uuid, guest → guest_key (exactly one)
     let userUuid: string | null = null;
     let guestKey: string | null = null;
     if (payload && !body.forceGuest) {
-      // บันทึกจริง (กด "บันทึกข้อมูล" / แก้ไข) → เป็นเจ้าของด้วย user_uuid
+      // Real save (clicked "บันทึกข้อมูล" (Save) / Edit) → owned via user_uuid
       userUuid = await getUserUuid(payload);
       if (!userUuid) {
         return NextResponse.json({ error: "User not found" }, { status: 401 });
       }
     } else if (body.userId) {
-      // Guest re-save หรือ draft ของ user ที่ล็อกอิน (forceGuest) → reuse guest_key เดิม
+      // Guest re-save, or a draft from a logged-in user (forceGuest) → reuse the existing guest_key
       guestKey = body.userId;
     } else {
-      // ประมวลผลครั้งแรก (guest หรือ forceGuest) → สร้าง guest_key ใหม่
+      // First-time processing (guest or forceGuest) → create a new guest_key
       guestKey = generateGuestKey();
     }
 
-    // กำหนดชื่อโครงการ
+    // Determine the project name
     const projectName: string = body.projectId || generateGuestProjectName();
 
     const client = await pool.connect();
@@ -355,18 +355,18 @@ export async function POST(request: NextRequest) {
 }
 
 // ---------------------------------------------------------------------------
-// DELETE /api/plots — Soft Delete ทุก project ของ user ปัจจุบัน
-//   ไม่ลบจริง → เปลี่ยน status = 'deleted' + ตั้ง deleted_at
+// DELETE /api/plots — Soft delete every project owned by the current user
+//   Not a real delete → changes status to 'deleted' and sets deleted_at
 // ---------------------------------------------------------------------------
 export async function DELETE(request: NextRequest) {
   const token = request.cookies.get(AUTH_COOKIE)?.value;
   const payload = token ? verifyToken(token) : null;
 
-  // Guest ต้องส่ง guest_key มาทาง query string
+  // Guest must send guest_key via the query string
   const { searchParams } = new URL(request.url);
   const guestUserId = searchParams.get("guest_user_id");
 
-  // ล็อกอิน → ลบด้วย user_uuid, guest → ลบด้วย guest_uuid
+  // Logged in → delete by user_uuid, guest → delete by guest_uuid
   const userUuid = payload ? await getUserUuid(payload) : null;
   const ownerClause = payload ? "user_uuid = $1" : "guest_uuid = $1";
   const ownerValue = payload ? userUuid : guestUserId;
@@ -379,7 +379,7 @@ export async function DELETE(request: NextRequest) {
   try {
     await client.query("BEGIN");
 
-    // ดึงข้อมูลเดิมก่อน soft delete
+    // Fetch the existing data before soft deleting
     const existing = await client.query(
       `SELECT id FROM tbl_projects WHERE ${ownerClause} AND status = 'active'`,
       [ownerValue]

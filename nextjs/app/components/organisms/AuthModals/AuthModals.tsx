@@ -14,7 +14,7 @@ type AlertState = { type: "success" | "error"; msg: string } | null;
 // Name rule (First & Last): 1–50 chars; letters (incl. Thai/Unicode), spaces, hyphens, apostrophes.
 const NAME_RE = /^[\p{L}\p{M}][\p{L}\p{M}\s'-]{0,49}$/u;
 
-// Returns an error message for an invalid name, or null when valid. `label` is the field name (ชื่อ / นามสกุล).
+// Returns an error message for an invalid name, or null when valid. `label` is the field name ("first name" / "last name").
 function nameError(raw: string, label: string): string | null {
   const v = raw.trim();
   if (!v) return `กรุณากรอก${label}`;

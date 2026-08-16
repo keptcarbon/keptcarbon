@@ -6,7 +6,7 @@ import { upsertProjectAndPlots, softDeleteProjectById } from "@/lib/normalized-p
 
 
 // ---------------------------------------------------------------------------
-// GET /api/plots/[id] — ดึง project เดียวตาม id
+// GET /api/plots/[id] — fetch a single project by id
 // ---------------------------------------------------------------------------
 export async function GET(
   request: NextRequest,
@@ -34,13 +34,13 @@ export async function GET(
 
     const row = result.rows[0];
 
-    // ตรวจสอบสิทธิ์: admin ดูได้ทุกอัน / เจ้าของเท่านั้น
+    // Check permissions: admin can view everything / owner only
     if (payload?.role !== "admin") {
       const userUuid = payload ? await getUserUuid(payload) : null;
       const isOwner = row.user_uuid
         ? userUuid === row.user_uuid
         : (() => {
-            // Guest project → ต้องส่ง guest_uuid ที่ตรงกันมา
+            // Guest project → the matching guest_uuid must be sent
             const { searchParams } = new URL(request.url);
             return searchParams.get("guest_user_id") === row.guest_uuid;
           })();
@@ -60,7 +60,7 @@ export async function GET(
 }
 
 // ---------------------------------------------------------------------------
-// PATCH /api/plots/[id] — อัปเดต project + บันทึก history (UPDATE)
+// PATCH /api/plots/[id] — update the project + save history (UPDATE)
 // ---------------------------------------------------------------------------
 export async function PATCH(
   request: NextRequest,
@@ -83,7 +83,7 @@ export async function PATCH(
     try {
       await client.query("BEGIN");
 
-      // ดึงข้อมูลเดิมก่อนอัปเดต
+      // Fetch the existing data before updating
       const existing = await client.query(
         `SELECT * FROM tbl_projects WHERE id = $1 AND status = 'active'`,
         [projectId]
@@ -96,7 +96,7 @@ export async function PATCH(
 
       const oldRow = existing.rows[0];
 
-      // ตรวจสอบสิทธิ์: เจ้าของ (uuid ตรงกัน) หรือ guest ที่ถือ guest_uuid ตรงกัน
+      // Check permissions: owner (matching uuid) or a guest holding the matching guest_uuid
       if (payload?.role !== "admin") {
         const userUuid = payload ? await getUserUuid(payload) : null;
         const isOwner = oldRow.user_uuid
@@ -169,7 +169,7 @@ export async function PATCH(
 }
 
 // ---------------------------------------------------------------------------
-// DELETE /api/plots/[id] — Soft Delete project เดียว
+// DELETE /api/plots/[id] — soft delete a single project
 // ---------------------------------------------------------------------------
 export async function DELETE(
   request: NextRequest,
@@ -193,7 +193,7 @@ export async function DELETE(
     try {
       await client.query("BEGIN");
 
-      // ดึงข้อมูลเดิมก่อน soft delete
+      // Fetch the existing data before soft deleting
       const existing = await client.query(
         `SELECT * FROM tbl_projects WHERE id = $1 AND status = 'active'`,
         [projectId]
@@ -206,7 +206,7 @@ export async function DELETE(
 
       const oldRow = existing.rows[0];
 
-      // ตรวจสอบสิทธิ์: เจ้าของ (uuid ตรงกัน) หรือ guest ที่ถือ guest_uuid ตรงกัน
+      // Check permissions: owner (matching uuid) or a guest holding the matching guest_uuid
       if (payload?.role !== "admin") {
         const userUuid = payload ? await getUserUuid(payload) : null;
         const isOwner = oldRow.user_uuid
@@ -218,7 +218,7 @@ export async function DELETE(
         }
       }
 
-      // Soft Delete: เปลี่ยน status เป็น 'deleted'
+      // Soft delete: change status to 'deleted'
       await softDeleteProjectById(client, projectId);
 
       await client.query("COMMIT");

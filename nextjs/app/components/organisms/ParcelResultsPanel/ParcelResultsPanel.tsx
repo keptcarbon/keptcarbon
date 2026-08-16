@@ -392,9 +392,9 @@ export function ParcelResultsPanel({
     }, [projectName, initialProjectName, existingProjects, dbProjectId]);
 
     // Project-name entry uses an explicit confirm step (no real-time checking):
-    // the user types a draft, presses ยืนยัน — only then is the name validated
-    // and committed to `projectName`. A committed name shows read-only with an
-    // แก้ไข button. `nameEditing` = the field is open for editing.
+    // the user types a draft, presses "ยืนยัน" (Confirm) — only then is the name
+    // validated and committed to `projectName`. A committed name shows read-only
+    // with an "แก้ไข" (Edit) button. `nameEditing` = the field is open for editing.
     const [nameDraft, setNameDraft] = useState(projectName);
     const [nameEditing, setNameEditing] = useState(!projectName.trim());
     const [nameError, setNameError] = useState<string | null>(null);
@@ -419,8 +419,8 @@ export function ParcelResultsPanel({
         setNameEditing(false);
     };
 
-    // stable IDs ที่ใช้เชื่อม frontend_plots ↔ polygons_payload ↔ backend_responses
-    // ref เก็บไว้ให้ handleSave อ่านได้, state ให้ render อ่านได้
+    // Stable IDs that link frontend_plots ↔ polygons_payload ↔ backend_responses.
+    // Kept in a ref so handleSave can read them, and in state so render can read them.
     const stablePlotIdsRef = useRef<string[]>([]);
     const [plotIds, setPlotIds] = useState<string[]>([]);
 
@@ -580,8 +580,9 @@ export function ParcelResultsPanel({
         setProcessingCarbon(true);
         const CURRENT_BE_NOW = new Date().getFullYear() + 543;
 
-        // คำนวณ stable ID ให้แต่ละแปลงก่อน — ใช้ props.id ถ้ามี (โหลดจาก DB), ไม่งั้นสร้างใหม่ 1 ครั้ง
-        // ID เดียวกันนี้จะถูกใช้ใน polygons_payload, backend_responses, และ frontend_plots
+        // Compute a stable ID for each plot first — use props.id if present
+        // (loaded from DB), otherwise generate a new one once.
+        // This same ID is used in polygons_payload, backend_responses, and frontend_plots.
         const stablePlotIds = parcelFeatures.map((feat) => {
             const props = (feat?.properties || {}) as any;
             return (props.id as string) || generatePolygonId();
@@ -681,7 +682,7 @@ export function ParcelResultsPanel({
             polygons.push({
                 id: stablePlotIds[idx],
                 geometry: combinedGeom,
-                year_of_planting: userYearBE > 0 ? userYearBE - 543 : null, // null = ให้ backend ดึงจาก raster
+                year_of_planting: userYearBE > 0 ? userYearBE - 543 : null, // null = let the backend pull it from the raster
                 rubber_clone: (form.variety && SUPPORTED_CLONES.includes(form.variety)) ? form.variety : null,
                 tree_count: form.treeCount ? (parseInt(form.treeCount) || null) : null,
                 spacing_system: form.spacing || null,
@@ -811,11 +812,11 @@ export function ParcelResultsPanel({
                 let yearUsedDetails = "";
 
                 if (userYearBE > 0) {
-                    // 1. ผู้ใช้กรอกปีเอง — ใช้ก่อนเสมอ
+                    // 1. User entered the year themselves — always used first
                     finalPlantYearBE = userYearBE;
                     yearUsedDetails = `ใช้ตามที่คุณระบุ (พ.ศ. ${userYearBE})`;
                 } else if (resp?.assess_parameters) {
-                    // 2. ไม่กรอกปี → ใช้ max cohort age (oldest cohort = year น้อยที่สุด) จาก carbon API
+                    // 2. No year entered → use max cohort age (oldest cohort = lowest year) from the carbon API
                     const yop = resp.assess_parameters.year_of_planting;
                     const allYearsCE: number[] = [];
                     if (typeof yop.value === "number" && yop.value > 0) {
@@ -833,7 +834,7 @@ export function ParcelResultsPanel({
                     }
                 }
 
-                // 3. Fallback: ปีจาก parcel API ถ้า assess_parameters ไม่มี
+                // 3. Fallback: year from the parcel API, if assess_parameters is absent
                 if (finalPlantYearBE === 0 && backendYearBE > 0) {
                     finalPlantYearBE = backendYearBE;
                     yearUsedDetails = `ใช้ปีจากดาวเทียมที่ตรวจพบ (พ.ศ. ${backendYearBE})`;
@@ -845,7 +846,7 @@ export function ParcelResultsPanel({
                 // "now" row is wherever year_at === 0, not necessarily index 0.
                 const nowEntry = profile.find(p => p.year_at === 0) ?? profile[0];
 
-                // 4. Fallback: อายุจาก profile โดยตรง ถ้ายังเป็น 0
+                // 4. Fallback: age directly from the profile, if it's still 0
                 if (startAge === 0 && nowEntry) {
                     const profileAge = nowEntry.age;
                     if (profileAge != null && !isNaN(profileAge)) {
@@ -925,7 +926,7 @@ export function ParcelResultsPanel({
             return;
         }
 
-        // draft = auto-save จาก "ประมวลผล" (บันทึกลง DB เป็น guest_key แต่ยังไม่ claim)
+        // draft = auto-save from "ประมวลผล" (Process) — saved to DB as guest_key but not yet claimed
         const isDraft = opts?.forceGuest === true;
 
         if (!isDraft) {
@@ -937,7 +938,8 @@ export function ParcelResultsPanel({
             const activeResponses = overrideResponses || backendResponses || [];
             const activePolygons = overridePolygons || [];
 
-            // ดึง stable IDs จาก ref (set ตอน process) หรือสร้างจาก props.id ถ้า save โดยไม่ผ่าน process
+            // Pull stable IDs from the ref (set during process), or build them from
+            // props.id if saving without having gone through process first
             const stablePlotIds = stablePlotIdsRef.current.length === parcelFeatures.length
                 ? stablePlotIdsRef.current
                 : parcelFeatures.map((feat) => {
@@ -945,7 +947,7 @@ export function ParcelResultsPanel({
                     return (props.id as string) || generatePolygonId();
                 });
 
-            // Build plantation_info: ใช้ rawPlantationInfo ที่ส่งมาจาก API จริงๆ ถ้ามี
+            // Build plantation_info: use rawPlantationInfo as returned by the API if present
             const plantationInfo = rawPlantationInfo && rawPlantationInfo.length > 0
                 ? rawPlantationInfo
                 : parcelFeatures.map((feat, i) => {
@@ -977,7 +979,7 @@ export function ParcelResultsPanel({
                     };
                 });
 
-            // Build polygons_payload: ข้อมูลที่ส่งไป backend สำหรับ assessCarbon
+            // Build polygons_payload: the data sent to the backend for assessCarbon
             const polygonsPayload = activePolygons.length > 0
                 ? activePolygons
                 : parcelFeatures.map((feat, i) => {
@@ -1019,11 +1021,12 @@ export function ParcelResultsPanel({
 
             if (user) {
                 projectId = projectName || "Unnamed Project";
-                // ประมวลผล/บันทึก ของ user ที่ล็อกอิน ทำงานบน row ที่เป็น guest_key ก่อน
-                // จนกว่าจะกด "บันทึกข้อมูล" แล้ว claim → reuse guest_key เดิมถ้ามี draft อยู่
+                // Process/save for a logged-in user works against a guest_key row first,
+                // until they click "บันทึกข้อมูล" (Save) and it gets claimed — reuse the
+                // existing guest_key if a draft already exists
                 userId = guestUserId ?? undefined;
             } else if (guestUserId) {
-                // Guest re-save: ส่ง userId ที่ได้จาก POST ครั้งแรก เพื่อให้ PATCH ระบุตัวตนได้
+                // Guest re-save: send the userId from the first POST so PATCH can identify the row
                 userId = guestUserId;
             }
 
@@ -1140,7 +1143,7 @@ export function ParcelResultsPanel({
                 frontendPlots: finalFrontendPlots,
             };
             if (userId) saveBody.userId = userId;
-            // Draft (ประมวลผล): บังคับบันทึกเป็น guest_key แม้จะล็อกอินอยู่ → ไม่โผล่ My Plots
+            // Draft (Process): force-save as guest_key even while logged in → doesn't show up in My Plots
             if (isDraft) saveBody.forceGuest = true;
 
             // Only send projectId if it's a real name, so the backend can auto-generate for guests
@@ -1167,16 +1170,16 @@ export function ParcelResultsPanel({
                 if (data.project?.id) {
                     setDbProjectId(data.project.id);
                 }
-                // เก็บ guest_key ที่ server คืนกลับมา เพื่อใช้ PATCH ครั้งถัดไป / claim
+                // Store the guest_key the server returned, for use in the next PATCH / claim
                 if (data.project?.userId && data.project.userId !== guestUserId) {
                     if (!user) {
-                        // Guest: เก็บลง localStorage เพื่อดูใน My Plots ได้
+                        // Guest: save to localStorage so it can be seen in My Plots
                         setGuestUserId(data.project.userId);
                         if (typeof window !== "undefined") {
                             localStorage.setItem("guest_user_id", data.project.userId);
                         }
                     } else if (isDraft) {
-                        // ล็อกอิน + draft (ประมวลผล): เก็บใน state เท่านั้น ไม่เขียน localStorage
+                        // Logged in + draft (Process): keep in state only, don't write to localStorage
                         setGuestUserId(data.project.userId);
                     }
                 }
@@ -1188,7 +1191,7 @@ export function ParcelResultsPanel({
                     });
                 }
 
-                // กด "บันทึกข้อมูล" โดย user ที่ล็อกอิน → claim draft (guest_key) เข้าบัญชี
+                // A logged-in user clicking "บันทึกข้อมูล" (Save) → claim the draft (guest_key) into their account
                 // → server clones the guest row into a new project owned by
                 // the user and soft-deletes the guest one, so dbProjectId
                 // must follow the clone or the next save 404s (PATCHing a
@@ -1213,7 +1216,7 @@ export function ParcelResultsPanel({
                 }
             }
         } catch (e) { console.error("handleSave error:", e); }
-        // Draft (ประมวลผล) ไม่แตะสถานะปุ่ม/plotsSaved — ปุ่มยังเป็น "บันทึกข้อมูล" อยู่
+        // Draft (Process) doesn't touch button state/plotsSaved — the button still reads "บันทึกข้อมูล" (Save Data)
         if (!isDraft) {
             setSaveState("done");
             onSave?.();

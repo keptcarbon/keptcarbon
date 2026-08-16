@@ -72,7 +72,7 @@ function MapDrawContent() {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MLMap | null>(null);
   const mapLoadedRef = useRef(false);
-  // While a guest snapshot is being restored we re-apply the saved ภาค/จังหวัด
+  // While a guest snapshot is being restored we re-apply the saved region/province
   // so step 1 shows them again — but their boundary layers must NOT hijack the
   // camera away from the zoom-to-restored-plots fit. Held true only for that
   // restore window; cleared once the user touches a selector.
@@ -236,12 +236,12 @@ function MapDrawContent() {
     if (projNameParam || isEditingPlotParam) return;
     // Returning from the guest-limit auth flow: the restore effect will zoom
     // to the stashed plots — skip the default province auto-select, whose
-    // delayed boundary zoom (ระยอง) would override that fit.
+    // delayed boundary zoom (Rayong) would override that fit.
     //
     // Only skip for a *fresh* stash. A real OAuth round-trip lands back here in
     // seconds; if the guest tapped login/register but then abandoned auth, the
     // key is never consumed (the restore effect needs a logged-in user) and
-    // would otherwise disable the default ภาคตะวันออก/ระยอง auto-select for the
+    // would otherwise disable the default Eastern region/Rayong auto-select for the
     // rest of the tab session. Treat a stale key as abandoned: clear it and
     // fall through to the default.
     try {
@@ -439,10 +439,10 @@ function MapDrawContent() {
       sessionStorage.setItem(MAP_DRAW_RESUME_KEY, JSON.stringify({
         ts: Date.now(),
         parcels: parcelsWithForms,
-        // Land-use polygons from plantation-info (A302 ฯลฯ) — shown in the
-        // panel as luFeatures; without them the restore says "ไม่พบข้อมูล"
+        // Land-use polygons from plantation-info (A302 etc.) — shown in the
+        // panel as luFeatures; without them the restore says "ไม่พบข้อมูล" (No data found)
         luFeatures: parcelFeatures,
-        // The guest's ภาค/จังหวัด/อำเภอ/ตำบล picks. The OAuth redirect reloads the
+        // The guest's region/province/district/subdistrict picks. The OAuth redirect reloads the
         // page and wipes this React state, so without stashing it the dropdowns
         // come back empty when the user steps back to step 1 after logging in.
         region: selectedRegion,
@@ -479,7 +479,7 @@ function MapDrawContent() {
       setSearchCount(feats.length);
       setStatus("เข้าสู่ระบบสำเร็จ — แปลงที่วาดไว้ถูกกู้คืนแล้ว");
 
-      // Re-apply the guest's ภาค/จังหวัด/อำเภอ/ตำบล so stepping back to step 1
+      // Re-apply the guest's region/province/district/subdistrict so stepping back to step 1
       // shows them again. Suppress the boundary hook's auto-zoom for this window
       // so it doesn't pull the camera off the zoom-to-plots fit below.
       if (data?.region) {
@@ -1928,7 +1928,7 @@ function MapDrawContent() {
     }
   };
 
-  // "ค้นหาแปลงจากพิกัด" — check the lat/lng against /plots/nav, then zoom + drop a marker if serviced
+  // "ค้นหาแปลงจากพิกัด" (Search plot by coordinates) — check the lat/lng against /plots/nav, then zoom + drop a marker if serviced
   const handleCoordSearch = async () => {
     const map = mapRef.current;
     const la = parseFloat(coordLat.replace(/,/g, '')), lo = parseFloat(coordLng.replace(/,/g, ''));
@@ -1968,7 +1968,7 @@ function MapDrawContent() {
     }
   };
 
-  // Clear อำเภอ/ตำบล and zoom the map back out to the selected จังหวัด (e.g. ระยอง)
+  // Clear district/subdistrict and zoom the map back out to the selected province (e.g. Rayong)
   const zoomToSelectedProvince = useCallback(() => {
     const map = mapRef.current;
     if (!map || !mapLoadedRef.current || !selectedProvince) return;
@@ -1977,11 +1977,11 @@ function MapDrawContent() {
     // its zoom and the map would stay parked on the restored plots.
     suppressBoundaryZoomRef.current = false;
     if (selectedAmphoe || selectedTambon) {
-      // Clearing อำเภอ/ตำบล makes the boundary hook redraw + zoom to the province.
+      // Clearing district/subdistrict makes the boundary hook redraw + zoom to the province.
       setSelectedAmphoe("");
       setSelectedTambon("");
     } else {
-      // อำเภอ already empty — zoom to the province directly.
+      // District already empty — zoom to the province directly.
       fetch(`/api/geojson/boundary?province=${encodeURIComponent(selectedProvince)}`)
         .then(r => (r.ok ? r.json() : null))
         .then(fc => { if (fc?.features?.length) zoomToGeoJSONFeatures(fc.features, map); })

@@ -24,7 +24,7 @@ export function useBoundarySelection({
   mapLoadedRef: MutableRefObject<boolean>;
   mapLoaded: boolean;
   // When true, boundary layers still redraw but skip their fit-to-bounds zoom.
-  // Used during a guest-plot restore so re-applying ภาค/จังหวัด doesn't pull the
+  // Used during a guest-plot restore so re-applying region/province doesn't pull the
   // camera off the restored plots.
   suppressAutoZoomRef?: MutableRefObject<boolean>;
 }) {

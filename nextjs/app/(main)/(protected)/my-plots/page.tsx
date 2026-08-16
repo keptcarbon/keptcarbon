@@ -109,7 +109,7 @@ export default function MyPlotsPage() {
     const isGuest = !user && typeof window !== "undefined" && !!localStorage.getItem("guest_user_id");
     if (!user && !isGuest) return;
     if (viewMode === "all") {
-      // Admin: ลบทีละแปลงที่แสดงอยู่
+      // Admin: delete each displayed plot one at a time
       plots.forEach(p => handleDelete(p.id));
     } else {
       setPlots([]);
