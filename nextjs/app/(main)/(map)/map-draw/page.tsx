@@ -1911,7 +1911,7 @@ function MapDrawContent() {
         if (coordMode === "latlng") {
           const la = parseFloat(coordLat.replace(/,/g, '')), lo = parseFloat(coordLng.replace(/,/g, ''));
           if (!isNaN(la) && !isNaN(lo) && la >= -90 && la <= 90 && lo >= -180 && lo <= 180) {
-            map.flyTo({ center: [lo, la], zoom: 15, duration: 1800, essential: true });
+            map.flyTo({ center: [lo, la], zoom: 15, duration: 2400, essential: true });
           }
         } else {
           const ev = parseFloat(coordE.replace(/,/g, '')), nv = parseFloat(coordN.replace(/,/g, ''));
@@ -1919,7 +1919,7 @@ function MapDrawContent() {
             try {
               const { lat: la, lng: lo } = utmToLatLng(ev, nv, coordUtmZone, true);
               if (la >= -90 && la <= 90 && lo >= -180 && lo <= 180) {
-                map.flyTo({ center: [lo, la], zoom: 15, duration: 1800, essential: true });
+                map.flyTo({ center: [lo, la], zoom: 15, duration: 2400, essential: true });
               }
             } catch { /* ignore invalid coords */ }
           }
@@ -2539,7 +2539,7 @@ function MapDrawContent() {
     const lats = coords.map(([, y]) => y);
     map.fitBounds(
       [[Math.min(...lngs), Math.min(...lats)], [Math.max(...lngs), Math.max(...lats)]],
-      { padding: 80, duration: 1800, maxZoom: 18, easing: (t) => t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t },
+      { padding: 80, duration: 2400, maxZoom: 18, easing: (t) => t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t },
     );
   }, []);
 

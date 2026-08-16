@@ -30,6 +30,7 @@ export function PlotCard({ plot, index, onDelete, onDeleteClick, onEdit, expande
       : [])
     : [];
   const limitedBarPts = barPts;
+  const nowPt = limitedBarPts.find(p => p.year_at === 0) ?? limitedBarPts[0];
 
   const plantStatusLabel = plot.plantStatus === "replanting" ? "เริ่มปลูกใหม่" : plot.plantStatus === "existing" ? "ปลูกมาแล้ว" : "—";
 
@@ -244,7 +245,7 @@ export function PlotCard({ plot, index, onDelete, onDeleteClick, onEdit, expande
                 {isProcessed && barPts.length > 0 ? (
                   <div className={styles.graphInner}>
                     <div className={styles.graphInnerBox}>
-                      <CarbonBarChart pts={limitedBarPts} isMobile={isMobile} narrowMode={!isMobile} showAge={showPlotAge} />
+                      <CarbonBarChart pts={limitedBarPts} isMobile={isMobile} narrowMode={!isMobile} showAge={showPlotAge} baseline={nowPt ? { value: nowPt.co2, ci: nowPt.ci || 0 } : undefined} />
                     </div>
                   </div>
                 ) : (

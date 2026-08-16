@@ -92,13 +92,10 @@ class CarbonService:
         ref_age = dominant_cohort['age']
         planting_year = start_year - ref_age  # calendar year at which age == 0
 
-        projections = []
-
-        # Initialize baseline variables before entering the loop
-        baseline_carbon = None
-        baseline_ci = None
-        baseline_lower = None
-        baseline_upper = None
+        # Pass 1: compute stocks for every row in the fixed 0..35 age window.
+        # The window can start before today (negative year_at, i.e. the
+        # tree's past) so we can't take the first row as the baseline.
+        rows = []
 
         for age in range(0, GROWTH_MODEL_YEAR + 1):  # fixed 0..35 -> 36 rows
 
@@ -126,36 +123,53 @@ class CarbonService:
             total_carbon_ci_lower_tCO2e = round((sum_biomass_lower * CARBON_FRACTION * CARBON_EQUIVALENT_FACTOR) / 1000.0, 4)
             total_carbon_ci_upper_tCO2e = round((sum_biomass_upper * CARBON_FRACTION * CARBON_EQUIVALENT_FACTOR) / 1000.0, 4)
 
-            # Baseline is always the first row (age 0) now that every age in
-            # the fixed 0..35 window is emitted.
-            if baseline_carbon is None:
-                baseline_carbon = total_carbon_tCO2e
-                baseline_ci = total_carbon_ci_tCO2e
-                baseline_lower = total_carbon_ci_lower_tCO2e
-                baseline_upper = total_carbon_ci_upper_tCO2e
+            rows.append({
+                "year": target_year,
+                "year_at": year_at,
+                "age": age,
+                "total_carbon_tCO2e": total_carbon_tCO2e,
+                "total_carbon_ci_tCO2e": total_carbon_ci_tCO2e,
+                "total_carbon_ci_lower_tCO2e": total_carbon_ci_lower_tCO2e,
+                "total_carbon_ci_upper_tCO2e": total_carbon_ci_upper_tCO2e,
+            })
 
-            # Calculate cumulative gain by finding the difference from the baseline year
-            total_carbon_gain_tCO2e = round(total_carbon_tCO2e - baseline_carbon, 4)
+        # Baseline is the row where year_at == 0 (today), not the first row
+        # emitted -- the fixed age window can start in the past.
+        baseline_row = next((r for r in rows if r["year_at"] == 0), rows[0])
+        baseline_carbon = baseline_row["total_carbon_tCO2e"]
+        baseline_lower = baseline_row["total_carbon_ci_lower_tCO2e"]
+        baseline_upper = baseline_row["total_carbon_ci_upper_tCO2e"]
+
+        # Pass 2: gain relative to the year_at == 0 baseline. Rows before
+        # today (negative year_at) hold less carbon than the baseline, so
+        # their gain is negative.
+        projections = []
+        for r in rows:
+            total_carbon_gain_tCO2e = round(r["total_carbon_tCO2e"] - baseline_carbon, 4)
 
             # LINEAR PROPAGATION: Subtract baseline boundaries directly to track the true variance channel
-            total_carbon_gain_ci_lower_tCO2e = round(total_carbon_ci_lower_tCO2e - baseline_lower, 4)
-            total_carbon_gain_ci_upper_tCO2e = round(total_carbon_ci_upper_tCO2e - baseline_upper, 4)
+            gain_bound_a = round(r["total_carbon_ci_lower_tCO2e"] - baseline_lower, 4)
+            gain_bound_b = round(r["total_carbon_ci_upper_tCO2e"] - baseline_upper, 4)
 
-            # Re-calculate the half-width margin of error for the gain
+            # The underlying biomass CI bounds aren't guaranteed to widen
+            # monotonically with age, so a direct subtraction can invert the
+            # bounds (lower > upper). Re-order them so the gain interval is
+            # always valid and the half-width margin of error is never negative.
+            total_carbon_gain_ci_lower_tCO2e = min(gain_bound_a, gain_bound_b)
+            total_carbon_gain_ci_upper_tCO2e = max(gain_bound_a, gain_bound_b)
             total_carbon_gain_ci_tCO2e = round((total_carbon_gain_ci_upper_tCO2e - total_carbon_gain_ci_lower_tCO2e) / 2.0, 4)
 
             # Match layout configuration of your structural YearlyAssess schema
             projections.append({
-                "year": target_year,
-                "year_at": year_at,
-                "age": age,
-
+                "year": r["year"],
+                "year_at": r["year_at"],
+                "age": r["age"],
 
                 "stocks": {
-                    "value": total_carbon_tCO2e,
-                    "ci": total_carbon_ci_tCO2e,
-                    "ci_lower": total_carbon_ci_lower_tCO2e,
-                    "ci_upper": total_carbon_ci_upper_tCO2e
+                    "value": r["total_carbon_tCO2e"],
+                    "ci": r["total_carbon_ci_tCO2e"],
+                    "ci_lower": r["total_carbon_ci_lower_tCO2e"],
+                    "ci_upper": r["total_carbon_ci_upper_tCO2e"]
                 },
 
                 "gain": {

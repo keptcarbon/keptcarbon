@@ -242,18 +242,21 @@ export function aggregateProfiles(responses: CarbonAssessResponse[], fallbackBas
 
     if (profiles.length === 0) return [];
 
-    // Find the total year range: earliest start year → shortest end year across all profiles.
-    // 'พศที่สั้นที่สุด' means we stop the aggregate graph entirely when the shortest plot ends.
-    const limitEndYear = Math.min(...profiles.map(p => p[p.length - 1].year));
-    const minStartYear = Math.min(...profiles.map(p => p[0].year));
+    // Align by year_at (years relative to each plot's own baseline) rather than
+    // absolute calendar year, and trim to the range every plot has in common —
+    // the intersection of year_at values, not the union.
+    const minYearAt = Math.max(...profiles.map(p => Math.min(...p.map(item => item.year_at))));
+    const maxYearAt = Math.min(...profiles.map(p => Math.max(...p.map(item => item.year_at))));
 
-    const validYears: number[] = [];
-    for (let y = minStartYear; y <= limitEndYear; y++) {
-        validYears.push(y);
+    if (minYearAt > maxYearAt) return [];
+
+    const validYearAts: number[] = [];
+    for (let y = minYearAt; y <= maxYearAt; y++) {
+        validYearAts.push(y);
     }
-    const validYearsSet = new Set(validYears);
+    const validYearAtSet = new Set(validYearAts);
 
-    // Initialise the accumulator only for valid years
+    // Initialise the accumulator only for valid year_at values
     const yearMap = new Map<number, {
         totalCo2: number;
         sumLinearCI: number;
@@ -261,16 +264,18 @@ export function aggregateProfiles(responses: CarbonAssessResponse[], fallbackBas
         validAgeCount: number;
         totalGain: number;
         sumLinearGainCI: number;
+        totalYear: number;
+        yearCount: number;
     }>();
-    for (const year of validYears) {
-        yearMap.set(year, { totalCo2: 0, sumLinearCI: 0, totalAge: 0, validAgeCount: 0, totalGain: 0, sumLinearGainCI: 0 });
+    for (const yearAt of validYearAts) {
+        yearMap.set(yearAt, { totalCo2: 0, sumLinearCI: 0, totalAge: 0, validAgeCount: 0, totalGain: 0, sumLinearGainCI: 0, totalYear: 0, yearCount: 0 });
     }
 
-    // Sum each plot's contribution, skipping years outside the shortest profile's range
+    // Sum each plot's contribution, skipping year_at values outside the common overlap
     for (const profile of profiles) {
         for (const item of profile) {
-            if (!item || !validYearsSet.has(item.year)) continue;
-            const data = yearMap.get(item.year)!;
+            if (!item || !validYearAtSet.has(item.year_at)) continue;
+            const data = yearMap.get(item.year_at)!;
             data.totalCo2 += Math.floor(item.stocks.value || 0);
             data.sumLinearCI = Math.round((data.sumLinearCI + Math.floor((item.stocks.ci || 0) * 10) / 10) * 10) / 10;
             if (item.age != null && !isNaN(item.age)) {
@@ -279,21 +284,24 @@ export function aggregateProfiles(responses: CarbonAssessResponse[], fallbackBas
             }
             data.totalGain += Math.floor(item.gain.value || 0);
             data.sumLinearGainCI = Math.round((data.sumLinearGainCI + Math.floor((item.gain.ci || 0) * 10) / 10) * 10) / 10;
+            data.totalYear += item.year;
+            data.yearCount++;
         }
     }
 
-    return validYears.map((year, j) => {
-        const data = yearMap.get(year)!;
-        const avgAge = data.validAgeCount > 0 ? Math.round(data.totalAge / data.validAgeCount) : fallbackBaseAge + j;
+    return validYearAts.map((yearAt) => {
+        const data = yearMap.get(yearAt)!;
+        const avgAge = data.validAgeCount > 0 ? Math.round(data.totalAge / data.validAgeCount) : fallbackBaseAge + yearAt;
+        const avgYear = data.yearCount > 0 ? Math.round(data.totalYear / data.yearCount) : CURRENT_CE + yearAt;
         return {
             age: avgAge,
-            yearBE: year + 543,
-            year_at: j,
+            yearBE: avgYear + 543,
+            year_at: yearAt,
             co2: data.totalCo2,
             ci: data.sumLinearCI,
             gainValue: data.totalGain,
             gainCi: data.sumLinearGainCI,
-            cycle: Math.floor(j / 7),
+            cycle: Math.floor(yearAt / 7),
             cycleAge: avgAge,
             errorMargin: data.sumLinearCI,
         };

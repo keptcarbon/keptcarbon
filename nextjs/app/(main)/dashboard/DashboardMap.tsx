@@ -437,7 +437,7 @@ export default function DashboardMap({
 
       // ── Fit bounds ─────────────────────────────────────────────────────────
       if (bbox) {
-        map.fitBounds([[bbox.minLng, bbox.minLat], [bbox.maxLng, bbox.maxLat]], { padding: 60, duration: 1000, maxZoom: 16 });
+        map.fitBounds([[bbox.minLng, bbox.minLat], [bbox.maxLng, bbox.maxLat]], { padding: 60, duration: 1800, maxZoom: 16 });
       }
     });
 

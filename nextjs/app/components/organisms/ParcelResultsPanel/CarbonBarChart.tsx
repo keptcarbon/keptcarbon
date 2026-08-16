@@ -82,29 +82,13 @@ export function CarbonBarChart({
   const [range, setRange] = useState<[number, number]>([0, actualMaxIdx]);
 
   useEffect(() => {
-    let initialMax = actualMaxIdx;
-    
-    if (showAge) {
-      // กราฟแปลงเดี่ยว: เริ่มต้นโชว์ถึงอายุ 28 ก่อน ถ้าอยากดูถึง 35 ให้เลื่อนเอาเอง
-      let idx28 = -1;
-      for (let i = 0; i < allPts.length; i++) {
-        if (allPts[i].age <= 28) {
-          idx28 = i;
-        }
-      }
-      initialMax = idx28 !== -1 ? idx28 : actualMaxIdx;
-    } else {
-      // กราฟรวม: แสดงถึงพ.ศ.ของแปลงที่สั้นที่สุดก่อน (ถ้ามีส่งมา) จากนั้นเลื่อนต่อได้
-      if (initialMaxYearBE) {
-        const idx = allPts.findIndex(p => p.yearBE === initialMaxYearBE);
-        initialMax = idx !== -1 ? idx : actualMaxIdx;
-      } else {
-        initialMax = actualMaxIdx;
-      }
-    }
-    
-    setRange([0, initialMax]);
-  }, [allPts.length, showAge, actualMaxIdx, initialMaxYearBE]);
+    // เริ่มต้นโชว์ตั้งแต่ปีที่ 0 ไปจนถึงสูงสุด 15 แท่ง ถ้าอยากดูเพิ่มให้เลื่อนเอาเอง
+    const idx0 = allPts.findIndex(p => p.year_at === 0);
+    const startIdx = idx0 !== -1 ? idx0 : 0;
+    const initialMax = Math.min(startIdx + 14, actualMaxIdx);
+
+    setRange([startIdx, initialMax]);
+  }, [allPts.length, actualMaxIdx]);
 
   const minVal = Math.max(0, Math.min(range[0], actualMaxIdx));
   const maxVal = Math.max(minVal, Math.min(range[1], actualMaxIdx));
@@ -207,8 +191,9 @@ export function CarbonBarChart({
             const bh = Math.max(((p.co2 || 0) / maxCo2) * iH, 4);
             const x = startX + i * (barW + gap);
             const y = PT + iH - bh;
-            const isYearZero = p.year_at === 0;
-            const displayCycle = isYearZero ? 0 : Math.floor((p.year_at - 1) / 7);
+            const isYearZero = p.year_at <= 0;
+            const isNegativeYear = p.year_at < 0;
+            const displayCycle = p.year_at === 0 ? 0 : Math.floor((p.year_at - 1) / 7);
             const cycleClamp = Math.min(Math.max(0, displayCycle), GREEN_THEME_COLORS.length - 1);
             const col = getCycleColor(displayCycle);
             const isHov = hoverIdx === i;
@@ -222,12 +207,13 @@ export function CarbonBarChart({
                 <rect
                   x={x} y={y} width={barW} height={bh}
                   rx={isMobile ? 2 : 3}
-                  fill={isYearZero ? "#ffffff" : `url(#cycleGradGreen${cycleClamp})`}
+                  fill={isNegativeYear ? "#9ca3af" : isYearZero ? "#ffffff" : `url(#cycleGradGreen${cycleClamp})`}
                   stroke={isYearZero ? "#cbd5e1" : undefined}
                   strokeWidth={isYearZero ? 1 : undefined}
                   filter={isHov && !isYearZero ? "url(#barShadow)" : undefined}
                   style={{ transition: "all 0.15s" }}
                 />
+                {/* Error bar (hidden as requested)
                 {(p.ci || 0) > 0 && (
                   <>
                     <line x1={lineX} y1={y - errorSize} x2={lineX} y2={y + errorSize} stroke="#1e293b" strokeWidth={1.2} opacity={0.65} />
@@ -235,6 +221,7 @@ export function CarbonBarChart({
                     <line x1={lineX - 2.5} y1={y + errorSize} x2={lineX + 2.5} y2={y + errorSize} stroke="#1e293b" strokeWidth={1.2} opacity={0.65} />
                   </>
                 )}
+                */}
               </g>
             );
           })}

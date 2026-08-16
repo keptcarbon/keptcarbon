@@ -228,7 +228,7 @@ export function PlotsMapView({ plots, isMobile }: { plots: SavedPlot[], isMobile
           };
           processCoords(geom.coordinates);
         });
-        map.fitBounds(bounds, { padding: isMobile ? 40 : 80, duration: 1200 });
+        map.fitBounds(bounds, { padding: isMobile ? 40 : 80, duration: 1800 });
       }
     };
 
