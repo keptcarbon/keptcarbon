@@ -1297,6 +1297,23 @@ function MapDrawContent() {
           const projectPlots = allProjectPlots;
 
           if (projectPlots.length > 0) {
+            // action=calc with no plotId only happens on the post-login
+            // guest-project claim redirect (auth-context.tsx). That redirect
+            // can follow a full-page OAuth round-trip, which wipes the
+            // in-memory region/province selection — so the boundary polygon
+            // the guest had on screen before logging in would otherwise stay
+            // blank. Re-derive it from the claimed plot's own saved province
+            // instead of relying on state that may no longer exist.
+            if (action && !plotId && !selectedProvince) {
+              const claimedProvince = projectPlots[0]?.province;
+              if (claimedProvince) {
+                const claimedRegion = REGIONS_DATA.find(r => r.provinces.includes(claimedProvince))?.name;
+                suppressBoundaryZoomRef.current = true;
+                if (claimedRegion) setSelectedRegion(claimedRegion);
+                setSelectedProvince(claimedProvince);
+              }
+            }
+
             const feats: GeoJSON.Feature[] = projectPlots.map((p: any, i: number) => ({
               type: "Feature",
               geometry: p.geojson,
@@ -2197,24 +2214,33 @@ function MapDrawContent() {
             backendMessage = backendErrData?.message || backendErrData?.status?.message || "";
           }
 
+          // Per-parcel geometry/coverage errors: tag with the failing parcel's
+          // index so the outer catch can roll back just this parcel instead of
+          // discarding every already-valid (possibly already-saved) parcel.
+          const throwParcelIssue = (msg: string): never => {
+            const e: any = new Error(msg);
+            e.parcelIndex = pi;
+            throw e;
+          };
+
           if (sc === "E01" || errMsg.includes('"status_code":"E01"') || errMsg.includes('"E01"')) {
-            throw new Error("พื้นที่ไม่อยู่ในขอบเขตประเทศไทย กรุณาระบุพื้นที่ใหม่");
+            throwParcelIssue("พื้นที่ไม่อยู่ในขอบเขตประเทศไทย กรุณาระบุพื้นที่ใหม่");
           }
           if (sc === "E02" || errMsg.includes('"status_code":"E02"') || errMsg.includes('"E02"')) {
-            throw new Error("พื้นที่ที่กำหนดไม่อยู่ในพื้นที่ที่ให้บริการ กรุณาระบุพื้นที่ใหม่");
+            throwParcelIssue("พื้นที่ที่กำหนดไม่อยู่ในพื้นที่ที่ให้บริการ กรุณาระบุพื้นที่ใหม่");
           }
           if (sc === "E04" || errMsg.includes('"status_code":"E04"') || errMsg.includes('"E04"')) {
             throw new Error("ไม่พบข้อมูลปีปลูกในฐานข้อมูล กรุณาระบุปีปลูก (พ.ศ.) ในช่องกรอกข้อมูล");
           }
 
-          // If it's a validation error or known English error, we should probably throw it too, 
+          // If it's a validation error or known English error, we should probably throw it too,
           // but for general errors, maybe we can fallback to allow the user to manually enter data
           const engMsg = backendMessage.toLowerCase();
           if (engMsg.includes("invalid") && engMsg.includes("polygon") || errMsg.toLowerCase().includes("invalid polygon")) {
-            throw new Error("รูปทรงหรือขอบเขตพื้นที่ไม่ถูกต้อง กรุณาลบแล้ววาดแปลงใหม่");
+            throwParcelIssue("รูปทรงหรือขอบเขตพื้นที่ไม่ถูกต้อง กรุณาลบแล้ววาดแปลงใหม่");
           }
           if (engMsg.includes("geometry") || errMsg.toLowerCase().includes("geometry")) {
-            throw new Error("ข้อมูลพิกัดพื้นที่ไม่ถูกต้อง กรุณาลบแล้ววาดแปลงใหม่");
+            throwParcelIssue("ข้อมูลพิกัดพื้นที่ไม่ถูกต้อง กรุณาลบแล้ววาดแปลงใหม่");
           }
 
           // Fallback: use drawn parcel geometry when API fails for other unknown reasons
@@ -2249,22 +2275,42 @@ function MapDrawContent() {
           ?.setData({ type: "FeatureCollection", features: allFeatures });
         handleLandUseChange(allPlotsCheckedRef.current);
         if (allFeatures.length > 0) {
-          // Zoom to perfectly fit the newly drawn plot (the last one in drawnParcels)
-          const lastParcel = drawnParcels[drawnParcels.length - 1];
-          if (lastParcel) {
+          if (drawnParcels.length >= 2) {
+            // Multiple plots — fit the whole group instead of jumping to just the last one.
             const bounds = new maplibregl.LngLatBounds();
-            const geom = lastParcel.geometry as GeoJSON.Polygon | GeoJSON.MultiPolygon;
-            if (geom.type === 'Polygon') {
-              geom.coordinates[0].forEach((coord: any) => bounds.extend(coord));
-            } else if (geom.type === 'MultiPolygon') {
-              geom.coordinates[0][0].forEach((coord: any) => bounds.extend(coord));
-            }
+            drawnParcels.forEach(p => {
+              const geom = p.geometry as GeoJSON.Polygon | GeoJSON.MultiPolygon;
+              if (geom.type === 'Polygon') {
+                geom.coordinates[0].forEach((coord: any) => bounds.extend(coord));
+              } else if (geom.type === 'MultiPolygon') {
+                geom.coordinates.forEach(poly => poly[0].forEach((coord: any) => bounds.extend(coord)));
+              }
+            });
             if (!bounds.isEmpty()) {
               map.fitBounds(bounds, {
                 padding: 60,
-                duration: 1600,
+                duration: 2400,
                 easing: (t) => t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t
               });
+            }
+          } else {
+            // Zoom to perfectly fit the newly drawn plot (the only one in drawnParcels)
+            const lastParcel = drawnParcels[drawnParcels.length - 1];
+            if (lastParcel) {
+              const bounds = new maplibregl.LngLatBounds();
+              const geom = lastParcel.geometry as GeoJSON.Polygon | GeoJSON.MultiPolygon;
+              if (geom.type === 'Polygon') {
+                geom.coordinates[0].forEach((coord: any) => bounds.extend(coord));
+              } else if (geom.type === 'MultiPolygon') {
+                geom.coordinates[0][0].forEach((coord: any) => bounds.extend(coord));
+              }
+              if (!bounds.isEmpty()) {
+                map.fitBounds(bounds, {
+                  padding: 60,
+                  duration: 2400,
+                  easing: (t) => t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t
+                });
+              }
             }
           }
         }
@@ -2293,9 +2339,10 @@ function MapDrawContent() {
       }
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : String(err);
+      const failedParcelIndex = (err as any)?.parcelIndex;
 
-      if (errorMsg === "พื้นที่ที่ระบุไม่อยู่ในขอบเขตประเทศไทย กรุณาลบแล้ววาดแปลงใหม่" ||
-        errorMsg === "พื้นที่ที่ระบุไม่อยู่ในจังหวัดที่ให้บริการ กรุณาลบแล้ววาดแปลงใหม่" ||
+      if (errorMsg === "พื้นที่ไม่อยู่ในขอบเขตประเทศไทย กรุณาระบุพื้นที่ใหม่" ||
+        errorMsg === "พื้นที่ที่กำหนดไม่อยู่ในพื้นที่ที่ให้บริการ กรุณาระบุพื้นที่ใหม่" ||
         errorMsg === "รูปทรงหรือขอบเขตพื้นที่ไม่ถูกต้อง กรุณาลบแล้ววาดแปลงใหม่" ||
         errorMsg === "ข้อมูลพิกัดพื้นที่ไม่ถูกต้อง กรุณาลบแล้ววาดแปลงใหม่") {
 
@@ -2303,6 +2350,15 @@ function MapDrawContent() {
           title: "ไม่สามารถดำเนินการได้",
           desc: errorMsg
         });
+        // Roll back only the parcel that failed — keep any other already-valid
+        // (possibly already-saved) parcels/project intact and stay on step 2.
+        // Only fall back to step 1 if that failed parcel was the only one drawn.
+        if (typeof failedParcelIndex === "number") {
+          deleteParcel(failedParcelIndex);
+          if (drawnParcels.length <= 1) {
+            setCurrentStep(1);
+          }
+        }
       } else if (errorMsg === "ไม่พบข้อมูลปีปลูกในฐานข้อมูล กรุณาระบุปีปลูก (พ.ศ.) ในช่องกรอกข้อมูล") {
         setErrorPopup({
           title: "แจ้งเตือนข้อมูล",
@@ -2314,7 +2370,7 @@ function MapDrawContent() {
     } finally {
       setSearchRunning(false);
     }
-  }, [drawnParcels, totalDrawnArea, handleLandUseChange, projectType]);
+  }, [drawnParcels, totalDrawnArea, handleLandUseChange, projectType, deleteParcel]);
 
   const handleProjectTypeChange = useCallback((type: "replanting" | "existing") => {
     setProjectType(type);
