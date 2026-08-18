@@ -6,7 +6,7 @@ import type { SavedPlot } from "./types";
 import styles from "./ProjectCarbonSummary.module.css";
 import { Accordion } from "./Accordion";
 
-export function ProjectCarbonSummary({ plots, isMobile }: { plots: SavedPlot[]; isMobile: boolean }) {
+export function ProjectCarbonSummary({ plots, isMobile, onToggle }: { plots: SavedPlot[]; isMobile: boolean; onToggle?: () => void }) {
   const currentYearBE = new Date().getFullYear() + 543;
   const [isExpanded, setIsExpanded] = useState(false);
 
@@ -122,9 +122,8 @@ export function ProjectCarbonSummary({ plots, isMobile }: { plots: SavedPlot[]; 
 
   return (
     <div className={styles.container}>
-      {/* Clickable Header */}
+      {/* Header */}
       <div
-        onClick={() => setIsExpanded(!isExpanded)}
         className={`${styles.header} ${isMobile ? styles.headerMobile : ""} ${isExpanded ? styles.headerExpanded : styles.headerCollapsed}`}
       >
         <div className={styles.headerLeft}>
@@ -132,12 +131,17 @@ export function ProjectCarbonSummary({ plots, isMobile }: { plots: SavedPlot[]; 
             <i className="bi bi-bar-chart-fill" />
           </div>
           <div>
-            <div className={`${styles.headerTitle} ${isMobile ? styles.headerTitleMobile : ""}`}>สรุปคาร์บอนสะสม</div>
+            <div className={`${styles.headerTitle} ${isMobile ? styles.headerTitleMobile : ""}`}>ปริมาณคาร์บอนรวม</div>
           </div>
         </div>
-        <div className={`${styles.headerToggle} ${isExpanded ? styles.headerToggleExpanded : styles.headerToggleCollapsed}`}>
+        <button
+          type="button"
+          onClick={() => { setIsExpanded(!isExpanded); onToggle?.(); }}
+          className={`${styles.headerToggle} ${isExpanded ? styles.headerToggleExpanded : styles.headerToggleCollapsed}`}
+        >
+          ดูข้อมูล
           <i className={`bi bi-chevron-${isExpanded ? 'up' : 'down'}`} />
-        </div>
+        </button>
       </div>
 
       {/* Expandable Content */}

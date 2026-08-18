@@ -105,7 +105,7 @@ export async function GET(request: NextRequest) {
       `;
       params = [guestUserId];
     } else {
-      return NextResponse.json({ plots: [] });
+      return NextResponse.json({ plots: [], projects: [] });
     }
 
     const projectResult = await pool.query(query, params);
@@ -117,11 +117,44 @@ export async function GET(request: NextRequest) {
       : projectResult.rows;
 
     if (projectRows.length === 0) {
-      return NextResponse.json({ plots: [] });
+      return NextResponse.json({ plots: [], projects: [] });
     }
 
     const projectById = new Map(projectRows.map(row => [row.id, row]));
     const projectIds = projectRows.map(row => row.id);
+
+    // ?summary=true — lightweight listing for the my-plots table view (project
+    // name, plot count, total area only). Skips the geometry/assessment/yearly
+    // joins below so opening the list doesn't pull every plot's full payload.
+    if (searchParams.get("summary") === "true") {
+      const summaryResult = await pool.query(
+        `SELECT project_id, COUNT(*) AS plot_count, SUM(area_m2) AS total_area_m2,
+                MAX(owner_name) AS owner_name, MAX(province_code) AS province_code
+         FROM tbl_plots
+         WHERE project_id = ANY($1) AND deleted_at IS NULL
+         GROUP BY project_id`,
+        [projectIds]
+      );
+      const summaryByProjectId = new Map(summaryResult.rows.map(row => [row.project_id, row]));
+
+      const projects = projectRows
+        .map(row => {
+          const s = summaryByProjectId.get(row.id);
+          if (!s) return null; // no active plots left -> hide, matches prior grouping behavior
+          return {
+            dbProjectId: row.id,
+            projectName: row.project_name,
+            plotCount: Number(s.plot_count),
+            totalArea: s.total_area_m2 != null ? Number(s.total_area_m2) / 1600 : 0,
+            updatedAt: row.updated_at,
+            ownerName: s.owner_name ?? "",
+            province: s.province_code ?? "",
+          };
+        })
+        .filter((p): p is NonNullable<typeof p> => p !== null);
+
+      return NextResponse.json({ projects });
+    }
 
     const plotsResult = await pool.query(
       `SELECT id, project_id, polygon_id, ST_AsGeoJSON(geometry)::json AS geometry,

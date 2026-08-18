@@ -254,7 +254,7 @@ export function PlotCard({ plot, index, onDelete, onDeleteClick, onEdit, expande
                       <i className={`bi bi-clock-history ${styles.emptyGraphIcon}`} />
                     </div>
                     <div className={styles.emptyGraphTitle}>ยังไม่ได้ประมวลผลคาร์บอน</div>
-                    <div className={styles.emptyGraphSubtitle}>กรุณาไปที่หน้าวาดแปลงและกด &quot;ประมวลผล&quot; เพื่อดูกราฟการกักเก็บคาร์บอน</div>
+                    <div className={styles.emptyGraphSubtitle}>กรุณากด &quot;ประเมินคาร์บอนเครรดิต&quot; เพื่อประมวลผลข้อมูล</div>
                   </div>
                 )}
               </div>
