@@ -520,8 +520,19 @@ export default function AboutProjectPage() {
             </div>
           </Reveal>
 
-          {/* Send Message Form (existing client component, legacy-styled) */}
-          <ContactForm />
+          {/* Send Message Form + illustration */}
+          <div className="grid grid-cols-1 items-stretch gap-6 lg:grid-cols-2">
+            <ContactForm />
+            <div className="relative min-h-64 overflow-hidden rounded-xl border border-border lg:min-h-full">
+              <Image
+                src="/assets/img/web-bg-2.webp"
+                alt=""
+                fill
+                sizes="(min-width: 1024px) 50vw, 100vw"
+                className="object-cover"
+              />
+            </div>
+          </div>
         </div>
       </section>
     </div>
