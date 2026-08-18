@@ -8,6 +8,18 @@ export function isMobile() {
   return typeof window !== "undefined" && window.innerWidth <= 768;
 }
 
+// 8-char mixed-case alphanumeric id for a drawn polygon/plot. Becomes
+// polygon_id / polygons_payload[].id / backend_responses[].polygon_id /
+// frontend_plots[].id -- the stable identity a plot keeps across saves.
+const POLYGON_ID_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+export function generatePolygonId(): string {
+  let id = "";
+  for (let i = 0; i < 8; i++) {
+    id += POLYGON_ID_CHARS[Math.floor(Math.random() * POLYGON_ID_CHARS.length)];
+  }
+  return id;
+}
+
 // Equal-area-ish polygon area in m^2 (matches the original map-draw.html algorithm).
 export function polygonAreaM2(coords: LngLat[]): number {
   let a = 0;

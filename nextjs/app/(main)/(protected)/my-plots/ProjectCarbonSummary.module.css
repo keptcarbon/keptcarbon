@@ -242,7 +242,7 @@
 }
 
 .processingHeader {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 700;
   color: #1e7a47;
   display: flex;
@@ -295,7 +295,7 @@
 }
 
 .statCardLabel {
-  font-size: 11px;
+  font-size: 13px;
   color: #64748b;
   font-weight: 600;
   margin-bottom: 5px;
@@ -326,7 +326,7 @@
 }
 
 .statCardUnit {
-  font-size: 11px;
+  font-size: 13px;
   color: #94a3b8;
   font-weight: 500;
 }
@@ -363,12 +363,12 @@
 }
 
 .cycleValueCi {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 700;
 }
 
 .cycleValueUnit {
-  font-size: 11px;
+  font-size: 13px;
   color: #94a3b8;
   font-weight: 500;
 }

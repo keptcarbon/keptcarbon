@@ -4,6 +4,7 @@ from datetime import datetime
 from fastapi import HTTPException
 from shapely.geometry import shape
 
+from app.core.constants import REGION_CONFIG
 from app.core.database import get_pool
 from app.services.tree_service import TreeService
 
@@ -33,25 +34,23 @@ class AgeMapService:
     """
 
     @staticmethod
-    async def _latest_year(conn, p_code: str) -> int | None:
-        return await conn.fetchval(
-            "SELECT MAX(year) FROM geo_establishment_year WHERE p_code = $1", p_code
-        )
+    def _latest_year(p_code: str) -> int | None:
+        version = REGION_CONFIG.get(p_code, {}).get("ESTABLISHMENT_YEAR_MAP_VERSION")
+        return int(version) if version is not None else None
 
     async def get_plantation_year_count(self, poly_data: dict) -> dict:
         p_code = poly_data.get("province_code")
+        year = self._latest_year(p_code)
+
+        if year is None:
+            raise HTTPException(
+                status_code=400,
+                detail=f"AGE RASTER NOT AVAILABLE FOR PROVINCE: {p_code}"
+            )
 
         try:
             pool = get_pool()
             async with pool.acquire() as conn:
-                year = await self._latest_year(conn, p_code)
-
-                if year is None:
-                    raise HTTPException(
-                        status_code=400,
-                        detail=f"AGE RASTER NOT AVAILABLE FOR PROVINCE: {p_code}"
-                    )
-
                 key = "A302_geometry" if poly_data.get("merged_geometry") is None else "merged_geometry"
                 plantation_geom = shape(poly_data[key])
 

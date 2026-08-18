@@ -8,6 +8,7 @@ import {
   useMemo,
   useState,
 } from "react";
+import { useRouter } from "next/navigation";
 
 /** Shape returned by /api/auth/me, /api/auth/login, /api/auth/register. */
 export type SessionUser = {
@@ -32,7 +33,8 @@ type AuthContextValue = {
   openLogin: () => void;
   openRegister: () => void;
   closeModal: () => void;
-  refresh: () => void;
+  /** Resolves true if a claimed guest project already redirected the user. */
+  refresh: () => Promise<boolean>;
   logout: () => void;
 };
 
@@ -42,8 +44,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<SessionUser | null>(null);
   const [ready, setReady] = useState(false);
   const [modal, setModal] = useState<ModalKind>(null);
+  const router = useRouter();
 
   const refresh = useCallback(async () => {
+    let claimRedirected = false;
     try {
       const res = await fetch("/api/auth/me");
       if (res.ok) {
@@ -61,7 +65,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ guestKey }),
               });
-              if (claimRes.ok) localStorage.removeItem("guest_user_id");
+              if (claimRes.ok) {
+                localStorage.removeItem("guest_user_id");
+                const claimData = await claimRes.json();
+                const claimedProjects: { projectName: string }[] = claimData.projects ?? [];
+                // Land the user back on map-draw with the claimed project
+                // loaded, same as the >5-plot popup's post-login flow, so a
+                // guest project claimed from a login that had nothing to do
+                // with drawing isn't left invisible under its auto-generated
+                // "Guest-<hex>" name.
+                if (claimedProjects[0]?.projectName) {
+                  router.push(
+                    `/map-draw?project=${encodeURIComponent(claimedProjects[0].projectName)}&action=calc`
+                  );
+                  claimRedirected = true;
+                }
+              }
             } catch {
               /* non-fatal: retried on next load */
             }
@@ -73,7 +92,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch {
       setUser(null);
     }
-  }, []);
+    return claimRedirected;
+  }, [router]);
 
   useEffect(() => {
     refresh().finally(() => setReady(true));

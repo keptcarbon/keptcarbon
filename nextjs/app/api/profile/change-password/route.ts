@@ -66,6 +66,14 @@ export async function PUT(request: NextRequest) {
       );
     }
 
+    const samePassword = await bcrypt.compare(password, userRes.rows[0].password_hash);
+    if (samePassword) {
+      return NextResponse.json(
+        { error: "รหัสผ่านใหม่ต้องไม่ซ้ำกับรหัสผ่านปัจจุบัน" },
+        { status: 400 }
+      );
+    }
+
     const salt = await bcrypt.genSalt(10);
     const hash = await bcrypt.hash(password, salt);
 

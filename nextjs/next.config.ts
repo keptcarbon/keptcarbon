@@ -20,6 +20,7 @@ const isNoindex = process.env.ENABLE_NOINDEX === "true";
 
 const nextConfig: NextConfig = {
   output: "standalone",
+  serverExternalPackages: ["pg"],
   images: { unoptimized: true },
   trailingSlash: true,
   // Dev server is reverse-proxied under dev.keptcarbon.net (not localhost),

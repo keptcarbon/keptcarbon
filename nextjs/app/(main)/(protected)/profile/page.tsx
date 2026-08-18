@@ -87,6 +87,7 @@ export default function ProfilePage() {
         if (!currentPassword) nextErrors.currentPassword = "กรุณากรอกรหัสผ่านปัจจุบัน";
         if (!newPassword) nextErrors.password = "กรุณากรอกรหัสผ่าน";
         else if (newPassword.length < 6) nextErrors.password = "รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร";
+        else if (currentPassword && newPassword === currentPassword) nextErrors.password = "รหัสผ่านใหม่ต้องไม่ซ้ำกับรหัสผ่านปัจจุบัน";
         if (!confirmNewPassword) nextErrors.confirmPassword = "กรุณายืนยันรหัสผ่าน";
         else if (newPassword !== confirmNewPassword) nextErrors.confirmPassword = "รหัสผ่านไม่ตรงกัน กรุณาตรวจสอบอีกครั้ง";
         setPwdErrors(nextErrors);

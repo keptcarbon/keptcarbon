@@ -31,11 +31,13 @@ TREE_DENSITIES = {
 # Maps P_CODE to local spatial files and R&D lookup tables
 REGION_CONFIG = {
     "RAY": {  # Rayong Province 
-        "province_name": "Rayong",
-        "lu_vector": "LU_RYG_2567.gpkg",
-        "plaining_year_map": "establishment_year_rayong.tif",
-        "plaining_year_map_qa": "establishment_year_rayong_qa.tif",
-        "model_used": "weibull",
-        "biomass_assessment_method": "hytonen_2018",
+        "PROVINCE_NAME": "Rayong",
+        "LU_MAP_VERSION": "2567",
+        "ESTABLISHMENT_YEAR_MAP_VERSION": "2026",
+        "ESTABLISHMENT_YEAR_MAP_QA_VERSION": "2026",
+        "DEFAULT_SPACING_SYSTEM": "2.5x8",
+        "DEFAULT_RUBBER_CLONE": "RRIM 600",
+        "DEFAULT_MODEL": "weibull",
+        "DEFAULT_BIOMASS_ASSESSMENT_METHOD": "hytonen_2018",
     }
 }

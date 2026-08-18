@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { pool } from "@/lib/db";
 import { verifyToken, AUTH_COOKIE } from "@/lib/jwt";
-import { getUserUuid, mergeRawField, rowToProject } from "@/lib/carbon-projects";
+import { getUserUuid, rowToProjectFromNormalized } from "@/lib/carbon-projects";
+import { upsertProjectAndPlots, softDeleteProjectById } from "@/lib/normalized-plots";
 
 
 // ---------------------------------------------------------------------------
-// GET /api/plots/[id] — ดึง project เดียวตาม id
+// GET /api/plots/[id] — fetch a single project by id
 // ---------------------------------------------------------------------------
 export async function GET(
   request: NextRequest,
@@ -23,7 +24,7 @@ export async function GET(
     }
 
     const result = await pool.query(
-      `SELECT * FROM carbon_projects WHERE id = $1 AND status = 'active'`,
+      `SELECT * FROM tbl_projects WHERE id = $1 AND status = 'active'`,
       [projectId]
     );
 
@@ -33,22 +34,22 @@ export async function GET(
 
     const row = result.rows[0];
 
-    // ตรวจสอบสิทธิ์: admin ดูได้ทุกอัน / เจ้าของเท่านั้น
+    // Check permissions: admin can view everything / owner only
     if (payload?.role !== "admin") {
       const userUuid = payload ? await getUserUuid(payload) : null;
       const isOwner = row.user_uuid
         ? userUuid === row.user_uuid
         : (() => {
-            // Guest project → ต้องส่ง guest_key ที่ตรงกันมา
+            // Guest project → the matching guest_uuid must be sent
             const { searchParams } = new URL(request.url);
-            return searchParams.get("guest_user_id") === row.guest_key;
+            return searchParams.get("guest_user_id") === row.guest_uuid;
           })();
       if (!isOwner) {
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
       }
     }
 
-    return NextResponse.json({ project: rowToProject(row) });
+    return NextResponse.json({ project: rowToProjectFromNormalized(row) });
   } catch (err) {
     console.error("GET /api/plots/[id] error:", err);
     return NextResponse.json(
@@ -59,7 +60,7 @@ export async function GET(
 }
 
 // ---------------------------------------------------------------------------
-// PATCH /api/plots/[id] — อัปเดต project + บันทึก history (UPDATE)
+// PATCH /api/plots/[id] — update the project + save history (UPDATE)
 // ---------------------------------------------------------------------------
 export async function PATCH(
   request: NextRequest,
@@ -82,9 +83,9 @@ export async function PATCH(
     try {
       await client.query("BEGIN");
 
-      // ดึงข้อมูลเดิมก่อนอัปเดต
+      // Fetch the existing data before updating
       const existing = await client.query(
-        `SELECT * FROM carbon_projects WHERE id = $1 AND status = 'active'`,
+        `SELECT * FROM tbl_projects WHERE id = $1 AND status = 'active'`,
         [projectId]
       );
 
@@ -95,78 +96,28 @@ export async function PATCH(
 
       const oldRow = existing.rows[0];
 
-      // ตรวจสอบสิทธิ์: เจ้าของ (uuid ตรงกัน) หรือ guest ที่ถือ guest_key ตรงกัน
+      // Check permissions: owner (matching uuid) or a guest holding the matching guest_uuid
       if (payload?.role !== "admin") {
         const userUuid = payload ? await getUserUuid(payload) : null;
         const isOwner = oldRow.user_uuid
           ? userUuid === oldRow.user_uuid
-          : body.userId === oldRow.guest_key;
+          : body.userId === oldRow.guest_uuid;
         if (!isOwner) {
           await client.query("ROLLBACK");
           return NextResponse.json({ error: "Forbidden" }, { status: 403 });
         }
       }
 
-      // สร้าง SET clauses จาก body ที่ส่งมา
-      const finalValues: Record<string, any> = {};
-
-      // raw fields ที่ต้อง merge กับข้อมูลเดิม
-      const rawMergeMap: Record<string, string> = {
-        plantationInfo: "plantation_info",
-        polygonsPayload: "polygons_payload",
-        backendResponses: "backend_responses",
-      };
-
-      const fieldMap: Record<string, { col: string; json: boolean }> = {
-        projectId: { col: "project_name", json: false },
-        plantationInfo: { col: "plantation_info", json: true },
-        polygonsPayload: { col: "polygons_payload", json: true },
-        backendResponses: { col: "backend_responses", json: true },
-        frontendPlots: { col: "frontend_plots", json: true },
-      };
-
-      for (const [camel, { col }] of Object.entries(fieldMap)) {
-        if (body[camel] !== undefined) {
-          let valueToSave = body[camel];
-
-          // raw fields: merge กับข้อมูลเดิม
-          if (camel in rawMergeMap) {
-            const oldDbCol = rawMergeMap[camel];
-            const oldValue = oldRow[oldDbCol];
-            valueToSave = mergeRawField(oldValue, body[camel]);
-          }
-
-          finalValues[col] = valueToSave;
-        }
-      }
-
-      // แปลงเป็น SET clauses สำหรับ SQL
-      const setClauses: string[] = [];
-      const values: unknown[] = [];
-      
-      for (const [, { col, json }] of Object.entries(fieldMap)) {
-         if (finalValues[col] !== undefined) {
-             values.push(json ? JSON.stringify(finalValues[col]) : finalValues[col]);
-             setClauses.push(`${col} = $${values.length}`);
-         }
-      }
-
-      if (setClauses.length === 0) {
-        await client.query("ROLLBACK");
-        return NextResponse.json(
-          { error: "No valid fields to update" },
-          { status: 400 }
-        );
-      }
-
-      // อัปเดต record
-      values.push(projectId);
+      // project_name is the only header field PATCH can change directly;
+      // plot-level data (frontendPlots/plantationInfo/polygonsPayload/
+      // backendResponses) is written by upsertProjectAndPlots below, which
+      // already merges per-plot/per-column instead of clobbering whole blobs.
       const updateResult = await client.query(
-        `UPDATE carbon_projects
-         SET ${setClauses.join(", ")}
-         WHERE id = $${values.length} AND status = 'active'
+        `UPDATE tbl_projects
+         SET project_name = COALESCE($1, project_name), updated_at = NOW()
+         WHERE id = $2 AND status = 'active'
          RETURNING *`,
-        values
+        [body.projectId ?? null, projectId]
       );
 
       if (updateResult.rowCount === 0) {
@@ -176,11 +127,31 @@ export async function PATCH(
 
       const newRow = updateResult.rows[0];
 
+      await upsertProjectAndPlots(
+        client,
+        {
+          id: newRow.id,
+          userUuid: newRow.user_uuid,
+          guestUuid: newRow.guest_uuid,
+          projectName: newRow.project_name,
+          status: newRow.status,
+          deletedAt: newRow.deleted_at,
+          createdAt: newRow.created_at,
+          updatedAt: newRow.updated_at,
+        },
+        {
+          plantationInfo: body.plantationInfo,
+          polygonsPayload: body.polygonsPayload,
+          backendResponses: body.backendResponses,
+          frontendPlots: body.frontendPlots,
+        }
+      );
+
       await client.query("COMMIT");
 
       return NextResponse.json({
         success: true,
-        project: rowToProject(newRow),
+        project: rowToProjectFromNormalized(newRow),
       });
     } catch (err) {
       await client.query("ROLLBACK");
@@ -198,7 +169,7 @@ export async function PATCH(
 }
 
 // ---------------------------------------------------------------------------
-// DELETE /api/plots/[id] — Soft Delete project เดียว
+// DELETE /api/plots/[id] — soft delete a single project
 // ---------------------------------------------------------------------------
 export async function DELETE(
   request: NextRequest,
@@ -222,9 +193,9 @@ export async function DELETE(
     try {
       await client.query("BEGIN");
 
-      // ดึงข้อมูลเดิมก่อน soft delete
+      // Fetch the existing data before soft deleting
       const existing = await client.query(
-        `SELECT * FROM carbon_projects WHERE id = $1 AND status = 'active'`,
+        `SELECT * FROM tbl_projects WHERE id = $1 AND status = 'active'`,
         [projectId]
       );
 
@@ -235,27 +206,23 @@ export async function DELETE(
 
       const oldRow = existing.rows[0];
 
-      // ตรวจสอบสิทธิ์: เจ้าของ (uuid ตรงกัน) หรือ guest ที่ถือ guest_key ตรงกัน
+      // Check permissions: owner (matching uuid) or a guest holding the matching guest_uuid
       if (payload?.role !== "admin") {
         const userUuid = payload ? await getUserUuid(payload) : null;
         const isOwner = oldRow.user_uuid
           ? userUuid === oldRow.user_uuid
-          : guestUserId === oldRow.guest_key;
+          : guestUserId === oldRow.guest_uuid;
         if (!isOwner) {
           await client.query("ROLLBACK");
           return NextResponse.json({ error: "Forbidden" }, { status: 403 });
         }
       }
 
-      // Soft Delete: เปลี่ยน status เป็น 'deleted' (updated_at handled by trigger)
-      await client.query(
-        `UPDATE carbon_projects
-         SET status = 'deleted', deleted_at = NOW()
-         WHERE id = $1`,
-        [projectId]
-      );
+      // Soft delete: change status to 'deleted'
+      await softDeleteProjectById(client, projectId);
 
       await client.query("COMMIT");
+
       return NextResponse.json({ success: true });
     } catch (err) {
       await client.query("ROLLBACK");

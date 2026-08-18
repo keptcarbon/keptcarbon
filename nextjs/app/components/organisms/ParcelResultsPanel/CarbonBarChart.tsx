@@ -58,6 +58,7 @@ export function CarbonBarChart({
   narrowMode = false,
   showAge = true,
   initialMaxYearBE,
+  baseline,
 }: {
   pts: BarPoint[];
   isMobile?: boolean;
@@ -65,13 +66,15 @@ export function CarbonBarChart({
   narrowMode?: boolean;
   showAge?: boolean;
   initialMaxYearBE?: number;
+  /** Current-year carbon stock, shown under the title as "Baseline: value ± ci". */
+  baseline?: { value: number; ci: number };
 }) {
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
   if (!pts.length) return null;
 
-  // ถ้าส่งอายุมา (กราฟเดี่ยว) ให้แสดงถึงอายุ 35 
-  // ถ้าไม่ส่งอายุ (กราฟรวม) จะดึงข้อมูลทั้งหมดที่สรุปมาแล้ว
+  // If an age is passed (single-plot chart), show up to age 35.
+  // If no age is passed (combined chart), pull in all the already-summarized data.
   const allPts = showAge ? pts.filter(p => p.age <= 35) : pts;
   if (!allPts.length) return null;
 
@@ -79,29 +82,13 @@ export function CarbonBarChart({
   const [range, setRange] = useState<[number, number]>([0, actualMaxIdx]);
 
   useEffect(() => {
-    let initialMax = actualMaxIdx;
-    
-    if (showAge) {
-      // กราฟแปลงเดี่ยว: เริ่มต้นโชว์ถึงอายุ 28 ก่อน ถ้าอยากดูถึง 35 ให้เลื่อนเอาเอง
-      let idx28 = -1;
-      for (let i = 0; i < allPts.length; i++) {
-        if (allPts[i].age <= 28) {
-          idx28 = i;
-        }
-      }
-      initialMax = idx28 !== -1 ? idx28 : actualMaxIdx;
-    } else {
-      // กราฟรวม: แสดงถึงพ.ศ.ของแปลงที่สั้นที่สุดก่อน (ถ้ามีส่งมา) จากนั้นเลื่อนต่อได้
-      if (initialMaxYearBE) {
-        const idx = allPts.findIndex(p => p.yearBE === initialMaxYearBE);
-        initialMax = idx !== -1 ? idx : actualMaxIdx;
-      } else {
-        initialMax = actualMaxIdx;
-      }
-    }
-    
-    setRange([0, initialMax]);
-  }, [allPts.length, showAge, actualMaxIdx, initialMaxYearBE]);
+    // Start out showing from year 0 up to 15 bars max; scroll for more.
+    const idx0 = allPts.findIndex(p => p.year_at === 0);
+    const startIdx = idx0 !== -1 ? idx0 : 0;
+    const initialMax = Math.min(startIdx + 14, actualMaxIdx);
+
+    setRange([startIdx, initialMax]);
+  }, [allPts.length, actualMaxIdx]);
 
   const minVal = Math.max(0, Math.min(range[0], actualMaxIdx));
   const maxVal = Math.max(minVal, Math.min(range[1], actualMaxIdx));
@@ -142,7 +129,7 @@ export function CarbonBarChart({
     .map((p, i) => (i === 0 ? `M ${p.x},${p.y}` : `L ${p.x},${p.y}`))
     .join(" ");
 
-  // ตัดสินว่า tooltip อยู่ที่ไหน
+  // Determine where the tooltip sits
   const hoveredPt = hoverIdx !== null ? displayPts[hoverIdx] : null;
 
   return (
@@ -158,8 +145,13 @@ export function CarbonBarChart({
       justifyContent: "center"
     }}>
       {title && (
-        <div style={{ textAlign: "center", fontSize: isMobile ? 14 : (narrowMode ? 15 : 17), fontWeight: 800, color: "#17603a", marginTop: isMobile ? 0 : 4, marginBottom: isMobile ? 6 : 10 }}>
+        <div style={{ textAlign: "center", fontSize: isMobile ? 14 : (narrowMode ? 15 : 17), fontWeight: 800, color: "#17603a", marginTop: isMobile ? 0 : 4, marginBottom: baseline ? 2 : (isMobile ? 6 : 10) }}>
           {title === "ปริมาณการกักเก็บคาร์บอนสะสม (tCO₂)" ? "ปริมาณการกักเก็บคาร์บอนสะสม (tCO₂eq)" : title}
+        </div>
+      )}
+      {baseline && (
+        <div style={{ textAlign: "center", fontSize: isMobile ? 12 : 14, fontWeight: 600, color: "#5a7a65", marginBottom: isMobile ? 6 : 10 }}>
+          Baseline: <span style={{ fontSize: isMobile ? 16 : 18, color: "#17603a", fontWeight: 800 }}>{Math.floor(baseline.value).toLocaleString()}</span> ± {(Math.floor(baseline.ci * 10) / 10).toLocaleString("th-TH", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
         </div>
       )}
 
@@ -199,8 +191,9 @@ export function CarbonBarChart({
             const bh = Math.max(((p.co2 || 0) / maxCo2) * iH, 4);
             const x = startX + i * (barW + gap);
             const y = PT + iH - bh;
-            const isYearZero = p.year_at === 0;
-            const displayCycle = isYearZero ? 0 : Math.floor((p.year_at - 1) / 7);
+            const isYearZero = p.year_at <= 0;
+            const isNegativeYear = p.year_at < 0;
+            const displayCycle = p.year_at === 0 ? 0 : Math.floor((p.year_at - 1) / 7);
             const cycleClamp = Math.min(Math.max(0, displayCycle), GREEN_THEME_COLORS.length - 1);
             const col = getCycleColor(displayCycle);
             const isHov = hoverIdx === i;
@@ -214,12 +207,13 @@ export function CarbonBarChart({
                 <rect
                   x={x} y={y} width={barW} height={bh}
                   rx={isMobile ? 2 : 3}
-                  fill={isYearZero ? "#ffffff" : `url(#cycleGradGreen${cycleClamp})`}
+                  fill={isNegativeYear ? "#9ca3af" : isYearZero ? "#ffffff" : `url(#cycleGradGreen${cycleClamp})`}
                   stroke={isYearZero ? "#cbd5e1" : undefined}
                   strokeWidth={isYearZero ? 1 : undefined}
                   filter={isHov && !isYearZero ? "url(#barShadow)" : undefined}
                   style={{ transition: "all 0.15s" }}
                 />
+                {/* Error bar (hidden as requested)
                 {(p.ci || 0) > 0 && (
                   <>
                     <line x1={lineX} y1={y - errorSize} x2={lineX} y2={y + errorSize} stroke="#1e293b" strokeWidth={1.2} opacity={0.65} />
@@ -227,6 +221,7 @@ export function CarbonBarChart({
                     <line x1={lineX - 2.5} y1={y + errorSize} x2={lineX + 2.5} y2={y + errorSize} stroke="#1e293b" strokeWidth={1.2} opacity={0.65} />
                   </>
                 )}
+                */}
               </g>
             );
           })}
@@ -259,7 +254,7 @@ export function CarbonBarChart({
 
           {/* X-axis labels (cycle boundary) */}
           {displayPts.map((p, i) => {
-            // แสดง label ทุกๆ 7 ปี เริ่มจากปีแรก (ปี 0)
+            // Show a label every 7 years, starting from the first year (year 0)
             if (i % 7 !== 0) return null;
 
             const x = startX + i * (barW + gap) + barW / 2;
@@ -338,26 +333,23 @@ export function CarbonBarChart({
                   <span style={{ fontSize: 18, fontWeight: 800, color: "#fff", lineHeight: 1 }}>
                     {co2Val.toLocaleString("th-TH")}
                   </span>
-                  <span style={{ fontSize: 11, color: "rgba(255,255,255,0.6)", fontWeight: 500 }}>
-                    ±{co2Ci}
+                  <span style={{ fontSize: 14, color: "rgba(255,255,255,0.6)", fontWeight: 600 }}>
+                    ± {co2Ci}
                   </span>
                 </div>
               </div>
               <div style={{ width: "80%", height: 1, background: "rgba(255,255,255,0.12)" }} />
               <div style={{ textAlign: "center" }}>
-                <div style={{ color: "rgba(56,189,248,0.9)", fontSize: 11, fontWeight: 600, marginBottom: 1 }}>
+                <div style={{ fontSize: 11, color: "rgba(56,189,248,0.9)", fontWeight: 600, marginBottom: 1 }}>
                   คาร์บอนเครดิต
                 </div>
                 <div style={{ display: "flex", alignItems: "baseline", justifyContent: "center", gap: 3 }}>
-                  <span style={{ fontSize: 20, fontWeight: 800, color: "#38bdf8", lineHeight: 1 }}>
+                  <span style={{ fontSize: 18, fontWeight: 800, color: "#38bdf8", lineHeight: 1 }}>
                     {gainVal}
                   </span>
-                  <span style={{ fontSize: 11, color: "rgba(56,189,248,0.6)", fontWeight: 500 }}>
-                    ±{gainCiVal}
+                  <span style={{ fontSize: 14, color: "rgba(56,189,248,0.9)", fontWeight: 600 }}>
+                    ± {gainCiVal}
                   </span>
-                </div>
-                <div style={{ color: "rgba(186,230,253,0.7)", fontSize: 10, fontWeight: 500, marginTop: 2 }}>
-                  tCO₂eq
                 </div>
               </div>
               </div>

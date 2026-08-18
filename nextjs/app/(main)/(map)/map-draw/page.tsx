@@ -14,6 +14,7 @@ import {
   detectUtmFromPrj,
   detectUtmZoneAuto,
   sanitizePolygonForApi,
+  generatePolygonId,
 } from "@/lib/map-utils";
 import { getPlotsInfo, getPlotsNav } from "@/lib/carbon-api";
 import { ParcelResultsPanel } from "@/app/components/organisms";
@@ -71,7 +72,7 @@ function MapDrawContent() {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MLMap | null>(null);
   const mapLoadedRef = useRef(false);
-  // While a guest snapshot is being restored we re-apply the saved ภาค/จังหวัด
+  // While a guest snapshot is being restored we re-apply the saved region/province
   // so step 1 shows them again — but their boundary layers must NOT hijack the
   // camera away from the zoom-to-restored-plots fit. Held true only for that
   // restore window; cleared once the user touches a selector.
@@ -235,12 +236,12 @@ function MapDrawContent() {
     if (projNameParam || isEditingPlotParam) return;
     // Returning from the guest-limit auth flow: the restore effect will zoom
     // to the stashed plots — skip the default province auto-select, whose
-    // delayed boundary zoom (ระยอง) would override that fit.
+    // delayed boundary zoom (Rayong) would override that fit.
     //
     // Only skip for a *fresh* stash. A real OAuth round-trip lands back here in
     // seconds; if the guest tapped login/register but then abandoned auth, the
     // key is never consumed (the restore effect needs a logged-in user) and
-    // would otherwise disable the default ภาคตะวันออก/ระยอง auto-select for the
+    // would otherwise disable the default Eastern region/Rayong auto-select for the
     // rest of the tab session. Treat a stale key as abandoned: clear it and
     // fall through to the default.
     try {
@@ -268,6 +269,12 @@ function MapDrawContent() {
   const [stepWarningPopup, setStepWarningPopup] = useState<boolean>(false);
   const [guestLimitPopup, setGuestLimitPopup] = useState<boolean>(false);
   const [plotsSaved, setPlotsSaved] = useState(false);
+  // Tracks the currently active DB project for this drawing session (set once
+  // the guest's first assessment/save writes a row), so it can be soft-deleted
+  // if the guest discards it by starting a new area.
+  const [activeDbProjectId, setActiveDbProjectId] = useState<number | null>(null);
+  const [activeGuestKey, setActiveGuestKey] = useState<string | null>(null);
+  const [resetProjectToken, setResetProjectToken] = useState(0);
 
   const [hiddenProjectPlots, setHiddenProjectPlots] = useState<GeoJSON.Feature[]>([]);
   const [existingProjectPlots, setExistingProjectPlots] = useState<any[]>([]);
@@ -302,6 +309,17 @@ function MapDrawContent() {
 
   const handleConfirmStep1 = () => {
     setStepWarningPopup(false);
+    // Guest discarding a drawn/assessed area to start over → soft-delete the
+    // project row already written to the DB so it doesn't linger as "active".
+    if (!user && activeDbProjectId) {
+      const guestParam = activeGuestKey
+        ? `?guest_user_id=${encodeURIComponent(activeGuestKey)}`
+        : "";
+      fetch(`/api/plots/${activeDbProjectId}${guestParam}`, { method: "DELETE" }).catch(console.error);
+    }
+    setActiveDbProjectId(null);
+    setActiveGuestKey(null);
+    setResetProjectToken(t => t + 1);
     clearDraw();
     setCurrentStep(1);
     setProjectName("");
@@ -421,10 +439,10 @@ function MapDrawContent() {
       sessionStorage.setItem(MAP_DRAW_RESUME_KEY, JSON.stringify({
         ts: Date.now(),
         parcels: parcelsWithForms,
-        // Land-use polygons from plantation-info (A302 ฯลฯ) — shown in the
-        // panel as luFeatures; without them the restore says "ไม่พบข้อมูล"
+        // Land-use polygons from plantation-info (A302 etc.) — shown in the
+        // panel as luFeatures; without them the restore says "ไม่พบข้อมูล" (No data found)
         luFeatures: parcelFeatures,
-        // The guest's ภาค/จังหวัด/อำเภอ/ตำบล picks. The OAuth redirect reloads the
+        // The guest's region/province/district/subdistrict picks. The OAuth redirect reloads the
         // page and wipes this React state, so without stashing it the dropdowns
         // come back empty when the user steps back to step 1 after logging in.
         region: selectedRegion,
@@ -461,7 +479,7 @@ function MapDrawContent() {
       setSearchCount(feats.length);
       setStatus("เข้าสู่ระบบสำเร็จ — แปลงที่วาดไว้ถูกกู้คืนแล้ว");
 
-      // Re-apply the guest's ภาค/จังหวัด/อำเภอ/ตำบล so stepping back to step 1
+      // Re-apply the guest's region/province/district/subdistrict so stepping back to step 1
       // shows them again. Suppress the boundary hook's auto-zoom for this window
       // so it doesn't pull the camera off the zoom-to-plots fit below.
       if (data?.region) {
@@ -1279,6 +1297,23 @@ function MapDrawContent() {
           const projectPlots = allProjectPlots;
 
           if (projectPlots.length > 0) {
+            // action=calc with no plotId only happens on the post-login
+            // guest-project claim redirect (auth-context.tsx). That redirect
+            // can follow a full-page OAuth round-trip, which wipes the
+            // in-memory region/province selection — so the boundary polygon
+            // the guest had on screen before logging in would otherwise stay
+            // blank. Re-derive it from the claimed plot's own saved province
+            // instead of relying on state that may no longer exist.
+            if (action && !plotId && !selectedProvince) {
+              const claimedProvince = projectPlots[0]?.province;
+              if (claimedProvince) {
+                const claimedRegion = REGIONS_DATA.find(r => r.provinces.includes(claimedProvince))?.name;
+                suppressBoundaryZoomRef.current = true;
+                if (claimedRegion) setSelectedRegion(claimedRegion);
+                setSelectedProvince(claimedProvince);
+              }
+            }
+
             const feats: GeoJSON.Feature[] = projectPlots.map((p: any, i: number) => ({
               type: "Feature",
               geometry: p.geojson,
@@ -1382,10 +1417,16 @@ function MapDrawContent() {
                 const pad = isMob
                   ? { top: 60, bottom: 350, left: 60, right: 60 }
                   : { top: 80, bottom: 80, left: 80, right: 420 };
+                // action=calc with no plotId only happens on the post-login
+                // guest-project claim redirect (auth-context.tsx) — match the
+                // >5-plot popup restore's slower reveal there. The My Plots
+                // "edit a plot" deep link always pairs action with plotId and
+                // keeps the snappier duration since that's a deliberate click.
+                const duration = action && !plotId ? 2400 : 700;
                 try {
-                  map.fitBounds(bounds, { padding: pad, duration: 700, maxZoom: 17 });
+                  map.fitBounds(bounds, { padding: pad, duration, maxZoom: 17 });
                 } catch (e) {
-                  map.fitBounds(bounds, { padding: 60, duration: 700, maxZoom: 17 });
+                  map.fitBounds(bounds, { padding: 60, duration, maxZoom: 17 });
                 }
               }
             }
@@ -1518,7 +1559,7 @@ function MapDrawContent() {
       type: "Feature",
       geometry: { type: "Polygon", coordinates: [ring] },
       properties: {
-        id: Math.random().toString(36).substring(7),
+        id: generatePolygonId(),
         rai: rai,
         status: null, // "new" | "old"
         year: null,
@@ -1887,7 +1928,7 @@ function MapDrawContent() {
         if (coordMode === "latlng") {
           const la = parseFloat(coordLat.replace(/,/g, '')), lo = parseFloat(coordLng.replace(/,/g, ''));
           if (!isNaN(la) && !isNaN(lo) && la >= -90 && la <= 90 && lo >= -180 && lo <= 180) {
-            map.flyTo({ center: [lo, la], zoom: 15, duration: 1800, essential: true });
+            map.flyTo({ center: [lo, la], zoom: 15, duration: 2400, essential: true });
           }
         } else {
           const ev = parseFloat(coordE.replace(/,/g, '')), nv = parseFloat(coordN.replace(/,/g, ''));
@@ -1895,7 +1936,7 @@ function MapDrawContent() {
             try {
               const { lat: la, lng: lo } = utmToLatLng(ev, nv, coordUtmZone, true);
               if (la >= -90 && la <= 90 && lo >= -180 && lo <= 180) {
-                map.flyTo({ center: [lo, la], zoom: 15, duration: 1800, essential: true });
+                map.flyTo({ center: [lo, la], zoom: 15, duration: 2400, essential: true });
               }
             } catch { /* ignore invalid coords */ }
           }
@@ -1904,7 +1945,7 @@ function MapDrawContent() {
     }
   };
 
-  // "ค้นหาแปลงจากพิกัด" — check the lat/lng against /plots/nav, then zoom + drop a marker if serviced
+  // "ค้นหาแปลงจากพิกัด" (Search plot by coordinates) — check the lat/lng against /plots/nav, then zoom + drop a marker if serviced
   const handleCoordSearch = async () => {
     const map = mapRef.current;
     const la = parseFloat(coordLat.replace(/,/g, '')), lo = parseFloat(coordLng.replace(/,/g, ''));
@@ -1944,7 +1985,7 @@ function MapDrawContent() {
     }
   };
 
-  // Clear อำเภอ/ตำบล and zoom the map back out to the selected จังหวัด (e.g. ระยอง)
+  // Clear district/subdistrict and zoom the map back out to the selected province (e.g. Rayong)
   const zoomToSelectedProvince = useCallback(() => {
     const map = mapRef.current;
     if (!map || !mapLoadedRef.current || !selectedProvince) return;
@@ -1953,11 +1994,11 @@ function MapDrawContent() {
     // its zoom and the map would stay parked on the restored plots.
     suppressBoundaryZoomRef.current = false;
     if (selectedAmphoe || selectedTambon) {
-      // Clearing อำเภอ/ตำบล makes the boundary hook redraw + zoom to the province.
+      // Clearing district/subdistrict makes the boundary hook redraw + zoom to the province.
       setSelectedAmphoe("");
       setSelectedTambon("");
     } else {
-      // อำเภอ already empty — zoom to the province directly.
+      // District already empty — zoom to the province directly.
       fetch(`/api/geojson/boundary?province=${encodeURIComponent(selectedProvince)}`)
         .then(r => (r.ok ? r.json() : null))
         .then(fc => { if (fc?.features?.length) zoomToGeoJSONFeatures(fc.features, map); })
@@ -2046,8 +2087,14 @@ function MapDrawContent() {
       (map.getSource("draw-fill") as maplibregl.GeoJSONSource).setData(emptyFC());
       (map.getSource("draw-verts") as maplibregl.GeoJSONSource).setData(emptyFC());
     }
-    zoomToSelectedProvince();
-  }, [zoomToSelectedProvince]);
+    // Cancelling a "draw more" pass with existing plots should return to
+    // those plots, not zoom all the way back out to the step-1 region.
+    if (drawnParcels.length > 0 && map) {
+      zoomToGeoJSONFeatures(drawnParcels, map);
+    } else {
+      zoomToSelectedProvince();
+    }
+  }, [zoomToSelectedProvince, drawnParcels]);
 
   const cancelSearch = useCallback(() => {
     searchAbortRef.current?.abort();
@@ -2167,24 +2214,33 @@ function MapDrawContent() {
             backendMessage = backendErrData?.message || backendErrData?.status?.message || "";
           }
 
+          // Per-parcel geometry/coverage errors: tag with the failing parcel's
+          // index so the outer catch can roll back just this parcel instead of
+          // discarding every already-valid (possibly already-saved) parcel.
+          const throwParcelIssue = (msg: string): never => {
+            const e: any = new Error(msg);
+            e.parcelIndex = pi;
+            throw e;
+          };
+
           if (sc === "E01" || errMsg.includes('"status_code":"E01"') || errMsg.includes('"E01"')) {
-            throw new Error("พื้นที่ไม่อยู่ในขอบเขตประเทศไทย กรุณาระบุพื้นที่ใหม่");
+            throwParcelIssue("พื้นที่ไม่อยู่ในขอบเขตประเทศไทย กรุณาระบุพื้นที่ใหม่");
           }
           if (sc === "E02" || errMsg.includes('"status_code":"E02"') || errMsg.includes('"E02"')) {
-            throw new Error("พื้นที่ที่กำหนดไม่อยู่ในพื้นที่ที่ให้บริการ กรุณาระบุพื้นที่ใหม่");
+            throwParcelIssue("พื้นที่ที่กำหนดไม่อยู่ในพื้นที่ที่ให้บริการ กรุณาระบุพื้นที่ใหม่");
           }
           if (sc === "E04" || errMsg.includes('"status_code":"E04"') || errMsg.includes('"E04"')) {
             throw new Error("ไม่พบข้อมูลปีปลูกในฐานข้อมูล กรุณาระบุปีปลูก (พ.ศ.) ในช่องกรอกข้อมูล");
           }
 
-          // If it's a validation error or known English error, we should probably throw it too, 
+          // If it's a validation error or known English error, we should probably throw it too,
           // but for general errors, maybe we can fallback to allow the user to manually enter data
           const engMsg = backendMessage.toLowerCase();
           if (engMsg.includes("invalid") && engMsg.includes("polygon") || errMsg.toLowerCase().includes("invalid polygon")) {
-            throw new Error("รูปทรงหรือขอบเขตพื้นที่ไม่ถูกต้อง กรุณาลบแล้ววาดแปลงใหม่");
+            throwParcelIssue("รูปทรงหรือขอบเขตพื้นที่ไม่ถูกต้อง กรุณาลบแล้ววาดแปลงใหม่");
           }
           if (engMsg.includes("geometry") || errMsg.toLowerCase().includes("geometry")) {
-            throw new Error("ข้อมูลพิกัดพื้นที่ไม่ถูกต้อง กรุณาลบแล้ววาดแปลงใหม่");
+            throwParcelIssue("ข้อมูลพิกัดพื้นที่ไม่ถูกต้อง กรุณาลบแล้ววาดแปลงใหม่");
           }
 
           // Fallback: use drawn parcel geometry when API fails for other unknown reasons
@@ -2219,22 +2275,42 @@ function MapDrawContent() {
           ?.setData({ type: "FeatureCollection", features: allFeatures });
         handleLandUseChange(allPlotsCheckedRef.current);
         if (allFeatures.length > 0) {
-          // Zoom to perfectly fit the newly drawn plot (the last one in drawnParcels)
-          const lastParcel = drawnParcels[drawnParcels.length - 1];
-          if (lastParcel) {
+          if (drawnParcels.length >= 2) {
+            // Multiple plots — fit the whole group instead of jumping to just the last one.
             const bounds = new maplibregl.LngLatBounds();
-            const geom = lastParcel.geometry as GeoJSON.Polygon | GeoJSON.MultiPolygon;
-            if (geom.type === 'Polygon') {
-              geom.coordinates[0].forEach((coord: any) => bounds.extend(coord));
-            } else if (geom.type === 'MultiPolygon') {
-              geom.coordinates[0][0].forEach((coord: any) => bounds.extend(coord));
-            }
+            drawnParcels.forEach(p => {
+              const geom = p.geometry as GeoJSON.Polygon | GeoJSON.MultiPolygon;
+              if (geom.type === 'Polygon') {
+                geom.coordinates[0].forEach((coord: any) => bounds.extend(coord));
+              } else if (geom.type === 'MultiPolygon') {
+                geom.coordinates.forEach(poly => poly[0].forEach((coord: any) => bounds.extend(coord)));
+              }
+            });
             if (!bounds.isEmpty()) {
               map.fitBounds(bounds, {
                 padding: 60,
-                duration: 1600,
+                duration: 2400,
                 easing: (t) => t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t
               });
+            }
+          } else {
+            // Zoom to perfectly fit the newly drawn plot (the only one in drawnParcels)
+            const lastParcel = drawnParcels[drawnParcels.length - 1];
+            if (lastParcel) {
+              const bounds = new maplibregl.LngLatBounds();
+              const geom = lastParcel.geometry as GeoJSON.Polygon | GeoJSON.MultiPolygon;
+              if (geom.type === 'Polygon') {
+                geom.coordinates[0].forEach((coord: any) => bounds.extend(coord));
+              } else if (geom.type === 'MultiPolygon') {
+                geom.coordinates[0][0].forEach((coord: any) => bounds.extend(coord));
+              }
+              if (!bounds.isEmpty()) {
+                map.fitBounds(bounds, {
+                  padding: 60,
+                  duration: 2400,
+                  easing: (t) => t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t
+                });
+              }
             }
           }
         }
@@ -2263,9 +2339,10 @@ function MapDrawContent() {
       }
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : String(err);
+      const failedParcelIndex = (err as any)?.parcelIndex;
 
-      if (errorMsg === "พื้นที่ที่ระบุไม่อยู่ในขอบเขตประเทศไทย กรุณาลบแล้ววาดแปลงใหม่" ||
-        errorMsg === "พื้นที่ที่ระบุไม่อยู่ในจังหวัดที่ให้บริการ กรุณาลบแล้ววาดแปลงใหม่" ||
+      if (errorMsg === "พื้นที่ไม่อยู่ในขอบเขตประเทศไทย กรุณาระบุพื้นที่ใหม่" ||
+        errorMsg === "พื้นที่ที่กำหนดไม่อยู่ในพื้นที่ที่ให้บริการ กรุณาระบุพื้นที่ใหม่" ||
         errorMsg === "รูปทรงหรือขอบเขตพื้นที่ไม่ถูกต้อง กรุณาลบแล้ววาดแปลงใหม่" ||
         errorMsg === "ข้อมูลพิกัดพื้นที่ไม่ถูกต้อง กรุณาลบแล้ววาดแปลงใหม่") {
 
@@ -2273,6 +2350,15 @@ function MapDrawContent() {
           title: "ไม่สามารถดำเนินการได้",
           desc: errorMsg
         });
+        // Roll back only the parcel that failed — keep any other already-valid
+        // (possibly already-saved) parcels/project intact and stay on step 2.
+        // Only fall back to step 1 if that failed parcel was the only one drawn.
+        if (typeof failedParcelIndex === "number") {
+          deleteParcel(failedParcelIndex);
+          if (drawnParcels.length <= 1) {
+            setCurrentStep(1);
+          }
+        }
       } else if (errorMsg === "ไม่พบข้อมูลปีปลูกในฐานข้อมูล กรุณาระบุปีปลูก (พ.ศ.) ในช่องกรอกข้อมูล") {
         setErrorPopup({
           title: "แจ้งเตือนข้อมูล",
@@ -2284,7 +2370,7 @@ function MapDrawContent() {
     } finally {
       setSearchRunning(false);
     }
-  }, [drawnParcels, totalDrawnArea, handleLandUseChange, projectType]);
+  }, [drawnParcels, totalDrawnArea, handleLandUseChange, projectType, deleteParcel]);
 
   const handleProjectTypeChange = useCallback((type: "replanting" | "existing") => {
     setProjectType(type);
@@ -2509,7 +2595,7 @@ function MapDrawContent() {
     const lats = coords.map(([, y]) => y);
     map.fitBounds(
       [[Math.min(...lngs), Math.min(...lats)], [Math.max(...lngs), Math.max(...lats)]],
-      { padding: 80, duration: 1800, maxZoom: 18, easing: (t) => t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t },
+      { padding: 80, duration: 2400, maxZoom: 18, easing: (t) => t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t },
     );
   }, []);
 
@@ -3142,17 +3228,18 @@ function MapDrawContent() {
                         gap: isMobile() ? 16 : 8,
                         animation: "pulse-soft 2s infinite"
                       }}>
-                        <div style={{
-                          width: isMobile() ? "48px" : "36px",
-                          height: isMobile() ? "48px" : "36px",
-                          borderRadius: "50%",
-                          background: "rgba(220, 38, 38, 0.1)", color: "#dc2626",
-                          display: "flex", alignItems: "center", justifyContent: "center",
-                          fontSize: isMobile() ? "20px" : "16px"
-                        }}>
-                          <i className="bi bi-vector-pen" />
-                        </div>
-                        <div style={{ textAlign: "center" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: isMobile() ? 12 : 8 }}>
+                          <div style={{
+                            width: isMobile() ? "48px" : "36px",
+                            height: isMobile() ? "48px" : "36px",
+                            borderRadius: "50%",
+                            background: "rgba(220, 38, 38, 0.1)", color: "#dc2626",
+                            display: "flex", alignItems: "center", justifyContent: "center",
+                            fontSize: isMobile() ? "20px" : "16px",
+                            flexShrink: 0
+                          }}>
+                            <i className="bi bi-vector-pen" />
+                          </div>
                           <h3 style={{ margin: 0, fontSize: isMobile() ? "16px" : "14px", fontWeight: 700, color: "#0f172a" }}>กำลังวาดแปลง...</h3>
                         </div>
                         <div style={{ display: "flex", gap: 8, width: "100%" }}>
@@ -3363,6 +3450,11 @@ function MapDrawContent() {
                 onProjectNameChange={setProjectName}
                 autoProcessTrigger={autoProcessTrigger}
                 onSave={() => setPlotsSaved(true)}
+                onProjectSaved={({ projectId, guestKey }) => {
+                  setActiveDbProjectId(projectId);
+                  setActiveGuestKey(guestKey);
+                }}
+                resetProjectToken={resetProjectToken}
                 existingProjectPlots={existingProjectPlots}
                 editingPlotId={editingPlotId}
                 onPlotFormsChange={(forms) => { plotFormsRef.current = forms; }}

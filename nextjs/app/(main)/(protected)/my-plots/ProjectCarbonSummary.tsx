@@ -37,51 +37,59 @@ export function ProjectCarbonSummary({ plots, isMobile }: { plots: SavedPlot[]; 
       return { combinedPts: [], totalNow: fallbackTotal, ciNow: fallbackLinearCi, initialMaxYearBE: undefined };
     }
 
-    const minEndYearBE = Math.min(...allPtsArrays.map(pts => pts[pts.length - 1].yearBE));
-    const minStartYearBE = Math.min(...allPtsArrays.map(pts => pts[0].yearBE));
+    // Align by year_at (years relative to each plot's own baseline) rather than
+    // absolute calendar year, and trim to the range every plot has in common —
+    // the intersection of year_at values, not the union.
+    const minYearAt = Math.max(...allPtsArrays.map(pts => Math.min(...pts.map(p => p.year_at))));
+    const maxYearAt = Math.min(...allPtsArrays.map(pts => Math.max(...pts.map(p => p.year_at))));
 
-    const validYearBEs: number[] = [];
-    for (let y = minStartYearBE; y <= minEndYearBE; y++) validYearBEs.push(y);
-    const validYearBESet = new Set(validYearBEs);
+    const validYearAts: number[] = [];
+    if (minYearAt <= maxYearAt) {
+      for (let y = minYearAt; y <= maxYearAt; y++) validYearAts.push(y);
+    }
+    const validYearAtSet = new Set(validYearAts);
 
     const age28Years = allPtsArrays.map(pts => {
       const item28 = pts.find(p => p.age === 28 && p.isAgeValid);
       return item28 ? item28.yearBE : pts[pts.length - 1].yearBE;
     });
-    const initialMaxYearBE = Math.min(...age28Years);
+    const initialMaxYearBE = age28Years.length > 0 ? Math.min(...age28Years) : undefined;
 
-    const sumMap = new Map<number, { co2: number; sumLinearCi: number; totalValidAge: number; validAgeCount: number; fallbackAgeAccum: number; fallbackCount: number; gainValue: number; gainCi: number; }>();
-    for (const yearBE of validYearBEs) {
-      sumMap.set(yearBE, { co2: 0, sumLinearCi: 0, totalValidAge: 0, validAgeCount: 0, fallbackAgeAccum: 0, fallbackCount: 0, gainValue: 0, gainCi: 0 });
+    const sumMap = new Map<number, { co2: number; sumLinearCi: number; totalValidAge: number; validAgeCount: number; fallbackAgeAccum: number; fallbackCount: number; gainValue: number; gainCi: number; totalYear: number; yearCount: number; }>();
+    for (const yearAt of validYearAts) {
+      sumMap.set(yearAt, { co2: 0, sumLinearCi: 0, totalValidAge: 0, validAgeCount: 0, fallbackAgeAccum: 0, fallbackCount: 0, gainValue: 0, gainCi: 0, totalYear: 0, yearCount: 0 });
     }
 
     for (const pts of allPtsArrays) {
       for (const p of pts) {
-        if (!validYearBESet.has(p.yearBE)) continue;
-        const e = sumMap.get(p.yearBE)!;
+        if (!validYearAtSet.has(p.year_at)) continue;
+        const e = sumMap.get(p.year_at)!;
         e.co2 += Math.floor(p.co2 || 0);
         e.sumLinearCi = Math.round((e.sumLinearCi + Math.floor((p.ci || 0) * 10) / 10) * 10) / 10;
         e.gainValue += Math.floor(p.gainValue || 0);
         e.gainCi = Math.round((e.gainCi + Math.floor((p.gainCi || 0) * 10) / 10) * 10) / 10;
         if (p.isAgeValid) { e.totalValidAge += p.age; e.validAgeCount += 1; }
         else { e.fallbackAgeAccum += p.age; e.fallbackCount += 1; }
+        e.totalYear += p.yearBE;
+        e.yearCount += 1;
       }
     }
 
-    const combinedPts: BarPoint[] = validYearBEs.map((yearBE, i) => {
-      const d = sumMap.get(yearBE)!;
+    const combinedPts: BarPoint[] = validYearAts.map((yearAt) => {
+      const d = sumMap.get(yearAt)!;
       const avgAge = d.validAgeCount > 0 ? Math.round(d.totalValidAge / d.validAgeCount) : Math.round(d.fallbackAgeAccum / (d.fallbackCount || 1));
+      const avgYearBE = d.yearCount > 0 ? Math.round(d.totalYear / d.yearCount) : currentYearBE + yearAt;
       return {
-        age: avgAge, yearBE, year_at: i,
+        age: avgAge, yearBE: avgYearBE, year_at: yearAt,
         co2: d.co2, ci: d.sumLinearCi,
         gainValue: d.gainValue,
         gainCi: d.gainCi,
-        cycle: Math.floor(i / 7), cycleAge: avgAge, errorMargin: d.sumLinearCi,
+        cycle: Math.floor(yearAt / 7), cycleAge: avgAge, errorMargin: d.sumLinearCi,
         isAgeValid: d.validAgeCount > 0
       };
     });
 
-    const currentPt = combinedPts.length > 0 ? combinedPts[0] : null;
+    const currentPt = combinedPts.find(p => p.year_at === 0) ?? (combinedPts.length > 0 ? combinedPts[0] : null);
     return {
       combinedPts,
       totalNow: (currentPt?.co2 ?? 0) + fallbackTotal,
@@ -139,12 +147,7 @@ export function ProjectCarbonSummary({ plots, isMobile }: { plots: SavedPlot[]; 
           {/* Left: Chart Panel */}
           <div className={`${styles.chartPanel} ${isMobile ? styles.chartPanelMobile : ""}`}>
             {combinedPts.length > 0 ? (
-              <>
-                <div className={styles.chartLabel}>
-                  <i className={`bi bi-activity ${styles.chartLabelIcon}`} /> แนวโน้มคาร์บอนสะสมรวม
-                </div>
-                <CarbonBarChart pts={combinedPts} isMobile={true} narrowMode={false} showAge={false} title="ปริมาณคาร์บอนกักเก็บ (tCO₂eq)" initialMaxYearBE={initialMaxYearBE} />
-              </>
+              <CarbonBarChart pts={combinedPts} isMobile={isMobile} narrowMode={!isMobile} showAge={false} title="ปริมาณคาร์บอนกักเก็บ (tCO₂eq)" initialMaxYearBE={initialMaxYearBE} baseline={{ value: totalNow, ci: ciNow }} />
             ) : (
               <div className={styles.emptyChart}>
                 <i className={`bi bi-bar-chart ${styles.emptyChartIcon}`} />
@@ -158,19 +161,6 @@ export function ProjectCarbonSummary({ plots, isMobile }: { plots: SavedPlot[]; 
             {/* Premium subtle glow decoration */}
             <div className={styles.glowTopRight} />
             <div className={styles.glowBottomLeft} />
-            {/* Main carbon metric */}
-            <div className={styles.metricBox}>
-              <div className={styles.metricLabel}>
-                <i className="bi bi-cloud-arrow-down-fill" />
-                ปริมาณคาร์บอนสะสมรวม ณ ปีปัจจุบัน
-              </div>
-              <div className={`${styles.metricValue} ${isMobile ? styles.metricValueMobile : ""}`}>
-                {Math.floor(totalNow).toLocaleString("th-TH")}{" "}
-                <span className={`${styles.metricCi} ${isMobile ? styles.metricCiMobile : ""}`}>± {(Math.floor(ciNow * 10) / 10).toLocaleString("th-TH", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}</span>{" "}
-                <span className={styles.metricUnit}>tCO₂eq</span>
-              </div>
-            </div>
-
             {/* Processing data Header */}
             <div className={styles.processingHeader}>
               <i className="bi bi-layers-fill" />
