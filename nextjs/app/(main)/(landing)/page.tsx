@@ -119,8 +119,8 @@ export default function Home() {
               {/* ── Real product demo recording ──────────────────────── */}
               <LazyVideo
                 className="absolute inset-0 size-full object-cover object-top"
-                src="/assets/video/map-draw-demo.mp4"
-                poster="/assets/video/map-draw-demo-poster.webp"
+                src="/assets/video/keptcarbon-demo.mp4"
+                poster="/assets/video/keptcarbon-demo-poster.webp"
               />
             </div>
           </Reveal>
