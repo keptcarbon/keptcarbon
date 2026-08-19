@@ -164,7 +164,7 @@ export default function Home() {
             <Leaf className="size-10" aria-hidden="true" />
           </div>
           <h2 className="mt-0 mb-3 text-3xl font-bold tracking-tight text-foreground md:text-3xl">
-            พร้อมประเมินศักยภาพคาร์บอนเครดิตสวนยางของคุณหรือยัง?
+            พร้อมประเมินศักยภาพคาร์บอนกักเก็บสวนยางของคุณหรือยัง?
           </h2>
           <p className="mx-auto mb-8 max-w-2xl text-sm text-muted-foreground md:text-base">
             เริ่มต้นใช้งาน KeptCarbon Platform วันนี้ เพื่อเตรียมความพร้อมสู่ตลาดคาร์บอนเครดิตในอนาคต

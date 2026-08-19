@@ -3011,7 +3011,7 @@ function MapDrawContent() {
 
                     <h2 className="mds-s1-title" style={{ marginBottom: 12 }}>กำหนดขอบเขตแปลง</h2>
                     <p className="mds-s1-sub">
-                      วาดแปลงบนแผนที่เพื่อกำหนดพื้นที่ประเมินคาร์บอนเครดิต
+                      วาดแปลงบนแผนที่เพื่อกำหนดพื้นที่ประเมินคาร์บอนกักเก็บ
                     </p>
                   </div>
                 </div>

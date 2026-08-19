@@ -374,7 +374,7 @@ export default function MyPlotsPage() {
       }
 
     } catch (err) {
-      setErrorModalMsg("เกิดข้อผิดพลาดในการประมวลผลคาร์บอนเครดิต");
+      setErrorModalMsg("เกิดข้อผิดพลาดในการประมวลผลคาร์บอนกักเก็บ");
     } finally {
       setEstimating(false);
     }
@@ -486,7 +486,7 @@ export default function MyPlotsPage() {
             <p className="m-0 text-sm text-muted-foreground">
               {viewMode === "all"
                 ? "ตรวจสอบและจัดการข้อมูลแปลงของผู้ใช้งานทุกคนในระบบ"
-                : "จัดการข้อมูลแปลงและผลประเมินคาร์บอนเครดิต"}
+                : "จัดการข้อมูลแปลงและผลประเมินคาร์บอนกักเก็บ"}
             </p>
           </div>
           <Button
@@ -536,7 +536,7 @@ export default function MyPlotsPage() {
                     {estimating ? (
                       <><Loader2 className="size-4 animate-spin" aria-hidden="true" /> กำลังประมวลผล...</>
                     ) : (
-                      <><Sparkles className="size-4" aria-hidden="true" /> ประเมินคาร์บอนเครดิต</>
+                      <><Sparkles className="size-4" aria-hidden="true" /> ประเมินคาร์บอนกักเก็บ</>
                     )}
                   </button>
                   <Link href={`/map-draw?project=${encodeURIComponent(activeProject.projectName)}`} className="flex h-10 flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-primary/25 bg-primary/5 px-4 text-sm font-semibold text-primary no-underline transition-colors hover:bg-primary/10 md:flex-initial">

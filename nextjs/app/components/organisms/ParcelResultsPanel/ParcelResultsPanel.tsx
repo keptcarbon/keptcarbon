@@ -2020,9 +2020,9 @@ export function ParcelResultsPanel({
                     <div style={{ flex: 1 }}>
                         <div style={{ fontSize: isMobile ? 16 : 18, fontWeight: 700, color: "#1a3d2b", lineHeight: 1.25, letterSpacing: "-0.2px" }}>
                             {isMobile ? (
-                                <>ผลการประเมินผล<br />คาร์บอนเครดิต</>
+                                <>ผลการประเมิน<br />คาร์บอนกักเก็บ</>
                             ) : (
-                                "ผลการประเมินผลคาร์บอนเครดิต"
+                                "ผลการประเมินผลคาร์บอนกักเก็บ"
                             )}
                         </div>
                         <div style={{ fontSize: 12, color: "#5a7a65", marginTop: 3, fontWeight: 500 }}>
@@ -2099,7 +2099,7 @@ export function ParcelResultsPanel({
                         <div style={{ padding: "14px 14px 16px" }}>
                             {aggregatePts.length > 0 && (
                                 <div>
-                                    <CarbonBarChart pts={aggregatePts} isMobile={isMobile} narrowMode={!isMobile} showAge={false} title="ปริมาณคาร์บอนสะสม (tCO₂eq/Project)" initialMaxYearBE={aggregateMinEndYearBE > 0 ? aggregateMinEndYearBE : undefined} baseline={{ value: summaryTotalCo2, ci: summaryTotalCo2Ci || 0 }} />
+                                    <CarbonBarChart pts={aggregatePts} isMobile={isMobile} narrowMode={!isMobile} showAge={false} title="ปริมาณคาร์บอนสะสม (tCO₂eq/โครงการ)" initialMaxYearBE={aggregateMinEndYearBE > 0 ? aggregateMinEndYearBE : undefined} baseline={{ value: summaryTotalCo2, ci: summaryTotalCo2Ci || 0 }} />
                                 </div>
                             )}
                         </div>

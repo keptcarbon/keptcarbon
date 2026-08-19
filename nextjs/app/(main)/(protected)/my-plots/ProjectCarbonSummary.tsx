@@ -151,7 +151,7 @@ export function ProjectCarbonSummary({ plots, isMobile, onToggle }: { plots: Sav
           {/* Left: Chart Panel */}
           <div className={`${styles.chartPanel} ${isMobile ? styles.chartPanelMobile : ""}`}>
             {combinedPts.length > 0 ? (
-              <CarbonBarChart pts={combinedPts} isMobile={isMobile} narrowMode={!isMobile} showAge={false} title="ปริมาณคาร์บอนสะสม (tCO₂eq/Project)" initialMaxYearBE={initialMaxYearBE} baseline={{ value: totalNow, ci: ciNow }} />
+              <CarbonBarChart pts={combinedPts} isMobile={isMobile} narrowMode={!isMobile} showAge={false} title="ปริมาณคาร์บอนสะสม (tCO₂eq/โครงการ)" initialMaxYearBE={initialMaxYearBE} baseline={{ value: totalNow, ci: ciNow }} />
             ) : (
               <div className={styles.emptyChart}>
                 <i className={`bi bi-bar-chart ${styles.emptyChartIcon}`} />
@@ -202,7 +202,7 @@ export function ProjectCarbonSummary({ plots, isMobile, onToggle }: { plots: Sav
                       label={`ปีที่ ${pt.year_at} (พ.ศ. ${pt.yearBE})`}
                       value={
                         <div className={styles.cycleValueBlock}>
-                          <div className={styles.cycleValueLabel}>คาร์บอนเครดิต</div>
+                          <div className={styles.cycleValueLabel}>คาร์บอนเครดิ</div>
                           <div className={styles.cycleValueRow}>
                             <span className={`${styles.cycleValueMain} ${isMobile ? styles.cycleValueMainMobile : ""}`} style={{ color: col.bot }}>
                               {Math.floor(pt.gainValue).toLocaleString("th-TH")}

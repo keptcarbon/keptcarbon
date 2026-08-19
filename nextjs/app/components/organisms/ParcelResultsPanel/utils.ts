@@ -192,11 +192,11 @@ export function getFriendlyErrorMessage(err: unknown, plots: PlotInfo[], plotFor
 
     // Network / connection errors
     if (msg.includes("fetch") || msg.includes("NetworkError") || msg.includes("Failed to fetch")) {
-        return `ไม่สามารถเชื่อมต่อกับระบบประมวลผลคาร์บอนเครดิตได้${plotSuffix}`;
+        return `ไม่สามารถเชื่อมต่อกับระบบประมวลผลคาร์บอนกักเก็บได้${plotSuffix}`;
     }
 
     // Other errors
-    return `เกิดข้อผิดพลาดในการประมวลผลคาร์บอนเครดิต กรุณาตรวจสอบข้อมูลแปลงและลองอีกครั้ง${plotSuffix}`;
+    return `เกิดข้อผิดพลาดในการประมวลผลคาร์บอนกักเก็บ กรุณาตรวจสอบข้อมูลแปลงและลองอีกครั้ง${plotSuffix}`;
 }
 
 export function computePlot(feat: GeoJSON.Feature): PlotInfo {
