@@ -45,8 +45,8 @@ const adminNavLinks = [
 /* Shown instead of navLinks while browsing the R&D area (/rnd). */
 const rndNavLinks = [
   { label: "หน้าแรก", href: "/", icon: LayoutGrid },
-  { label: "ค่าพารามิเตอร์", href: "/rnd/configuration", icon: Settings },
-  { label: "ข้อมูล", href: "/rnd/data-management", icon: Database },
+  { label: "ตั้งค่าพารามิเตอร์", href: "/rnd/configuration", icon: Settings },
+  { label: "จัดการข้อมูล GeoAI", href: "/rnd/data-management", icon: Database },
 ] as const;
 
 /* ── Component ───────────────────────────────────────────────────────────── */
