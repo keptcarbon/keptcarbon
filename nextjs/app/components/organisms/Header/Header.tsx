@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { useRouter, usePathname } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import {
   Menu,
@@ -38,7 +38,6 @@ const adminNavLinks = [
 
 /* ── Component ───────────────────────────────────────────────────────────── */
 export default function Header() {
-  const router = useRouter();
   const pathname = usePathname();
   const { ready, user, openLogin, openRegister, logout } = useAuth();
 
@@ -76,7 +75,11 @@ export default function Header() {
   const onLogout = async () => {
     await logout();
     closeNav();
-    router.push("/");
+    // Don't also router.push("/") here: on guarded routes (admin, profile,
+    // my-plots) the route's own guard already redirects reactively once
+    // `user` clears, and firing a second navigation to the same href at the
+    // same time races it — the transitions interrupt each other and leave
+    // the guard's loading spinner stuck until the user clicks a link.
   };
 
   const isActive = (href: string) => {

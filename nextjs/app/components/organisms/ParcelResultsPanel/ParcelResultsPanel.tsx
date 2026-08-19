@@ -2099,7 +2099,7 @@ export function ParcelResultsPanel({
                         <div style={{ padding: "14px 14px 16px" }}>
                             {aggregatePts.length > 0 && (
                                 <div>
-                                    <CarbonBarChart pts={aggregatePts} isMobile={isMobile} narrowMode={!isMobile} showAge={false} initialMaxYearBE={aggregateMinEndYearBE > 0 ? aggregateMinEndYearBE : undefined} baseline={{ value: summaryTotalCo2, ci: summaryTotalCo2Ci || 0 }} />
+                                    <CarbonBarChart pts={aggregatePts} isMobile={isMobile} narrowMode={!isMobile} showAge={false} title="ปริมาณคาร์บอนสะสม (tCO₂eq/Project)" initialMaxYearBE={aggregateMinEndYearBE > 0 ? aggregateMinEndYearBE : undefined} baseline={{ value: summaryTotalCo2, ci: summaryTotalCo2Ci || 0 }} />
                                 </div>
                             )}
                         </div>

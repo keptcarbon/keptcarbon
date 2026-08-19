@@ -90,7 +90,37 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ── Section B: Platform Highlights ──────────────────────────── */}
+      {/* ── Section B: Benefits ─────────────────────────────────────── */}
+      <section className="border-t border-border bg-muted/30 px-4 py-16 sm:px-6 md:py-24 lg:px-8">
+        <div className="mx-auto w-full max-w-7xl">
+          <Reveal className="mx-auto mb-12 max-w-2xl text-center">
+            <h2 className="mt-0 mb-3 text-2xl font-bold tracking-tight text-foreground md:text-3xl">
+              ทำไมต้องเลือก KeptCarbon?
+            </h2>
+            <p className="m-0 text-base text-muted-foreground">
+              ยกระดับการจัดการคาร์บอนเครดิตด้วยเทคโนโลยีที่แม่นยำและเชื่อถือได้
+            </p>
+          </Reveal>
+
+          <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 md:grid-cols-3 md:gap-10">
+            {benefits.map(({ icon: Icon, title, description }, i) => (
+              <Reveal
+                key={title}
+                delay={i * 120}
+                className="flex flex-col items-center px-2 text-center"
+              >
+                <div className="mb-4 flex size-12 items-center justify-center rounded-full bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400">
+                  <Icon className="size-10" aria-hidden="true" />
+                </div>
+                <h3 className="mb-2 text-lg font-semibold text-foreground">{title}</h3>
+                <p className="text-sm leading-relaxed text-muted-foreground">{description}</p>
+              </Reveal>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── Section D: Platform Demo ──────────────────────────── */}
       <section className="border-t border-border bg-muted/50 px-4 py-16 sm:px-6 md:py-24 lg:px-8">
         <div className="mx-auto w-full max-w-7xl">
           <div className="mx-auto mb-10 max-w-2xl text-center md:mb-14">
@@ -125,37 +155,7 @@ export default function Home() {
             </div>
           </Reveal>
         </div>
-      </section>
-
-      {/* ── Section D: Benefits ─────────────────────────────────────── */}
-      <section className="border-t border-border bg-muted/30 px-4 py-16 sm:px-6 md:py-24 lg:px-8">
-        <div className="mx-auto w-full max-w-7xl">
-          <Reveal className="mx-auto mb-12 max-w-2xl text-center">
-            <h2 className="mt-0 mb-3 text-2xl font-bold tracking-tight text-foreground md:text-3xl">
-              ทำไมต้องเลือก KeptCarbon?
-            </h2>
-            <p className="m-0 text-base text-muted-foreground">
-              ยกระดับการจัดการคาร์บอนเครดิตด้วยเทคโนโลยีที่แม่นยำและเชื่อถือได้
-            </p>
-          </Reveal>
-
-          <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 md:grid-cols-3 md:gap-10">
-            {benefits.map(({ icon: Icon, title, description }, i) => (
-              <Reveal
-                key={title}
-                delay={i * 120}
-                className="flex flex-col items-center px-2 text-center"
-              >
-                <div className="mb-4 flex size-12 items-center justify-center rounded-full bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400">
-                  <Icon className="size-10" aria-hidden="true" />
-                </div>
-                <h3 className="mb-2 text-lg font-semibold text-foreground">{title}</h3>
-                <p className="text-sm leading-relaxed text-muted-foreground">{description}</p>
-              </Reveal>
-            ))}
-          </div>
-        </div>
-      </section>
+      </section>      
 
       {/* ── Section E: CTA Banner ────────────────────────────────────── */}
       <section className="w-full border-t border-border bg-background px-4 py-16 text-center sm:px-6 md:py-24 lg:px-8">

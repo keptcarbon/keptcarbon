@@ -151,7 +151,7 @@ export function ProjectCarbonSummary({ plots, isMobile, onToggle }: { plots: Sav
           {/* Left: Chart Panel */}
           <div className={`${styles.chartPanel} ${isMobile ? styles.chartPanelMobile : ""}`}>
             {combinedPts.length > 0 ? (
-              <CarbonBarChart pts={combinedPts} isMobile={isMobile} narrowMode={!isMobile} showAge={false} title="ปริมาณคาร์บอนกักเก็บ (tCO₂eq)" initialMaxYearBE={initialMaxYearBE} baseline={{ value: totalNow, ci: ciNow }} />
+              <CarbonBarChart pts={combinedPts} isMobile={isMobile} narrowMode={!isMobile} showAge={false} title="ปริมาณคาร์บอนสะสม (tCO₂eq/Project)" initialMaxYearBE={initialMaxYearBE} baseline={{ value: totalNow, ci: ciNow }} />
             ) : (
               <div className={styles.emptyChart}>
                 <i className={`bi bi-bar-chart ${styles.emptyChartIcon}`} />
