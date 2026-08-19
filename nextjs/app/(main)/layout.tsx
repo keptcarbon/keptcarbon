@@ -8,6 +8,9 @@ import { useAuth } from "@/lib/auth-context";
  * Admin accounts are confined to the (admin) area — visiting any general-user
  * page here bounces them to /admin/users, except /profile which admins are
  * still allowed to view (with the admin-style navbar, see Header.tsx).
+ * R&D accounts are NOT confined: they browse the main site like any regular
+ * user, with the extra Configuration/Data management pages layered on top
+ * (see the account dropdown and Header.tsx).
  */
 export default function MainLayout({ children }: { children: React.ReactNode }) {
   const { ready, user } = useAuth();
