@@ -1,7 +1,33 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { fromArrayBuffer, GeoTIFFImage } from "geotiff";
 import { Alert, Card } from "@/app/components";
+
+// Raster header metadata read client-side from the .tif itself (geotiff.js)
+// — only applies to the establishment-year-map category.
+type TiffMeta = {
+    bandCount: number;
+    noData: number | null;
+    min: number | null;
+    max: number | null;
+    crs: string;
+    pixelSizeX: number | null;
+    pixelSizeY: number | null;
+    // Unit the pixel size is expressed in, inferred from whether the CRS
+    // is geographic (degrees) or projected (usually meters).
+    pixelSizeUnit: "deg" | "m" | null;
+    // "tag": read from the embedded GDAL STATISTICS_MINIMUM/MAXIMUM metadata
+    // (fast, no pixel scan). "scan": no such tag, computed from every pixel.
+    // "scan-downsampled": no tag, and the raster was too large to scan at
+    // full resolution, so it was resampled down first — real data, but an
+    // approximation rather than the exact pixel-perfect min/max.
+    minMaxSource: "tag" | "scan" | "scan-downsampled" | null;
+};
+
+// Rasters above this pixel count are downsampled before scanning for
+// min/max, so a province-wide .tif doesn't freeze the browser.
+const MAX_SAMPLES_FOR_MINMAX = 25_000_000;
 
 type DatasetCategory = "establishment_year_map" | "lulc_map" | "biomass_profile";
 type DatasetStatus = "active" | "draft" | "archived";
@@ -158,6 +184,14 @@ export default function RndDataManagementPage() {
     const [importVersion, setImportVersion] = useState("");
     const [importFile, setImportFile] = useState<File | null>(null);
     const [importing, setImporting] = useState(false);
+    const [confirmError, setConfirmError] = useState<string | null>(null);
+    const [fileMeta, setFileMeta] = useState<TiffMeta | null>(null);
+    const [fileMetaLoading, setFileMetaLoading] = useState(false);
+    const [fileMetaError, setFileMetaError] = useState<string | null>(null);
+    // Raw values the parser actually saw — printed to console + shown in a
+    // collapsible debug panel so a mismatch (e.g. missing STATISTICS_* tags)
+    // can be diagnosed without opening devtools.
+    const [fileDebug, setFileDebug] = useState<Record<string, unknown> | null>(null);
 
     // ── geo_thailand reference (region → province → p_code) ──
     const [provinces, setProvinces] = useState<GeoProvince[]>([]);
@@ -226,16 +260,203 @@ export default function RndDataManagementPage() {
         setImportCategory("");
         setImportVersion("");
         setImportFile(null);
+        setFileMeta(null);
+        setFileMetaError(null);
+        setFileDebug(null);
+        setConfirmError(null);
+    }
+
+    // GDAL embeds STATISTICS_MINIMUM/MAXIMUM in the GDAL_METADATA tag (42112)
+    // when the file was built with stats (e.g. gdalinfo -stats). Reading that
+    // is instant — far cheaper than scanning every pixel — so it's tried
+    // first, before falling back to a pixel scan. geotiff.js's
+    // getGDALMetadata(sample) filters strictly on the Item's "sample"
+    // attribute: pass a band index to get that band's items, or null for
+    // dataset-level items with no "sample" attribute at all — which is how
+    // GDAL often writes stats for a single-band raster, so both are tried.
+    async function readMinMaxFromGdalTags(
+        image: GeoTIFFImage,
+        bandCount: number,
+        debugLog: Record<string, unknown>
+    ): Promise<{ min: number; max: number } | null> {
+        const mins: number[] = [];
+        const maxs: number[] = [];
+        const perSampleMeta: Record<string, unknown> = {};
+
+        const datasetMeta = await image.getGDALMetadata(null);
+        perSampleMeta.dataset = datasetMeta;
+        collectMinMax(datasetMeta, mins, maxs);
+
+        for (let sample = 0; sample < bandCount; sample++) {
+            const meta = await image.getGDALMetadata(sample);
+            perSampleMeta[`sample_${sample}`] = meta;
+            collectMinMax(meta, mins, maxs);
+        }
+
+        debugLog.gdalMetadataByScope = perSampleMeta;
+        if (mins.length === 0 || maxs.length === 0) return null;
+        return { min: Math.min(...mins), max: Math.max(...maxs) };
+    }
+
+    function collectMinMax(meta: Record<string, unknown> | null, mins: number[], maxs: number[]) {
+        if (!meta) return;
+        const minVal = parseFloat(String(meta.STATISTICS_MINIMUM ?? ""));
+        const maxVal = parseFloat(String(meta.STATISTICS_MAXIMUM ?? ""));
+        if (!Number.isNaN(minVal)) mins.push(minVal);
+        if (!Number.isNaN(maxVal)) maxs.push(maxVal);
+    }
+
+    async function readTiffMetadata(file: File) {
+        setFileMeta(null);
+        setFileMetaError(null);
+        setFileDebug(null);
+        setFileMetaLoading(true);
+        const debugLog: Record<string, unknown> = {};
+        try {
+            const buffer = await file.arrayBuffer();
+            const tiff = await fromArrayBuffer(buffer);
+            const image = await tiff.getImage();
+
+            const bandCount = image.getSamplesPerPixel();
+            const noData = image.getGDALNoData();
+            const geoKeys = image.getGeoKeys();
+            const epsgCode = geoKeys?.ProjectedCSTypeGeoKey ?? geoKeys?.GeographicTypeGeoKey ?? null;
+            const crs = epsgCode ? `EPSG:${epsgCode}` : "ไม่ระบุ";
+            const pixelSizeUnit: TiffMeta["pixelSizeUnit"] =
+                geoKeys?.ProjectedCSTypeGeoKey ? "m" : geoKeys?.GeographicTypeGeoKey ? "deg" : null;
+
+            let pixelSizeX: number | null = null;
+            let pixelSizeY: number | null = null;
+            try {
+                const [resX, resY] = image.getResolution();
+                pixelSizeX = Math.abs(resX);
+                pixelSizeY = Math.abs(resY);
+            } catch {
+                // No affine transform on this image — leave pixel size unset.
+            }
+            debugLog.pixelSizeX = pixelSizeX;
+            debugLog.pixelSizeY = pixelSizeY;
+
+            debugLog.hasGdalMetadataTag = image.fileDirectory.hasTag("GDAL_METADATA");
+            debugLog.rawGdalMetadataXml = debugLog.hasGdalMetadataTag
+                ? await image.fileDirectory.loadValue("GDAL_METADATA")
+                : null;
+            debugLog.bandCount = bandCount;
+            debugLog.noData = noData;
+            debugLog.width = image.getWidth();
+            debugLog.height = image.getHeight();
+
+            let min: number | null = null;
+            let max: number | null = null;
+            let minMaxSource: TiffMeta["minMaxSource"] = null;
+
+            const tagStats = await readMinMaxFromGdalTags(image, bandCount, debugLog);
+            if (tagStats) {
+                min = tagStats.min;
+                max = tagStats.max;
+                minMaxSource = "tag";
+            } else {
+                // No embedded stats tag — scan pixels for a real min/max.
+                // Large rasters (a province-wide .tif easily exceeds the cap)
+                // are read at a downsampled resolution instead of being
+                // skipped, so this always resolves to real values.
+                const width = image.getWidth();
+                const height = image.getHeight();
+                const sampleCount = width * height * bandCount;
+                const downsampled = sampleCount > MAX_SAMPLES_FOR_MINMAX;
+                const scale = downsampled ? Math.sqrt(MAX_SAMPLES_FOR_MINMAX / sampleCount) : 1;
+                const readWidth = Math.max(1, Math.round(width * scale));
+                const readHeight = Math.max(1, Math.round(height * scale));
+
+                debugLog.minMaxDownsampled = downsampled;
+                debugLog.minMaxReadWidth = readWidth;
+                debugLog.minMaxReadHeight = readHeight;
+
+                const rasters = await image.readRasters(
+                    downsampled ? { width: readWidth, height: readHeight, resampleMethod: "nearest" } : undefined
+                );
+                const bands = (Array.isArray(rasters) ? rasters : [rasters]) as ArrayLike<number>[];
+                for (const band of bands) {
+                    for (let i = 0; i < band.length; i++) {
+                        const v = band[i];
+                        if (noData !== null && v === noData) continue;
+                        if (min === null || v < min) min = v;
+                        if (max === null || v > max) max = v;
+                    }
+                }
+                minMaxSource = downsampled ? "scan-downsampled" : "scan";
+            }
+
+            debugLog.resolvedMinMaxSource = minMaxSource;
+            debugLog.resolvedMin = min;
+            debugLog.resolvedMax = max;
+            console.log(`[readTiffMetadata] ${file.name}`, debugLog);
+            setFileDebug(debugLog);
+            setFileMeta({ bandCount, noData, min, max, crs, pixelSizeX, pixelSizeY, pixelSizeUnit, minMaxSource });
+        } catch (err) {
+            debugLog.error = err instanceof Error ? err.message : String(err);
+            console.log(`[readTiffMetadata] ${file.name} — failed`, debugLog);
+            setFileDebug(debugLog);
+            setFileMetaError("ไม่สามารถอ่าน metadata จากไฟล์นี้ได้ — ไฟล์อาจไม่ใช่ GeoTIFF ที่ถูกต้อง");
+        } finally {
+            setFileMetaLoading(false);
+        }
     }
 
     function handleImportFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-        setImportFile(e.target.files?.[0] ?? null);
+        const file = e.target.files?.[0] ?? null;
+        setImportFile(file);
+        setFileMeta(null);
+        setFileMetaError(null);
+        setFileDebug(null);
+        if (file && importCategory === "establishment_year_map") {
+            void readTiffMetadata(file);
+        }
     }
 
     async function handleConfirmImport() {
-        if (!selectedProvince || !importCategory || !importFile) return;
+        if (!selectedProvince || !importCategory || !importVersion.trim() || !importFile) return;
+        setConfirmError(null);
         setImporting(true);
-        // No datasets API yet — this only demonstrates the UI flow.
+
+        if (importCategory === "establishment_year_map") {
+            // Real import — persisted into geo_establishment_year via PostGIS.
+            try {
+                const body = new FormData();
+                body.set("file", importFile);
+                body.set("pCode", selectedProvince.pCode);
+                body.set("year", importVersion.trim());
+
+                const res = await fetch("/api/rnd/geo-establishment-year", { method: "POST", body });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) {
+                    throw new Error(data.error || "นำเข้าไฟล์ไม่สำเร็จ");
+                }
+
+                const newDataset: ResearchDataset = {
+                    id: `imported-${Date.now()}`,
+                    name: importFile.name.replace(/\.[^/.]+$/, ""),
+                    category: importCategory,
+                    pCode: selectedProvince.pCode,
+                    provinceName: selectedProvince.nameTh,
+                    version: importVersion.trim(),
+                    description: "นำเข้าโดยผู้ใช้งาน R&D",
+                    updatedAt: new Date().toISOString().slice(0, 10),
+                    status: "active",
+                };
+                setDatasets((prev) => [newDataset, ...prev]);
+                setSuccess(`นำเข้า “${newDataset.name}” สำเร็จ (${data.tileCount} tiles)`);
+                setTimeout(() => setSuccess(null), 3000);
+                resetImportWizard();
+            } catch (err) {
+                setConfirmError(err instanceof Error ? err.message : "นำเข้าไฟล์ไม่สำเร็จ");
+            } finally {
+                setImporting(false);
+            }
+            return;
+        }
+
+        // lulc_map / biomass_profile have no backend endpoint yet — UI-only.
         await new Promise((resolve) => setTimeout(resolve, 700));
         const newDataset: ResearchDataset = {
             id: `imported-${Date.now()}`,
@@ -243,16 +464,64 @@ export default function RndDataManagementPage() {
             category: importCategory,
             pCode: selectedProvince.pCode,
             provinceName: selectedProvince.nameTh,
-            version: importVersion.trim() || "v1",
+            version: importVersion.trim(),
             description: "นำเข้าโดยผู้ใช้งาน R&D",
             updatedAt: new Date().toISOString().slice(0, 10),
             status: "draft",
         };
         setDatasets((prev) => [newDataset, ...prev]);
         setImporting(false);
-        setSuccess(`นำเข้า “${newDataset.name}” สำเร็จ`);
+        setSuccess(`นำเข้า “${newDataset.name}” สำเร็จ (ยังไม่เชื่อมต่อ API จริงสำหรับประเภทนี้)`);
         setTimeout(() => setSuccess(null), 3000);
         resetImportWizard();
+    }
+
+    // Block "ถัดไป" out of step 2 while the .tif metadata read is still in
+    // flight — the review step needs fileMeta settled before the user moves on.
+    // geo_establishment_year.year is an integer column — free text like "v1"
+    // doesn't fit, so this category requires a numeric year specifically.
+    const versionIsValid =
+        importCategory === "establishment_year_map"
+            ? /^\d+$/.test(importVersion.trim())
+            : !!importVersion.trim();
+
+    const nextDisabled =
+        (importStep === 1 && !importPCode) ||
+        (importStep === 2 && (!importCategory || !versionIsValid || !importFile || fileMetaLoading));
+
+    // Raster metadata rows only apply to the establishment-year-map (.tif)
+    // category — .gpkg/.csv have no bands/NoData/CRS concept to read here.
+    const reviewRows: { label: string; value: string }[] = [
+        { label: "จังหวัด", value: selectedProvince ? `${selectedProvince.nameTh} (${selectedProvince.pCode})` : "-" },
+        { label: "ประเภทข้อมูล", value: importCategory ? CATEGORY_META[importCategory].label : "-" },
+        { label: "เวอร์ชัน", value: importVersion.trim() },
+        { label: "ไฟล์", value: importFile?.name ?? "-" },
+        { label: "ขนาดไฟล์", value: importFile ? `${(importFile.size / 1024).toFixed(1)} KB` : "-" },
+    ];
+    if (importCategory === "establishment_year_map") {
+        if (fileMetaLoading) {
+            reviewRows.push({ label: "Metadata ไฟล์", value: "กำลังอ่าน…" });
+        } else if (fileMetaError) {
+            reviewRows.push({ label: "Metadata ไฟล์", value: fileMetaError });
+        } else if (fileMeta) {
+            const minMaxSuffix =
+                fileMeta.minMaxSource === "tag" ? " (จาก tag สถิติ)" :
+                fileMeta.minMaxSource === "scan" ? " (คำนวณจากพิกเซล)" :
+                fileMeta.minMaxSource === "scan-downsampled" ? " (ประมาณจากข้อมูลย่อส่วน)" : "";
+            const pixelSizeUnitLabel = fileMeta.pixelSizeUnit === "deg" ? "องศา" : "ม.";
+            const pixelSize =
+                fileMeta.pixelSizeX !== null && fileMeta.pixelSizeY !== null
+                    ? `${fileMeta.pixelSizeX} × ${fileMeta.pixelSizeY} ${pixelSizeUnitLabel}`
+                    : "-";
+            reviewRows.push(
+                { label: "จำนวนแบนด์ (Bands)", value: String(fileMeta.bandCount) },
+                { label: "ค่า No-Data", value: fileMeta.noData !== null ? String(fileMeta.noData) : "ไม่ระบุ" },
+                { label: "ค่าต่ำสุด (Min)", value: fileMeta.min !== null ? `${fileMeta.min}${minMaxSuffix}` : "-" },
+                { label: "ค่าสูงสุด (Max)", value: fileMeta.max !== null ? `${fileMeta.max}${minMaxSuffix}` : "-" },
+                { label: "ระบบพิกัด (CRS)", value: fileMeta.crs },
+                { label: "ขนาดพิกเซล (Pixel Size)", value: pixelSize },
+            );
+        }
     }
 
     return (
@@ -516,13 +785,21 @@ export default function RndDataManagementPage() {
                                 </select>
                             </div>
                             <div className="mb-3">
-                                <div style={{ fontSize: 13.5, fontWeight: 600, color: "#5a7a65", marginBottom: 4 }}>เวอร์ชัน (ถ้ามี)</div>
+                                <div style={{ fontSize: 13.5, fontWeight: 600, color: "#5a7a65", marginBottom: 4 }}>
+                                    เวอร์ชัน/ปีของข้อมูล <span style={{ color: "#dc2626" }}>*</span>
+                                </div>
                                 <input
                                     value={importVersion}
                                     onChange={(e) => setImportVersion(e.target.value)}
-                                    placeholder="เช่น v1, 2568"
+                                    placeholder={importCategory === "establishment_year_map" ? "เช่น 2568" : "เช่น v1, 2568"}
+                                    inputMode={importCategory === "establishment_year_map" ? "numeric" : "text"}
                                     style={{ width: "100%", borderRadius: 10, border: "1px solid #e6f0ea", background: "#fff", padding: "9px 12px", fontSize: 14, outline: "none", color: "#1a3d2b" }}
                                 />
+                                {importCategory === "establishment_year_map" && importVersion.trim() !== "" && !versionIsValid && (
+                                    <div style={{ fontSize: 11.5, color: "#dc2626", marginTop: 4 }}>
+                                        ต้องเป็นตัวเลขปีเท่านั้น (บันทึกลงคอลัมน์ year ที่เป็นจำนวนเต็ม)
+                                    </div>
+                                )}
                             </div>
                             <div>
                                 <div style={{ fontSize: 13.5, fontWeight: 600, color: "#5a7a65", marginBottom: 4 }}>ไฟล์ข้อมูล</div>
@@ -537,7 +814,14 @@ export default function RndDataManagementPage() {
                                 >
                                     <i className="bi bi-cloud-arrow-up" style={{ fontSize: 26, color: "#1e7a47" }} />
                                     {importFile ? (
-                                        <span style={{ fontSize: 13.5, fontWeight: 600, color: "#1a3d2b" }}>{importFile.name}</span>
+                                        <>
+                                            <span style={{ fontSize: 13.5, fontWeight: 600, color: "#1a3d2b" }}>{importFile.name}</span>
+                                            {importCategory === "establishment_year_map" && (
+                                                <span style={{ fontSize: 12, color: fileMetaError ? "#c53030" : "#94a3b8" }}>
+                                                    {fileMetaLoading ? "กำลังอ่าน metadata ของไฟล์…" : fileMetaError ? fileMetaError : fileMeta ? "อ่าน metadata สำเร็จ" : ""}
+                                                </span>
+                                            )}
+                                        </>
                                     ) : (
                                         <>
                                             <span style={{ fontSize: 14, fontWeight: 600, color: "#1a3d2b" }}>คลิกเพื่อเลือกไฟล์ หรือวางไฟล์ที่นี่</span>
@@ -565,13 +849,7 @@ export default function RndDataManagementPage() {
                                 ตรวจสอบข้อมูลก่อนนำเข้าสู่ระบบ
                             </div>
                             <div style={{ border: "1px solid #f1f5f9", borderRadius: 12, overflow: "hidden" }}>
-                                {[
-                                    { label: "จังหวัด", value: selectedProvince ? `${selectedProvince.nameTh} (${selectedProvince.pCode})` : "-" },
-                                    { label: "ประเภทข้อมูล", value: importCategory ? CATEGORY_META[importCategory].label : "-" },
-                                    { label: "เวอร์ชัน", value: importVersion.trim() || "v1" },
-                                    { label: "ไฟล์", value: importFile?.name ?? "-" },
-                                    { label: "ขนาดไฟล์", value: importFile ? `${(importFile.size / 1024).toFixed(1)} KB` : "-" },
-                                ].map((row, i) => (
+                                {reviewRows.map((row, i) => (
                                     <div
                                         key={row.label}
                                         className="d-flex justify-content-between"
@@ -582,6 +860,21 @@ export default function RndDataManagementPage() {
                                     </div>
                                 ))}
                             </div>
+
+                            {fileDebug && (
+                                <details className="mt-3">
+                                    <summary style={{ fontSize: 12, color: "#94a3b8", cursor: "pointer" }}>
+                                        Metadata ที่อ่านได้จากไฟล์
+                                    </summary>
+                                    <pre style={{
+                                        marginTop: 8, padding: 12, borderRadius: 8,
+                                        background: "#0f172a", color: "#d1fae5",
+                                        fontSize: 11, lineHeight: 1.5, overflowX: "auto", maxHeight: 320,
+                                    }}>
+                                        {JSON.stringify(fileDebug, (_key, value) => typeof value === "bigint" ? value.toString() : value, 2)}
+                                    </pre>
+                                </details>
+                            )}
                         </div>
                     )}
 
@@ -598,10 +891,15 @@ export default function RndDataManagementPage() {
                             <h3 className="fw-bold mb-2" style={{ fontSize: 18, color: "#1a3d2b" }}>
                                 พร้อมนำเข้า &ldquo;{importFile?.name}&rdquo;
                             </h3>
-                            <p className="mb-0" style={{ fontSize: 14, color: "#6b7280", lineHeight: 1.6 }}>
-                                ระบบจะเพิ่มชุดข้อมูลนี้เป็นสถานะ<strong>ฉบับร่าง</strong>สำหรับจังหวัด
-                                <strong> {selectedProvince?.nameTh} ({selectedProvince?.pCode})</strong> ในรายการข้อมูลอ้างอิง
-                            </p>
+                            {confirmError && (
+                                <div style={{
+                                    marginTop: 12, padding: "10px 14px", borderRadius: 10,
+                                    background: "#fef2f2", color: "#c53030", fontSize: 13, textAlign: "left",
+                                }}>
+                                    <i className="bi bi-exclamation-circle me-1" />
+                                    {confirmError}
+                                </div>
+                            )}
                         </div>
                     )}
 
@@ -622,18 +920,19 @@ export default function RndDataManagementPage() {
                         {importStep < LAST_IMPORT_STEP ? (
                             <button
                                 onClick={() => setImportStep((s) => (s < LAST_IMPORT_STEP ? ((s + 1) as ImportStep) : s))}
-                                disabled={
-                                    (importStep === 1 && !importPCode) ||
-                                    (importStep === 2 && (!importCategory || !importFile))
-                                }
+                                disabled={nextDisabled}
                                 className="btn"
                                 style={{
                                     background: "#1e7a47", color: "#fff", border: "none",
                                     borderRadius: 10, padding: "9px 20px", fontWeight: 600, fontSize: "0.85rem",
-                                    opacity: (importStep === 1 && !importPCode) || (importStep === 2 && (!importCategory || !importFile)) ? 0.5 : 1,
+                                    opacity: nextDisabled ? 0.5 : 1,
+                                    display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
                                 }}
                             >
-                                ถัดไป
+                                {importStep === 2 && fileMetaLoading && (
+                                    <span className="spinner-border spinner-border-sm" style={{ width: 12, height: 12 }} />
+                                )}
+                                {importStep === 2 && fileMetaLoading ? "กำลังอ่าน metadata…" : "ถัดไป"}
                             </button>
                         ) : (
                             <button
