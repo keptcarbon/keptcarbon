@@ -8,6 +8,32 @@ import { isAdminOrRnd } from "@/lib/auth-server";
 const TILE_SIZE = 100;
 
 /**
+ * GET /api/rnd/geo-establishment-year?pCode=...&year=...
+ * Existence check used to block re-importing a province+year combination
+ * that's already in the table.
+ */
+export async function GET(request: NextRequest) {
+  if (!(await isAdminOrRnd(request))) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  const { searchParams } = new URL(request.url);
+  const pCode = searchParams.get("pCode");
+  const yearRaw = searchParams.get("year");
+
+  if (!pCode || !yearRaw || !/^\d+$/.test(yearRaw)) {
+    return NextResponse.json({ error: "ต้องระบุ pCode และ year" }, { status: 400 });
+  }
+
+  const result = await pool.query(
+    "SELECT 1 FROM geo_establishment_year WHERE p_code = $1 AND year = $2 LIMIT 1",
+    [pCode, Number(yearRaw)]
+  );
+
+  return NextResponse.json({ exists: result.rows.length > 0 });
+}
+
+/**
  * POST /api/rnd/geo-establishment-year
  * Imports a GeoTIFF (multipart "file") into geo_establishment_year, keyed by
  * "pCode" (province code from geo_thailand) and "year" (integer). The raster
@@ -40,6 +66,14 @@ export async function POST(request: NextRequest) {
     const province = await pool.query("SELECT 1 FROM geo_thailand WHERE p_code = $1", [pCode]);
     if (province.rows.length === 0) {
       return NextResponse.json({ error: `ไม่พบ p_code "${pCode}" ใน geo_thailand` }, { status: 400 });
+    }
+
+    const existing = await pool.query(
+      "SELECT 1 FROM geo_establishment_year WHERE p_code = $1 AND year = $2 LIMIT 1",
+      [pCode, year]
+    );
+    if (existing.rows.length > 0) {
+      return NextResponse.json({ error: `มีข้อมูลของจังหวัด "${pCode}" ปี ${year} อยู่แล้วในระบบ` }, { status: 409 });
     }
 
     const buffer = Buffer.from(await file.arrayBuffer());

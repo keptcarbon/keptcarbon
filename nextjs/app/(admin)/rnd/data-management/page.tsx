@@ -2,11 +2,13 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { fromArrayBuffer, GeoTIFFImage } from "geotiff";
+import initSqlJs from "sql.js";
 import { Alert, Card } from "@/app/components";
 
 // Raster header metadata read client-side from the .tif itself (geotiff.js)
 // — only applies to the establishment-year-map category.
 type TiffMeta = {
+    kind: "tiff";
     bandCount: number;
     noData: number | null;
     min: number | null;
@@ -23,7 +25,41 @@ type TiffMeta = {
     // full resolution, so it was resampled down first — real data, but an
     // approximation rather than the exact pixel-perfect min/max.
     minMaxSource: "tag" | "scan" | "scan-downsampled" | null;
+    crsValid: boolean;
+    noDataValid: boolean;
+    pixelSizeValid: boolean;
 };
+
+// GeoPackage layer metadata read client-side from the .gpkg itself (sql.js —
+// a .gpkg is literally a SQLite file) — only applies to the lulc_map category.
+type GpkgField = { name: string; type: string };
+type GpkgMeta = {
+    kind: "gpkg";
+    layerName: string;
+    geomColumn: string;
+    featureCount: number;
+    crs: string;
+    fields: GpkgField[];
+    crsValid: boolean;
+    schemaValid: boolean;
+    missingFields: string[];
+};
+
+type FileMeta = TiffMeta | GpkgMeta;
+
+// geo_landuse's fixed column schema — a .gpkg must carry exactly these as
+// TEXT fields, and be surveyed in EPSG:32647 (UTM 47N), to be importable.
+const LULC_EXPECTED_CRS = "EPSG:32647";
+const LULC_REQUIRED_FIELDS = ["LU_CODE", "LU_DES_TH", "LU_DES_EN", "LUL1_CODE", "LUL2_CODE", "LU_DES"] as const;
+
+// geo_establishment_year's expected raster spec — a .tif must match all of
+// these to be importable.
+const TIFF_EXPECTED_CRS = "EPSG:32647";
+const TIFF_EXPECTED_NODATA = -9999;
+const TIFF_EXPECTED_PIXEL_SIZE = 10;
+// Pixel size is a floating-point affine-transform value — allow a tiny
+// tolerance so harmless float rounding doesn't fail an otherwise-correct file.
+const PIXEL_SIZE_TOLERANCE = 0.01;
 
 // Rasters above this pixel count are downsampled before scanning for
 // min/max, so a province-wide .tif doesn't freeze the browser.
@@ -31,6 +67,13 @@ const MAX_SAMPLES_FOR_MINMAX = 25_000_000;
 
 type DatasetCategory = "establishment_year_map" | "lulc_map" | "biomass_profile";
 type DatasetStatus = "active" | "draft" | "archived";
+
+// Categories with a real duplicate-check endpoint (p_code + year) — used to
+// block re-importing a combination already in the target table.
+const DUPLICATE_CHECK_ENDPOINT: Partial<Record<DatasetCategory, string>> = {
+    establishment_year_map: "/api/rnd/geo-establishment-year",
+    lulc_map: "/api/rnd/geo-landuse",
+};
 
 type ResearchDataset = {
     id: string;
@@ -168,6 +211,22 @@ const IMPORT_STEPS: { step: ImportStep; label: string }[] = [
     { step: 4, label: "ยืนยันการนำเข้า" },
 ];
 
+// A GeoPackage geometry BLOB is a small header (magic "GP", version, flags,
+// SRS id, optional envelope) followed by plain WKB — strip the header and
+// what's left is standard WKB that PostGIS's ST_GeomFromWKB reads directly.
+// See OGC GeoPackage spec §2.1.3 "GeoPackage Binary Format".
+function gpkgBlobToWkbHex(blob: Uint8Array): string {
+    if (blob.length < 8 || blob[0] !== 0x47 || blob[1] !== 0x50) {
+        throw new Error("geometry BLOB ไม่ใช่รูปแบบ GeoPackage Binary ที่ถูกต้อง");
+    }
+    const flags = blob[3];
+    const envelopeCode = (flags >> 1) & 0x07;
+    const envelopeBytes = [0, 32, 48, 48, 64][envelopeCode] ?? 0;
+    const wkbStart = 8 + envelopeBytes;
+    const wkb = blob.subarray(wkbStart);
+    return Array.from(wkb).map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
 export default function RndDataManagementPage() {
     const [activeTab, setActiveTab] = useState<TabKey>("list");
     const [datasets, setDatasets] = useState<ResearchDataset[]>(INITIAL_DATASETS);
@@ -185,7 +244,7 @@ export default function RndDataManagementPage() {
     const [importFile, setImportFile] = useState<File | null>(null);
     const [importing, setImporting] = useState(false);
     const [confirmError, setConfirmError] = useState<string | null>(null);
-    const [fileMeta, setFileMeta] = useState<TiffMeta | null>(null);
+    const [fileMeta, setFileMeta] = useState<FileMeta | null>(null);
     const [fileMetaLoading, setFileMetaLoading] = useState(false);
     const [fileMetaError, setFileMetaError] = useState<string | null>(null);
     // Raw values the parser actually saw — printed to console + shown in a
@@ -226,6 +285,33 @@ export default function RndDataManagementPage() {
         () => provinces.find((p) => p.pCode === importPCode) ?? null,
         [provinces, importPCode]
     );
+
+    // ── Duplicate check (p_code + year) — geo_establishment_year for
+    // establishment_year_map, geo_landuse for lulc_map. ──
+    const [yearExists, setYearExists] = useState<boolean | null>(null);
+    const [yearExistsLoading, setYearExistsLoading] = useState(false);
+
+    useEffect(() => {
+        const endpoint = importCategory ? DUPLICATE_CHECK_ENDPOINT[importCategory] : undefined;
+        if (!endpoint || !selectedProvince || !/^\d+$/.test(importVersion.trim())) {
+            setYearExists(null);
+            return;
+        }
+        let cancelled = false;
+        setYearExistsLoading(true);
+        fetch(`${endpoint}?pCode=${encodeURIComponent(selectedProvince.pCode)}&year=${encodeURIComponent(importVersion.trim())}`)
+            .then((res) => (res.ok ? res.json() : Promise.reject(res)))
+            .then((data) => {
+                if (!cancelled) setYearExists(Boolean(data.exists));
+            })
+            .catch(() => {
+                if (!cancelled) setYearExists(null);
+            })
+            .finally(() => {
+                if (!cancelled) setYearExistsLoading(false);
+            });
+        return () => { cancelled = true; };
+    }, [importCategory, selectedProvince, importVersion]);
 
     const filtered = useMemo(() => {
         const q = search.trim().toLowerCase();
@@ -387,18 +473,135 @@ export default function RndDataManagementPage() {
                 minMaxSource = downsampled ? "scan-downsampled" : "scan";
             }
 
+            // Must match geo_establishment_year's expected raster spec
+            // exactly — otherwise upload stays blocked at the confirm step.
+            const crsValid = crs === TIFF_EXPECTED_CRS;
+            const noDataValid = noData === TIFF_EXPECTED_NODATA;
+            const pixelSizeValid =
+                pixelSizeX !== null && pixelSizeY !== null &&
+                Math.abs(pixelSizeX - TIFF_EXPECTED_PIXEL_SIZE) < PIXEL_SIZE_TOLERANCE &&
+                Math.abs(pixelSizeY - TIFF_EXPECTED_PIXEL_SIZE) < PIXEL_SIZE_TOLERANCE;
+
             debugLog.resolvedMinMaxSource = minMaxSource;
             debugLog.resolvedMin = min;
             debugLog.resolvedMax = max;
+            debugLog.crsValid = crsValid;
+            debugLog.noDataValid = noDataValid;
+            debugLog.pixelSizeValid = pixelSizeValid;
             console.log(`[readTiffMetadata] ${file.name}`, debugLog);
             setFileDebug(debugLog);
-            setFileMeta({ bandCount, noData, min, max, crs, pixelSizeX, pixelSizeY, pixelSizeUnit, minMaxSource });
+            setFileMeta({
+                kind: "tiff", bandCount, noData, min, max, crs, pixelSizeX, pixelSizeY, pixelSizeUnit, minMaxSource,
+                crsValid, noDataValid, pixelSizeValid,
+            });
         } catch (err) {
             debugLog.error = err instanceof Error ? err.message : String(err);
             console.log(`[readTiffMetadata] ${file.name} — failed`, debugLog);
             setFileDebug(debugLog);
             setFileMetaError("ไม่สามารถอ่าน metadata จากไฟล์นี้ได้ — ไฟล์อาจไม่ใช่ GeoTIFF ที่ถูกต้อง");
         } finally {
+            setFileMetaLoading(false);
+        }
+    }
+
+    // A .gpkg is a SQLite file — sql.js (SQLite compiled to WASM) opens it
+    // directly and queries its OGC-standard gpkg_* system tables for the
+    // feature layer's name, CRS, row count, and column schema.
+    async function readGpkgMetadata(file: File) {
+        setFileMeta(null);
+        setFileMetaError(null);
+        setFileDebug(null);
+        setFileMetaLoading(true);
+        const debugLog: Record<string, unknown> = {};
+        let db: Awaited<ReturnType<typeof initSqlJs>>["Database"]["prototype"] | null = null;
+        try {
+            const SQL = await initSqlJs({ locateFile: (f) => `/${f}` });
+            const bytes = new Uint8Array(await file.arrayBuffer());
+            db = new SQL.Database(bytes);
+
+            const contents = db.exec(
+                "SELECT table_name, srs_id FROM gpkg_contents WHERE data_type = 'features'"
+            );
+            debugLog.gpkgContents = contents;
+            const layerRow = contents[0]?.values?.[0];
+            if (!layerRow) {
+                throw new Error("ไม่พบเลเยอร์ประเภท features ใน GeoPackage นี้");
+            }
+            const tableName = String(layerRow[0]);
+            const srsId = layerRow[1];
+            const quotedTable = `"${tableName.replace(/"/g, '""')}"`;
+
+            const countResult = db.exec(`SELECT COUNT(*) FROM ${quotedTable}`);
+            const featureCount = Number(countResult[0]?.values?.[0]?.[0] ?? 0);
+
+            const srsResult = db.exec(
+                "SELECT organization, organization_coordsys_id FROM gpkg_spatial_ref_sys WHERE srs_id = ?",
+                [srsId as number]
+            );
+            debugLog.gpkgSrs = srsResult;
+            const srsRow = srsResult[0]?.values?.[0];
+            const crs = srsRow ? `${srsRow[0]}:${srsRow[1]}` : `srs_id ${srsId}`;
+
+            const tableInfo = db.exec(`PRAGMA table_info(${quotedTable})`);
+            debugLog.gpkgTableInfo = tableInfo;
+            const fields: GpkgField[] = (tableInfo[0]?.values ?? []).map((row) => ({
+                name: String(row[1]),
+                type: String(row[2]),
+            }));
+
+            const geomColResult = db.exec(
+                "SELECT column_name FROM gpkg_geometry_columns WHERE table_name = ?",
+                [tableName]
+            );
+            const geomColumn = geomColResult[0]?.values?.[0]?.[0];
+            if (!geomColumn) {
+                throw new Error(`ไม่พบคอลัมน์ geometry สำหรับเลเยอร์ "${tableName}" ใน gpkg_geometry_columns`);
+            }
+
+            // Must match geo_landuse's fixed schema exactly: EPSG:32647, and
+            // every required field present as TEXT — otherwise upload stays
+            // blocked at the confirm step.
+            const crsValid = crs === LULC_EXPECTED_CRS;
+            const missingFields = LULC_REQUIRED_FIELDS.filter((required) => {
+                const match = fields.find((f) => f.name.toUpperCase() === required);
+                // OGR-exported GeoPackage text fields commonly declare a
+                // length, e.g. "TEXT(254)" — still TEXT affinity, just not
+                // a bare "TEXT" string.
+                return !match || !/^TEXT(\(\d+\))?$/i.test(match.type.trim());
+            });
+            const schemaValid = missingFields.length === 0;
+
+            debugLog.layerName = tableName;
+            debugLog.geomColumn = geomColumn;
+            debugLog.featureCount = featureCount;
+            debugLog.resolvedCrs = crs;
+            debugLog.crsValid = crsValid;
+            debugLog.missingFields = missingFields;
+            debugLog.schemaValid = schemaValid;
+            console.log(`[readGpkgMetadata] ${file.name}`, debugLog);
+            setFileDebug(debugLog);
+            setFileMeta({
+                kind: "gpkg",
+                layerName: tableName,
+                geomColumn: String(geomColumn),
+                featureCount,
+                crs,
+                fields,
+                crsValid,
+                schemaValid,
+                missingFields,
+            });
+        } catch (err) {
+            const message = err instanceof Error ? err.message : String(err);
+            debugLog.error = message;
+            console.log(`[readGpkgMetadata] ${file.name} — failed`, debugLog);
+            setFileDebug(debugLog);
+            // Show the real error instead of a generic message — sql.js/SQL
+            // failures (wrong table name, bad bind param, WASM load issue,
+            // etc.) look identical to "not a GeoPackage" otherwise.
+            setFileMetaError(message);
+        } finally {
+            db?.close();
             setFileMetaLoading(false);
         }
     }
@@ -411,6 +614,52 @@ export default function RndDataManagementPage() {
         setFileDebug(null);
         if (file && importCategory === "establishment_year_map") {
             void readTiffMetadata(file);
+        } else if (file && importCategory === "lulc_map") {
+            void readGpkgMetadata(file);
+        }
+    }
+
+    // Each category accepts a different file type — a file picked for the
+    // previous category is no longer valid, so clear it and force reselection.
+    function handleImportCategoryChange(category: DatasetCategory) {
+        setImportCategory(category);
+        setImportFile(null);
+        setFileMeta(null);
+        setFileMetaError(null);
+        setFileDebug(null);
+    }
+
+    // Re-opens the .gpkg (sql.js state from the preview read isn't kept
+    // around) and pulls every feature's 6 required fields + geometry, ready
+    // to POST to /api/rnd/geo-landuse.
+    async function extractLulcRows(file: File, meta: GpkgMeta) {
+        const SQL = await initSqlJs({ locateFile: (f) => `/${f}` });
+        const bytes = new Uint8Array(await file.arrayBuffer());
+        const db = new SQL.Database(bytes);
+        try {
+            const quotedTable = `"${meta.layerName.replace(/"/g, '""')}"`;
+            const quotedGeomCol = `"${meta.geomColumn.replace(/"/g, '""')}"`;
+            const result = db.exec(
+                `SELECT LU_CODE, LU_DES_TH, LU_DES_EN, LUL1_CODE, LUL2_CODE, LU_DES, ${quotedGeomCol} FROM ${quotedTable}`
+            );
+            const values = result[0]?.values ?? [];
+            return values.map((row) => {
+                const geomBlob = row[6];
+                if (!(geomBlob instanceof Uint8Array)) {
+                    throw new Error("ไม่สามารถอ่านค่าคอลัมน์ geometry ได้");
+                }
+                return {
+                    luCode: row[0] === null ? null : String(row[0]),
+                    luDesTh: row[1] === null ? null : String(row[1]),
+                    luDesEn: row[2] === null ? null : String(row[2]),
+                    lul1Code: row[3] === null ? null : String(row[3]),
+                    lul2Code: row[4] === null ? null : String(row[4]),
+                    luDes: row[5] === null ? null : String(row[5]),
+                    geomWkbHex: gpkgBlobToWkbHex(geomBlob),
+                };
+            });
+        } finally {
+            db.close();
         }
     }
 
@@ -420,6 +669,13 @@ export default function RndDataManagementPage() {
         setImporting(true);
 
         if (importCategory === "establishment_year_map") {
+            // Blocked well before this point by the confirm button itself,
+            // but re-checked here so a stale click can't slip through.
+            if (fileMeta?.kind !== "tiff" || !fileMeta.crsValid || !fileMeta.noDataValid || !fileMeta.pixelSizeValid || yearExists !== false) {
+                setConfirmError("ไฟล์ยังไม่ผ่านเงื่อนไข CRS/No-Data/Pixel Size หรือจังหวัด+ปีนี้มีข้อมูลอยู่แล้ว ย้อนกลับไปตรวจสอบข้อมูลอีกครั้ง");
+                setImporting(false);
+                return;
+            }
             // Real import — persisted into geo_establishment_year via PostGIS.
             try {
                 const body = new FormData();
@@ -456,7 +712,50 @@ export default function RndDataManagementPage() {
             return;
         }
 
-        // lulc_map / biomass_profile have no backend endpoint yet — UI-only.
+        if (importCategory === "lulc_map") {
+            // Blocked well before this point by the confirm button itself,
+            // but re-checked here so a stale click can't slip through.
+            if (fileMeta?.kind !== "gpkg" || !fileMeta.crsValid || !fileMeta.schemaValid || yearExists !== false) {
+                setConfirmError("ไฟล์ยังไม่ผ่านการตรวจสอบ CRS/โครงสร้างฟิลด์ หรือจังหวัด+ปีนี้มีข้อมูลอยู่แล้ว ย้อนกลับไปตรวจสอบข้อมูลอีกครั้ง");
+                setImporting(false);
+                return;
+            }
+            try {
+                const rows = await extractLulcRows(importFile, fileMeta);
+                const res = await fetch("/api/rnd/geo-landuse", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ pCode: selectedProvince.pCode, year: Number(importVersion.trim()), rows }),
+                });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) {
+                    throw new Error(data.error || "นำเข้าไฟล์ไม่สำเร็จ");
+                }
+
+                const newDataset: ResearchDataset = {
+                    id: `imported-${Date.now()}`,
+                    name: importFile.name.replace(/\.[^/.]+$/, ""),
+                    category: importCategory,
+                    pCode: selectedProvince.pCode,
+                    provinceName: selectedProvince.nameTh,
+                    version: importVersion.trim(),
+                    description: "นำเข้าโดยผู้ใช้งาน R&D",
+                    updatedAt: new Date().toISOString().slice(0, 10),
+                    status: "active",
+                };
+                setDatasets((prev) => [newDataset, ...prev]);
+                setSuccess(`นำเข้า “${newDataset.name}” สำเร็จ (${data.featureCount} features)`);
+                setTimeout(() => setSuccess(null), 3000);
+                resetImportWizard();
+            } catch (err) {
+                setConfirmError(err instanceof Error ? err.message : "นำเข้าไฟล์ไม่สำเร็จ");
+            } finally {
+                setImporting(false);
+            }
+            return;
+        }
+
+        // biomass_profile has no backend endpoint yet — UI-only.
         await new Promise((resolve) => setTimeout(resolve, 700));
         const newDataset: ResearchDataset = {
             id: `imported-${Date.now()}`,
@@ -478,32 +777,49 @@ export default function RndDataManagementPage() {
 
     // Block "ถัดไป" out of step 2 while the .tif metadata read is still in
     // flight — the review step needs fileMeta settled before the user moves on.
-    // geo_establishment_year.year is an integer column — free text like "v1"
-    // doesn't fit, so this category requires a numeric year specifically.
-    const versionIsValid =
-        importCategory === "establishment_year_map"
-            ? /^\d+$/.test(importVersion.trim())
-            : !!importVersion.trim();
+    // geo_establishment_year.year and geo_landuse.lu_year are both integer
+    // columns — free text like "v1" doesn't fit, so these categories require
+    // a numeric year specifically.
+    const requiresNumericVersion = importCategory === "establishment_year_map" || importCategory === "lulc_map";
+    const versionIsValid = requiresNumericVersion
+        ? /^\d+$/.test(importVersion.trim())
+        : !!importVersion.trim();
 
     const nextDisabled =
         (importStep === 1 && !importPCode) ||
         (importStep === 2 && (!importCategory || !versionIsValid || !importFile || fileMetaLoading));
 
-    // Raster metadata rows only apply to the establishment-year-map (.tif)
-    // category — .gpkg/.csv have no bands/NoData/CRS concept to read here.
+    // lulc_map may only be confirmed once the .gpkg has been read AND
+    // matches geo_landuse's fixed schema exactly (CRS + the 6 required
+    // text fields) AND this province+year combination isn't already in the
+    // table — checked client-side before ever hitting the API.
+    const lulcSchemaOk =
+        importCategory !== "lulc_map" ||
+        (fileMeta?.kind === "gpkg" && fileMeta.crsValid && fileMeta.schemaValid && yearExists === false);
+    // establishment_year_map may only be confirmed once the .tif matches the
+    // expected raster spec exactly (CRS, NoData, Pixel Size) AND this
+    // province+year combination isn't already in the table.
+    const tiffSpecOk =
+        importCategory !== "establishment_year_map" ||
+        (fileMeta?.kind === "tiff" && fileMeta.crsValid && fileMeta.noDataValid && fileMeta.pixelSizeValid && yearExists === false);
+    const confirmDisabled = importing || !lulcSchemaOk || !tiffSpecOk;
+
+    // File metadata rows only apply to categories with a client-side reader
+    // wired up (establishment-year-map .tif, lulc_map .gpkg) — biomass_profile
+    // (.csv) has no reader yet.
     const reviewRows: { label: string; value: string }[] = [
         { label: "จังหวัด", value: selectedProvince ? `${selectedProvince.nameTh} (${selectedProvince.pCode})` : "-" },
         { label: "ประเภทข้อมูล", value: importCategory ? CATEGORY_META[importCategory].label : "-" },
-        { label: "เวอร์ชัน", value: importVersion.trim() },
+        { label: "ปี", value: importVersion.trim() },
         { label: "ไฟล์", value: importFile?.name ?? "-" },
         { label: "ขนาดไฟล์", value: importFile ? `${(importFile.size / 1024).toFixed(1)} KB` : "-" },
     ];
-    if (importCategory === "establishment_year_map") {
+    if (importCategory === "establishment_year_map" || importCategory === "lulc_map") {
         if (fileMetaLoading) {
             reviewRows.push({ label: "Metadata ไฟล์", value: "กำลังอ่าน…" });
         } else if (fileMetaError) {
             reviewRows.push({ label: "Metadata ไฟล์", value: fileMetaError });
-        } else if (fileMeta) {
+        } else if (fileMeta?.kind === "tiff") {
             const minMaxSuffix =
                 fileMeta.minMaxSource === "tag" ? " (จาก tag สถิติ)" :
                 fileMeta.minMaxSource === "scan" ? " (คำนวณจากพิกเซล)" :
@@ -520,6 +836,13 @@ export default function RndDataManagementPage() {
                 { label: "ค่าสูงสุด (Max)", value: fileMeta.max !== null ? `${fileMeta.max}${minMaxSuffix}` : "-" },
                 { label: "ระบบพิกัด (CRS)", value: fileMeta.crs },
                 { label: "ขนาดพิกเซล (Pixel Size)", value: pixelSize },
+            );
+        } else if (fileMeta?.kind === "gpkg") {
+            reviewRows.push(
+                { label: "เลเยอร์ (Layer)", value: fileMeta.layerName },
+                { label: "จำนวน Feature", value: fileMeta.featureCount.toLocaleString("th-TH") },
+                { label: "ระบบพิกัด (CRS)", value: fileMeta.crs },
+                { label: "จำนวนฟิลด์ (Fields)", value: String(fileMeta.fields.length) },
             );
         }
     }
@@ -613,7 +936,7 @@ export default function RndDataManagementPage() {
                                 <th className="px-4 py-3" style={TH_STYLE}>ชุดข้อมูล</th>
                                 <th className="py-3" style={TH_STYLE}>ประเภท</th>
                                 <th className="py-3" style={TH_STYLE}>จังหวัด</th>
-                                <th className="py-3" style={TH_STYLE}>เวอร์ชัน</th>
+                                <th className="py-3" style={TH_STYLE}>ปี</th>
                                 <th className="py-3" style={TH_STYLE}>สถานะ</th>
                                 <th className="py-3" style={TH_STYLE}>อัปเดตล่าสุด</th>
                                 <th className="px-4 py-3 text-end" style={TH_STYLE}>จัดการ</th>
@@ -774,7 +1097,7 @@ export default function RndDataManagementPage() {
                                 <div style={{ fontSize: 13.5, fontWeight: 600, color: "#5a7a65", marginBottom: 4 }}>ประเภทข้อมูล</div>
                                 <select
                                     value={importCategory}
-                                    onChange={(e) => setImportCategory(e.target.value as DatasetCategory)}
+                                    onChange={(e) => handleImportCategoryChange(e.target.value as DatasetCategory)}
                                     className="form-select"
                                     style={{ borderRadius: 10, border: "1px solid #e6f0ea", fontSize: 14, color: "#1a3d2b", padding: "9px 12px" }}
                                 >
@@ -786,16 +1109,16 @@ export default function RndDataManagementPage() {
                             </div>
                             <div className="mb-3">
                                 <div style={{ fontSize: 13.5, fontWeight: 600, color: "#5a7a65", marginBottom: 4 }}>
-                                    เวอร์ชัน/ปีของข้อมูล <span style={{ color: "#dc2626" }}>*</span>
+                                    ปีของข้อมูล <span style={{ color: "#dc2626" }}>*</span>
                                 </div>
                                 <input
                                     value={importVersion}
                                     onChange={(e) => setImportVersion(e.target.value)}
-                                    placeholder={importCategory === "establishment_year_map" ? "เช่น 2568" : "เช่น v1, 2568"}
-                                    inputMode={importCategory === "establishment_year_map" ? "numeric" : "text"}
+                                    placeholder={requiresNumericVersion ? "เช่น 2568" : "เช่น v1, 2568"}
+                                    inputMode={requiresNumericVersion ? "numeric" : "text"}
                                     style={{ width: "100%", borderRadius: 10, border: "1px solid #e6f0ea", background: "#fff", padding: "9px 12px", fontSize: 14, outline: "none", color: "#1a3d2b" }}
                                 />
-                                {importCategory === "establishment_year_map" && importVersion.trim() !== "" && !versionIsValid && (
+                                {requiresNumericVersion && importVersion.trim() !== "" && !versionIsValid && (
                                     <div style={{ fontSize: 11.5, color: "#dc2626", marginTop: 4 }}>
                                         ต้องเป็นตัวเลขปีเท่านั้น (บันทึกลงคอลัมน์ year ที่เป็นจำนวนเต็ม)
                                     </div>
@@ -816,7 +1139,7 @@ export default function RndDataManagementPage() {
                                     {importFile ? (
                                         <>
                                             <span style={{ fontSize: 13.5, fontWeight: 600, color: "#1a3d2b" }}>{importFile.name}</span>
-                                            {importCategory === "establishment_year_map" && (
+                                            {(importCategory === "establishment_year_map" || importCategory === "lulc_map") && (
                                                 <span style={{ fontSize: 12, color: fileMetaError ? "#c53030" : "#94a3b8" }}>
                                                     {fileMetaLoading ? "กำลังอ่าน metadata ของไฟล์…" : fileMetaError ? fileMetaError : fileMeta ? "อ่าน metadata สำเร็จ" : ""}
                                                 </span>
@@ -831,6 +1154,7 @@ export default function RndDataManagementPage() {
                                         </>
                                     )}
                                     <input
+                                        key={importCategory}
                                         id="import-file-input"
                                         type="file"
                                         accept={importCategory ? CATEGORY_FILE_EXT[importCategory] : undefined}
@@ -860,6 +1184,34 @@ export default function RndDataManagementPage() {
                                     </div>
                                 ))}
                             </div>
+
+                            {fileMeta?.kind === "gpkg" && (
+                                <div className="mt-3">
+                                    <div style={{ fontSize: 12.5, fontWeight: 600, color: "#5a7a65", marginBottom: 6 }}>
+                                        Fields
+                                    </div>
+                                    <div style={{ border: "1px solid #f1f5f9", borderRadius: 12, overflow: "hidden" }}>
+                                        <div className="table-responsive" style={{ maxHeight: 260, overflowY: "auto" }}>
+                                            <table className="table table-sm mb-0" style={{ fontSize: 12.5 }}>
+                                                <thead style={{ background: "#f8fbf9" }}>
+                                                    <tr>
+                                                        <th className="px-3 py-2" style={TH_STYLE}>ชื่อฟิลด์</th>
+                                                        <th className="px-3 py-2" style={TH_STYLE}>ชนิดข้อมูล</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {fileMeta.fields.map((field) => (
+                                                        <tr key={field.name}>
+                                                            <td className="px-3 py-2" style={{ color: "#1a3d2b" }}>{field.name}</td>
+                                                            <td className="px-3 py-2" style={{ color: "#5a7a65" }}>{field.type || "-"}</td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
 
                             {fileDebug && (
                                 <details className="mt-3">
@@ -891,6 +1243,87 @@ export default function RndDataManagementPage() {
                             <h3 className="fw-bold mb-2" style={{ fontSize: 18, color: "#1a3d2b" }}>
                                 พร้อมนำเข้า &ldquo;{importFile?.name}&rdquo;
                             </h3>
+                            {importCategory === "lulc_map" && (
+                                <div style={{
+                                    marginTop: 12, padding: "12px 16px", borderRadius: 10, textAlign: "left",
+                                    background: lulcSchemaOk ? "#f8fbf9" : "#fef2f2",
+                                    border: `1px solid ${lulcSchemaOk ? "#e6f0ea" : "#fecaca"}`,
+                                }}>
+                                    <div style={{ fontSize: 12.5, fontWeight: 600, color: "#5a7a65", marginBottom: 6 }}>
+                                        เงื่อนไขการนำเข้าข้อมูลการใช้ประโยชน์ที่ดิน (LULC)
+                                    </div>
+                                    {[
+                                        {
+                                            ok: fileMeta?.kind === "gpkg" && fileMeta.crsValid,
+                                            label: `CRS = ${LULC_EXPECTED_CRS}${fileMeta?.kind === "gpkg" ? ` (พบ ${fileMeta.crs})` : ""}`,
+                                        },
+                                        {
+                                            ok: fileMeta?.kind === "gpkg" && fileMeta.schemaValid,
+                                            label: (
+                                                <>
+                                                    มีฟิลด์ {LULC_REQUIRED_FIELDS.join(", ")} ครบ
+                                                    {fileMeta?.kind === "gpkg" && fileMeta.missingFields.length > 0 && (
+                                                        <> — ขาด/ผิดชนิด: {fileMeta.missingFields.join(", ")}</>
+                                                    )}
+                                                </>
+                                            ),
+                                        },
+                                        {
+                                            ok: yearExists === false,
+                                            label: yearExistsLoading
+                                                ? `กำลังตรวจสอบว่าจังหวัด+ปีนี้เคยนำเข้าแล้วหรือไม่…`
+                                                : yearExists === true
+                                                    ? `จังหวัด ${selectedProvince?.pCode} ปี ${importVersion.trim()} มีข้อมูลอยู่แล้ว`
+                                                    : `จังหวัด+ปีนี้ยังไม่เคยนำเข้า`,
+                                        },
+                                    ].map((check, i) => (
+                                        <div key={i} className="d-flex align-items-center gap-2" style={{ fontSize: 13, marginBottom: i < 2 ? 4 : 0 }}>
+                                            <i className={`bi ${check.ok ? "bi-check-circle-fill" : "bi-x-circle-fill"}`}
+                                               style={{ color: check.ok ? "#1e7a47" : "#dc2626" }} />
+                                            <span>{check.label}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                            {importCategory === "establishment_year_map" && (
+                                <div style={{
+                                    marginTop: 12, padding: "12px 16px", borderRadius: 10, textAlign: "left",
+                                    background: tiffSpecOk ? "#f8fbf9" : "#fef2f2",
+                                    border: `1px solid ${tiffSpecOk ? "#e6f0ea" : "#fecaca"}`,
+                                }}>
+                                    <div style={{ fontSize: 12.5, fontWeight: 600, color: "#5a7a65", marginBottom: 6 }}>
+                                        เงื่อนไขการนำเข้าข้อมูลแผนที่ปีเริ่มปลูก(TIFF)
+                                    </div>
+                                    {[
+                                        {
+                                            ok: fileMeta?.kind === "tiff" && fileMeta.crsValid,
+                                            label: `CRS = ${TIFF_EXPECTED_CRS}${fileMeta?.kind === "tiff" ? ` (พบ ${fileMeta.crs})` : ""}`,
+                                        },
+                                        {
+                                            ok: fileMeta?.kind === "tiff" && fileMeta.noDataValid,
+                                            label: `No-Data = ${TIFF_EXPECTED_NODATA}${fileMeta?.kind === "tiff" ? ` (พบ ${fileMeta.noData ?? "ไม่ระบุ"})` : ""}`,
+                                        },
+                                        {
+                                            ok: fileMeta?.kind === "tiff" && fileMeta.pixelSizeValid,
+                                            label: `Pixel Size = ${TIFF_EXPECTED_PIXEL_SIZE} × ${TIFF_EXPECTED_PIXEL_SIZE}${fileMeta?.kind === "tiff" && fileMeta.pixelSizeX !== null && fileMeta.pixelSizeY !== null ? ` (พบ ${fileMeta.pixelSizeX} × ${fileMeta.pixelSizeY})` : ""}`,
+                                        },
+                                        {
+                                            ok: yearExists === false,
+                                            label: yearExistsLoading
+                                                ? `กำลังตรวจสอบว่าจังหวัด+ปีนี้เคยนำเข้าแล้วหรือไม่…`
+                                                : yearExists === true
+                                                    ? `จังหวัด ${selectedProvince?.pCode}  ${importVersion.trim()} มีข้อมูลอยู่แล้ว`
+                                                    : `จังหวัด+ปีนี้ยังไม่เคยนำเข้า`,
+                                        },
+                                    ].map((check, i) => (
+                                        <div key={i} className="d-flex align-items-center gap-2" style={{ fontSize: 13, marginBottom: i < 3 ? 4 : 0 }}>
+                                            <i className={`bi ${check.ok ? "bi-check-circle-fill" : "bi-x-circle-fill"}`}
+                                               style={{ color: check.ok ? "#1e7a47" : "#dc2626" }} />
+                                            <span>{check.label}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
                             {confirmError && (
                                 <div style={{
                                     marginTop: 12, padding: "10px 14px", borderRadius: 10,
@@ -937,11 +1370,12 @@ export default function RndDataManagementPage() {
                         ) : (
                             <button
                                 onClick={handleConfirmImport}
-                                disabled={importing}
+                                disabled={confirmDisabled}
                                 className="btn"
                                 style={{
                                     background: "#1e7a47", color: "#fff", border: "none",
                                     borderRadius: 10, padding: "9px 20px", fontWeight: 600, fontSize: "0.85rem",
+                                    opacity: confirmDisabled ? 0.5 : 1,
                                 }}
                             >
                                 {importing
