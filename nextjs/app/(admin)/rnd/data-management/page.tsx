@@ -45,12 +45,78 @@ type GpkgMeta = {
     missingFields: string[];
 };
 
-type FileMeta = TiffMeta | GpkgMeta;
+// CSV preview read client-side (plain text parsing, no upload) — only
+// applies to the biomass_profile category.
+type CsvMeta = {
+    kind: "csv";
+    rowCount: number; // data rows, excludes the header
+    headers: string[];
+    sampleRows: string[][]; // up to 6 data rows
+    columnsValid: boolean;
+    missingColumns: string[];
+    rowCountValid: boolean;
+};
+
+type FileMeta = TiffMeta | GpkgMeta | CsvMeta;
+
+const CSV_SAMPLE_ROW_COUNT = 5;
+
+// geo_biomass_profile's expected CSV shape — one row per integer age 0..35.
+const BIOMASS_REQUIRED_COLUMNS = ["age", "dbh_est", "agb", "bgb", "biomass_est", "ci", "biomass_ci_lower", "biomass_ci_upper"] as const;
+const BIOMASS_EXPECTED_ROW_COUNT = 36;
+
+// Minimal RFC4180-ish line splitter: handles quoted fields, embedded commas,
+// and "" escaped quotes. Doesn't handle a quoted field spanning multiple
+// physical lines — good enough for a preview table, not a full CSV engine.
+function splitCsvLine(line: string): string[] {
+    const fields: string[] = [];
+    let current = "";
+    let inQuotes = false;
+    for (let i = 0; i < line.length; i++) {
+        const c = line[i];
+        if (inQuotes) {
+            if (c === '"') {
+                if (line[i + 1] === '"') {
+                    current += '"';
+                    i++;
+                } else {
+                    inQuotes = false;
+                }
+            } else {
+                current += c;
+            }
+        } else if (c === '"') {
+            inQuotes = true;
+        } else if (c === ",") {
+            fields.push(current);
+            current = "";
+        } else {
+            current += c;
+        }
+    }
+    fields.push(current);
+    return fields;
+}
 
 // geo_landuse's fixed column schema — a .gpkg must carry exactly these as
 // TEXT fields, and be surveyed in EPSG:32647 (UTM 47N), to be importable.
 const LULC_EXPECTED_CRS = "EPSG:32647";
 const LULC_REQUIRED_FIELDS = ["LU_CODE", "LU_DES_TH", "LU_DES_EN", "LUL1_CODE", "LUL2_CODE", "LU_DES"] as const;
+
+// Required alongside the CSV for biomass_profile — identifies which
+// clone/model/equation the profile data was derived from.
+const RUBBER_CLONE_OPTIONS = ["RRIM 600", "RRIT 251"] as const;
+const GROWTH_MODEL_OPTIONS = [
+    { label: "Cubic Polynomial", value: "cubic_poly" },
+    { label: "Chapman-Richards", value: "chapman_richards" },
+    { label: "Gompertz", value: "gompertz" },
+    { label: "Schumacher", value: "schumacher" },
+    { label: "Weibull", value: "weibull" },
+] as const;
+const ALLOMETRY_OPTIONS = [
+    { label: "Hytönen et al. (2018)", value: "hytonen_2018" },
+    { label: "Chiarawipa et al. (2024)", value: "chiarawipa_2024" },
+] as const;
 
 // geo_establishment_year's expected raster spec — a .tif must match all of
 // these to be importable.
@@ -241,6 +307,11 @@ export default function RndDataManagementPage() {
     const [importPCode, setImportPCode] = useState("");
     const [importCategory, setImportCategory] = useState<DatasetCategory | "">("");
     const [importVersion, setImportVersion] = useState("");
+    // biomass_profile-only fields — which clone/growth model/allometry the
+    // uploaded CSV's coefficients were derived from.
+    const [importClone, setImportClone] = useState("");
+    const [importGrowthModel, setImportGrowthModel] = useState("");
+    const [importAllometry, setImportAllometry] = useState("");
     const [importFile, setImportFile] = useState<File | null>(null);
     const [importing, setImporting] = useState(false);
     const [confirmError, setConfirmError] = useState<string | null>(null);
@@ -345,6 +416,9 @@ export default function RndDataManagementPage() {
         setImportPCode("");
         setImportCategory("");
         setImportVersion("");
+        setImportClone("");
+        setImportGrowthModel("");
+        setImportAllometry("");
         setImportFile(null);
         setFileMeta(null);
         setFileMetaError(null);
@@ -606,6 +680,41 @@ export default function RndDataManagementPage() {
         }
     }
 
+    async function readCsvMetadata(file: File) {
+        // No on-page debug panel for CSV — it's a simple preview, not worth
+        // the "Metadata ที่อ่านได้จากไฟล์" treatment the raster/vector readers get.
+        setFileMeta(null);
+        setFileMetaError(null);
+        setFileMetaLoading(true);
+        try {
+            const text = await file.text();
+            const lines = text.split(/\r\n|\r|\n/);
+            // Drop a trailing blank line from the file's final newline.
+            if (lines.length > 0 && lines[lines.length - 1] === "") lines.pop();
+            if (lines.length === 0) {
+                throw new Error("ไฟล์ CSV ว่างเปล่า");
+            }
+
+            const headers = splitCsvLine(lines[0]);
+            const dataLines = lines.slice(1);
+            const rowCount = dataLines.length;
+            const sampleRows = dataLines.slice(0, CSV_SAMPLE_ROW_COUNT).map(splitCsvLine);
+
+            // Must match geo_biomass_profile's expected shape exactly —
+            // otherwise upload stays blocked at the confirm step.
+            const headerSet = new Set(headers.map((h) => h.trim().toLowerCase()));
+            const missingColumns = BIOMASS_REQUIRED_COLUMNS.filter((col) => !headerSet.has(col));
+            const columnsValid = missingColumns.length === 0;
+            const rowCountValid = rowCount === BIOMASS_EXPECTED_ROW_COUNT;
+
+            setFileMeta({ kind: "csv", rowCount, headers, sampleRows, columnsValid, missingColumns, rowCountValid });
+        } catch (err) {
+            setFileMetaError(err instanceof Error ? err.message : String(err));
+        } finally {
+            setFileMetaLoading(false);
+        }
+    }
+
     function handleImportFileChange(e: React.ChangeEvent<HTMLInputElement>) {
         const file = e.target.files?.[0] ?? null;
         setImportFile(file);
@@ -616,6 +725,8 @@ export default function RndDataManagementPage() {
             void readTiffMetadata(file);
         } else if (file && importCategory === "lulc_map") {
             void readGpkgMetadata(file);
+        } else if (file && importCategory === "biomass_profile") {
+            void readCsvMetadata(file);
         }
     }
 
@@ -627,6 +738,9 @@ export default function RndDataManagementPage() {
         setFileMeta(null);
         setFileMetaError(null);
         setFileDebug(null);
+        setImportClone("");
+        setImportGrowthModel("");
+        setImportAllometry("");
     }
 
     // Re-opens the .gpkg (sql.js state from the preview read isn't kept
@@ -661,6 +775,52 @@ export default function RndDataManagementPage() {
         } finally {
             db.close();
         }
+    }
+
+    // Re-reads the CSV (only a sample was kept in state) and maps each row's
+    // 8 required columns to numbers by header name (case-insensitive),
+    // ready to POST to /api/rnd/biomass-profile.
+    async function extractBiomassRows(file: File, headers: string[]) {
+        const text = await file.text();
+        const lines = text.split(/\r\n|\r|\n/);
+        if (lines.length > 0 && lines[lines.length - 1] === "") lines.pop();
+        const dataLines = lines.slice(1);
+
+        const colIndex = (name: string) => headers.findIndex((h) => h.trim().toLowerCase() === name);
+        const idx = {
+            age: colIndex("age"),
+            dbhEst: colIndex("dbh_est"),
+            agb: colIndex("agb"),
+            bgb: colIndex("bgb"),
+            biomassEst: colIndex("biomass_est"),
+            ci: colIndex("ci"),
+            biomassCiLower: colIndex("biomass_ci_lower"),
+            biomassCiUpper: colIndex("biomass_ci_upper"),
+        };
+
+        return dataLines.map((line) => {
+            const cells = splitCsvLine(line);
+            const num = (i: number): number | null => {
+                const v = cells[i]?.trim();
+                if (!v) return null;
+                const n = Number(v);
+                return Number.isNaN(n) ? null : n;
+            };
+            const ageValue = num(idx.age);
+            if (ageValue === null || !Number.isInteger(ageValue)) {
+                throw new Error(`พบแถวที่คอลัมน์ age ไม่ใช่จำนวนเต็ม: "${cells[idx.age] ?? ""}"`);
+            }
+            return {
+                age: ageValue,
+                dbhEst: num(idx.dbhEst),
+                agb: num(idx.agb),
+                bgb: num(idx.bgb),
+                biomassEst: num(idx.biomassEst),
+                ci: num(idx.ci),
+                biomassCiLower: num(idx.biomassCiLower),
+                biomassCiUpper: num(idx.biomassCiUpper),
+            };
+        });
     }
 
     async function handleConfirmImport() {
@@ -755,24 +915,54 @@ export default function RndDataManagementPage() {
             return;
         }
 
-        // biomass_profile has no backend endpoint yet — UI-only.
-        await new Promise((resolve) => setTimeout(resolve, 700));
-        const newDataset: ResearchDataset = {
-            id: `imported-${Date.now()}`,
-            name: importFile.name.replace(/\.[^/.]+$/, ""),
-            category: importCategory,
-            pCode: selectedProvince.pCode,
-            provinceName: selectedProvince.nameTh,
-            version: importVersion.trim(),
-            description: "นำเข้าโดยผู้ใช้งาน R&D",
-            updatedAt: new Date().toISOString().slice(0, 10),
-            status: "draft",
-        };
-        setDatasets((prev) => [newDataset, ...prev]);
-        setImporting(false);
-        setSuccess(`นำเข้า “${newDataset.name}” สำเร็จ (ยังไม่เชื่อมต่อ API จริงสำหรับประเภทนี้)`);
-        setTimeout(() => setSuccess(null), 3000);
-        resetImportWizard();
+        // importCategory === "biomass_profile" — real import, persisted into
+        // tbl_biomass_profile.
+        // Blocked well before this point by the confirm button itself,
+        // but re-checked here so a stale click can't slip through.
+        if (fileMeta?.kind !== "csv" || !fileMeta.columnsValid || !fileMeta.rowCountValid) {
+            setConfirmError("ไฟล์ยังไม่ผ่านเงื่อนไขคอลัมน์/จำนวนแถว ย้อนกลับไปตรวจสอบข้อมูลอีกครั้ง");
+            setImporting(false);
+            return;
+        }
+        try {
+            const rows = await extractBiomassRows(importFile, fileMeta.headers);
+            const res = await fetch("/api/rnd/biomass-profile", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    pCode: selectedProvince.pCode,
+                    version: importVersion.trim() || null,
+                    clone: importClone,
+                    growthModel: importGrowthModel,
+                    allometry: importAllometry,
+                    rows,
+                }),
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) {
+                throw new Error(data.error || "นำเข้าไฟล์ไม่สำเร็จ");
+            }
+
+            const newDataset: ResearchDataset = {
+                id: `imported-${Date.now()}`,
+                name: importFile.name.replace(/\.[^/.]+$/, ""),
+                category: importCategory,
+                pCode: selectedProvince.pCode,
+                provinceName: selectedProvince.nameTh,
+                version: importVersion.trim(),
+                description: "นำเข้าโดยผู้ใช้งาน R&D",
+                updatedAt: new Date().toISOString().slice(0, 10),
+                status: "active",
+            };
+            setDatasets((prev) => [newDataset, ...prev]);
+            setSuccess(`นำเข้า “${newDataset.name}” สำเร็จ (${data.rowCount} แถว)`);
+            setTimeout(() => setSuccess(null), 3000);
+            resetImportWizard();
+        } catch (err) {
+            setConfirmError(err instanceof Error ? err.message : "นำเข้าไฟล์ไม่สำเร็จ");
+        } finally {
+            setImporting(false);
+        }
     }
 
     // Block "ถัดไป" out of step 2 while the .tif metadata read is still in
@@ -785,9 +975,12 @@ export default function RndDataManagementPage() {
         ? /^\d+$/.test(importVersion.trim())
         : !!importVersion.trim();
 
+    const biomassFieldsMissing =
+        importCategory === "biomass_profile" && (!importClone || !importGrowthModel || !importAllometry);
+
     const nextDisabled =
         (importStep === 1 && !importPCode) ||
-        (importStep === 2 && (!importCategory || !versionIsValid || !importFile || fileMetaLoading));
+        (importStep === 2 && (!importCategory || !versionIsValid || !importFile || fileMetaLoading || biomassFieldsMissing));
 
     // lulc_map may only be confirmed once the .gpkg has been read AND
     // matches geo_landuse's fixed schema exactly (CRS + the 6 required
@@ -802,19 +995,30 @@ export default function RndDataManagementPage() {
     const tiffSpecOk =
         importCategory !== "establishment_year_map" ||
         (fileMeta?.kind === "tiff" && fileMeta.crsValid && fileMeta.noDataValid && fileMeta.pixelSizeValid && yearExists === false);
-    const confirmDisabled = importing || !lulcSchemaOk || !tiffSpecOk;
+    // biomass_profile may only be confirmed once the CSV has all 8 required
+    // columns AND exactly 36 rows (age 0-35).
+    const biomassCsvOk =
+        importCategory !== "biomass_profile" ||
+        (fileMeta?.kind === "csv" && fileMeta.columnsValid && fileMeta.rowCountValid);
+    const confirmDisabled = importing || !lulcSchemaOk || !tiffSpecOk || !biomassCsvOk;
 
-    // File metadata rows only apply to categories with a client-side reader
-    // wired up (establishment-year-map .tif, lulc_map .gpkg) — biomass_profile
-    // (.csv) has no reader yet.
     const reviewRows: { label: string; value: string }[] = [
         { label: "จังหวัด", value: selectedProvince ? `${selectedProvince.nameTh} (${selectedProvince.pCode})` : "-" },
         { label: "ประเภทข้อมูล", value: importCategory ? CATEGORY_META[importCategory].label : "-" },
-        { label: "ปี", value: importVersion.trim() },
+        { label: "เวอร์ชัน/ปี", value: importVersion.trim() },
+    ];
+    if (importCategory === "biomass_profile") {
+        reviewRows.push(
+            { label: "พันธุ์ยาง (Clone)", value: importClone || "-" },
+            { label: "สมการ Growth Model", value: GROWTH_MODEL_OPTIONS.find((m) => m.value === importGrowthModel)?.label ?? "-" },
+            { label: "สมการ Allometry", value: ALLOMETRY_OPTIONS.find((eq) => eq.value === importAllometry)?.label ?? "-" },
+        );
+    }
+    reviewRows.push(
         { label: "ไฟล์", value: importFile?.name ?? "-" },
         { label: "ขนาดไฟล์", value: importFile ? `${(importFile.size / 1024).toFixed(1)} KB` : "-" },
-    ];
-    if (importCategory === "establishment_year_map" || importCategory === "lulc_map") {
+    );
+    if (importCategory === "establishment_year_map" || importCategory === "lulc_map" || importCategory === "biomass_profile") {
         if (fileMetaLoading) {
             reviewRows.push({ label: "Metadata ไฟล์", value: "กำลังอ่าน…" });
         } else if (fileMetaError) {
@@ -843,6 +1047,11 @@ export default function RndDataManagementPage() {
                 { label: "จำนวน Feature", value: fileMeta.featureCount.toLocaleString("th-TH") },
                 { label: "ระบบพิกัด (CRS)", value: fileMeta.crs },
                 { label: "จำนวนฟิลด์ (Fields)", value: String(fileMeta.fields.length) },
+            );
+        } else if (fileMeta?.kind === "csv") {
+            reviewRows.push(
+                { label: "จำนวนแถวข้อมูล (Rows)", value: fileMeta.rowCount.toLocaleString("th-TH") },
+                { label: "จำนวนคอลัมน์ (Columns)", value: String(fileMeta.headers.length) },
             );
         }
     }
@@ -1109,21 +1318,74 @@ export default function RndDataManagementPage() {
                             </div>
                             <div className="mb-3">
                                 <div style={{ fontSize: 13.5, fontWeight: 600, color: "#5a7a65", marginBottom: 4 }}>
-                                    ปีของข้อมูล <span style={{ color: "#dc2626" }}>*</span>
+                                    เวอร์ชัน/ปีของข้อมูล <span style={{ color: "#dc2626" }}>*</span>
                                 </div>
                                 <input
                                     value={importVersion}
                                     onChange={(e) => setImportVersion(e.target.value)}
                                     placeholder={requiresNumericVersion ? "เช่น 2568" : "เช่น v1, 2568"}
                                     inputMode={requiresNumericVersion ? "numeric" : "text"}
+                                    maxLength={10}
                                     style={{ width: "100%", borderRadius: 10, border: "1px solid #e6f0ea", background: "#fff", padding: "9px 12px", fontSize: 14, outline: "none", color: "#1a3d2b" }}
                                 />
                                 {requiresNumericVersion && importVersion.trim() !== "" && !versionIsValid && (
                                     <div style={{ fontSize: 11.5, color: "#dc2626", marginTop: 4 }}>
-                                        ต้องเป็นตัวเลขปีเท่านั้น (บันทึกลงคอลัมน์ year ที่เป็นจำนวนเต็ม)
+                                        ต้องเป็นตัวเลขปี (year) ที่เป็นจำนวนเต็มเท่านั้น
                                     </div>
                                 )}
                             </div>
+                            {importCategory === "biomass_profile" && (
+                                <>
+                                    <div className="mb-3">
+                                        <div style={{ fontSize: 13.5, fontWeight: 600, color: "#5a7a65", marginBottom: 4 }}>
+                                            พันธุ์ยาง (Clone) <span style={{ color: "#dc2626" }}>*</span>
+                                        </div>
+                                        <select
+                                            value={importClone}
+                                            onChange={(e) => setImportClone(e.target.value)}
+                                            className="form-select"
+                                            style={{ borderRadius: 10, border: "1px solid #e6f0ea", fontSize: 14, color: "#1a3d2b", padding: "9px 12px" }}
+                                        >
+                                            <option value="">เลือกพันธุ์ยาง…</option>
+                                            {RUBBER_CLONE_OPTIONS.map((clone) => (
+                                                <option key={clone} value={clone}>{clone}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    <div className="mb-3">
+                                        <div style={{ fontSize: 13.5, fontWeight: 600, color: "#5a7a65", marginBottom: 4 }}>
+                                            สมการ Growth Model <span style={{ color: "#dc2626" }}>*</span>
+                                        </div>
+                                        <select
+                                            value={importGrowthModel}
+                                            onChange={(e) => setImportGrowthModel(e.target.value)}
+                                            className="form-select"
+                                            style={{ borderRadius: 10, border: "1px solid #e6f0ea", fontSize: 14, color: "#1a3d2b", padding: "9px 12px" }}
+                                        >
+                                            <option value="">เลือกสมการ Growth Model…</option>
+                                            {GROWTH_MODEL_OPTIONS.map((model) => (
+                                                <option key={model.value} value={model.value}>{model.label}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    <div className="mb-3">
+                                        <div style={{ fontSize: 13.5, fontWeight: 600, color: "#5a7a65", marginBottom: 4 }}>
+                                            สมการ Allometry <span style={{ color: "#dc2626" }}>*</span>
+                                        </div>
+                                        <select
+                                            value={importAllometry}
+                                            onChange={(e) => setImportAllometry(e.target.value)}
+                                            className="form-select"
+                                            style={{ borderRadius: 10, border: "1px solid #e6f0ea", fontSize: 14, color: "#1a3d2b", padding: "9px 12px" }}
+                                        >
+                                            <option value="">เลือกสมการ Allometry…</option>
+                                            {ALLOMETRY_OPTIONS.map((eq) => (
+                                                <option key={eq.value} value={eq.value}>{eq.label}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                </>
+                            )}
                             <div>
                                 <div style={{ fontSize: 13.5, fontWeight: 600, color: "#5a7a65", marginBottom: 4 }}>ไฟล์ข้อมูล</div>
                                 <label
@@ -1204,6 +1466,36 @@ export default function RndDataManagementPage() {
                                                         <tr key={field.name}>
                                                             <td className="px-3 py-2" style={{ color: "#1a3d2b" }}>{field.name}</td>
                                                             <td className="px-3 py-2" style={{ color: "#5a7a65" }}>{field.type || "-"}</td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {fileMeta?.kind === "csv" && (
+                                <div className="mt-3">
+                                    <div style={{ fontSize: 12.5, fontWeight: 600, color: "#5a7a65", marginBottom: 6 }}>
+                                        ตัวอย่างข้อมูล ({fileMeta.sampleRows.length} จาก {fileMeta.rowCount.toLocaleString("th-TH")} แถว)
+                                    </div>
+                                    <div style={{ border: "1px solid #f1f5f9", borderRadius: 12, overflow: "hidden" }}>
+                                        <div className="table-responsive" style={{ maxHeight: 260, overflowY: "auto" }}>
+                                            <table className="table table-sm mb-0" style={{ fontSize: 12.5 }}>
+                                                <thead style={{ background: "#f8fbf9" }}>
+                                                    <tr>
+                                                        {fileMeta.headers.map((header, i) => (
+                                                            <th key={i} className="px-3 py-2" style={TH_STYLE}>{header}</th>
+                                                        ))}
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {fileMeta.sampleRows.map((row, i) => (
+                                                        <tr key={i}>
+                                                            {row.map((cell, j) => (
+                                                                <td key={j} className="px-3 py-2" style={{ color: "#1a3d2b" }}>{cell || "-"}</td>
+                                                            ))}
                                                         </tr>
                                                     ))}
                                                 </tbody>
@@ -1317,6 +1609,40 @@ export default function RndDataManagementPage() {
                                         },
                                     ].map((check, i) => (
                                         <div key={i} className="d-flex align-items-center gap-2" style={{ fontSize: 13, marginBottom: i < 3 ? 4 : 0 }}>
+                                            <i className={`bi ${check.ok ? "bi-check-circle-fill" : "bi-x-circle-fill"}`}
+                                               style={{ color: check.ok ? "#1e7a47" : "#dc2626" }} />
+                                            <span>{check.label}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                            {importCategory === "biomass_profile" && (
+                                <div style={{
+                                    marginTop: 12, padding: "12px 16px", borderRadius: 10, textAlign: "left",
+                                    background: biomassCsvOk ? "#f8fbf9" : "#fef2f2",
+                                    border: `1px solid ${biomassCsvOk ? "#e6f0ea" : "#fecaca"}`,
+                                }}>
+                                    <div style={{ fontSize: 12.5, fontWeight: 600, color: "#5a7a65", marginBottom: 6 }}>
+                                        เงื่อนไขการนำเข้า Biomass Profile (CSV)
+                                    </div>
+                                    {[
+                                        {
+                                            ok: fileMeta?.kind === "csv" && fileMeta.columnsValid,
+                                            label: (
+                                                <>
+                                                    มีคอลัมน์ {BIOMASS_REQUIRED_COLUMNS.join(", ")} ครบ
+                                                    {fileMeta?.kind === "csv" && fileMeta.missingColumns.length > 0 && (
+                                                        <> — ขาด: {fileMeta.missingColumns.join(", ")}</>
+                                                    )}
+                                                </>
+                                            ),
+                                        },
+                                        {
+                                            ok: fileMeta?.kind === "csv" && fileMeta.rowCountValid,
+                                            label: `มี ${BIOMASS_EXPECTED_ROW_COUNT} แถว (age 0-35)${fileMeta?.kind === "csv" ? ` (พบ ${fileMeta.rowCount} แถว)` : ""}`,
+                                        },
+                                    ].map((check, i) => (
+                                        <div key={i} className="d-flex align-items-center gap-2" style={{ fontSize: 13, marginBottom: i < 1 ? 4 : 0 }}>
                                             <i className={`bi ${check.ok ? "bi-check-circle-fill" : "bi-x-circle-fill"}`}
                                                style={{ color: check.ok ? "#1e7a47" : "#dc2626" }} />
                                             <span>{check.label}</span>
