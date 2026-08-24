@@ -134,6 +134,32 @@ export function ParcelResultsPanel({
     const [backendResponses, setBackendResponses] = useState<CarbonAssessResponse[] | null>(null);
     const { user } = useAuth();
 
+    const [cloneOptions, setCloneOptions] = useState<string[]>(VARIETY_OPTIONS);
+    const [spacingOptions, setSpacingOptions] = useState<string[]>(SPACING_OPTIONS);
+
+    // Load พันธุ์ยาง / ระยะปลูก dropdown options from tbl_rubber_clone and
+    // tbl_tree_density, falling back to the static defaults above on failure.
+    useEffect(() => {
+        let cancelled = false;
+        fetch("/api/rubber-clone")
+            .then(res => (res.ok ? res.json() : Promise.reject(res)))
+            .then(data => {
+                if (!cancelled && Array.isArray(data.rows) && data.rows.length > 0) {
+                    setCloneOptions(data.rows.map((r: { clone: string }) => r.clone));
+                }
+            })
+            .catch(() => {});
+        fetch("/api/tree-density")
+            .then(res => (res.ok ? res.json() : Promise.reject(res)))
+            .then(data => {
+                if (!cancelled && Array.isArray(data.rows) && data.rows.length > 0) {
+                    setSpacingOptions(data.rows.map((r: { treeSpacing: string }) => r.treeSpacing));
+                }
+            })
+            .catch(() => {});
+        return () => { cancelled = true; };
+    }, []);
+
     const plots = useMemo(() => parcelFeatures.map(computePlot), [parcelFeatures]);
     const totalArea = useMemo(() => plots.reduce((s, p) => s + p.areaRai, 0), [plots]);
 
@@ -1689,7 +1715,7 @@ export function ParcelResultsPanel({
                                                     disabled={!form.plantStatus}
                                                 >
                                                     <option value="">— เลือกสายพันธุ์ยาง —</option>
-                                                    {VARIETY_OPTIONS.map(v => <option key={v} value={v}>{v}</option>)}
+                                                    {cloneOptions.map(v => <option key={v} value={v}>{v}</option>)}
                                                 </select>
                                             </div>
                                             <div className="prp-field-group">
@@ -1726,7 +1752,7 @@ export function ParcelResultsPanel({
                                                     disabled={!form.plantStatus}
                                                 >
                                                     <option value="">— เลือกระยะปลูก —</option>
-                                                    {SPACING_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
+                                                    {spacingOptions.map(s => <option key={s} value={s}>{s}</option>)}
                                                 </select>
                                             </div>
                                         </div>
