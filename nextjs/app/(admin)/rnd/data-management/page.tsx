@@ -1061,7 +1061,7 @@ export default function RndDataManagementPage() {
             {/* ── Hero card ── */}
             <Card className="border-0 shadow-sm mb-4 overflow-hidden">
                 <div className="p-4 p-md-5" style={{ background: HERO_BG, borderBottom: "1px solid rgba(0,0,0,0.06)" }}>
-                    <h1 className="fw-bold mb-2" style={{ letterSpacing: "-0.02em", color: "#1a3d2b", fontSize: 26 }}>จัดการข้อมูลอ้างอิงงานวิจัย</h1>
+                    <h1 className="fw-bold mb-2" style={{ letterSpacing: "-0.02em", color: "#1a3d2b", fontSize: 26 }}>จัดการข้อมูล GeoAI</h1>
                     <div style={{ color: "#5a7a65", fontSize: 14 }}>
                         ชุดข้อมูลอ้างอิงทั้งหมด <span className="fw-semibold" style={{ color: "#1a3d2b" }}>{datasets.length}</span> ชุด
                         {" · "}จัดการค่าสัมประสิทธิ์ โมเดลการเติบโต และข้อมูลอ้างอิงที่ใช้ในการคำนวณคาร์บอน
