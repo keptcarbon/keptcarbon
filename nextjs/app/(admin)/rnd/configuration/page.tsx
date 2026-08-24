@@ -31,19 +31,20 @@ const INITIAL_TREE_DENSITIES: { spacing: string; density: number }[] = [
     { spacing: "3x6", density: 556 },
 ];
 
-const INITIAL_REGIONS = [
-    {
-        code: "RAY",
-        provinceName: "Rayong",
-        luMapVersion: "2567",
-        establishmentYearMapVersion: "2026",
-        establishmentYearMapQaVersion: "2026",
-        defaultSpacingSystem: "2.5x8",
-        defaultRubberClone: "RRIM 600",
-        defaultModel: "weibull",
-        defaultBiomassAssessmentMethod: "hytonen_2018",
-    },
-];
+// Populated from /api/rnd/region-config-options (tbl_region_config) once a
+// province is selected -- no hardcoded seed row, so a province without a
+// saved config correctly falls through to the "add config" empty state.
+type RegionConfigRow = {
+    code: string;
+    provinceName: string;
+    luMapVersion: string;
+    establishmentYearMapVersion: string;
+    establishmentYearMapQaVersion: string;
+    defaultSpacingSystem: string;
+    defaultRubberClone: string;
+    defaultModel: string;
+    defaultBiomassAssessmentMethod: string;
+};
 
 // GET /api/rnd/region-config-options response shape — the saved
 // tbl_region_config row (if any) for a province, plus each dropdown's real
@@ -155,7 +156,7 @@ const CONFIG_TABS: { key: ConfigTabKey; label: string }[] = [
 export default function RndConfigurationPage() {
     const [activeTab, setActiveTab] = useState<ConfigTabKey>("density");
     const [treeDensities, setTreeDensities] = useState(INITIAL_TREE_DENSITIES);
-    const [regions, setRegions] = useState(INITIAL_REGIONS);
+    const [regions, setRegions] = useState<RegionConfigRow[]>([]);
 
     const [saving, setSaving] = useState(false);
     const [success, setSuccess] = useState<string | null>(null);
@@ -278,7 +279,7 @@ export default function RndConfigurationPage() {
         );
     }
 
-    function updateRegion(code: string, field: keyof (typeof INITIAL_REGIONS)[number], value: string) {
+    function updateRegion(code: string, field: keyof RegionConfigRow, value: string) {
         setRegions((prev) =>
             prev.map((row) => (row.code === code ? { ...row, [field]: value } : row))
         );

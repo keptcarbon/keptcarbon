@@ -4,7 +4,6 @@ from datetime import datetime
 from fastapi import HTTPException
 from shapely.geometry import shape
 
-from app.core.constants import REGION_CONFIG
 from app.core.database import get_pool
 from app.services.tree_service import TreeService
 
@@ -34,13 +33,20 @@ class AgeMapService:
     """
 
     @staticmethod
-    def _latest_year(p_code: str) -> int | None:
-        version = REGION_CONFIG.get(p_code, {}).get("ESTABLISHMENT_YEAR_MAP_VERSION")
+    async def _latest_year(p_code: str) -> int | None:
+        try:
+            pool = get_pool()
+            async with pool.acquire() as conn:
+                version = await conn.fetchval(
+                    "SELECT est_year_version FROM tbl_region_config WHERE p_code = $1", p_code
+                )
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to load region config: {str(e)}")
         return int(version) if version is not None else None
 
     async def get_plantation_year_count(self, poly_data: dict) -> dict:
         p_code = poly_data.get("province_code")
-        year = self._latest_year(p_code)
+        year = await self._latest_year(p_code)
 
         if year is None:
             raise HTTPException(
@@ -89,7 +95,7 @@ class AgeMapService:
 
         result = [None] * len(counts)
         for idx, (yr, count) in enumerate(counts):
-            tree_info = self.tree_svc.get_tree_count_raster_pixel(poly_data, int(count), total_pixels)
+            tree_info = await self.tree_svc.get_tree_count_raster_pixel(poly_data, int(count), total_pixels)
             result[idx] = {
                 "age": int(current_year - yr),
                 "pixel_count": int(count),

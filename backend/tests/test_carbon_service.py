@@ -31,23 +31,25 @@ def _cohort(age, tree_count):
 class TestValidation:
 
     @pytest.mark.asyncio
-    async def test_unsupported_province_raises_422(self, mock_carbon_service):
-        # Fails before ever touching the DB — REGION_CONFIG lookup happens first.
-        with pytest.raises(HTTPException) as exc:
-            await mock_carbon_service.generate_carbon_profile(
-                _poly(province_code="UNKNOWN"), [_cohort(10, 100)]
-            )
+    async def test_unsupported_province_raises_422(self, mock_carbon_service, patch_db_fetch):
+        # No tbl_region_config row for this province → 422 before the biomass query.
+        with patch_db_fetch(fetchrow_results=[None]):
+            with pytest.raises(HTTPException) as exc:
+                await mock_carbon_service.generate_carbon_profile(
+                    _poly(province_code="UNKNOWN"), [_cohort(10, 100)]
+                )
         assert exc.value.status_code == 422
         assert "UNKNOWN" in exc.value.detail
 
     @pytest.mark.asyncio
     async def test_unsupported_clone_raises_422(self, mock_carbon_service, patch_db_fetch):
-        # No biomass_profile rows for this clone → DB returns empty.
-        with patch_db_fetch(rows=[]):
+        # tbl_region_config points at a clone with no matching tbl_biomass_profile rows.
+        with patch_db_fetch(
+            rows=[],
+            fetchrow_results=[{"default_clone": "FAKE_CLONE", "default_growth": "weibull", "default_allometry": "hytonen_2018"}],
+        ):
             with pytest.raises(HTTPException) as exc:
-                await mock_carbon_service.generate_carbon_profile(
-                    _poly(rubber_clone="FAKE_CLONE"), [_cohort(10, 100)]
-                )
+                await mock_carbon_service.generate_carbon_profile(_poly(), [_cohort(10, 100)])
         assert exc.value.status_code == 422
         assert "FAKE_CLONE" in exc.value.detail
 
@@ -177,10 +179,15 @@ class TestMultipleCohorts:
             assert abs(d["stocks"]["value"] - 2 * s["stocks"]["value"]) < 0.001
 
     @pytest.mark.asyncio
-    async def test_rrit251_clone_queried_against_db(self, mock_carbon_service, patch_db_fetch, biomass_rows):
-        with patch_db_fetch(rows=biomass_rows) as mock_get_pool:
+    async def test_region_config_clone_used_in_biomass_query(self, mock_carbon_service, patch_db_fetch, biomass_rows):
+        # The clone actually queried against tbl_biomass_profile comes from
+        # tbl_region_config.default_clone, not poly_data['rubber_clone'].
+        with patch_db_fetch(
+            rows=biomass_rows,
+            fetchrow_results=[{"default_clone": "RRIT 251", "default_growth": "weibull", "default_allometry": "hytonen_2018"}],
+        ) as mock_get_pool:
             await mock_carbon_service.generate_carbon_profile(
-                _poly(rubber_clone="RRIT 251"), [_cohort(10, 100)]
+                _poly(rubber_clone="RRIM 600"), [_cohort(10, 100)]
             )
             fake_conn = mock_get_pool.return_value._conn
 
