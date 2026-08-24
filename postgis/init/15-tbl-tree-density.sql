@@ -7,6 +7,8 @@ CREATE TABLE IF NOT EXISTS tbl_tree_density (
   id                SERIAL       PRIMARY KEY,
   tree_spacing      VARCHAR(20)  NOT NULL UNIQUE,  -- e.g. '2.5x8'
   tree_density_ha   INTEGER      NOT NULL,          -- trees per hectare
+  -- Generated so it can never drift from tree_density_ha: 1 ha = 6.25 rai.
+  tree_density_rai  INTEGER      GENERATED ALWAYS AS (ROUND(tree_density_ha / 6.25)::INTEGER) STORED,
   "desc"            TEXT
 );
 
