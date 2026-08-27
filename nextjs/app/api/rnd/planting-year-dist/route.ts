@@ -5,10 +5,10 @@ import { isAdminOrRnd } from "@/lib/auth-server";
 type PlantingYearDistRowInput = {
   provCode: string;
   provNameTh: string;
-  amphoeIdn: string;
-  amphoeNameTh: string;
-  tambonIdn: string;
-  tambonNameTh: string;
+  districtIdn: string;
+  districtNameTh: string;
+  subdistrictIdn: string;
+  subdistrictNameTh: string;
   year: number;
   pixelCount: number;
   sqrM: number;
@@ -56,10 +56,10 @@ export async function POST(request: NextRequest) {
 
     const provCode: string[] = [];
     const provNameTh: string[] = [];
-    const amphoeIdn: string[] = [];
-    const amphoeNameTh: string[] = [];
-    const tambonIdn: string[] = [];
-    const tambonNameTh: string[] = [];
+    const districtIdn: string[] = [];
+    const districtNameTh: string[] = [];
+    const subdistrictIdn: string[] = [];
+    const subdistrictNameTh: string[] = [];
     const year: number[] = [];
     const pixelCount: number[] = [];
     const sqrM: number[] = [];
@@ -78,18 +78,18 @@ export async function POST(request: NextRequest) {
         );
       }
       if (
-        !row.provCode || !row.provNameTh || !row.amphoeIdn || !row.amphoeNameTh ||
-        !row.tambonIdn || !row.tambonNameTh
+        !row.provCode || !row.provNameTh || !row.districtIdn || !row.districtNameTh ||
+        !row.subdistrictIdn || !row.subdistrictNameTh
       ) {
         return NextResponse.json({ error: "พบแถวที่ขาดข้อมูลจังหวัด/อำเภอ/ตำบล" }, { status: 400 });
       }
 
       provCode.push(row.provCode);
       provNameTh.push(row.provNameTh);
-      amphoeIdn.push(row.amphoeIdn);
-      amphoeNameTh.push(row.amphoeNameTh);
-      tambonIdn.push(row.tambonIdn);
-      tambonNameTh.push(row.tambonNameTh);
+      districtIdn.push(row.districtIdn);
+      districtNameTh.push(row.districtNameTh);
+      subdistrictIdn.push(row.subdistrictIdn);
+      subdistrictNameTh.push(row.subdistrictNameTh);
       year.push(row.year);
       pixelCount.push(row.pixelCount);
       sqrM.push(row.sqrM);
@@ -100,20 +100,20 @@ export async function POST(request: NextRequest) {
 
     const result = await pool.query(
       `INSERT INTO tbl_planting_year_dist
-         (p_code, prov_code, prov_name_th, amphoe_idn, amphoe_name_th, tambon_idn, tambon_name_th,
+         (p_code, prov_code, prov_name_th, district_idn, district_name_th, subdistrict_idn, subdistrict_name_th,
           lu_year, plaining_year, year, pixel_count, sqr_m, percent, adj_sqr_m, sqr_m_adj)
-       SELECT $1, u.prov_code, u.prov_name_th, u.amphoe_idn, u.amphoe_name_th, u.tambon_idn, u.tambon_name_th,
+       SELECT $1, u.prov_code, u.prov_name_th, u.district_idn, u.district_name_th, u.subdistrict_idn, u.subdistrict_name_th,
               $2, $3, u.year, u.pixel_count, u.sqr_m, u.percent, u.adj_sqr_m, u.sqr_m_adj
        FROM unnest(
               $4::text[], $5::text[], $6::text[], $7::text[], $8::text[], $9::text[],
               $10::integer[], $11::integer[],
               $12::float8[], $13::float8[], $14::float8[], $15::float8[]
-            ) AS u(prov_code, prov_name_th, amphoe_idn, amphoe_name_th, tambon_idn, tambon_name_th,
+            ) AS u(prov_code, prov_name_th, district_idn, district_name_th, subdistrict_idn, subdistrict_name_th,
                     year, pixel_count, sqr_m, percent, adj_sqr_m, sqr_m_adj)
        RETURNING id`,
       [
         pCode, luYear, plainingYear,
-        provCode, provNameTh, amphoeIdn, amphoeNameTh, tambonIdn, tambonNameTh,
+        provCode, provNameTh, districtIdn, districtNameTh, subdistrictIdn, subdistrictNameTh,
         year, pixelCount, sqrM, percent, adjSqrM, sqrMAdj,
       ]
     );
@@ -121,7 +121,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ rowCount: result.rowCount, pCode, luYear, plainingYear });
   } catch (err) {
     console.error("planting-year-dist import error:", err);
-    // Postgres unique_violation on (p_code, tambon_idn, lu_year, plaining_year, year)
+    // Postgres unique_violation on (p_code, subdistrict_idn, lu_year, plaining_year, year)
     const pgCode = (err as { code?: string } | undefined)?.code;
     if (pgCode === "23505") {
       return NextResponse.json(

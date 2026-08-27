@@ -5,7 +5,7 @@
 -- version pair. Backs the "P Year Distribution" category in the
 -- R&D data-management import wizard (nextjs/app/(admin)/rnd/data-management).
 --
--- One row per (p_code, tambon_idn, lu_year, plaining_year, year) combination.
+-- One row per (p_code, subdistrict_idn, lu_year, plaining_year, year) combination.
 -- year = 0 is the unclassified/no-data pixel bucket, not an actual planting
 -- year.
 -- ==========================================================================
@@ -17,10 +17,10 @@ CREATE TABLE IF NOT EXISTS tbl_planting_year_dist (
   p_code             VARCHAR(10)   NOT NULL,  -- province code, e.g. 'RAY'
   prov_code          VARCHAR(10)   NOT NULL,  -- e.g. '21'
   prov_name_th       VARCHAR(100)  NOT NULL,
-  amphoe_idn         VARCHAR(10)   NOT NULL,  -- district code, e.g. '2103'
-  amphoe_name_th     VARCHAR(100)  NOT NULL,
-  tambon_idn         VARCHAR(10)   NOT NULL,  -- subdistrict code, e.g. '210311'
-  tambon_name_th     VARCHAR(100)  NOT NULL,
+  district_idn       VARCHAR(10)   NOT NULL,  -- district code, e.g. '2103'
+  district_name_th   VARCHAR(100)  NOT NULL,
+  subdistrict_idn    VARCHAR(10)   NOT NULL,  -- subdistrict code, e.g. '210311'
+  subdistrict_name_th VARCHAR(100) NOT NULL,
 
   -- Source raster version this breakdown was computed from (mirrors
   -- tbl_region_config.lu_version / est_year_version)
@@ -35,7 +35,7 @@ CREATE TABLE IF NOT EXISTS tbl_planting_year_dist (
   adj_sqr_m          FLOAT         NOT NULL,  -- adjustment delta in square meters (can be negative)
   sqr_m_adj          FLOAT         NOT NULL,  -- final adjusted area
 
-  CONSTRAINT uq_planting_year_dist UNIQUE (p_code, tambon_idn, lu_year, plaining_year, year)
+  CONSTRAINT uq_planting_year_dist UNIQUE (p_code, subdistrict_idn, lu_year, plaining_year, year)
 );
 
 -- Index for lookup/duplicate-check by province + raster version

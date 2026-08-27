@@ -70,8 +70,8 @@ const BIOMASS_EXPECTED_ROW_COUNT = 36;
 // the province selector and the two version inputs in step 2, and posted
 // alongside these 12 per-row columns.
 const PLANTING_YEAR_DISTRIBUTION_REQUIRED_COLUMNS = [
-    "prov_code", "prov_name_th", "amphoe_idn", "amphoe_name_th",
-    "tambon_idn", "tambon_name_th", "year",
+    "prov_code", "prov_name_th", "district_idn", "district_name_th",
+    "subdistrict_idn", "subdistrict_name_th", "year",
     "pixel_count", "sqr_m", "percent", "adj_sqr_m", "sqr_m_adj",
 ] as const;
 
@@ -861,10 +861,10 @@ export default function RndDataManagementPage() {
         const idx = {
             provCode: colIndex("prov_code"),
             provNameTh: colIndex("prov_name_th"),
-            amphoeIdn: colIndex("amphoe_idn"),
-            amphoeNameTh: colIndex("amphoe_name_th"),
-            tambonIdn: colIndex("tambon_idn"),
-            tambonNameTh: colIndex("tambon_name_th"),
+            districtIdn: colIndex("district_idn"),
+            districtNameTh: colIndex("district_name_th"),
+            subdistrictIdn: colIndex("subdistrict_idn"),
+            subdistrictNameTh: colIndex("subdistrict_name_th"),
             year: colIndex("year"),
             pixelCount: colIndex("pixel_count"),
             sqrM: colIndex("sqr_m"),
@@ -895,10 +895,10 @@ export default function RndDataManagementPage() {
             return {
                 provCode: str(idx.provCode),
                 provNameTh: str(idx.provNameTh),
-                amphoeIdn: str(idx.amphoeIdn),
-                amphoeNameTh: str(idx.amphoeNameTh),
-                tambonIdn: str(idx.tambonIdn),
-                tambonNameTh: str(idx.tambonNameTh),
+                districtIdn: str(idx.districtIdn),
+                districtNameTh: str(idx.districtNameTh),
+                subdistrictIdn: str(idx.subdistrictIdn),
+                subdistrictNameTh: str(idx.subdistrictNameTh),
                 year: int(idx.year, "year"),
                 pixelCount: int(idx.pixelCount, "pixel_count"),
                 sqrM: float(idx.sqrM, "sqr_m"),
