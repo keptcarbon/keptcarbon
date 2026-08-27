@@ -65,6 +65,16 @@ const CSV_SAMPLE_ROW_COUNT = 5;
 const BIOMASS_REQUIRED_COLUMNS = ["age", "dbh_est", "agb", "bgb", "biomass_est", "ci", "biomass_ci_lower", "biomass_ci_upper"] as const;
 const BIOMASS_EXPECTED_ROW_COUNT = 36;
 
+// establishment_year_distribution's expected CSV shape. p_code, lu_year,
+// and plaining_year are NOT in the CSV — they're supplied separately via
+// the province selector and the two version inputs in step 2, and posted
+// alongside these 12 per-row columns.
+const ESTABLISHMENT_YEAR_DISTRIBUTION_REQUIRED_COLUMNS = [
+    "prov_code", "prov_name_th", "amphoe_idn", "amphoe_name_th",
+    "tambon_idn", "tambon_name_th", "year",
+    "pixel_count", "sqr_m", "percent", "adj_sqr_m", "sqr_m_adj",
+] as const;
+
 // Minimal RFC4180-ish line splitter: handles quoted fields, embedded commas,
 // and "" escaped quotes. Doesn't handle a quoted field spanning multiple
 // physical lines — good enough for a preview table, not a full CSV engine.
@@ -131,7 +141,7 @@ const PIXEL_SIZE_TOLERANCE = 0.01;
 // min/max, so a province-wide .tif doesn't freeze the browser.
 const MAX_SAMPLES_FOR_MINMAX = 25_000_000;
 
-type DatasetCategory = "establishment_year_map" | "lulc_map" | "biomass_profile";
+type DatasetCategory = "establishment_year_map" | "establishment_year_distribution" | "lulc_map" | "biomass_profile";
 type DatasetStatus = "active" | "draft" | "archived";
 
 // Categories with a real duplicate-check endpoint (p_code + year) — used to
@@ -236,12 +246,14 @@ const CATEGORY_META: Record<DatasetCategory, { label: string; bg: string; color:
     establishment_year_map: { label: "Map of Establishment Year", bg: "rgba(59,130,246,0.10)", color: "#1e40af" },
     lulc_map: { label: "Map of LULC", bg: "rgba(168,85,247,0.10)", color: "#7e22ce" },
     biomass_profile: { label: "Biomass Profile", bg: "rgba(236,72,153,0.10)", color: "#be185d" },
+    establishment_year_distribution: { label: "Establishment Year Distribution", bg: "rgba(234,179,8,0.10)", color: "#a16207" },
 };
 
 const CATEGORY_FILE_EXT: Record<DatasetCategory, string> = {
     establishment_year_map: ".tif",
     lulc_map: ".gpkg",
     biomass_profile: ".csv",
+    establishment_year_distribution: ".csv",
 };
 
 const STATUS_META: Record<DatasetStatus, { label: string; bg: string; color: string }> = {
@@ -312,6 +324,11 @@ export default function RndDataManagementPage() {
     const [importClone, setImportClone] = useState("");
     const [importGrowthModel, setImportGrowthModel] = useState("");
     const [importAllometry, setImportAllometry] = useState("");
+    // establishment_year_distribution-only fields — the CSV itself has no
+    // p_code/lu_year/plaining_year columns, so these are supplied here
+    // instead and posted alongside the per-row data.
+    const [importPlantingYear, setImportPlantingYear] = useState("");
+    const [importLuYear, setImportLuYear] = useState("");
     const [importFile, setImportFile] = useState<File | null>(null);
     const [importing, setImporting] = useState(false);
     const [confirmError, setConfirmError] = useState<string | null>(null);
@@ -680,7 +697,10 @@ export default function RndDataManagementPage() {
         }
     }
 
-    async function readCsvMetadata(file: File) {
+    // requiredColumns/expectedRowCount are null for categories with no
+    // row-count expectation (or no defined CSV shape at all) — the read
+    // still previews headers/rows, it just skips that particular check.
+    async function readCsvMetadata(file: File, requiredColumns: readonly string[] | null, expectedRowCount: number | null) {
         // No on-page debug panel for CSV — it's a simple preview, not worth
         // the "Metadata ที่อ่านได้จากไฟล์" treatment the raster/vector readers get.
         setFileMeta(null);
@@ -700,12 +720,12 @@ export default function RndDataManagementPage() {
             const rowCount = dataLines.length;
             const sampleRows = dataLines.slice(0, CSV_SAMPLE_ROW_COUNT).map(splitCsvLine);
 
-            // Must match geo_biomass_profile's expected shape exactly —
+            // Must match the target table's expected shape exactly —
             // otherwise upload stays blocked at the confirm step.
             const headerSet = new Set(headers.map((h) => h.trim().toLowerCase()));
-            const missingColumns = BIOMASS_REQUIRED_COLUMNS.filter((col) => !headerSet.has(col));
+            const missingColumns = requiredColumns ? requiredColumns.filter((col) => !headerSet.has(col)) : [];
             const columnsValid = missingColumns.length === 0;
-            const rowCountValid = rowCount === BIOMASS_EXPECTED_ROW_COUNT;
+            const rowCountValid = expectedRowCount === null ? true : rowCount === expectedRowCount;
 
             setFileMeta({ kind: "csv", rowCount, headers, sampleRows, columnsValid, missingColumns, rowCountValid });
         } catch (err) {
@@ -726,7 +746,9 @@ export default function RndDataManagementPage() {
         } else if (file && importCategory === "lulc_map") {
             void readGpkgMetadata(file);
         } else if (file && importCategory === "biomass_profile") {
-            void readCsvMetadata(file);
+            void readCsvMetadata(file, BIOMASS_REQUIRED_COLUMNS, BIOMASS_EXPECTED_ROW_COUNT);
+        } else if (file && importCategory === "establishment_year_distribution") {
+            void readCsvMetadata(file, ESTABLISHMENT_YEAR_DISTRIBUTION_REQUIRED_COLUMNS, null);
         }
     }
 
@@ -741,6 +763,8 @@ export default function RndDataManagementPage() {
         setImportClone("");
         setImportGrowthModel("");
         setImportAllometry("");
+        setImportPlantingYear("");
+        setImportLuYear("");
     }
 
     // Re-opens the .gpkg (sql.js state from the preview read isn't kept
@@ -823,8 +847,71 @@ export default function RndDataManagementPage() {
         });
     }
 
+    // Re-reads the CSV (only a sample was kept in state) and maps each row's
+    // 15 required columns by header name (case-insensitive), ready to POST
+    // to /api/rnd/planting-year-dist. Unlike biomass, every row carries its
+    // own location/version fields — there's no single shared version here.
+    async function extractPlantingYearDistRows(file: File, headers: string[]) {
+        const text = await file.text();
+        const lines = text.split(/\r\n|\r|\n/);
+        if (lines.length > 0 && lines[lines.length - 1] === "") lines.pop();
+        const dataLines = lines.slice(1);
+
+        const colIndex = (name: string) => headers.findIndex((h) => h.trim().toLowerCase() === name);
+        const idx = {
+            provCode: colIndex("prov_code"),
+            provNameTh: colIndex("prov_name_th"),
+            amphoeIdn: colIndex("amphoe_idn"),
+            amphoeNameTh: colIndex("amphoe_name_th"),
+            tambonIdn: colIndex("tambon_idn"),
+            tambonNameTh: colIndex("tambon_name_th"),
+            year: colIndex("year"),
+            pixelCount: colIndex("pixel_count"),
+            sqrM: colIndex("sqr_m"),
+            percent: colIndex("percent"),
+            adjSqrM: colIndex("adj_sqr_m"),
+            sqrMAdj: colIndex("sqr_m_adj"),
+        };
+
+        return dataLines.map((line) => {
+            const cells = splitCsvLine(line);
+            const str = (i: number): string => cells[i]?.trim() ?? "";
+            const int = (i: number, col: string): number => {
+                const v = str(i);
+                const n = Number(v);
+                if (!v || !Number.isInteger(n)) {
+                    throw new Error(`พบแถวที่คอลัมน์ ${col} ไม่ใช่จำนวนเต็ม: "${v}"`);
+                }
+                return n;
+            };
+            const float = (i: number, col: string): number => {
+                const v = str(i);
+                const n = Number(v);
+                if (!v || Number.isNaN(n)) {
+                    throw new Error(`พบแถวที่คอลัมน์ ${col} ไม่ใช่ตัวเลข: "${v}"`);
+                }
+                return n;
+            };
+            return {
+                provCode: str(idx.provCode),
+                provNameTh: str(idx.provNameTh),
+                amphoeIdn: str(idx.amphoeIdn),
+                amphoeNameTh: str(idx.amphoeNameTh),
+                tambonIdn: str(idx.tambonIdn),
+                tambonNameTh: str(idx.tambonNameTh),
+                year: int(idx.year, "year"),
+                pixelCount: int(idx.pixelCount, "pixel_count"),
+                sqrM: float(idx.sqrM, "sqr_m"),
+                percent: float(idx.percent, "percent"),
+                adjSqrM: float(idx.adjSqrM, "adj_sqr_m"),
+                sqrMAdj: float(idx.sqrMAdj, "sqr_m_adj"),
+            };
+        });
+    }
+
     async function handleConfirmImport() {
-        if (!selectedProvince || !importCategory || !importVersion.trim() || !importFile) return;
+        if (!selectedProvince || !importCategory || !importFile || (versionApplicable && !importVersion.trim())) return;
+        if (importCategory === "establishment_year_distribution" && (!importPlantingYear.trim() || !importLuYear.trim())) return;
         setConfirmError(null);
         setImporting(true);
 
@@ -915,6 +1002,54 @@ export default function RndDataManagementPage() {
             return;
         }
 
+        if (importCategory === "establishment_year_distribution") {
+            // Blocked well before this point by the confirm button itself,
+            // but re-checked here so a stale click can't slip through.
+            if (fileMeta?.kind !== "csv" || !fileMeta.columnsValid) {
+                setConfirmError("ไฟล์ยังไม่ผ่านเงื่อนไขคอลัมน์ ย้อนกลับไปตรวจสอบข้อมูลอีกครั้ง");
+                setImporting(false);
+                return;
+            }
+            try {
+                const rows = await extractPlantingYearDistRows(importFile, fileMeta.headers);
+                const res = await fetch("/api/rnd/planting-year-dist", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        pCode: selectedProvince.pCode,
+                        luYear: Number(importLuYear.trim()),
+                        plainingYear: Number(importPlantingYear.trim()),
+                        rows,
+                    }),
+                });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) {
+                    throw new Error(data.error || "นำเข้าไฟล์ไม่สำเร็จ");
+                }
+
+                const newDataset: ResearchDataset = {
+                    id: `imported-${Date.now()}`,
+                    name: importFile.name.replace(/\.[^/.]+$/, ""),
+                    category: importCategory,
+                    pCode: selectedProvince.pCode,
+                    provinceName: selectedProvince.nameTh,
+                    version: `LU ${importLuYear.trim()} / EY ${importPlantingYear.trim()}`,
+                    description: "นำเข้าโดยผู้ใช้งาน R&D",
+                    updatedAt: new Date().toISOString().slice(0, 10),
+                    status: "active",
+                };
+                setDatasets((prev) => [newDataset, ...prev]);
+                setSuccess(`นำเข้า “${newDataset.name}” สำเร็จ (${data.rowCount} แถว)`);
+                setTimeout(() => setSuccess(null), 3000);
+                resetImportWizard();
+            } catch (err) {
+                setConfirmError(err instanceof Error ? err.message : "นำเข้าไฟล์ไม่สำเร็จ");
+            } finally {
+                setImporting(false);
+            }
+            return;
+        }
+
         // importCategory === "biomass_profile" — real import, persisted into
         // tbl_biomass_profile.
         // Blocked well before this point by the confirm button itself,
@@ -965,22 +1100,36 @@ export default function RndDataManagementPage() {
         }
     }
 
+    // Version-field placeholders — establishment-year/Planting-Year fields
+    // hint the current AD year, LU/LULC fields hint the current BE year
+    // (AD + 543), per tbl_region_config's est_year_version vs. lu_version split.
+    const currentAdYear = new Date().getFullYear();
+    const currentBeYearPlaceholder = currentAdYear + 543;
+
     // Block "ถัดไป" out of step 2 while the .tif metadata read is still in
     // flight — the review step needs fileMeta settled before the user moves on.
     // geo_establishment_year.year and geo_landuse.lu_year are both integer
     // columns — free text like "v1" doesn't fit, so these categories require
     // a numeric year specifically.
     const requiresNumericVersion = importCategory === "establishment_year_map" || importCategory === "lulc_map";
-    const versionIsValid = requiresNumericVersion
-        ? /^\d+$/.test(importVersion.trim())
-        : !!importVersion.trim();
+    // establishment_year_distribution uses its own two version fields
+    // (Planting Year / LU) instead of the shared "เวอร์ชัน/ปีของข้อมูล" input.
+    const versionApplicable = importCategory !== "establishment_year_distribution";
+    const versionIsValid = !versionApplicable
+        ? true
+        : requiresNumericVersion
+            ? /^\d+$/.test(importVersion.trim())
+            : !!importVersion.trim();
 
     const biomassFieldsMissing =
         importCategory === "biomass_profile" && (!importClone || !importGrowthModel || !importAllometry);
+    const estYearDistFieldsMissing =
+        importCategory === "establishment_year_distribution" &&
+        (!/^\d+$/.test(importPlantingYear.trim()) || !/^\d+$/.test(importLuYear.trim()));
 
     const nextDisabled =
         (importStep === 1 && !importPCode) ||
-        (importStep === 2 && (!importCategory || !versionIsValid || !importFile || fileMetaLoading || biomassFieldsMissing));
+        (importStep === 2 && (!importCategory || !versionIsValid || !importFile || fileMetaLoading || biomassFieldsMissing || estYearDistFieldsMissing));
 
     // lulc_map may only be confirmed once the .gpkg has been read AND
     // matches geo_landuse's fixed schema exactly (CRS + the 6 required
@@ -1000,13 +1149,26 @@ export default function RndDataManagementPage() {
     const biomassCsvOk =
         importCategory !== "biomass_profile" ||
         (fileMeta?.kind === "csv" && fileMeta.columnsValid && fileMeta.rowCountValid);
-    const confirmDisabled = importing || !lulcSchemaOk || !tiffSpecOk || !biomassCsvOk;
+    // establishment_year_distribution may only be confirmed once the CSV
+    // header has all 12 required columns — no row-count expectation.
+    const estYearDistCsvOk =
+        importCategory !== "establishment_year_distribution" ||
+        (fileMeta?.kind === "csv" && fileMeta.columnsValid);
+    const confirmDisabled = importing || !lulcSchemaOk || !tiffSpecOk || !biomassCsvOk || !estYearDistCsvOk;
 
     const reviewRows: { label: string; value: string }[] = [
         { label: "จังหวัด", value: selectedProvince ? `${selectedProvince.nameTh} (${selectedProvince.pCode})` : "-" },
         { label: "ประเภทข้อมูล", value: importCategory ? CATEGORY_META[importCategory].label : "-" },
-        { label: "เวอร์ชัน/ปี", value: importVersion.trim() },
     ];
+    if (versionApplicable) {
+        reviewRows.push({ label: "เวอร์ชัน/ปี", value: importVersion.trim() });
+    }
+    if (importCategory === "establishment_year_distribution") {
+        reviewRows.push(
+            { label: "เวอร์ชัน/ปีของข้อมูล Planting Year", value: importPlantingYear.trim() },
+            { label: "เวอร์ชัน/ปีของข้อมูล LU", value: importLuYear.trim() },
+        );
+    }
     if (importCategory === "biomass_profile") {
         reviewRows.push(
             { label: "พันธุ์ยาง (Clone)", value: importClone || "-" },
@@ -1018,7 +1180,7 @@ export default function RndDataManagementPage() {
         { label: "ไฟล์", value: importFile?.name ?? "-" },
         { label: "ขนาดไฟล์", value: importFile ? `${(importFile.size / 1024).toFixed(1)} KB` : "-" },
     );
-    if (importCategory === "establishment_year_map" || importCategory === "lulc_map" || importCategory === "biomass_profile") {
+    if (importCategory === "establishment_year_map" || importCategory === "lulc_map" || importCategory === "biomass_profile" || importCategory === "establishment_year_distribution") {
         if (fileMetaLoading) {
             reviewRows.push({ label: "Metadata ไฟล์", value: "กำลังอ่าน…" });
         } else if (fileMetaError) {
@@ -1316,24 +1478,70 @@ export default function RndDataManagementPage() {
                                     ))}
                                 </select>
                             </div>
-                            <div className="mb-3">
-                                <div style={{ fontSize: 13.5, fontWeight: 600, color: "#5a7a65", marginBottom: 4 }}>
-                                    เวอร์ชัน/ปีของข้อมูล <span style={{ color: "#dc2626" }}>*</span>
-                                </div>
-                                <input
-                                    value={importVersion}
-                                    onChange={(e) => setImportVersion(e.target.value)}
-                                    placeholder={requiresNumericVersion ? "เช่น 2568" : "เช่น v1, 2568"}
-                                    inputMode={requiresNumericVersion ? "numeric" : "text"}
-                                    maxLength={10}
-                                    style={{ width: "100%", borderRadius: 10, border: "1px solid #e6f0ea", background: "#fff", padding: "9px 12px", fontSize: 14, outline: "none", color: "#1a3d2b" }}
-                                />
-                                {requiresNumericVersion && importVersion.trim() !== "" && !versionIsValid && (
-                                    <div style={{ fontSize: 11.5, color: "#dc2626", marginTop: 4 }}>
-                                        ต้องเป็นตัวเลขปี (year) ที่เป็นจำนวนเต็มเท่านั้น
+                            {versionApplicable && (
+                                <div className="mb-3">
+                                    <div style={{ fontSize: 13.5, fontWeight: 600, color: "#5a7a65", marginBottom: 4 }}>
+                                        เวอร์ชัน/ปีของข้อมูล <span style={{ color: "#dc2626" }}>*</span>
                                     </div>
-                                )}
-                            </div>
+                                    <input
+                                        value={importVersion}
+                                        onChange={(e) => setImportVersion(e.target.value)}
+                                        placeholder={
+                                            importCategory === "establishment_year_map" ? `เช่น ${currentAdYear}` :
+                                            importCategory === "lulc_map" ? `เช่น ${currentBeYearPlaceholder}` :
+                                            "เช่น v1, 2568"
+                                        }
+                                        inputMode={requiresNumericVersion ? "numeric" : "text"}
+                                        maxLength={10}
+                                        style={{ width: "100%", borderRadius: 10, border: "1px solid #e6f0ea", background: "#fff", padding: "9px 12px", fontSize: 14, outline: "none", color: "#1a3d2b" }}
+                                    />
+                                    {requiresNumericVersion && importVersion.trim() !== "" && !versionIsValid && (
+                                        <div style={{ fontSize: 11.5, color: "#dc2626", marginTop: 4 }}>
+                                            ต้องเป็นตัวเลขปี (year) ที่เป็นจำนวนเต็มเท่านั้น
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                            {importCategory === "establishment_year_distribution" && (
+                                <>
+                                    <div className="mb-3">
+                                        <div style={{ fontSize: 13.5, fontWeight: 600, color: "#5a7a65", marginBottom: 4 }}>
+                                            เวอร์ชัน/ปีของข้อมูล Planting Year <span style={{ color: "#dc2626" }}>*</span>
+                                        </div>
+                                        <input
+                                            value={importPlantingYear}
+                                            onChange={(e) => setImportPlantingYear(e.target.value)}
+                                            placeholder={`เช่น ${currentAdYear}`}
+                                            inputMode="numeric"
+                                            maxLength={10}
+                                            style={{ width: "100%", borderRadius: 10, border: "1px solid #e6f0ea", background: "#fff", padding: "9px 12px", fontSize: 14, outline: "none", color: "#1a3d2b" }}
+                                        />
+                                        {importPlantingYear.trim() !== "" && !/^\d+$/.test(importPlantingYear.trim()) && (
+                                            <div style={{ fontSize: 11.5, color: "#dc2626", marginTop: 4 }}>
+                                                ต้องเป็นตัวเลขปี (year) ที่เป็นจำนวนเต็มเท่านั้น
+                                            </div>
+                                        )}
+                                    </div>
+                                    <div className="mb-3">
+                                        <div style={{ fontSize: 13.5, fontWeight: 600, color: "#5a7a65", marginBottom: 4 }}>
+                                            เวอร์ชัน/ปีของข้อมูล LU <span style={{ color: "#dc2626" }}>*</span>
+                                        </div>
+                                        <input
+                                            value={importLuYear}
+                                            onChange={(e) => setImportLuYear(e.target.value)}
+                                            placeholder={`เช่น ${currentBeYearPlaceholder}`}
+                                            inputMode="numeric"
+                                            maxLength={10}
+                                            style={{ width: "100%", borderRadius: 10, border: "1px solid #e6f0ea", background: "#fff", padding: "9px 12px", fontSize: 14, outline: "none", color: "#1a3d2b" }}
+                                        />
+                                        {importLuYear.trim() !== "" && !/^\d+$/.test(importLuYear.trim()) && (
+                                            <div style={{ fontSize: 11.5, color: "#dc2626", marginTop: 4 }}>
+                                                ต้องเป็นตัวเลขปี (year) ที่เป็นจำนวนเต็มเท่านั้น
+                                            </div>
+                                        )}
+                                    </div>
+                                </>
+                            )}
                             {importCategory === "biomass_profile" && (
                                 <>
                                     <div className="mb-3">
@@ -1648,6 +1856,27 @@ export default function RndDataManagementPage() {
                                             <span>{check.label}</span>
                                         </div>
                                     ))}
+                                </div>
+                            )}
+                            {importCategory === "establishment_year_distribution" && (
+                                <div style={{
+                                    marginTop: 12, padding: "12px 16px", borderRadius: 10, textAlign: "left",
+                                    background: estYearDistCsvOk ? "#f8fbf9" : "#fef2f2",
+                                    border: `1px solid ${estYearDistCsvOk ? "#e6f0ea" : "#fecaca"}`,
+                                }}>
+                                    <div style={{ fontSize: 12.5, fontWeight: 600, color: "#5a7a65", marginBottom: 6 }}>
+                                        เงื่อนไขการนำเข้า Establishment Year Distribution (CSV)
+                                    </div>
+                                    <div className="d-flex align-items-center gap-2" style={{ fontSize: 13 }}>
+                                        <i className={`bi ${estYearDistCsvOk ? "bi-check-circle-fill" : "bi-x-circle-fill"}`}
+                                           style={{ color: estYearDistCsvOk ? "#1e7a47" : "#dc2626" }} />
+                                        <span>
+                                            มีคอลัมน์ {ESTABLISHMENT_YEAR_DISTRIBUTION_REQUIRED_COLUMNS.join(", ")} ครบ
+                                            {fileMeta?.kind === "csv" && fileMeta.missingColumns.length > 0 && (
+                                                <> — ขาด: {fileMeta.missingColumns.join(", ")}</>
+                                            )}
+                                        </span>
+                                    </div>
                                 </div>
                             )}
                             {confirmError && (
