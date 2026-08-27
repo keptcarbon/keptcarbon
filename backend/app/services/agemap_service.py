@@ -38,7 +38,7 @@ class AgeMapService:
             pool = get_pool()
             async with pool.acquire() as conn:
                 version = await conn.fetchval(
-                    "SELECT est_year_version FROM tbl_region_config WHERE p_code = $1", p_code
+                    "SELECT planting_year_version FROM tbl_region_config WHERE p_code = $1", p_code
                 )
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Failed to load region config: {str(e)}")

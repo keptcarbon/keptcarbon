@@ -8,7 +8,7 @@ import { isAdminOrRnd } from "@/lib/auth-server";
  * tbl_region_config row for a province (if any), plus the real option lists
  * for each of its dropdowns — sourced from whichever table actually owns
  * that data, not hardcoded:
- *   - Planting Year Map Version -> distinct geo_planting_year.year
+ *   - Planting Year Version     -> distinct geo_planting_year.year
  *   - LU Map Version                 -> distinct geo_landuse.lu_year
  *   - Default Spacing System         -> tbl_tree_density.tree_spacing (global, no p_code)
  *   - Default Rubber Clone           -> distinct tbl_biomass_profile.clone
@@ -27,10 +27,10 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const [configResult, estYearResult, luVersionResult, spacingResult, cloneResult, growthResult, allometryResult] =
+    const [configResult, plantingYearResult, luVersionResult, spacingResult, cloneResult, growthResult, allometryResult] =
       await Promise.all([
         pool.query(
-          `SELECT p_code, p_name, lu_version, est_year_version, default_spacing, default_clone, default_growth, default_allometry
+          `SELECT p_code, p_name, lu_version, planting_year_version, default_spacing, default_clone, default_growth, default_allometry
            FROM tbl_region_config WHERE p_code = $1`,
           [pCode]
         ),
@@ -50,14 +50,14 @@ export async function GET(request: NextRequest) {
             pCode: row.p_code,
             pName: row.p_name,
             luVersion: row.lu_version,
-            estYearVersion: row.est_year_version,
+            plantingYearVersion: row.planting_year_version,
             defaultSpacing: row.default_spacing,
             defaultClone: row.default_clone,
             defaultGrowth: row.default_growth,
             defaultAllometry: row.default_allometry,
           }
         : null,
-      estYearVersionOptions: estYearResult.rows.map((r) => String(r.year)),
+      plantingYearVersionOptions: plantingYearResult.rows.map((r) => String(r.year)),
       luVersionOptions: luVersionResult.rows.map((r) => String(r.lu_year)),
       spacingOptions: spacingResult.rows.map((r) => String(r.tree_spacing)),
       cloneOptions: cloneResult.rows.map((r) => String(r.clone)),

@@ -40,7 +40,7 @@ CREATE TABLE tbl_planting_year_dist (
   subdistrict_name_th VARCHAR(100) NOT NULL,
 
   -- Source raster version this breakdown was computed from (mirrors
-  -- tbl_region_config.lu_version / est_year_version)
+  -- tbl_region_config.lu_version / planting_year_version)
   lu_year            INTEGER       NOT NULL,  -- LULC map version (Buddhist-Era year), e.g. 2567
   plaining_year      INTEGER       NOT NULL,  -- planting-year map version, e.g. 2026
 

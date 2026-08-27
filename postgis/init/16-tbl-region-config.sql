@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS tbl_region_config (
 );
 
 INSERT INTO tbl_region_config
-  (p_code, p_name, lu_version, est_year_version, default_spacing, default_clone, default_growth, default_allometry)
+  (p_code, p_name, lu_version, planting_year_version, default_spacing, default_clone, default_growth, default_allometry)
 VALUES
   ('RAY', 'Rayong', 2567, 2026, '2.5x8', 'RRIM 600', 'weibull', 'hytonen_2018')
 ON CONFLICT (p_code) DO NOTHING;

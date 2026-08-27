@@ -1102,7 +1102,7 @@ export default function RndDataManagementPage() {
 
     // Version-field placeholders — planting-year/Planting-Year fields
     // hint the current AD year, LU/LULC fields hint the current BE year
-    // (AD + 543), per tbl_region_config's est_year_version vs. lu_version split.
+    // (AD + 543), per tbl_region_config's planting_year_version vs. lu_version split.
     const currentAdYear = new Date().getFullYear();
     const currentBeYearPlaceholder = currentAdYear + 543;
 
