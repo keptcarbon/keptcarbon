@@ -6,7 +6,7 @@ import initSqlJs from "sql.js";
 import { Alert, Card } from "@/app/components";
 
 // Raster header metadata read client-side from the .tif itself (geotiff.js)
-// — only applies to the establishment-year-map category.
+// — only applies to the planting-year-map category.
 type TiffMeta = {
     kind: "tiff";
     bandCount: number;
@@ -65,11 +65,11 @@ const CSV_SAMPLE_ROW_COUNT = 5;
 const BIOMASS_REQUIRED_COLUMNS = ["age", "dbh_est", "agb", "bgb", "biomass_est", "ci", "biomass_ci_lower", "biomass_ci_upper"] as const;
 const BIOMASS_EXPECTED_ROW_COUNT = 36;
 
-// establishment_year_distribution's expected CSV shape. p_code, lu_year,
-// and plaining_year are NOT in the CSV — they're supplied separately via
+// planting_year_distribution's expected CSV shape. p_code, lu_year,
+// and planting_year are NOT in the CSV — they're supplied separately via
 // the province selector and the two version inputs in step 2, and posted
 // alongside these 12 per-row columns.
-const ESTABLISHMENT_YEAR_DISTRIBUTION_REQUIRED_COLUMNS = [
+const PLANTING_YEAR_DISTRIBUTION_REQUIRED_COLUMNS = [
     "prov_code", "prov_name_th", "amphoe_idn", "amphoe_name_th",
     "tambon_idn", "tambon_name_th", "year",
     "pixel_count", "sqr_m", "percent", "adj_sqr_m", "sqr_m_adj",
@@ -128,7 +128,7 @@ const ALLOMETRY_OPTIONS = [
     { label: "Chiarawipa et al. (2024)", value: "chiarawipa_2024" },
 ] as const;
 
-// geo_establishment_year's expected raster spec — a .tif must match all of
+// geo_planting_year's expected raster spec — a .tif must match all of
 // these to be importable.
 const TIFF_EXPECTED_CRS = "EPSG:32647";
 const TIFF_EXPECTED_NODATA = -9999;
@@ -141,13 +141,13 @@ const PIXEL_SIZE_TOLERANCE = 0.01;
 // min/max, so a province-wide .tif doesn't freeze the browser.
 const MAX_SAMPLES_FOR_MINMAX = 25_000_000;
 
-type DatasetCategory = "establishment_year_map" | "establishment_year_distribution" | "lulc_map" | "biomass_profile";
+type DatasetCategory = "planting_year_map" | "planting_year_distribution" | "lulc_map" | "biomass_profile";
 type DatasetStatus = "active" | "draft" | "archived";
 
 // Categories with a real duplicate-check endpoint (p_code + year) — used to
 // block re-importing a combination already in the target table.
 const DUPLICATE_CHECK_ENDPOINT: Partial<Record<DatasetCategory, string>> = {
-    establishment_year_map: "/api/rnd/geo-establishment-year",
+    planting_year_map: "/api/rnd/geo-planting-year",
     lulc_map: "/api/rnd/geo-landuse",
 };
 
@@ -186,9 +186,9 @@ const REGION_LABELS: Record<string, string> = {
 // of truth until this page is wired to a datasets API.
 const INITIAL_DATASETS: ResearchDataset[] = [
     {
-        id: "establishment-year-rayong",
-        name: "Establishment Year Map — Rayong (RAY)",
-        category: "establishment_year_map",
+        id: "planting-year-rayong",
+        name: "Planting Year Map — Rayong (RAY)",
+        category: "planting_year_map",
         pCode: "RAY",
         provinceName: "ระยอง",
         version: "2026",
@@ -197,9 +197,9 @@ const INITIAL_DATASETS: ResearchDataset[] = [
         status: "active",
     },
     {
-        id: "establishment-year-qa-rayong",
-        name: "Establishment Year Map QA — Rayong (RAY)",
-        category: "establishment_year_map",
+        id: "planting-year-qa-rayong",
+        name: "Planting Year Map QA — Rayong (RAY)",
+        category: "planting_year_map",
         pCode: "RAY",
         provinceName: "ระยอง",
         version: "2026 QA",
@@ -243,17 +243,17 @@ const INITIAL_DATASETS: ResearchDataset[] = [
 ];
 
 const CATEGORY_META: Record<DatasetCategory, { label: string; bg: string; color: string }> = {
-    establishment_year_map: { label: "Map of Establishment Year", bg: "rgba(59,130,246,0.10)", color: "#1e40af" },
+    planting_year_map: { label: "Map of Planting Year", bg: "rgba(59,130,246,0.10)", color: "#1e40af" },
     lulc_map: { label: "Map of LULC", bg: "rgba(168,85,247,0.10)", color: "#7e22ce" },
     biomass_profile: { label: "Biomass Profile", bg: "rgba(236,72,153,0.10)", color: "#be185d" },
-    establishment_year_distribution: { label: "Establishment Year Distribution", bg: "rgba(234,179,8,0.10)", color: "#a16207" },
+    planting_year_distribution: { label: "Planting Year Distribution", bg: "rgba(234,179,8,0.10)", color: "#a16207" },
 };
 
 const CATEGORY_FILE_EXT: Record<DatasetCategory, string> = {
-    establishment_year_map: ".tif",
+    planting_year_map: ".tif",
     lulc_map: ".gpkg",
     biomass_profile: ".csv",
-    establishment_year_distribution: ".csv",
+    planting_year_distribution: ".csv",
 };
 
 const STATUS_META: Record<DatasetStatus, { label: string; bg: string; color: string }> = {
@@ -324,8 +324,8 @@ export default function RndDataManagementPage() {
     const [importClone, setImportClone] = useState("");
     const [importGrowthModel, setImportGrowthModel] = useState("");
     const [importAllometry, setImportAllometry] = useState("");
-    // establishment_year_distribution-only fields — the CSV itself has no
-    // p_code/lu_year/plaining_year columns, so these are supplied here
+    // planting_year_distribution-only fields — the CSV itself has no
+    // p_code/lu_year/planting_year columns, so these are supplied here
     // instead and posted alongside the per-row data.
     const [importPlantingYear, setImportPlantingYear] = useState("");
     const [importLuYear, setImportLuYear] = useState("");
@@ -374,8 +374,8 @@ export default function RndDataManagementPage() {
         [provinces, importPCode]
     );
 
-    // ── Duplicate check (p_code + year) — geo_establishment_year for
-    // establishment_year_map, geo_landuse for lulc_map. ──
+    // ── Duplicate check (p_code + year) — geo_planting_year for
+    // planting_year_map, geo_landuse for lulc_map. ──
     const [yearExists, setYearExists] = useState<boolean | null>(null);
     const [yearExistsLoading, setYearExistsLoading] = useState(false);
 
@@ -564,7 +564,7 @@ export default function RndDataManagementPage() {
                 minMaxSource = downsampled ? "scan-downsampled" : "scan";
             }
 
-            // Must match geo_establishment_year's expected raster spec
+            // Must match geo_planting_year's expected raster spec
             // exactly — otherwise upload stays blocked at the confirm step.
             const crsValid = crs === TIFF_EXPECTED_CRS;
             const noDataValid = noData === TIFF_EXPECTED_NODATA;
@@ -741,14 +741,14 @@ export default function RndDataManagementPage() {
         setFileMeta(null);
         setFileMetaError(null);
         setFileDebug(null);
-        if (file && importCategory === "establishment_year_map") {
+        if (file && importCategory === "planting_year_map") {
             void readTiffMetadata(file);
         } else if (file && importCategory === "lulc_map") {
             void readGpkgMetadata(file);
         } else if (file && importCategory === "biomass_profile") {
             void readCsvMetadata(file, BIOMASS_REQUIRED_COLUMNS, BIOMASS_EXPECTED_ROW_COUNT);
-        } else if (file && importCategory === "establishment_year_distribution") {
-            void readCsvMetadata(file, ESTABLISHMENT_YEAR_DISTRIBUTION_REQUIRED_COLUMNS, null);
+        } else if (file && importCategory === "planting_year_distribution") {
+            void readCsvMetadata(file, PLANTING_YEAR_DISTRIBUTION_REQUIRED_COLUMNS, null);
         }
     }
 
@@ -911,11 +911,11 @@ export default function RndDataManagementPage() {
 
     async function handleConfirmImport() {
         if (!selectedProvince || !importCategory || !importFile || (versionApplicable && !importVersion.trim())) return;
-        if (importCategory === "establishment_year_distribution" && (!importPlantingYear.trim() || !importLuYear.trim())) return;
+        if (importCategory === "planting_year_distribution" && (!importPlantingYear.trim() || !importLuYear.trim())) return;
         setConfirmError(null);
         setImporting(true);
 
-        if (importCategory === "establishment_year_map") {
+        if (importCategory === "planting_year_map") {
             // Blocked well before this point by the confirm button itself,
             // but re-checked here so a stale click can't slip through.
             if (fileMeta?.kind !== "tiff" || !fileMeta.crsValid || !fileMeta.noDataValid || !fileMeta.pixelSizeValid || yearExists !== false) {
@@ -923,14 +923,14 @@ export default function RndDataManagementPage() {
                 setImporting(false);
                 return;
             }
-            // Real import — persisted into geo_establishment_year via PostGIS.
+            // Real import — persisted into geo_planting_year via PostGIS.
             try {
                 const body = new FormData();
                 body.set("file", importFile);
                 body.set("pCode", selectedProvince.pCode);
                 body.set("year", importVersion.trim());
 
-                const res = await fetch("/api/rnd/geo-establishment-year", { method: "POST", body });
+                const res = await fetch("/api/rnd/geo-planting-year", { method: "POST", body });
                 const data = await res.json().catch(() => ({}));
                 if (!res.ok) {
                     throw new Error(data.error || "นำเข้าไฟล์ไม่สำเร็จ");
@@ -1002,7 +1002,7 @@ export default function RndDataManagementPage() {
             return;
         }
 
-        if (importCategory === "establishment_year_distribution") {
+        if (importCategory === "planting_year_distribution") {
             // Blocked well before this point by the confirm button itself,
             // but re-checked here so a stale click can't slip through.
             if (fileMeta?.kind !== "csv" || !fileMeta.columnsValid) {
@@ -1100,7 +1100,7 @@ export default function RndDataManagementPage() {
         }
     }
 
-    // Version-field placeholders — establishment-year/Planting-Year fields
+    // Version-field placeholders — planting-year/Planting-Year fields
     // hint the current AD year, LU/LULC fields hint the current BE year
     // (AD + 543), per tbl_region_config's est_year_version vs. lu_version split.
     const currentAdYear = new Date().getFullYear();
@@ -1108,13 +1108,13 @@ export default function RndDataManagementPage() {
 
     // Block "ถัดไป" out of step 2 while the .tif metadata read is still in
     // flight — the review step needs fileMeta settled before the user moves on.
-    // geo_establishment_year.year and geo_landuse.lu_year are both integer
+    // geo_planting_year.year and geo_landuse.lu_year are both integer
     // columns — free text like "v1" doesn't fit, so these categories require
     // a numeric year specifically.
-    const requiresNumericVersion = importCategory === "establishment_year_map" || importCategory === "lulc_map";
-    // establishment_year_distribution uses its own two version fields
+    const requiresNumericVersion = importCategory === "planting_year_map" || importCategory === "lulc_map";
+    // planting_year_distribution uses its own two version fields
     // (Planting Year / LU) instead of the shared "เวอร์ชัน/ปีของข้อมูล" input.
-    const versionApplicable = importCategory !== "establishment_year_distribution";
+    const versionApplicable = importCategory !== "planting_year_distribution";
     const versionIsValid = !versionApplicable
         ? true
         : requiresNumericVersion
@@ -1124,7 +1124,7 @@ export default function RndDataManagementPage() {
     const biomassFieldsMissing =
         importCategory === "biomass_profile" && (!importClone || !importGrowthModel || !importAllometry);
     const estYearDistFieldsMissing =
-        importCategory === "establishment_year_distribution" &&
+        importCategory === "planting_year_distribution" &&
         (!/^\d+$/.test(importPlantingYear.trim()) || !/^\d+$/.test(importLuYear.trim()));
 
     const nextDisabled =
@@ -1138,23 +1138,23 @@ export default function RndDataManagementPage() {
     const lulcSchemaOk =
         importCategory !== "lulc_map" ||
         (fileMeta?.kind === "gpkg" && fileMeta.crsValid && fileMeta.schemaValid && yearExists === false);
-    // establishment_year_map may only be confirmed once the .tif matches the
+    // planting_year_map may only be confirmed once the .tif matches the
     // expected raster spec exactly (CRS, NoData, Pixel Size) AND this
     // province+year combination isn't already in the table.
     const tiffSpecOk =
-        importCategory !== "establishment_year_map" ||
+        importCategory !== "planting_year_map" ||
         (fileMeta?.kind === "tiff" && fileMeta.crsValid && fileMeta.noDataValid && fileMeta.pixelSizeValid && yearExists === false);
     // biomass_profile may only be confirmed once the CSV has all 8 required
     // columns AND exactly 36 rows (age 0-35).
     const biomassCsvOk =
         importCategory !== "biomass_profile" ||
         (fileMeta?.kind === "csv" && fileMeta.columnsValid && fileMeta.rowCountValid);
-    // establishment_year_distribution may only be confirmed once the CSV
+    // planting_year_distribution may only be confirmed once the CSV
     // header has all 12 required columns — no row-count expectation.
-    const estYearDistCsvOk =
-        importCategory !== "establishment_year_distribution" ||
+    const plantYearDistCsvOk =
+        importCategory !== "planting_year_distribution" ||
         (fileMeta?.kind === "csv" && fileMeta.columnsValid);
-    const confirmDisabled = importing || !lulcSchemaOk || !tiffSpecOk || !biomassCsvOk || !estYearDistCsvOk;
+    const confirmDisabled = importing || !lulcSchemaOk || !tiffSpecOk || !biomassCsvOk || !plantYearDistCsvOk;
 
     const reviewRows: { label: string; value: string }[] = [
         { label: "จังหวัด", value: selectedProvince ? `${selectedProvince.nameTh} (${selectedProvince.pCode})` : "-" },
@@ -1163,7 +1163,7 @@ export default function RndDataManagementPage() {
     if (versionApplicable) {
         reviewRows.push({ label: "เวอร์ชัน/ปี", value: importVersion.trim() });
     }
-    if (importCategory === "establishment_year_distribution") {
+    if (importCategory === "planting_year_distribution") {
         reviewRows.push(
             { label: "เวอร์ชัน/ปีของข้อมูล Planting Year", value: importPlantingYear.trim() },
             { label: "เวอร์ชัน/ปีของข้อมูล LU", value: importLuYear.trim() },
@@ -1180,7 +1180,7 @@ export default function RndDataManagementPage() {
         { label: "ไฟล์", value: importFile?.name ?? "-" },
         { label: "ขนาดไฟล์", value: importFile ? `${(importFile.size / 1024).toFixed(1)} KB` : "-" },
     );
-    if (importCategory === "establishment_year_map" || importCategory === "lulc_map" || importCategory === "biomass_profile" || importCategory === "establishment_year_distribution") {
+    if (importCategory === "planting_year_map" || importCategory === "lulc_map" || importCategory === "biomass_profile" || importCategory === "planting_year_distribution") {
         if (fileMetaLoading) {
             reviewRows.push({ label: "Metadata ไฟล์", value: "กำลังอ่าน…" });
         } else if (fileMetaError) {
@@ -1487,7 +1487,7 @@ export default function RndDataManagementPage() {
                                         value={importVersion}
                                         onChange={(e) => setImportVersion(e.target.value)}
                                         placeholder={
-                                            importCategory === "establishment_year_map" ? `เช่น ${currentAdYear}` :
+                                            importCategory === "planting_year_map" ? `เช่น ${currentAdYear}` :
                                             importCategory === "lulc_map" ? `เช่น ${currentBeYearPlaceholder}` :
                                             "เช่น v1, 2568"
                                         }
@@ -1502,7 +1502,7 @@ export default function RndDataManagementPage() {
                                     )}
                                 </div>
                             )}
-                            {importCategory === "establishment_year_distribution" && (
+                            {importCategory === "planting_year_distribution" && (
                                 <>
                                     <div className="mb-3">
                                         <div style={{ fontSize: 13.5, fontWeight: 600, color: "#5a7a65", marginBottom: 4 }}>
@@ -1609,7 +1609,7 @@ export default function RndDataManagementPage() {
                                     {importFile ? (
                                         <>
                                             <span style={{ fontSize: 13.5, fontWeight: 600, color: "#1a3d2b" }}>{importFile.name}</span>
-                                            {(importCategory === "establishment_year_map" || importCategory === "lulc_map") && (
+                                            {(importCategory === "planting_year_map" || importCategory === "lulc_map") && (
                                                 <span style={{ fontSize: 12, color: fileMetaError ? "#c53030" : "#94a3b8" }}>
                                                     {fileMetaLoading ? "กำลังอ่าน metadata ของไฟล์…" : fileMetaError ? fileMetaError : fileMeta ? "อ่าน metadata สำเร็จ" : ""}
                                                 </span>
@@ -1785,7 +1785,7 @@ export default function RndDataManagementPage() {
                                     ))}
                                 </div>
                             )}
-                            {importCategory === "establishment_year_map" && (
+                            {importCategory === "planting_year_map" && (
                                 <div style={{
                                     marginTop: 12, padding: "12px 16px", borderRadius: 10, textAlign: "left",
                                     background: tiffSpecOk ? "#f8fbf9" : "#fef2f2",
@@ -1858,20 +1858,20 @@ export default function RndDataManagementPage() {
                                     ))}
                                 </div>
                             )}
-                            {importCategory === "establishment_year_distribution" && (
+                            {importCategory === "planting_year_distribution" && (
                                 <div style={{
                                     marginTop: 12, padding: "12px 16px", borderRadius: 10, textAlign: "left",
-                                    background: estYearDistCsvOk ? "#f8fbf9" : "#fef2f2",
-                                    border: `1px solid ${estYearDistCsvOk ? "#e6f0ea" : "#fecaca"}`,
+                                    background: plantYearDistCsvOk ? "#f8fbf9" : "#fef2f2",
+                                    border: `1px solid ${plantYearDistCsvOk ? "#e6f0ea" : "#fecaca"}`,
                                 }}>
                                     <div style={{ fontSize: 12.5, fontWeight: 600, color: "#5a7a65", marginBottom: 6 }}>
-                                        เงื่อนไขการนำเข้า Establishment Year Distribution (CSV)
+                                        เงื่อนไขการนำเข้า Planting Year Distribution (CSV)
                                     </div>
                                     <div className="d-flex align-items-center gap-2" style={{ fontSize: 13 }}>
-                                        <i className={`bi ${estYearDistCsvOk ? "bi-check-circle-fill" : "bi-x-circle-fill"}`}
-                                           style={{ color: estYearDistCsvOk ? "#1e7a47" : "#dc2626" }} />
+                                        <i className={`bi ${plantYearDistCsvOk ? "bi-check-circle-fill" : "bi-x-circle-fill"}`}
+                                           style={{ color: plantYearDistCsvOk ? "#1e7a47" : "#dc2626" }} />
                                         <span>
-                                            มีคอลัมน์ {ESTABLISHMENT_YEAR_DISTRIBUTION_REQUIRED_COLUMNS.join(", ")} ครบ
+                                            มีคอลัมน์ {PLANTING_YEAR_DISTRIBUTION_REQUIRED_COLUMNS.join(", ")} ครบ
                                             {fileMeta?.kind === "csv" && fileMeta.missingColumns.length > 0 && (
                                                 <> — ขาด: {fileMeta.missingColumns.join(", ")}</>
                                             )}

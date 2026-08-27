@@ -24,7 +24,7 @@ type RegionConfigInput = {
  * panel. Every dropdown value is re-validated against the same live tables
  * that populate its options (GET /api/rnd/region-config-options), so a
  * stale/tampered submission can't write a value that doesn't actually exist
- * in geo_establishment_year / geo_landuse / tbl_tree_density /
+ * in geo_planting_year / geo_landuse / tbl_tree_density /
  * tbl_biomass_profile.
  */
 export async function POST(request: NextRequest) {
@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "LU Map Version ต้องเป็นตัวเลขปี" }, { status: 400 });
     }
     if (typeof estYearVersion !== "number" || !Number.isInteger(estYearVersion)) {
-      return NextResponse.json({ error: "Establishment Year Map Version ต้องเป็นตัวเลขปี" }, { status: 400 });
+      return NextResponse.json({ error: "Planting Year Map Version ต้องเป็นตัวเลขปี" }, { status: 400 });
     }
     if (typeof defaultSpacing !== "string" || !defaultSpacing.trim() || defaultSpacing.length > MAX_SPACING_LENGTH) {
       return NextResponse.json({ error: "ต้องระบุ Default Spacing System" }, { status: 400 });
@@ -69,7 +69,7 @@ export async function POST(request: NextRequest) {
     // Re-validate every value against the same live tables the dropdown
     // options came from — not just the client's word for it.
     const [estYearResult, luVersionResult, spacingResult, cloneResult, growthResult, allometryResult] = await Promise.all([
-      pool.query(`SELECT 1 FROM geo_establishment_year WHERE p_code = $1 AND year = $2 LIMIT 1`, [pCode, estYearVersion]),
+      pool.query(`SELECT 1 FROM geo_planting_year WHERE p_code = $1 AND year = $2 LIMIT 1`, [pCode, estYearVersion]),
       pool.query(`SELECT 1 FROM geo_landuse WHERE p_code = $1 AND lu_year = $2 LIMIT 1`, [pCode, luVersion]),
       pool.query(`SELECT 1 FROM tbl_tree_density WHERE tree_spacing = $1 LIMIT 1`, [defaultSpacing]),
       pool.query(`SELECT 1 FROM tbl_biomass_profile WHERE p_code = $1 AND clone = $2 LIMIT 1`, [pCode, defaultClone]),
@@ -77,7 +77,7 @@ export async function POST(request: NextRequest) {
       pool.query(`SELECT 1 FROM tbl_biomass_profile WHERE p_code = $1 AND allometry = $2 LIMIT 1`, [pCode, defaultAllometry]),
     ]);
     if (estYearResult.rows.length === 0) {
-      return NextResponse.json({ error: `ไม่พบข้อมูล Establishment Year ${estYearVersion} สำหรับ ${pCode} ใน geo_establishment_year` }, { status: 400 });
+      return NextResponse.json({ error: `ไม่พบข้อมูล Planting Year ${estYearVersion} สำหรับ ${pCode} ใน geo_planting_year` }, { status: 400 });
     }
     if (luVersionResult.rows.length === 0) {
       return NextResponse.json({ error: `ไม่พบข้อมูล LU ${luVersion} สำหรับ ${pCode} ใน geo_landuse` }, { status: 400 });

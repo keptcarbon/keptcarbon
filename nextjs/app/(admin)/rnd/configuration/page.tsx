@@ -38,8 +38,8 @@ type RegionConfigRow = {
     code: string;
     provinceName: string;
     luMapVersion: string;
-    establishmentYearMapVersion: string;
-    establishmentYearMapQaVersion: string;
+    plantingYearMapVersion: string;
+    plantingYearMapQaVersion: string;
     defaultSpacingSystem: string;
     defaultRubberClone: string;
     defaultModel: string;
@@ -54,13 +54,13 @@ type RegionConfigOptions = {
         pCode: string;
         pName: string;
         luVersion: number;
-        estYearVersion: number;
+        plantingYearVersion: number;
         defaultSpacing: string;
         defaultClone: string;
         defaultGrowth: string;
         defaultAllometry: string;
     } | null;
-    estYearVersionOptions: string[];
+    plantingYearVersionOptions: string[];
     luVersionOptions: string[];
     spacingOptions: string[];
     cloneOptions: string[];
@@ -260,8 +260,8 @@ export default function RndConfigurationPage() {
                             code: cfg.pCode,
                             provinceName: cfg.pName,
                             luMapVersion: String(cfg.luVersion),
-                            establishmentYearMapVersion: String(cfg.estYearVersion),
-                            establishmentYearMapQaVersion: "",
+                            plantingYearMapVersion: String(cfg.plantingYearVersion),
+                            plantingYearMapQaVersion: "",
                             defaultSpacingSystem: cfg.defaultSpacing,
                             defaultRubberClone: cfg.defaultClone,
                             defaultModel: cfg.defaultGrowth,
@@ -292,8 +292,8 @@ export default function RndConfigurationPage() {
                 code: filterProvince.pCode,
                 provinceName: filterProvince.nameTh,
                 luMapVersion: "",
-                establishmentYearMapVersion: "",
-                establishmentYearMapQaVersion: "",
+                plantingYearMapVersion: "",
+                plantingYearMapQaVersion: "",
                 defaultSpacingSystem: "",
                 defaultRubberClone: "",
                 defaultModel: "",
@@ -397,7 +397,7 @@ export default function RndConfigurationPage() {
         activeTab === "region" &&
         !!filterPCode &&
         visibleRegions.some((r) =>
-            !r.establishmentYearMapVersion || !r.luMapVersion || !r.defaultSpacingSystem ||
+            !r.plantingYearMapVersion || !r.luMapVersion || !r.defaultSpacingSystem ||
             !r.defaultRubberClone || !r.defaultModel || !r.defaultBiomassAssessmentMethod
         );
 
@@ -420,7 +420,7 @@ export default function RndConfigurationPage() {
                     pCode: region.code,
                     pName: region.provinceName,
                     luVersion: Number(region.luMapVersion),
-                    estYearVersion: Number(region.establishmentYearMapVersion),
+                    plantingYearVersion: Number(region.plantingYearMapVersion),
                     defaultSpacing: region.defaultSpacingSystem,
                     defaultClone: region.defaultRubberClone,
                     defaultGrowth: region.defaultModel,
@@ -696,7 +696,7 @@ export default function RndConfigurationPage() {
                                         <span style={{ fontWeight: 600, color: "#1a3d2b", fontSize: 14 }}>{region.provinceName}</span>
                                     </div>
                                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-                                        <Field required label="Establishment Year Map Version" value={region.establishmentYearMapVersion} onChange={(v) => updateRegion(region.code, "establishmentYearMapVersion", v)} options={toOptions(regionOptions?.estYearVersionOptions ?? [])} />
+                                        <Field required label="Planting Year Map Version" value={region.plantingYearMapVersion} onChange={(v) => updateRegion(region.code, "plantingYearMapVersion", v)} options={toOptions(regionOptions?.plantingYearVersionOptions ?? [])} />
                                         <Field required label="LU Map Version" value={region.luMapVersion} onChange={(v) => updateRegion(region.code, "luMapVersion", v)} options={toOptions(regionOptions?.luVersionOptions ?? [])} />
                                         <Field required label="Default Spacing System" value={region.defaultSpacingSystem} onChange={(v) => updateRegion(region.code, "defaultSpacingSystem", v)} options={toOptions(regionOptions?.spacingOptions ?? [])} />
                                         <Field required label="Default Rubber Clone" value={region.defaultRubberClone} onChange={(v) => updateRegion(region.code, "defaultRubberClone", v)} options={toOptions(regionOptions?.cloneOptions ?? [])} />

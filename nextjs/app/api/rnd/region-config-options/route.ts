@@ -8,7 +8,7 @@ import { isAdminOrRnd } from "@/lib/auth-server";
  * tbl_region_config row for a province (if any), plus the real option lists
  * for each of its dropdowns — sourced from whichever table actually owns
  * that data, not hardcoded:
- *   - Establishment Year Map Version -> distinct geo_establishment_year.year
+ *   - Planting Year Map Version -> distinct geo_planting_year.year
  *   - LU Map Version                 -> distinct geo_landuse.lu_year
  *   - Default Spacing System         -> tbl_tree_density.tree_spacing (global, no p_code)
  *   - Default Rubber Clone           -> distinct tbl_biomass_profile.clone
@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
            FROM tbl_region_config WHERE p_code = $1`,
           [pCode]
         ),
-        pool.query(`SELECT DISTINCT year FROM geo_establishment_year WHERE p_code = $1 ORDER BY year`, [pCode]),
+        pool.query(`SELECT DISTINCT year FROM geo_planting_year WHERE p_code = $1 ORDER BY year`, [pCode]),
         pool.query(`SELECT DISTINCT lu_year FROM geo_landuse WHERE p_code = $1 ORDER BY lu_year`, [pCode]),
         pool.query(`SELECT tree_spacing FROM tbl_tree_density ORDER BY tree_spacing`),
         pool.query(`SELECT DISTINCT clone FROM tbl_biomass_profile WHERE p_code = $1 ORDER BY clone`, [pCode]),

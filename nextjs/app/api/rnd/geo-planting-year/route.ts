@@ -8,7 +8,7 @@ import { isAdminOrRnd } from "@/lib/auth-server";
 const TILE_SIZE = 100;
 
 /**
- * GET /api/rnd/geo-establishment-year?pCode=...&year=...
+ * GET /api/rnd/geo-planting-year?pCode=...&year=...
  * Existence check used to block re-importing a province+year combination
  * that's already in the table.
  */
@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
   }
 
   const result = await pool.query(
-    "SELECT 1 FROM geo_establishment_year WHERE p_code = $1 AND year = $2 LIMIT 1",
+    "SELECT 1 FROM geo_planting_year WHERE p_code = $1 AND year = $2 LIMIT 1",
     [pCode, Number(yearRaw)]
   );
 
@@ -34,8 +34,8 @@ export async function GET(request: NextRequest) {
 }
 
 /**
- * POST /api/rnd/geo-establishment-year
- * Imports a GeoTIFF (multipart "file") into geo_establishment_year, keyed by
+ * POST /api/rnd/geo-planting-year
+ * Imports a GeoTIFF (multipart "file") into geo_planting_year, keyed by
  * "pCode" (province code from geo_thailand) and "year" (integer). The raster
  * is decoded server-side by PostGIS's ST_FromGDALRaster (SRID read straight
  * from the file's own embedded projection), then split into 100×100-pixel
@@ -69,7 +69,7 @@ export async function POST(request: NextRequest) {
     }
 
     const existing = await pool.query(
-      "SELECT 1 FROM geo_establishment_year WHERE p_code = $1 AND year = $2 LIMIT 1",
+      "SELECT 1 FROM geo_planting_year WHERE p_code = $1 AND year = $2 LIMIT 1",
       [pCode, year]
     );
     if (existing.rows.length > 0) {
@@ -79,7 +79,7 @@ export async function POST(request: NextRequest) {
     const buffer = Buffer.from(await file.arrayBuffer());
 
     const result = await pool.query(
-      `INSERT INTO geo_establishment_year (p_code, year, rast)
+      `INSERT INTO geo_planting_year (p_code, year, rast)
        SELECT $1, $2, tile
        FROM ST_Tile(ST_FromGDALRaster($3), $4, $4) AS tile
        RETURNING rid`,
@@ -88,7 +88,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ tileCount: result.rowCount, pCode, year });
   } catch (err) {
-    console.error("geo-establishment-year import error:", err);
+    console.error("geo-planting-year import error:", err);
     const message = err instanceof Error ? err.message : "Internal Server Error";
     // ST_FromGDALRaster throws a Postgres error (not our own validation) when
     // the bytes aren't a raster GDAL can decode — surface that as a 400.

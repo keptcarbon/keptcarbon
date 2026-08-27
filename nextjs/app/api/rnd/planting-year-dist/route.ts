@@ -19,7 +19,7 @@ type PlantingYearDistRowInput = {
 
 /**
  * POST /api/rnd/planting-year-dist
- * Batch-imports an "Establishment Year Distribution" CSV (already parsed
+ * Batch-imports an " Year Distribution" CSV (already parsed
  * client-side — see extractPlantingYearDistRows in the data-management
  * page) into tbl_planting_year_dist. p_code/lu_year/plaining_year aren't in
  * the CSV — they're supplied once here (from the province selector and the
@@ -125,7 +125,7 @@ export async function POST(request: NextRequest) {
     const pgCode = (err as { code?: string } | undefined)?.code;
     if (pgCode === "23505") {
       return NextResponse.json(
-        { error: "มีข้อมูล Establishment Year Distribution บางแถวอยู่แล้วในระบบ (จังหวัด/ตำบล/ปีนี้ซ้ำ)" },
+        { error: "มีข้อมูล Planting Year Distribution บางแถวอยู่แล้วในระบบ (จังหวัด/ตำบล/ปีนี้ซ้ำ)" },
         { status: 409 }
       );
     }

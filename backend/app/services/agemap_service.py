@@ -12,7 +12,7 @@ class AgeMapService:
     def __init__(self):
         self.tree_svc = TreeService()
 
-    # $1 = plantation geometry (GeoJSON, EPSG:32647 -- matches geo_establishment_year's
+    # $1 = plantation geometry (GeoJSON, EPSG:32647 -- matches geo_planting_year's
     # SRID, no reprojection needed, see landuse_service module docstring for why
     # A302_geometry/merged_geometry stay in UTM). $2 = p_code, $3 = year.
     _VALUE_COUNT_QUERY = """
@@ -21,7 +21,7 @@ class AgeMapService:
         ),
         clipped AS (
             SELECT ST_Clip(ST_Union(g.rast, 1), (SELECT geom FROM target), true) AS band
-            FROM geo_establishment_year g
+            FROM geo_planting_year g
             WHERE g.p_code = $2
               AND g.year = $3::integer
               AND ST_Intersects(g.rast, (SELECT geom FROM target))
