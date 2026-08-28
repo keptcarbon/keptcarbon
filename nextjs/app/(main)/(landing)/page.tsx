@@ -182,7 +182,7 @@ export default function Home() {
               nativeButton={false}
               render={<Link href="/about-project" />}
               variant="outline"
-              className="h-12 w-full rounded-xl px-8 text-base font-medium no-underline"
+              className="h-12 w-full rounded-xl border-[1px] border-primary px-8 text-base font-medium no-underline"
             >
               อ่านรายละเอียดเพิ่มเติม
             </Button>
