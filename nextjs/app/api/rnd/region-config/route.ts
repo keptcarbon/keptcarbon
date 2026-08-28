@@ -15,6 +15,7 @@ type RegionConfigInput = {
   defaultClone?: unknown;
   defaultGrowth?: unknown;
   defaultAllometry?: unknown;
+  biomassProfileVersion?: unknown;
 };
 
 /**
@@ -34,7 +35,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = (await request.json()) as RegionConfigInput;
-    const { pCode, pName, luVersion, plantingYearVersion, defaultSpacing, defaultClone, defaultGrowth, defaultAllometry } = body;
+    const { pCode, pName, luVersion, plantingYearVersion, defaultSpacing, defaultClone, defaultGrowth, defaultAllometry, biomassProfileVersion } = body;
 
     if (typeof pCode !== "string" || !pCode.trim()) {
       return NextResponse.json({ error: "ต้องระบุ p_code" }, { status: 400 });
@@ -55,6 +56,7 @@ export async function POST(request: NextRequest) {
       ["Default Rubber Clone", defaultClone],
       ["Default Growth Model", defaultGrowth],
       ["Default Biomass Assessment Method", defaultAllometry],
+      ["Biomass Profile Version", biomassProfileVersion],
     ] as const) {
       if (typeof val !== "string" || !val.trim() || val.length > MAX_CLONE_GROWTH_ALLOMETRY_LENGTH) {
         return NextResponse.json({ error: `ต้องระบุ ${label}` }, { status: 400 });
@@ -68,13 +70,25 @@ export async function POST(request: NextRequest) {
 
     // Re-validate every value against the same live tables the dropdown
     // options came from — not just the client's word for it.
-    const [plantingYearResult, luVersionResult, spacingResult, cloneResult, growthResult, allometryResult] = await Promise.all([
+    //
+    // clone/growth/allometry/biomassProfileVersion are checked as ONE
+    // combined lookup, not four independent ones -- CarbonService.
+    // generate_carbon_profile queries tbl_biomass_profile with clone +
+    // growth_model + allometry (+ p_code) together, so a value that merely
+    // exists somewhere in the table for each column individually (but never
+    // together on the same row) would save here yet return zero rows at
+    // calculation time. version isn't part of that runtime query, but is
+    // included here anyway since it's sourced from the same table and a
+    // combination whose version doesn't actually match the saved
+    // clone/growth/allometry rows would be a misleading label to persist.
+    const [plantingYearResult, luVersionResult, spacingResult, biomassProfileResult] = await Promise.all([
       pool.query(`SELECT 1 FROM geo_planting_year WHERE p_code = $1 AND year = $2 LIMIT 1`, [pCode, plantingYearVersion]),
       pool.query(`SELECT 1 FROM geo_landuse WHERE p_code = $1 AND lu_year = $2 LIMIT 1`, [pCode, luVersion]),
       pool.query(`SELECT 1 FROM tbl_tree_density WHERE tree_spacing = $1 LIMIT 1`, [defaultSpacing]),
-      pool.query(`SELECT 1 FROM tbl_biomass_profile WHERE p_code = $1 AND clone = $2 LIMIT 1`, [pCode, defaultClone]),
-      pool.query(`SELECT 1 FROM tbl_biomass_profile WHERE p_code = $1 AND growth_model = $2 LIMIT 1`, [pCode, defaultGrowth]),
-      pool.query(`SELECT 1 FROM tbl_biomass_profile WHERE p_code = $1 AND allometry = $2 LIMIT 1`, [pCode, defaultAllometry]),
+      pool.query(
+        `SELECT 1 FROM tbl_biomass_profile WHERE p_code = $1 AND clone = $2 AND growth_model = $3 AND allometry = $4 AND version = $5 LIMIT 1`,
+        [pCode, defaultClone, defaultGrowth, defaultAllometry, biomassProfileVersion]
+      ),
     ]);
     if (plantingYearResult.rows.length === 0) {
       return NextResponse.json({ error: `ไม่พบข้อมูล Planting Year ${plantingYearVersion} สำหรับ ${pCode} ใน geo_planting_year` }, { status: 400 });
@@ -85,20 +99,17 @@ export async function POST(request: NextRequest) {
     if (spacingResult.rows.length === 0) {
       return NextResponse.json({ error: `ไม่พบระบบระยะปลูก "${defaultSpacing}" ใน tbl_tree_density` }, { status: 400 });
     }
-    if (cloneResult.rows.length === 0) {
-      return NextResponse.json({ error: `ไม่พบพันธุ์ยาง "${defaultClone}" สำหรับ ${pCode} ใน tbl_biomass_profile` }, { status: 400 });
-    }
-    if (growthResult.rows.length === 0) {
-      return NextResponse.json({ error: `ไม่พบ Growth Model "${defaultGrowth}" สำหรับ ${pCode} ใน tbl_biomass_profile` }, { status: 400 });
-    }
-    if (allometryResult.rows.length === 0) {
-      return NextResponse.json({ error: `ไม่พบ Allometry "${defaultAllometry}" สำหรับ ${pCode} ใน tbl_biomass_profile` }, { status: 400 });
+    if (biomassProfileResult.rows.length === 0) {
+      return NextResponse.json(
+        { error: `ไม่พบข้อมูล biomass profile สำหรับชุดค่า พันธุ์ยาง "${defaultClone}" / Growth Model "${defaultGrowth}" / Allometry "${defaultAllometry}" / Version "${biomassProfileVersion}" ที่ ${pCode} ใน tbl_biomass_profile — กรุณาตรวจสอบพารามิเตอร์ก่อนบันทึก` },
+        { status: 400 }
+      );
     }
 
     const result = await pool.query(
       `INSERT INTO tbl_region_config
-         (p_code, p_name, lu_version, planting_year_version, default_spacing, default_clone, default_growth, default_allometry)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+         (p_code, p_name, lu_version, planting_year_version, default_spacing, default_clone, default_growth, default_allometry, biomass_profile_version)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
        ON CONFLICT (p_code) DO UPDATE SET
          p_name = EXCLUDED.p_name,
          lu_version = EXCLUDED.lu_version,
@@ -106,9 +117,10 @@ export async function POST(request: NextRequest) {
          default_spacing = EXCLUDED.default_spacing,
          default_clone = EXCLUDED.default_clone,
          default_growth = EXCLUDED.default_growth,
-         default_allometry = EXCLUDED.default_allometry
-       RETURNING p_code, p_name, lu_version, planting_year_version, default_spacing, default_clone, default_growth, default_allometry`,
-      [pCode, pName, luVersion, plantingYearVersion, defaultSpacing, defaultClone, defaultGrowth, defaultAllometry]
+         default_allometry = EXCLUDED.default_allometry,
+         biomass_profile_version = EXCLUDED.biomass_profile_version
+       RETURNING p_code, p_name, lu_version, planting_year_version, default_spacing, default_clone, default_growth, default_allometry, biomass_profile_version`,
+      [pCode, pName, luVersion, plantingYearVersion, defaultSpacing, defaultClone, defaultGrowth, defaultAllometry, biomassProfileVersion]
     );
 
     const row = result.rows[0];
@@ -122,6 +134,7 @@ export async function POST(request: NextRequest) {
         defaultClone: row.default_clone,
         defaultGrowth: row.default_growth,
         defaultAllometry: row.default_allometry,
+        biomassProfileVersion: row.biomass_profile_version,
       },
     });
   } catch (err) {

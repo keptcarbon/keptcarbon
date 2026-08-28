@@ -14,6 +14,7 @@ import { isAdminOrRnd } from "@/lib/auth-server";
  *   - Default Rubber Clone           -> distinct tbl_biomass_profile.clone
  *   - Default Growth Model           -> distinct tbl_biomass_profile.growth_model
  *   - Default Biomass Assessment Method -> distinct tbl_biomass_profile.allometry
+ *   - Biomass Profile Version         -> distinct tbl_biomass_profile.version
  */
 export async function GET(request: NextRequest) {
   if (!(await isAdminOrRnd(request))) {
@@ -27,10 +28,10 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const [configResult, plantingYearResult, luVersionResult, spacingResult, cloneResult, growthResult, allometryResult] =
+    const [configResult, plantingYearResult, luVersionResult, spacingResult, cloneResult, growthResult, allometryResult, biomassProfileVersionResult] =
       await Promise.all([
         pool.query(
-          `SELECT p_code, p_name, lu_version, planting_year_version, default_spacing, default_clone, default_growth, default_allometry
+          `SELECT p_code, p_name, lu_version, planting_year_version, default_spacing, default_clone, default_growth, default_allometry, biomass_profile_version
            FROM tbl_region_config WHERE p_code = $1`,
           [pCode]
         ),
@@ -40,6 +41,7 @@ export async function GET(request: NextRequest) {
         pool.query(`SELECT DISTINCT clone FROM tbl_biomass_profile WHERE p_code = $1 ORDER BY clone`, [pCode]),
         pool.query(`SELECT DISTINCT growth_model FROM tbl_biomass_profile WHERE p_code = $1 ORDER BY growth_model`, [pCode]),
         pool.query(`SELECT DISTINCT allometry FROM tbl_biomass_profile WHERE p_code = $1 ORDER BY allometry`, [pCode]),
+        pool.query(`SELECT DISTINCT version FROM tbl_biomass_profile WHERE p_code = $1 AND version IS NOT NULL ORDER BY version`, [pCode]),
       ]);
 
     const row = configResult.rows[0];
@@ -55,6 +57,7 @@ export async function GET(request: NextRequest) {
             defaultClone: row.default_clone,
             defaultGrowth: row.default_growth,
             defaultAllometry: row.default_allometry,
+            biomassProfileVersion: row.biomass_profile_version,
           }
         : null,
       plantingYearVersionOptions: plantingYearResult.rows.map((r) => String(r.year)),
@@ -63,6 +66,7 @@ export async function GET(request: NextRequest) {
       cloneOptions: cloneResult.rows.map((r) => String(r.clone)),
       growthOptions: growthResult.rows.map((r) => String(r.growth_model)),
       allometryOptions: allometryResult.rows.map((r) => String(r.allometry)),
+      biomassProfileVersionOptions: biomassProfileVersionResult.rows.map((r) => String(r.version)),
     });
   } catch (err) {
     console.error("region-config-options error:", err);

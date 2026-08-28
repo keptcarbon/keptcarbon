@@ -44,6 +44,7 @@ type RegionConfigRow = {
     defaultRubberClone: string;
     defaultModel: string;
     defaultBiomassAssessmentMethod: string;
+    biomassProfileVersion: string;
 };
 
 // GET /api/rnd/region-config-options response shape — the saved
@@ -59,6 +60,7 @@ type RegionConfigOptions = {
         defaultClone: string;
         defaultGrowth: string;
         defaultAllometry: string;
+        biomassProfileVersion: string;
     } | null;
     plantingYearVersionOptions: string[];
     luVersionOptions: string[];
@@ -66,6 +68,7 @@ type RegionConfigOptions = {
     cloneOptions: string[];
     growthOptions: string[];
     allometryOptions: string[];
+    biomassProfileVersionOptions: string[];
 };
 
 function toOptions(values: string[]) {
@@ -266,6 +269,7 @@ export default function RndConfigurationPage() {
                             defaultRubberClone: cfg.defaultClone,
                             defaultModel: cfg.defaultGrowth,
                             defaultBiomassAssessmentMethod: cfg.defaultAllometry,
+                            biomassProfileVersion: cfg.biomassProfileVersion,
                         };
                         return prev.some((r) => r.code === cfg.pCode)
                             ? prev.map((r) => (r.code === cfg.pCode ? entry : r))
@@ -298,6 +302,7 @@ export default function RndConfigurationPage() {
                 defaultRubberClone: "",
                 defaultModel: "",
                 defaultBiomassAssessmentMethod: "",
+                biomassProfileVersion: "",
             },
         ]);
     }
@@ -389,6 +394,58 @@ export default function RndConfigurationPage() {
         setRegions((prev) =>
             prev.map((row) => (row.code === code ? { ...row, [field]: value } : row))
         );
+        // Field values changed since the last check -- the stale result no
+        // longer reflects what's on screen, so drop it rather than show a
+        // check mark for parameters that have since been edited.
+        setValidateResult((prev) => {
+            if (!(code in prev)) return prev;
+            const next = { ...prev };
+            delete next[code];
+            return next;
+        });
+    }
+
+    // ── "ตรวจสอบพารามิเตอร์" — lets an editor confirm, before saving, that a
+    // candidate clone/growth/allometry combination actually has rows in
+    // tbl_biomass_profile (mirrors CarbonService's exact lookup). Each option
+    // individually exists in the dropdown's source table, but the three
+    // together not sharing a row would otherwise only surface as a silently
+    // empty carbon calculation later. ──
+    const [validatingCode, setValidatingCode] = useState<string | null>(null);
+    const [validateResult, setValidateResult] = useState<
+        Record<string, { valid: boolean; rowCount: number; ageMin: number | null; ageMax: number | null } | { error: string }>
+    >({});
+
+    async function validateRegionParams(region: RegionConfigRow) {
+        setValidatingCode(region.code);
+        setValidateResult((prev) => {
+            const next = { ...prev };
+            delete next[region.code];
+            return next;
+        });
+        try {
+            const res = await fetch("/api/rnd/region-config/validate", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    pCode: region.code,
+                    defaultClone: region.defaultRubberClone,
+                    defaultGrowth: region.defaultModel,
+                    defaultAllometry: region.defaultBiomassAssessmentMethod,
+                    biomassProfileVersion: region.biomassProfileVersion,
+                }),
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(data.error || "ตรวจสอบไม่สำเร็จ");
+            setValidateResult((prev) => ({ ...prev, [region.code]: data }));
+        } catch (err) {
+            setValidateResult((prev) => ({
+                ...prev,
+                [region.code]: { error: err instanceof Error ? err.message : "ตรวจสอบไม่สำเร็จ" },
+            }));
+        } finally {
+            setValidatingCode(null);
+        }
     }
 
     // All 6 region-config dropdowns are required — block Save until whatever
@@ -398,8 +455,20 @@ export default function RndConfigurationPage() {
         !!filterPCode &&
         visibleRegions.some((r) =>
             !r.plantingYearMapVersion || !r.luMapVersion || !r.defaultSpacingSystem ||
-            !r.defaultRubberClone || !r.defaultModel || !r.defaultBiomassAssessmentMethod
+            !r.defaultRubberClone || !r.defaultModel || !r.defaultBiomassAssessmentMethod ||
+            !r.biomassProfileVersion
         );
+
+    // Save also requires a passing "ตรวจสอบพารามิเตอร์" check for the province
+    // currently being edited -- updateRegion() clears validateResult on any
+    // field edit, so an unvalidated or stale result blocks Save the same way
+    // an unrun one does.
+    const currentValidation = filterPCode ? validateResult[filterPCode] : undefined;
+    const regionNotValidated =
+        activeTab === "region" &&
+        !!filterPCode &&
+        !regionFieldsIncomplete &&
+        (!currentValidation || "error" in currentValidation || !currentValidation.valid);
 
     // Region config batch-saves via the bottom "บันทึกการตั้งค่า" bar; the
     // tree-density tab saves/deletes each row immediately instead (see
@@ -425,6 +494,7 @@ export default function RndConfigurationPage() {
                     defaultClone: region.defaultRubberClone,
                     defaultGrowth: region.defaultModel,
                     defaultAllometry: region.defaultBiomassAssessmentMethod,
+                    biomassProfileVersion: region.biomassProfileVersion,
                 }),
             });
             const data = await res.json().catch(() => ({}));
@@ -702,6 +772,65 @@ export default function RndConfigurationPage() {
                                         <Field required label="Default Rubber Clone" value={region.defaultRubberClone} onChange={(v) => updateRegion(region.code, "defaultRubberClone", v)} options={toOptions(regionOptions?.cloneOptions ?? [])} />
                                         <Field required label="Default Growth Model" value={region.defaultModel} onChange={(v) => updateRegion(region.code, "defaultModel", v)} options={toOptions(regionOptions?.growthOptions ?? [])} />
                                         <Field required label="Default Biomass Assessment Method" value={region.defaultBiomassAssessmentMethod} onChange={(v) => updateRegion(region.code, "defaultBiomassAssessmentMethod", v)} options={toOptions(regionOptions?.allometryOptions ?? [])} />
+                                        <Field required label="Biomass Profile Version" value={region.biomassProfileVersion} onChange={(v) => updateRegion(region.code, "biomassProfileVersion", v)} options={toOptions(regionOptions?.biomassProfileVersionOptions ?? [])} />
+
+                                        {/* ── Validate button — confirms the clone/growth/allometry
+                                             combination actually has rows in tbl_biomass_profile
+                                             before saving, mirroring CarbonService's real lookup.
+                                             Placed as the next grid item so it auto-flows into the
+                                             right column, directly under "Default Biomass Assessment
+                                             Method". ── */}
+                                        <div style={{ alignSelf: "start" }}>
+                                            <div style={FIELD_LABEL_STYLE}>
+                                                ตรวจสอบพารามิเตอร์ <span style={{ color: "#dc2626" }}>*</span>
+                                            </div>
+                                            <div className="d-flex align-items-center gap-2 flex-wrap">
+                                            <button
+                                                type="button"
+                                                onClick={() => validateRegionParams(region)}
+                                                disabled={
+                                                    validatingCode === region.code ||
+                                                    !region.defaultRubberClone || !region.defaultModel || !region.defaultBiomassAssessmentMethod ||
+                                                    !region.biomassProfileVersion
+                                                }
+                                                className="btn btn-sm"
+                                                style={{
+                                                    background: "#fff", color: "#1e7a47", border: "1px solid #1e7a47",
+                                                    borderRadius: 8, padding: "6px 14px", fontWeight: 600, fontSize: 12.5,
+                                                }}
+                                            >
+                                                {validatingCode === region.code
+                                                    ? <><span className="spinner-border spinner-border-sm me-2" style={{ width: 11, height: 11 }} />กำลังตรวจสอบ…</>
+                                                    : <><i className="bi bi-search me-1" />ตรวจสอบ</>}
+                                            </button>
+                                            {(() => {
+                                                const result = validateResult[region.code];
+                                                if (!result) return null;
+                                                if ("error" in result) {
+                                                    return (
+                                                        <span style={{ fontSize: 12.5, color: "#dc2626" }}>
+                                                            <i className="bi bi-exclamation-circle me-1" />{result.error}
+                                                        </span>
+                                                    );
+                                                }
+                                                if (!result.valid) {
+                                                    return (
+                                                        <span style={{ fontSize: 12.5, color: "#dc2626" }}>
+                                                            <i className="bi bi-x-circle me-1" />
+                                                            ไม่พบข้อมูลใน tbl_biomass_profile สำหรับชุดค่านี้ — บันทึกแล้วจะคำนวณคาร์บอนไม่ได้
+                                                        </span>
+                                                    );
+                                                }
+                                                return (
+                                                    <span style={{ fontSize: 12.5, color: "#1e7a47" }}>
+                                                        <i className="bi bi-check-circle me-1" />
+                                                        พบข้อมูล {result.rowCount} รายการ
+                                                        {result.ageMin !== null && result.ageMax !== null && ` (อายุ ${result.ageMin}-${result.ageMax} ปี)`}
+                                                    </span>
+                                                );
+                                            })()}
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                             ))}
@@ -737,6 +866,11 @@ export default function RndConfigurationPage() {
                             กรุณาเลือกตัวเลือกที่จำเป็น (*) ให้ครบก่อนบันทึก
                         </div>
                     )}
+                    {!regionFieldsIncomplete && regionNotValidated && (
+                        <div style={{ fontSize: 12.5, color: "#dc2626" }}>
+                            กรุณากด &ldquo;ตรวจสอบพารามิเตอร์&rdquo; และผ่านการตรวจสอบก่อนบันทึก
+                        </div>
+                    )}
                     {saveError && (
                         <div style={{ fontSize: 12.5, color: "#dc2626" }}>
                             <i className="bi bi-exclamation-circle me-1" />
@@ -745,12 +879,12 @@ export default function RndConfigurationPage() {
                     )}
                     <button
                         onClick={handleSave}
-                        disabled={saving || regionFieldsIncomplete}
+                        disabled={saving || !filterPCode || regionFieldsIncomplete || regionNotValidated}
                         className="btn"
                         style={{
                             background: "#1e7a47", color: "#fff", border: "none",
                             borderRadius: 10, padding: "10px 22px", fontWeight: 600, fontSize: "0.9rem",
-                            opacity: regionFieldsIncomplete ? 0.5 : 1,
+                            opacity: !filterPCode || regionFieldsIncomplete || regionNotValidated ? 0.5 : 1,
                         }}
                     >
                         {saving
