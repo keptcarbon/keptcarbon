@@ -19,7 +19,7 @@ import {
 import { getPlotsInfo, getPlotsNav } from "@/lib/carbon-api";
 import { ParcelResultsPanel } from "@/app/components/organisms";
 import type { PlotFormData } from "@/app/components/organisms/ParcelResultsPanel/utils";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import {
   type Tab,
   REGIONS_DATA,
@@ -82,6 +82,7 @@ function MapDrawContent() {
   const refPlotsLoadedRef = useRef(false);
 
   const searchParams = useSearchParams();
+  const router = useRouter();
 
   const projNameParam = useMemo(() => {
     let pName = searchParams?.get("project");
@@ -444,6 +445,17 @@ function MapDrawContent() {
         // Land-use polygons from plantation-info (A302 etc.) — shown in the
         // panel as luFeatures; without them the restore says "ไม่พบข้อมูล" (No data found)
         luFeatures: parcelFeatures,
+        // Per-parcel plantation-info the post-login auto-save needs (mainly
+        // province_code, which isn't on the luFeatures above). Geometry is
+        // dropped — it's already in parcels/luFeatures — to stay well under the
+        // sessionStorage quota.
+        rawPlantationInfo: (Array.isArray(rawPlantationInfo) ? rawPlantationInfo : []).map((r: any) => ({
+          polygon_id: r?.polygon_id,
+          province_code: r?.province_code,
+          area_m2: r?.area_m2,
+          total_area_m2: r?.total_area_m2,
+          status: r?.status,
+        })),
         // The guest's region/province/district/subdistrict picks. The OAuth redirect reloads the
         // page and wipes this React state, so without stashing it the dropdowns
         // come back empty when the user steps back to step 1 after logging in.
@@ -470,90 +482,178 @@ function MapDrawContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [modal]);
 
-  // Restore stashed guest plots after login/register. The snapshot only
-  // exists when the guest had drawn plots at the moment they opened the auth
-  // modal (either path above), so a plain visit with nothing drawn is
-  // unaffected. Waits for the map + session user, then drops the restored
-  // plots straight into step 2 (the user is now authed — no limit).
-  const resumeLoadedRef = useRef(false);
+  // Reconcile a guest's work into the account, once, after login on this page.
+  //  - Path A (guest clicked "ประมวลผล" before logging in → a guest_uuid
+  //    project row is already in the DB, flagged by localStorage guest_user_id):
+  //    flip it to this account IN PLACE via /api/plots/claim (no clone, no
+  //    soft-delete), then load it fresh via ?project= — no forced re-assess.
+  //  - Path B (guest only drew, never assessed → nothing in the DB, just the
+  //    sessionStorage snapshot): restore the plots into step 2 and auto-save
+  //    them as a real user-owned project so they survive leaving the page.
+  // auth-context skips its own claim while we're on /map-draw, so this is the
+  // sole reconcile here.
+  const reconcileRanRef = useRef(false);
   useEffect(() => {
-    if (!mapLoaded || !user || resumeLoadedRef.current) return;
-    let raw: string | null = null;
-    try {
-      raw = sessionStorage.getItem(MAP_DRAW_RESUME_KEY);
-      if (raw) sessionStorage.removeItem(MAP_DRAW_RESUME_KEY);
-    } catch { /* storage unavailable */ }
-    if (!raw) return;
-    resumeLoadedRef.current = true;
-    try {
-      const data = JSON.parse(raw);
-      const feats: GeoJSON.Feature[] = Array.isArray(data?.parcels) ? data.parcels : [];
-      if (feats.length === 0) return;
-      const luFeats: GeoJSON.Feature[] = Array.isArray(data?.luFeatures) ? data.luFeatures : [];
-      setDrawnParcels(feats);
-      setCurrentStep(2);
-      setIsPanelOpen(true);
-      setSearchCount(feats.length);
-      setStatus("เข้าสู่ระบบสำเร็จ — แปลงที่วาดไว้ถูกกู้คืนแล้ว");
-      // This is the >GUEST_PLOT_LIMIT "draw, hit limit, then log in" path —
-      // a same-page sessionStorage restore that never touches
-      // /api/plots/claim (unlike the auto-saved-draft claim redirect below).
-      // Confirm the restore on screen the same way.
-      setClaimSuccessPopup(true);
+    if (!mapLoaded || !user || reconcileRanRef.current) return;
 
-      // Re-apply the guest's region/province/district/subdistrict so stepping back to step 1
-      // shows them again. Suppress the boundary hook's auto-zoom for this window
-      // so it doesn't pull the camera off the zoom-to-plots fit below.
-      if (data?.region) {
-        suppressBoundaryZoomRef.current = true;
-        setSelectedRegion(data.region);
-        if (data?.province) setSelectedProvince(data.province);
-        if (data?.amphoe) setSelectedAmphoe(data.amphoe);
-        if (data?.tambon) setSelectedTambon(data.tambon);
-      }
+    let guestKey: string | null = null;
+    let snapRaw: string | null = null;
+    try { guestKey = localStorage.getItem("guest_user_id"); } catch { /* unavailable */ }
+    try { snapRaw = sessionStorage.getItem(MAP_DRAW_RESUME_KEY); } catch { /* unavailable */ }
+    if (!guestKey && !snapRaw) return;
 
-      // Zoom to the restored plots (not the default province view)
-      const map = mapRef.current;
-      if (luFeats.length > 0) {
-        setParcelFeatures(luFeats);
-        // Repaint the land-use overlay on the map (same as the edit flow)
-        const luSrc = map?.getSource("matched-parcels") as maplibregl.GeoJSONSource | undefined;
-        if (luSrc) luSrc.setData({ type: "FeatureCollection", features: luFeats });
-      }
-      if (map) {
-        const bounds = new maplibregl.LngLatBounds();
-        feats.forEach(f => {
-          const geom = f.geometry as any;
-          const coords = geom.type === 'Polygon'
-            ? geom.coordinates[0]
-            : geom.coordinates[0][0];
-          coords.forEach((coord: any) => bounds.extend(coord));
-        });
-        if (!bounds.isEmpty()) {
-          // The panel opens in this same commit and resizes the map canvas —
-          // fitting immediately computes the view against stale dimensions and
-          // crops some plots out. Wait for the layout to settle, resize, then
-          // glide in slowly enough to keep the whole group in view.
-          window.setTimeout(() => {
-            map.resize();
-            const isMob = typeof window !== "undefined" && window.innerWidth < 768;
-            // Desktop: the panel is a fixed ~300px overlay on the right, so the
-            // visible map is the area left of it. Reserving 300px + an equal
-            // margin on both sides (left 90 / right 390 = 300 + 90) centers the
-            // group in that visible area. Tighter top/bottom + a higher maxZoom
-            // let the 5 plots fill more of the frame.
-            const pad = isMob
-              ? { top: 50, bottom: 320, left: 50, right: 50 }
-              : { top: 56, bottom: 56, left: 90, right: 390 };
-            try {
-              map.fitBounds(bounds, { padding: pad, duration: 2400, maxZoom: 17, essential: true });
-            } catch {
-              map.fitBounds(bounds, { padding: 60, duration: 2400, maxZoom: 17, essential: true });
+    reconcileRanRef.current = true;
+    try { sessionStorage.removeItem(MAP_DRAW_RESUME_KEY); } catch { /* unavailable */ }
+
+    // ── Path A ──────────────────────────────────────────────────────────────
+    if (guestKey) {
+      (async () => {
+        try {
+          const res = await fetch("/api/plots/claim", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ guestKey }),
+          });
+          if (res.ok) {
+            // Claimed — drop the key so auth-context doesn't re-claim off-page.
+            try { localStorage.removeItem("guest_user_id"); } catch { /* unavailable */ }
+            const d = await res.json();
+            const name: string | undefined = d.projects?.[0]?.projectName;
+            if (name) {
+              setProjectName(name);
+              setClaimSuccessPopup(true);
+              router.replace(`/map-draw?project=${encodeURIComponent(name)}`);
             }
-          }, 450);
-        }
+          }
+          // On failure, guest_user_id stays put: auth-context retries it on the
+          // next page it loads on.
+        } catch { /* non-fatal */ }
+      })();
+      return;
+    }
+
+    // ── Path B ──────────────────────────────────────────────────────────────
+    let data: any;
+    try { data = JSON.parse(snapRaw as string); } catch { return; }
+    const feats: GeoJSON.Feature[] = Array.isArray(data?.parcels) ? data.parcels : [];
+    if (feats.length === 0) return;
+    const luFeats: GeoJSON.Feature[] = Array.isArray(data?.luFeatures) ? data.luFeatures : [];
+
+    setDrawnParcels(feats);
+    setCurrentStep(2);
+    setIsPanelOpen(true);
+    setSearchCount(feats.length);
+    setStatus("เข้าสู่ระบบสำเร็จ — แปลงที่วาดไว้ถูกกู้คืนแล้ว");
+    if (Array.isArray(data?.rawPlantationInfo)) setRawPlantationInfo(data.rawPlantationInfo);
+
+    // Re-apply the guest's region/province/district/subdistrict so stepping back to step 1
+    // shows them again. Suppress the boundary hook's auto-zoom for this window
+    // so it doesn't pull the camera off the zoom-to-plots fit below.
+    if (data?.region) {
+      suppressBoundaryZoomRef.current = true;
+      setSelectedRegion(data.region);
+      if (data?.province) setSelectedProvince(data.province);
+      if (data?.amphoe) setSelectedAmphoe(data.amphoe);
+      if (data?.tambon) setSelectedTambon(data.tambon);
+    }
+
+    // Zoom to the restored plots (not the default province view)
+    const map = mapRef.current;
+    if (luFeats.length > 0) {
+      setParcelFeatures(luFeats);
+      const luSrc = map?.getSource("matched-parcels") as maplibregl.GeoJSONSource | undefined;
+      if (luSrc) luSrc.setData({ type: "FeatureCollection", features: luFeats });
+    }
+    if (map) {
+      const bounds = new maplibregl.LngLatBounds();
+      feats.forEach(f => {
+        const geom = f.geometry as any;
+        const coords = geom.type === 'Polygon'
+          ? geom.coordinates[0]
+          : geom.coordinates[0][0];
+        coords.forEach((coord: any) => bounds.extend(coord));
+      });
+      if (!bounds.isEmpty()) {
+        window.setTimeout(() => {
+          map.resize();
+          const isMob = typeof window !== "undefined" && window.innerWidth < 768;
+          const pad = isMob
+            ? { top: 50, bottom: 320, left: 50, right: 50 }
+            : { top: 56, bottom: 56, left: 90, right: 390 };
+          try {
+            map.fitBounds(bounds, { padding: pad, duration: 2400, maxZoom: 17, essential: true });
+          } catch {
+            map.fitBounds(bounds, { padding: 60, duration: 2400, maxZoom: 17, essential: true });
+          }
+        }, 450);
       }
-    } catch { /* corrupted snapshot — ignore */ }
+    }
+
+    // Persist as a user-owned project directly from the snapshot (POST /api/plots
+    // with the auth cookie → owned by user_uuid, server-generated name). Doing
+    // it here rather than driving the panel's save avoids depending on the
+    // panel having mounted and its plotForms having synced.
+    (async () => {
+      try {
+        const polygonsPayload = feats.map((f) => {
+          const props = (f.properties || {}) as any;
+          const form = props.backendData?.form || {};
+          const beYear = form.plantYear ? parseInt(String(form.plantYear), 10) : 0;
+          return {
+            id: props.id,
+            geometry: f.geometry,
+            year_of_planting: beYear > 0 ? beYear - 543 : null,
+            rubber_clone: form.variety || null,
+            tree_count: form.treeCount ? (parseInt(String(form.treeCount), 10) || null) : null,
+            spacing_system: form.spacing || null,
+            project_type: props.plantStatus || form.plantStatus || null,
+            selected_lu_classes: [] as string[],
+          };
+        });
+        const rpi: any[] = Array.isArray(data?.rawPlantationInfo) ? data.rawPlantationInfo : [];
+        const plantationInfo = feats.map((f, i) => {
+          const props = (f.properties || {}) as any;
+          const info = rpi[i] || {};
+          return {
+            polygon_id: props.id,
+            province_code: info.province_code || props.province || null,
+            area_m2: info.area_m2 ?? info.total_area_m2 ?? (props.rai ? props.rai * 1600 : null),
+            geometry: f.geometry,
+            status: info.status || { status: "success", status_code: "S02", message: "" },
+            lu_polygon: [] as any[],
+          };
+        });
+        const frontendPlots = feats.map((f, i) => {
+          const props = (f.properties || {}) as any;
+          return {
+            id: props.id,
+            name: "",
+            geojson: f.geometry,
+            province: plantationInfo[i].province_code || "",
+            plantStatus: props.plantStatus || "",
+            ownerName: "",
+          };
+        });
+
+        const res = await fetch("/api/plots", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ frontendPlots, polygonsPayload, plantationInfo, backendResponses: [] }),
+        });
+        if (res.ok) {
+          const d = await res.json();
+          const name: string | undefined = d.project?.projectName;
+          if (d.project?.id) setActiveDbProjectId(d.project.id);
+          if (name) {
+            setProjectName(name);
+            // Converge on the same "load the user-owned project by name" path as
+            // Path A so the panel picks up its dbProjectId for later saves.
+            router.replace(`/map-draw?project=${encodeURIComponent(name)}`);
+          }
+          setClaimSuccessPopup(true);
+        }
+      } catch { /* non-fatal — the user can still Save manually */ }
+    })();
   }, [user, mapLoaded]);
 
   // Hide vertex nodes when not on step 1 (not editable at step 2/3)
@@ -2076,6 +2176,39 @@ function MapDrawContent() {
     zoomToSelectedProvince();
   };
 
+  // Logging out mid-session: the in-progress project belongs to the account
+  // that just left, so keep drawing against it and every save/assess 403s
+  // (PATCH /api/plots/<id> with no auth). Wipe the drawing session back to a
+  // fresh-page-load state — detach the DB project, clear drawn plots + the
+  // stashed guest snapshot, and drop the ?project=/?action= deep-link so it
+  // isn't re-loaded.
+  const prevUserRef = useRef(user);
+  useEffect(() => {
+    const justLoggedOut = !!prevUserRef.current && !user;
+    prevUserRef.current = user;
+    if (!justLoggedOut) return;
+
+    setActiveDbProjectId(null);
+    setActiveGuestKey(null);
+    setResetProjectToken(t => t + 1); // → ParcelResultsPanel drops dbProjectId/guestUserId
+    setExistingProjectPlots([]);
+    setHiddenProjectPlots([]);
+    setEditingPlotId(null);
+    setRawPlantationInfo([]);
+    setProjectName("");
+    try {
+      sessionStorage.removeItem(MAP_DRAW_RESUME_KEY);
+      localStorage.removeItem("guest_user_id");
+    } catch { /* storage unavailable */ }
+    reconcileRanRef.current = false;
+    refPlotsLoadedRef.current = false;
+    clearDraw();
+    if (searchParams?.get("project") || searchParams?.get("action") || searchParams?.get("plotId")) {
+      router.replace("/map-draw");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
+
   const deleteParcel = useCallback((idx: number) => {
     setDrawnParcels(prev => {
       const featToDelete = prev[idx];
@@ -3481,9 +3614,10 @@ function MapDrawContent() {
                 onProjectNameChange={setProjectName}
                 autoProcessTrigger={autoProcessTrigger}
                 onSave={() => setPlotsSaved(true)}
-                onProjectSaved={({ projectId, guestKey }) => {
+                onProjectSaved={({ projectId, projectName: savedName, guestKey }) => {
                   setActiveDbProjectId(projectId);
                   setActiveGuestKey(guestKey);
+                  if (savedName && !projectName.trim()) setProjectName(savedName);
                 }}
                 resetProjectToken={resetProjectToken}
                 existingProjectPlots={existingProjectPlots}

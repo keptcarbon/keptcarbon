@@ -2,7 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { pool } from "@/lib/db";
 import { verifyToken, AUTH_COOKIE } from "@/lib/jwt";
 import { getUserUuid, rowToProjectFromNormalized } from "@/lib/carbon-projects";
-import { upsertProjectAndPlots, softDeleteProjectById } from "@/lib/normalized-plots";
+import {
+  upsertProjectAndPlots,
+  softDeleteProjectById,
+  transferProjectToUser,
+  ProjectNameConflictError,
+} from "@/lib/normalized-plots";
 
 
 // ---------------------------------------------------------------------------
@@ -96,11 +101,13 @@ export async function PATCH(
 
       const oldRow = existing.rows[0];
 
+      // Resolve the caller's user_uuid once (also used for the in-place claim below).
+      const callerUserUuid = payload ? await getUserUuid(payload) : null;
+
       // Check permissions: owner (matching uuid) or a guest holding the matching guest_uuid
       if (payload?.role !== "admin") {
-        const userUuid = payload ? await getUserUuid(payload) : null;
         const isOwner = oldRow.user_uuid
-          ? userUuid === oldRow.user_uuid
+          ? callerUserUuid === oldRow.user_uuid
           : body.userId === oldRow.guest_uuid;
         if (!isOwner) {
           await client.query("ROLLBACK");
@@ -125,7 +132,42 @@ export async function PATCH(
         return NextResponse.json({ error: "Not found" }, { status: 404 });
       }
 
-      const newRow = updateResult.rows[0];
+      let newRow = updateResult.rows[0];
+
+      // In-place claim: a logged-in user doing a real Save (not a Process
+      // draft, which sends forceGuest) on a project that is still guest-owned
+      // but whose guest_key they hold gets the row flipped to their account —
+      // same id, no clone. Without this the project stays guest_uuid-owned and
+      // never shows up in "แปลงของฉัน" unless a separate, easily-missed claim
+      // call happens to fire.
+      if (
+        callerUserUuid &&
+        !body.forceGuest &&
+        newRow.user_uuid === null &&
+        body.userId &&
+        body.userId === newRow.guest_uuid
+      ) {
+        try {
+          await transferProjectToUser(client, { projectId, userUuid: callerUserUuid });
+          const reread = await client.query(
+            `SELECT * FROM tbl_projects WHERE id = $1`,
+            [projectId]
+          );
+          newRow = reread.rows[0];
+        } catch (e) {
+          if (e instanceof ProjectNameConflictError) {
+            // The user already has an active project with this name — can't
+            // flip ownership without colliding. Let the client fold the guest
+            // copy into the existing project via /api/plots/claim instead.
+            await client.query("ROLLBACK");
+            return NextResponse.json(
+              { error: "duplicate_name", existingProjectId: e.existingProjectId },
+              { status: 409 }
+            );
+          }
+          throw e;
+        }
+      }
 
       await upsertProjectAndPlots(
         client,

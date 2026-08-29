@@ -58,7 +58,7 @@ type Props = {
     onBeforeProcess?: () => boolean;
     autoProcessTrigger?: number;
     onSave?: () => void;
-    onProjectSaved?: (info: { projectId: number; guestKey: string | null }) => void;
+    onProjectSaved?: (info: { projectId: number; projectName: string; guestKey: string | null }) => void;
     /** Bump this to detach from the current DB project (e.g. it was soft-deleted upstream) so the next save creates a new one. */
     resetProjectToken?: number;
     existingProjectPlots?: any[];
@@ -333,6 +333,10 @@ export function ParcelResultsPanel({
     }, [projectName]);
     const [dbProjectId, setDbProjectId] = useState<number | null>(null);
     const [guestUserId, setGuestUserId] = useState<string | null>(null);
+    // Mirror dbProjectId/guestUserId in refs so a Save that just awaited an
+    // in-flight draft save reads the ids the draft set, not its stale closure.
+    const dbProjectIdRef = useRef<number | null>(null);
+    const guestUserIdRef = useRef<string | null>(null);
 
     // Parent bumps resetProjectToken after soft-deleting our current project
     // (e.g. guest discarded it to start a new area) — detach so the next save
@@ -341,6 +345,8 @@ export function ParcelResultsPanel({
         if (resetProjectToken === undefined) return;
         setDbProjectId(null);
         setGuestUserId(null);
+        dbProjectIdRef.current = null;
+        guestUserIdRef.current = null;
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [resetProjectToken]);
 
@@ -356,6 +362,8 @@ export function ParcelResultsPanel({
         if (justLoggedIn && guestUserId) {
             setDbProjectId(null);
             setGuestUserId(null);
+            dbProjectIdRef.current = null;
+            guestUserIdRef.current = null;
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [user]);
@@ -403,7 +411,10 @@ export function ParcelResultsPanel({
         if (dbProjectId != null || !initialProjectName) return;
         const nm = initialProjectName.trim().toLowerCase();
         const match = existingProjects.find(p => p.name === nm);
-        if (match) setDbProjectId(match.id);
+        if (match) {
+            setDbProjectId(match.id);
+            dbProjectIdRef.current = match.id;
+        }
     }, [existingProjects, initialProjectName, dbProjectId]);
 
     // A name is a duplicate only if it matches another project — not the one
@@ -444,6 +455,12 @@ export function ParcelResultsPanel({
         onProjectNameChange?.(nm);
         setNameEditing(false);
     };
+
+    // "ประมวลผล" (Process) fires an un-awaited draft save (handleSave with
+    // forceGuest). A real "บันทึกข้อมูล" (Save) right after must wait for that
+    // POST to land first — otherwise it runs with dbProjectId/guestUserId still
+    // unset, POSTs a second row, and leaves the guest draft orphaned.
+    const draftSaveRef = useRef<Promise<unknown> | null>(null);
 
     // Stable IDs that link frontend_plots ↔ polygons_payload ↔ backend_responses.
     // Kept in a ref so handleSave can read them, and in state so render can read them.
@@ -924,8 +941,11 @@ export function ParcelResultsPanel({
 
             // Auto-save as a draft (guest_key) — for BOTH logged-in users and guests.
             // Persists to DB but does NOT appear in My Plots until the user clicks
-            // "บันทึกข้อมูล", which claims the draft into their account.
-            handleSave(results, responses, polygons, { forceGuest: true }).catch(console.error);
+            // "บันทึกข้อมูล", which claims the draft into their account. Tracked in a
+            // ref so a Save clicked before this resolves waits for it.
+            draftSaveRef.current = handleSave(results, responses, polygons, { forceGuest: true })
+                .catch(console.error)
+                .finally(() => { draftSaveRef.current = null; });
         } catch (err) {
             setCarbonErr(getFriendlyErrorMessage(err, plots, plotForms, stablePlotIds));
         } finally {
@@ -957,6 +977,13 @@ export function ParcelResultsPanel({
 
         if (!isDraft) {
             setSaveState("saving");
+            // Wait out any in-flight Process draft save so this Save sees the
+            // draft's dbProjectId/guestUserId and PATCHes (→ in-place claim)
+            // instead of POSTing a duplicate.
+            const inFlightDraft = draftSaveRef.current;
+            if (inFlightDraft) {
+                try { await inFlightDraft; } catch { /* handled in its own .catch */ }
+            }
             await new Promise(r => setTimeout(r, 900));
         }
 
@@ -1045,15 +1072,20 @@ export function ParcelResultsPanel({
             let userId: string | undefined;
             let projectId: string | undefined;
 
+            // guestUserId may have just been set by an awaited draft save whose
+            // value isn't in this closure yet — fall back to the ref.
+            const effectiveGuestKey = guestUserId ?? guestUserIdRef.current;
+            const effectiveDbProjectId = dbProjectId ?? dbProjectIdRef.current;
+
             if (user) {
                 projectId = projectName || "Unnamed Project";
-                // Process/save for a logged-in user works against a guest_key row first,
-                // until they click "บันทึกข้อมูล" (Save) and it gets claimed — reuse the
-                // existing guest_key if a draft already exists
-                userId = guestUserId ?? undefined;
-            } else if (guestUserId) {
+                // A logged-in user's Process writes a guest_key draft row; the
+                // following Save sends that key so the server flips the row to
+                // their account in place (see /api/plots PATCH/POST in-place claim).
+                userId = effectiveGuestKey ?? undefined;
+            } else if (effectiveGuestKey) {
                 // Guest re-save: send the userId from the first POST so PATCH can identify the row
-                userId = guestUserId;
+                userId = effectiveGuestKey;
             }
 
             let res;
@@ -1177,8 +1209,8 @@ export function ParcelResultsPanel({
                 saveBody.projectId = projectId;
             }
 
-            if (dbProjectId) {
-                res = await fetch(`/api/plots/${dbProjectId}`, {
+            if (effectiveDbProjectId) {
+                res = await fetch(`/api/plots/${effectiveDbProjectId}`, {
                     method: "PATCH",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify(saveBody),
@@ -1191,54 +1223,85 @@ export function ParcelResultsPanel({
                 });
             }
 
+            // The user already has an active project with this name — the server
+            // couldn't flip ownership in place. Surface it like the client-side
+            // duplicate-name guard rather than silently failing.
+            if (res.status === 409 && !isDraft) {
+                setCarbonErr("ชื่อโครงการนี้ถูกใช้งานแล้ว กรุณาใช้ชื่ออื่น");
+                setSaveState("idle");
+                return;
+            }
+
             if (res.ok) {
                 const data = await res.json();
-                if (data.project?.id) {
-                    setDbProjectId(data.project.id);
+                const savedId: number | undefined = data.project?.id;
+                if (savedId) {
+                    setDbProjectId(savedId);
+                    dbProjectIdRef.current = savedId;
                 }
-                // Store the guest_key the server returned, for use in the next PATCH / claim
-                if (data.project?.userId && data.project.userId !== guestUserId) {
-                    if (!user) {
-                        // Guest: save to localStorage so it can be seen in My Plots
-                        setGuestUserId(data.project.userId);
+
+                // Server reports the row's owner as guest_uuid ?? user_uuid. A
+                // "Guest-…" value means it's still guest-owned; anything else
+                // means it's now the user's (PATCH/POST flipped it in place).
+                const serverOwner: string | null =
+                    typeof data.project?.userId === "string" ? data.project.userId : null;
+                const serverGuestKey =
+                    serverOwner && serverOwner.startsWith("Guest-") ? serverOwner : null;
+
+                if (isDraft) {
+                    // Draft stays guest-owned. Persist the key (state + ref +
+                    // localStorage) so it can still be claimed later — on the
+                    // next real Save, or by auth-context's on-load claim if the
+                    // user leaves first. Pre-fix, a logged-in user's draft key
+                    // lived only in React state, so the draft was orphaned the
+                    // moment they reloaded / navigated / logged out.
+                    if (serverGuestKey && serverGuestKey !== effectiveGuestKey) {
+                        setGuestUserId(serverGuestKey);
+                        guestUserIdRef.current = serverGuestKey;
                         if (typeof window !== "undefined") {
-                            localStorage.setItem("guest_user_id", data.project.userId);
+                            localStorage.setItem("guest_user_id", serverGuestKey);
                         }
-                    } else if (isDraft) {
-                        // Logged in + draft (Process): keep in state only, don't write to localStorage
-                        setGuestUserId(data.project.userId);
+                    }
+                } else if (user) {
+                    // Real Save by a logged-in user: the row is theirs now.
+                    // Clear the draft key and mop up any stray same-named guest
+                    // row a raced draft save may have left behind — /api/plots/
+                    // claim's dedup soft-deletes it in favour of this project.
+                    const strayKey =
+                        effectiveGuestKey ??
+                        serverGuestKey ??
+                        (typeof window !== "undefined" ? localStorage.getItem("guest_user_id") : null);
+                    if (strayKey) {
+                        try {
+                            await fetch("/api/plots/claim", {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({ guestKey: strayKey }),
+                            });
+                        } catch (e) {
+                            console.error("cleanup claim error:", e);
+                        }
+                    }
+                    setGuestUserId(null);
+                    guestUserIdRef.current = null;
+                    if (typeof window !== "undefined") {
+                        localStorage.removeItem("guest_user_id");
+                    }
+                } else if (serverGuestKey && serverGuestKey !== effectiveGuestKey) {
+                    // Plain guest save: persist the key so My Plots can show it.
+                    setGuestUserId(serverGuestKey);
+                    guestUserIdRef.current = serverGuestKey;
+                    if (typeof window !== "undefined") {
+                        localStorage.setItem("guest_user_id", serverGuestKey);
                     }
                 }
 
-                if (data.project?.id) {
+                if (savedId) {
                     onProjectSaved?.({
-                        projectId: data.project.id,
-                        guestKey: data.project.userId ?? guestUserId ?? null,
+                        projectId: savedId,
+                        projectName: (typeof data.project?.projectName === "string" && data.project.projectName) || projectName || "",
+                        guestKey: (!isDraft && user) ? null : (serverGuestKey ?? effectiveGuestKey ?? null),
                     });
-                }
-
-                // A logged-in user clicking "บันทึกข้อมูล" (Save) → claim the draft (guest_key) into their account
-                // → server clones the guest row into a new project owned by
-                // the user and soft-deletes the guest one, so dbProjectId
-                // must follow the clone or the next save 404s (PATCHing a
-                // now-deleted row).
-                if (!isDraft && user && guestUserId) {
-                    try {
-                        const claimRes = await fetch("/api/plots/claim", {
-                            method: "POST",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({ guestKey: guestUserId }),
-                        });
-                        if (claimRes.ok) {
-                            const claimData = await claimRes.json();
-                            const claimedProjects: { id: number; projectName: string }[] = claimData.projects ?? [];
-                            const clonedProject = claimedProjects.find(p => p.projectName === projectId) ?? claimedProjects[0];
-                            if (clonedProject?.id) setDbProjectId(clonedProject.id);
-                        }
-                        setGuestUserId(null);
-                    } catch (e) {
-                        console.error("claim error:", e);
-                    }
                 }
             }
         } catch (e) { console.error("handleSave error:", e); }
@@ -1299,7 +1362,7 @@ export function ParcelResultsPanel({
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14, gap: 10 }}>
                     <div className="prp-header-block" style={{ marginBottom: 0, flex: 1, minWidth: 0 }}>
                         <div className="prp-main-title" style={{ fontSize: isMobile ? 16 : 18, marginBottom: 0, color: "#1a3d2b", fontWeight: 700, letterSpacing: "-0.2px" }}>
-                            {projectName?.trim() ? `โครงการ ${projectName}` : "กรอกข้อมูลแปลง"}
+                            {projectName?.trim() ? `โครงการ: ${projectName}` : "กรอกข้อมูลแปลง"}
                         </div>
                     </div>
                     <button
@@ -1584,8 +1647,13 @@ export function ParcelResultsPanel({
                                 >
                                     <div style={{ pointerEvents: 'none', width: 34, height: 34, borderRadius: 10, background: expandedIdx === i ? "#1e7a47" : "#edfaf3", border: expandedIdx === i ? "1px solid #1e7a47" : "1px solid #d7ede1", color: expandedIdx === i ? "#ffffff" : "#1e7a47", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 14, transition: "all 0.2s", boxShadow: expandedIdx === i ? "0 3px 8px rgba(30,122,71,0.28)" : "none" }}>{plotDisplayNum}</div>
                                     <div style={{ pointerEvents: 'none', flex: 1 }}>
-                                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                                             <div style={{ fontWeight: 800, fontSize: 15, color: "#1a3d2b", letterSpacing: "-0.2px" }}>แปลงที่ {plotDisplayNum}</div>
+                                            {!form.plantStatus && (
+                                                <span style={{ fontSize: 12, fontWeight: 700, color: "#c2410c", display: "inline-flex", alignItems: "center", gap: 4 }}>
+                                                    <i className="bi bi-exclamation-circle-fill" style={{ fontSize: 12 }} /> กรุณาเลือกสถานะแปลง
+                                                </span>
+                                            )}
                                         </div>
                                         {p.areaRai > 0 && (
                                             <div style={{ fontSize: 12.5, color: "#5a7a65", fontWeight: 600, marginTop: 1 }}>{p.areaRai.toFixed(2)} ไร่</div>
@@ -1659,11 +1727,13 @@ export function ParcelResultsPanel({
                                                 ปลูกมาแล้ว
                                             </div>
                                         </div>
+                                        {/*
                                         {!form.plantStatus && (
-                                            <div style={{ fontSize: 11, color: "#f59e0b", marginTop: 8, display: "flex", alignItems: "center", gap: 4 }}>
+                                            <div style={{ fontSize: 12, color: "#c2410c", marginTop: 8, display: "flex", alignItems: "center", gap: 4 }}>
                                                 <i className="bi bi-exclamation-circle-fill" /> กรุณาเลือกสถานะแปลงก่อนจึงจะกรอกข้อมูลด้านล่างได้
                                             </div>
                                         )}
+                                        */}
                                     </div>
 
                                     {/* Fields grid */}
@@ -2108,7 +2178,7 @@ export function ParcelResultsPanel({
                         <div style={{ flex: 1 }}>
                             {projectName ? (
                                 <div style={{ display: "flex", alignItems: "baseline", gap: 6, flexWrap: "wrap", lineHeight: 1.25, marginBottom: 2 }}>
-                                    <span style={{ color: "#5a7a65", fontSize: 13, fontWeight: 500 }}>โครงการ</span>
+                                    <span style={{ color: "#5a7a65", fontSize: 13, fontWeight: 500 }}>โครงการ:</span>
                                     <span style={{ fontWeight: 700, fontSize: 15, color: "#1a3d2b" }}>
                                         {projectName}
                                     </span>
