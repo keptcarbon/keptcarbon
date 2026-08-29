@@ -111,10 +111,20 @@ export default function AuthLogsPage() {
     return (
         <>
             {/* Search field: full width on mobile (matches the dropdown row
-                that sits below it), capped like the other admin pages on md+. */}
+                that sits below it), capped like the other admin pages on md+.
+                The filter <select>s get an explicit focus style so the border
+                colour is identical on mobile and desktop (mobile browsers
+                otherwise paint their own accent-coloured ring). */}
             <style>{`
                 @media (min-width: 768px) {
                     .al-search-field { max-width: 380px; }
+                }
+                .al-filter-select:focus,
+                .al-filter-select:focus-visible {
+                    outline: none;
+                    /* !important — beats the inline border set on the element */
+                    border-color: #2d9e5f !important;
+                    box-shadow: 0 0 0 3px rgba(45, 158, 95, 0.15);
                 }
             `}</style>
 
@@ -165,7 +175,7 @@ export default function AuthLogsPage() {
                     <select
                         value={eventTypeFilter}
                         onChange={(e) => setEventTypeFilter(e.target.value)}
-                        className="flex-fill flex-md-grow-0"
+                        className="al-filter-select flex-fill flex-md-grow-0"
                         style={{ minWidth: 0, borderRadius: 12, border: "1px solid #e6f0ea", background: "#fff", padding: "10px 14px", fontSize: 14, color: "#1a3d2b" }}
                     >
                         <option value="all">ทุกประเภท</option>
@@ -175,7 +185,7 @@ export default function AuthLogsPage() {
                     <select
                         value={providerFilter}
                         onChange={(e) => setProviderFilter(e.target.value)}
-                        className="flex-fill flex-md-grow-0"
+                        className="al-filter-select flex-fill flex-md-grow-0"
                         style={{ minWidth: 0, borderRadius: 12, border: "1px solid #e6f0ea", background: "#fff", padding: "10px 14px", fontSize: 14, color: "#1a3d2b" }}
                     >
                         <option value="all">ทุกช่องทาง</option>
