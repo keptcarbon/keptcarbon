@@ -2951,7 +2951,7 @@ function MapDrawContent() {
               <div className="mds-stepper-fill" style={{ width: `${(currentStep - 1) * 50}%` }} />
             </div>
             {([
-              { n: 1 as const, label: "เริ่มกำหนดพื้นที่" },
+              { n: 1 as const, label: "กำหนดพื้นที่แปลง" },
               { n: 2 as const, label: "กรอกข้อมูล" },
               { n: 3 as const, label: "ประเมิน/บันทึก" },
             ]).map(({ n, label }) => {
@@ -3296,7 +3296,7 @@ function MapDrawContent() {
                             <li>
                               <span>จบการวาดด้วย</span>
                               <span style={{ display: "inline-flex", flexWrap: "wrap", alignItems: "center", gap: "5px", marginLeft: "5px" }}>
-                                <span style={{ background: "rgba(5,150,105,0.12)", color: "#047857", padding: "2px 9px", borderRadius: "6px", fontWeight: 700, fontSize: "12px", whiteSpace: "nowrap" }}>เสร็จสิ้น</span>
+                                <span style={{ background: "rgba(5,150,105,0.12)", color: "#047857", padding: "2px 9px", borderRadius: "6px", fontWeight: 700, fontSize: "12px", whiteSpace: "nowrap" }}>กดปุ่ม"เสร็จสิ้น"</span>
                                 <span style={{ color: "#cbd5e1", fontWeight: 400 }}>·</span>
                                 <span style={{ background: "rgba(5,150,105,0.12)", color: "#047857", padding: "2px 9px", borderRadius: "6px", fontWeight: 700, fontSize: "12px", whiteSpace: "nowrap" }}>คลิกขวา</span>
                                 <span style={{ color: "#cbd5e1", fontWeight: 400 }}>·</span>

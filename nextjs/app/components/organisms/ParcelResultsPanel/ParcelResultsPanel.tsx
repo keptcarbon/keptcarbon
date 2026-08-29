@@ -1478,7 +1478,7 @@ export function ParcelResultsPanel({
                 ) : (
                     <div style={{ display: "flex", gap: isMobile ? 6 : 8, marginBottom: 16, flexWrap: "wrap", alignItems: "stretch" }}>
                         {onDrawMore && !isDrawing && (
-                            <button className="prp-btn-ghost" disabled={drawMoreDisabled} style={{ flex: isMobile ? "1 1 100%" : "1 1 calc(33% - 8px)", minWidth: 100, padding: isMobile ? "8px 6px" : "10px 12px", fontSize: isMobile ? 12 : 14, display: "flex", flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 6, background: drawMoreDisabled ? "#cbd5e1" : "#1e7a47", color: "#fff", border: "1px solid transparent", borderRadius: isMobile ? 10 : 12, cursor: drawMoreDisabled ? "not-allowed" : "pointer", boxShadow: drawMoreDisabled ? "none" : "0 4px 10px rgba(30,122,71,0.25)", opacity: drawMoreDisabled ? 0.6 : 1 }} onClick={drawMoreDisabled ? undefined : () => { setExpandedIdx(null); onDrawMore?.(); }}>
+                            <button className="prp-btn-ghost" disabled={drawMoreDisabled} style={{ flex: !user ? "1 1 calc(50% - 4px)" : (isMobile ? "1 1 100%" : "1 1 calc(33% - 8px)"), minWidth: 100, padding: isMobile ? "8px 6px" : "10px 12px", fontSize: isMobile ? 12 : 14, display: "flex", flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 6, background: drawMoreDisabled ? "#cbd5e1" : "#1e7a47", color: "#fff", border: "1px solid transparent", borderRadius: isMobile ? 10 : 12, cursor: drawMoreDisabled ? "not-allowed" : "pointer", boxShadow: drawMoreDisabled ? "none" : "0 4px 10px rgba(30,122,71,0.25)", opacity: drawMoreDisabled ? 0.6 : 1 }} onClick={drawMoreDisabled ? undefined : () => { setExpandedIdx(null); onDrawMore?.(); }}>
                                 <i className="bi bi-pencil-square" style={{ fontSize: isMobile ? 14 : 16 }} /> <span style={{ fontWeight: 600, textAlign: "center", whiteSpace: "nowrap" }}>วาดแปลงเพิ่ม</span>
                             </button>
                         )}
@@ -1487,28 +1487,30 @@ export function ParcelResultsPanel({
                                 <i className="bi bi-x-circle" style={{ fontSize: isMobile ? 14 : 16 }} /> <span style={{ fontWeight: 600, textAlign: "center", whiteSpace: "nowrap" }}>ยกเลิกการวาด</span>
                             </button>
                         )}
-                        <button
-                            className="prp-btn-primary"
-                            onClick={() => handleSave()}
-                            disabled={!user || !projectName.trim() || nameEditing || isDuplicateProjectName || saveState === "saving"}
-                            style={{
-                                flex: isMobile ? "1 1 calc(50% - 4px)" : "1 1 calc(33% - 8px)", minWidth: 110, padding: isMobile ? "8px 6px" : "10px 12px", fontSize: isMobile ? 12 : 14, display: "flex", flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 6,
-                                background: !user ? "#cbd5e1" : (saveState === "done" ? "#94a3b8" : ((projectName.trim() && !nameEditing && !isDuplicateProjectName && !hasEmptyStatus) ? "#0284c7" : "#cbd5e1")),
-                                color: "#fff", border: "1px solid transparent", borderRadius: isMobile ? 10 : 12,
-                                cursor: !user ? "not-allowed" : (saveState !== "idle" ? "not-allowed" : ((projectName.trim() && !nameEditing && !isDuplicateProjectName && !hasEmptyStatus) ? "pointer" : "not-allowed")),
-                                boxShadow: !user ? "none" : (saveState === "done" ? "none" : ((projectName.trim() && !nameEditing && !isDuplicateProjectName && !hasEmptyStatus) ? "0 4px 10px rgba(2,132,199,0.2)" : "none")),
-                                opacity: !user ? 0.5 : (saveState === "done" ? 0.6 : 1),
-                                transition: "all 0.3s"
-                            }}
-                        >
-                            {saveState === "saving" ? (
-                                <><span className="s1-spin" style={{ width: 14, height: 14, border: "2px solid rgba(255,255,255,0.3)", borderTopColor: "#fff" }} /> <span style={{ fontWeight: 600, textAlign: "center", whiteSpace: "nowrap" }}>บันทึก...</span></>
-                            ) : saveState === "done" ? (
-                                <><i className="bi bi-check-circle-fill" style={{ fontSize: isMobile ? 14 : 16 }} /> <span style={{ fontWeight: 600, textAlign: "center", whiteSpace: "nowrap" }}>บันทึกแล้ว</span></>
-                            ) : (
-                                <><i className="bi bi-save" style={{ fontSize: isMobile ? 14 : 16 }} /> <span style={{ fontWeight: 600, textAlign: "center", whiteSpace: "nowrap" }}>บันทึกข้อมูล</span></>
-                            )}
-                        </button>
+                        {user && (
+                            <button
+                                className="prp-btn-primary"
+                                onClick={() => handleSave()}
+                                disabled={!projectName.trim() || nameEditing || isDuplicateProjectName || saveState === "saving"}
+                                style={{
+                                    flex: isMobile ? "1 1 calc(50% - 4px)" : "1 1 calc(33% - 8px)", minWidth: 110, padding: isMobile ? "8px 6px" : "10px 12px", fontSize: isMobile ? 12 : 14, display: "flex", flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 6,
+                                    background: saveState === "done" ? "#94a3b8" : ((projectName.trim() && !nameEditing && !isDuplicateProjectName && !hasEmptyStatus) ? "#0284c7" : "#cbd5e1"),
+                                    color: "#fff", border: "1px solid transparent", borderRadius: isMobile ? 10 : 12,
+                                    cursor: saveState !== "idle" ? "not-allowed" : ((projectName.trim() && !nameEditing && !isDuplicateProjectName && !hasEmptyStatus) ? "pointer" : "not-allowed"),
+                                    boxShadow: saveState === "done" ? "none" : ((projectName.trim() && !nameEditing && !isDuplicateProjectName && !hasEmptyStatus) ? "0 4px 10px rgba(2,132,199,0.2)" : "none"),
+                                    opacity: saveState === "done" ? 0.6 : 1,
+                                    transition: "all 0.3s"
+                                }}
+                            >
+                                {saveState === "saving" ? (
+                                    <><span className="s1-spin" style={{ width: 14, height: 14, border: "2px solid rgba(255,255,255,0.3)", borderTopColor: "#fff" }} /> <span style={{ fontWeight: 600, textAlign: "center", whiteSpace: "nowrap" }}>บันทึก...</span></>
+                                ) : saveState === "done" ? (
+                                    <><i className="bi bi-check-circle-fill" style={{ fontSize: isMobile ? 14 : 16 }} /> <span style={{ fontWeight: 600, textAlign: "center", whiteSpace: "nowrap" }}>บันทึกแล้ว</span></>
+                                ) : (
+                                    <><i className="bi bi-save" style={{ fontSize: isMobile ? 14 : 16 }} /> <span style={{ fontWeight: 600, textAlign: "center", whiteSpace: "nowrap" }}>บันทึกข้อมูล</span></>
+                                )}
+                            </button>
+                        )}
                         <button
                             className="prp-btn-primary"
                             onClick={() => {
@@ -1519,7 +1521,7 @@ export function ParcelResultsPanel({
                             }}
                             disabled={(!!user && (!projectName.trim() || nameEditing || isDuplicateProjectName)) || hasEmptyStatus || processingCarbon}
                             style={{
-                                flex: isMobile ? "1 1 calc(50% - 4px)" : "1 1 calc(33% - 8px)", minWidth: 110, padding: isMobile ? "8px 6px" : "10px 12px", fontSize: isMobile ? 12 : 14, display: "flex", flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 6,
+                                flex: (!user || isMobile) ? "1 1 calc(50% - 4px)" : "1 1 calc(33% - 8px)", minWidth: 110, padding: isMobile ? "8px 6px" : "10px 12px", fontSize: isMobile ? 12 : 14, display: "flex", flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 6,
                                 background: ((!user || (projectName.trim() && !nameEditing && !isDuplicateProjectName)) && !hasEmptyStatus && !processingCarbon) ? "#1e7a47" : "#cbd5e1",
                                 color: "#fff", border: "1px solid transparent", borderRadius: isMobile ? 10 : 12,
                                 cursor: ((!user || (projectName.trim() && !nameEditing && !isDuplicateProjectName)) && !hasEmptyStatus && !processingCarbon) ? "pointer" : "not-allowed",
@@ -1953,12 +1955,12 @@ export function ParcelResultsPanel({
                                 </div>
                                 <div>
                                     <div style={{ fontSize: 15, fontWeight: 800, color: "#1a3d2b" }}>แปลงที่ {parseInt((parcelFeatures[deleteConfirmIdx]?.properties as any)?.plot_index) || (deleteConfirmIdx + 1)}</div>
-                                    <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 1 }}>
+                                    <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 1 }}>
                                         {plots[deleteConfirmIdx]?.areaRai ? `${plots[deleteConfirmIdx].areaRai.toFixed(2)} ไร่` : ""}
                                     </div>
                                 </div>
                             </div>
-                            <div style={{ fontSize: 13, color: "#5a7a65", marginBottom: 20, lineHeight: 1.6, padding: "10px 12px", background: "#f8fafc", borderRadius: 10, border: "1px solid #e6f0ea" }}>
+                            <div style={{ fontSize: 14, color: "#5a7a65", marginBottom: 20, lineHeight: 1.6, padding: "10px 12px", background: "#f8fafc", borderRadius: 10, border: "1px solid #e6f0ea" }}>
                                 ต้องการลบแปลงนี้ใช่หรือไม่?<br />
                                 <span style={{ color: "#ef4444", fontWeight: 600 }}>ข้อมูลแปลงนี้จะไม่สามารถกู้คืนได้</span>
                             </div>
@@ -1968,7 +1970,7 @@ export function ParcelResultsPanel({
                                     style={{
                                         flex: 1, padding: "11px 0", borderRadius: 10,
                                         border: "1.5px solid #e6f0ea", background: "#f8fafc",
-                                        cursor: "pointer", fontSize: 13, fontWeight: 600, color: "#5a7a65"
+                                        cursor: "pointer", fontSize: 14, fontWeight: 600, color: "#5a7a65"
                                     }}
                                 >
                                     ยกเลิก
