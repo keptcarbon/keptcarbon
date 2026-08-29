@@ -36,6 +36,7 @@ import { AreaErrorPopup } from "./components/AreaErrorPopup";
 import { ErrorPopup } from "./components/ErrorPopup";
 import { StepWarningPopup } from "./components/StepWarningPopup";
 import { GuestLimitPopup } from "./components/GuestLimitPopup";
+import { ClaimSuccessPopup } from "./components/ClaimSuccessPopup";
 import { setPostAuthRedirect } from "@/lib/post-auth-redirect";
 
 /** Guests (not logged in) may draw at most this many plots. */
@@ -49,7 +50,7 @@ const MAP_DRAW_RESUME_KEY = "mapDrawResume";
 const MAP_DRAW_RESUME_TTL_MS = 5 * 60 * 1000;
 
 function MapDrawContent() {
-  const { user, openLogin, openRegister } = useAuth();
+  const { user, openLogin, openRegister, modal } = useAuth();
 
   const [locationMethod, setLocationMethod] = useState<"area" | "coord">("area");
   const [coordMode, setCoordMode] = useState<"latlng" | "utm">("latlng");
@@ -268,6 +269,7 @@ function MapDrawContent() {
   const [projectName, setProjectName] = useState(projNameParam || "");
   const [stepWarningPopup, setStepWarningPopup] = useState<boolean>(false);
   const [guestLimitPopup, setGuestLimitPopup] = useState<boolean>(false);
+  const [claimSuccessPopup, setClaimSuccessPopup] = useState<boolean>(false);
   const [plotsSaved, setPlotsSaved] = useState(false);
   // Tracks the currently active DB project for this drawing session (set once
   // the guest's first assessment/save writes a row), so it can be soft-deleted
@@ -454,8 +456,23 @@ function MapDrawContent() {
     setPostAuthRedirect("/map-draw");
   };
 
-  // Restore stashed guest plots after login/register. The snapshot only exists
-  // when the guest chose to auth from the limit popup, so normal visits are
+  // GuestLimitPopup's onLogin/onRegister call stashGuestDrawSnapshot()
+  // directly, but that's only reachable at the >GUEST_PLOT_LIMIT wall. A
+  // guest under the limit who opens the header's plain "เข้าสู่ระบบ"/
+  // "สมัครสมาชิก" button (openLogin/openRegister with no stash) had their
+  // plots silently dropped by the OAuth full-page redirect — this modal-open
+  // watcher stashes for that case too, so ANY login/register while plots are
+  // drawn on this page is covered, not just the limit-triggered one.
+  useEffect(() => {
+    if (!user && (modal === "login" || modal === "register") && drawnParcels.length > 0) {
+      stashGuestDrawSnapshot();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [modal]);
+
+  // Restore stashed guest plots after login/register. The snapshot only
+  // exists when the guest had drawn plots at the moment they opened the auth
+  // modal (either path above), so a plain visit with nothing drawn is
   // unaffected. Waits for the map + session user, then drops the restored
   // plots straight into step 2 (the user is now authed — no limit).
   const resumeLoadedRef = useRef(false);
@@ -478,6 +495,11 @@ function MapDrawContent() {
       setIsPanelOpen(true);
       setSearchCount(feats.length);
       setStatus("เข้าสู่ระบบสำเร็จ — แปลงที่วาดไว้ถูกกู้คืนแล้ว");
+      // This is the >GUEST_PLOT_LIMIT "draw, hit limit, then log in" path —
+      // a same-page sessionStorage restore that never touches
+      // /api/plots/claim (unlike the auto-saved-draft claim redirect below).
+      // Confirm the restore on screen the same way.
+      setClaimSuccessPopup(true);
 
       // Re-apply the guest's region/province/district/subdistrict so stepping back to step 1
       // shows them again. Suppress the boundary hook's auto-zoom for this window
@@ -1395,6 +1417,15 @@ function MapDrawContent() {
             setCurrentStep(2);
             setIsPanelOpen(true);
             setStatus(`เตรียมประมวลผลคาร์บอนสำหรับโครงการ: ${projName}`);
+
+            // action=calc with no plotId only happens on the post-login
+            // guest-project claim redirect (auth-context.tsx), which only
+            // navigates here after POST /api/plots/claim returned 200 — so
+            // reaching this branch already means the claim succeeded. Confirm
+            // it on screen once the claimed plots have actually loaded.
+            if (action && !plotId) {
+              setClaimSuccessPopup(true);
+            }
 
             const map = mapRef.current;
             if (map) {
@@ -3540,6 +3571,8 @@ function MapDrawContent() {
       />
 
       <AreaErrorPopup error={areaError} onClose={() => setAreaError(null)} />
+
+      <ClaimSuccessPopup open={claimSuccessPopup} onClose={() => setClaimSuccessPopup(false)} />
 
       <ErrorPopup popup={errorPopup} onClose={() => setErrorPopup(null)} />
 
