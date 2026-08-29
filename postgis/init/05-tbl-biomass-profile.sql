@@ -29,7 +29,8 @@ CREATE TABLE IF NOT EXISTS tbl_biomass_profile (
   biomass_ci_lower   FLOAT,
   biomass_ci_upper   FLOAT,
 
-  created_at         TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
+  -- Import batch/vintage of the lookup CSV a row's data came from.
+  version            VARCHAR(10),
 
   CONSTRAINT uq_biomass_profile_key UNIQUE (p_code, clone, growth_model, allometry, age)
 );

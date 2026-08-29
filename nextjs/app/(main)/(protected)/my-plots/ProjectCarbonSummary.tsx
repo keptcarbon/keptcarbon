@@ -6,7 +6,7 @@ import type { SavedPlot } from "./types";
 import styles from "./ProjectCarbonSummary.module.css";
 import { Accordion } from "./Accordion";
 
-export function ProjectCarbonSummary({ plots, isMobile }: { plots: SavedPlot[]; isMobile: boolean }) {
+export function ProjectCarbonSummary({ plots, isMobile, onToggle }: { plots: SavedPlot[]; isMobile: boolean; onToggle?: () => void }) {
   const currentYearBE = new Date().getFullYear() + 543;
   const [isExpanded, setIsExpanded] = useState(false);
 
@@ -122,9 +122,8 @@ export function ProjectCarbonSummary({ plots, isMobile }: { plots: SavedPlot[]; 
 
   return (
     <div className={styles.container}>
-      {/* Clickable Header */}
+      {/* Header */}
       <div
-        onClick={() => setIsExpanded(!isExpanded)}
         className={`${styles.header} ${isMobile ? styles.headerMobile : ""} ${isExpanded ? styles.headerExpanded : styles.headerCollapsed}`}
       >
         <div className={styles.headerLeft}>
@@ -132,12 +131,17 @@ export function ProjectCarbonSummary({ plots, isMobile }: { plots: SavedPlot[]; 
             <i className="bi bi-bar-chart-fill" />
           </div>
           <div>
-            <div className={`${styles.headerTitle} ${isMobile ? styles.headerTitleMobile : ""}`}>สรุปคาร์บอนสะสม</div>
+            <div className={`${styles.headerTitle} ${isMobile ? styles.headerTitleMobile : ""}`}>ปริมาณคาร์บอนรวม</div>
           </div>
         </div>
-        <div className={`${styles.headerToggle} ${isExpanded ? styles.headerToggleExpanded : styles.headerToggleCollapsed}`}>
+        <button
+          type="button"
+          onClick={() => { setIsExpanded(!isExpanded); onToggle?.(); }}
+          className={`${styles.headerToggle} ${isExpanded ? styles.headerToggleExpanded : styles.headerToggleCollapsed}`}
+        >
+          ดูข้อมูล
           <i className={`bi bi-chevron-${isExpanded ? 'up' : 'down'}`} />
-        </div>
+        </button>
       </div>
 
       {/* Expandable Content */}
@@ -147,7 +151,7 @@ export function ProjectCarbonSummary({ plots, isMobile }: { plots: SavedPlot[]; 
           {/* Left: Chart Panel */}
           <div className={`${styles.chartPanel} ${isMobile ? styles.chartPanelMobile : ""}`}>
             {combinedPts.length > 0 ? (
-              <CarbonBarChart pts={combinedPts} isMobile={isMobile} narrowMode={!isMobile} showAge={false} title="ปริมาณคาร์บอนกักเก็บ (tCO₂eq)" initialMaxYearBE={initialMaxYearBE} baseline={{ value: totalNow, ci: ciNow }} />
+              <CarbonBarChart pts={combinedPts} isMobile={isMobile} narrowMode={!isMobile} showAge={false} title="ปริมาณคาร์บอนสะสม (tCO₂eq/โครงการ)" initialMaxYearBE={initialMaxYearBE} baseline={{ value: totalNow, ci: ciNow }} />
             ) : (
               <div className={styles.emptyChart}>
                 <i className={`bi bi-bar-chart ${styles.emptyChartIcon}`} />
@@ -198,7 +202,7 @@ export function ProjectCarbonSummary({ plots, isMobile }: { plots: SavedPlot[]; 
                       label={`ปีที่ ${pt.year_at} (พ.ศ. ${pt.yearBE})`}
                       value={
                         <div className={styles.cycleValueBlock}>
-                          <div className={styles.cycleValueLabel}>คาร์บอนเครดิต</div>
+                          <div className={styles.cycleValueLabel}>คาร์บอนเครดิ</div>
                           <div className={styles.cycleValueRow}>
                             <span className={`${styles.cycleValueMain} ${isMobile ? styles.cycleValueMainMobile : ""}`} style={{ color: col.bot }}>
                               {Math.floor(pt.gainValue).toLocaleString("th-TH")}

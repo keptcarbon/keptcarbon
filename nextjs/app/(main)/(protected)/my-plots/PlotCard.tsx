@@ -227,7 +227,7 @@ export function PlotCard({ plot, index, onDelete, onDeleteClick, onEdit, expande
         >
           <div className={styles.tabIconRow}>
             <i className={`bi bi-bar-chart-line${expanded && activeTab === "carbon" ? "-fill" : ""} ${styles.tabIcon}`} />
-            <span className={styles.tabLabel}>กราฟคาร์บอนเครดิต (tCO₂eq)</span>
+            <span className={styles.tabLabel}>กราฟคาร์บอนกักเก็บ</span>
           </div>
           {!isProcessed && <span className={styles.tabUnprocessedBadge}>ยังไม่ประมวลผล</span>}
         </button>
@@ -254,7 +254,7 @@ export function PlotCard({ plot, index, onDelete, onDeleteClick, onEdit, expande
                       <i className={`bi bi-clock-history ${styles.emptyGraphIcon}`} />
                     </div>
                     <div className={styles.emptyGraphTitle}>ยังไม่ได้ประมวลผลคาร์บอน</div>
-                    <div className={styles.emptyGraphSubtitle}>กรุณาไปที่หน้าวาดแปลงและกด &quot;ประมวลผล&quot; เพื่อดูกราฟการกักเก็บคาร์บอน</div>
+                    <div className={styles.emptyGraphSubtitle}>กรุณากด &quot;ประเมินคาร์บอนเครรดิต&quot; เพื่อประมวลผลข้อมูล</div>
                   </div>
                 )}
               </div>

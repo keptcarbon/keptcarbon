@@ -75,7 +75,7 @@ export function PlotMiniMap({ plot, isMobile, index }: { plot: SavedPlot; isMobi
         version: 8,
         glyphs: "https://fonts.openmaptiles.org/{fontstack}/{range}.pbf",
         sources: {
-          sat: { type: "raster", tiles: ["https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}"], tileSize: 256, maxzoom: 18 }
+          sat: { type: "raster", tiles: ["https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}"], tileSize: 256, maxzoom: 18 }
         },
         layers: [{ id: "sat", type: "raster", source: "sat" }]
       },
@@ -252,7 +252,7 @@ export function PlotMiniMap({ plot, isMobile, index }: { plot: SavedPlot; isMobi
             คำอธิบาย
           </div>
           <div className={`${styles.legendCaption} ${isMobile ? styles.legendCaptionMobile : ""}`}>
-            *พื้นที่ที่เลือกใช้ในการประมวลผล
+            พื้นที่ที่เลือกใช้ในการประมวลผล
           </div>
           {legendItems.map(item => (
             <div key={item.code} className={`${styles.legendItem} ${isMobile ? styles.legendItemMobile : ""}`}>

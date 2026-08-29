@@ -1,7 +1,7 @@
 {
   "name": "KeptCarbon - สวนยางพารายั่งยืน",
   "short_name": "KeptCarbon",
-  "description": "แพลตฟอร์มจัดการและประเมินคาร์บอนเครดิตสำหรับสวนยางพารา",
+  "description": "แพลตฟอร์มจัดการและประเมินคาร์บอนกักเก็บสำหรับสวนยางพารา",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",

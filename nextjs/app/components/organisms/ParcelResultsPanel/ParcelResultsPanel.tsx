@@ -58,7 +58,7 @@ type Props = {
     onBeforeProcess?: () => boolean;
     autoProcessTrigger?: number;
     onSave?: () => void;
-    onProjectSaved?: (info: { projectId: number; guestKey: string | null }) => void;
+    onProjectSaved?: (info: { projectId: number; projectName: string; guestKey: string | null }) => void;
     /** Bump this to detach from the current DB project (e.g. it was soft-deleted upstream) so the next save creates a new one. */
     resetProjectToken?: number;
     existingProjectPlots?: any[];
@@ -133,6 +133,32 @@ export function ParcelResultsPanel({
     const [expandedResultIdx, setExpandedResultIdx] = useState<number | "total" | null>(null);
     const [backendResponses, setBackendResponses] = useState<CarbonAssessResponse[] | null>(null);
     const { user } = useAuth();
+
+    const [cloneOptions, setCloneOptions] = useState<string[]>(VARIETY_OPTIONS);
+    const [spacingOptions, setSpacingOptions] = useState<string[]>(SPACING_OPTIONS);
+
+    // Load พันธุ์ยาง / ระยะปลูก dropdown options from tbl_rubber_clone and
+    // tbl_tree_density, falling back to the static defaults above on failure.
+    useEffect(() => {
+        let cancelled = false;
+        fetch("/api/rubber-clone")
+            .then(res => (res.ok ? res.json() : Promise.reject(res)))
+            .then(data => {
+                if (!cancelled && Array.isArray(data.rows) && data.rows.length > 0) {
+                    setCloneOptions(data.rows.map((r: { clone: string }) => r.clone));
+                }
+            })
+            .catch(() => {});
+        fetch("/api/tree-density")
+            .then(res => (res.ok ? res.json() : Promise.reject(res)))
+            .then(data => {
+                if (!cancelled && Array.isArray(data.rows) && data.rows.length > 0) {
+                    setSpacingOptions(data.rows.map((r: { treeSpacing: string }) => r.treeSpacing));
+                }
+            })
+            .catch(() => {});
+        return () => { cancelled = true; };
+    }, []);
 
     const plots = useMemo(() => parcelFeatures.map(computePlot), [parcelFeatures]);
     const totalArea = useMemo(() => plots.reduce((s, p) => s + p.areaRai, 0), [plots]);
@@ -307,6 +333,10 @@ export function ParcelResultsPanel({
     }, [projectName]);
     const [dbProjectId, setDbProjectId] = useState<number | null>(null);
     const [guestUserId, setGuestUserId] = useState<string | null>(null);
+    // Mirror dbProjectId/guestUserId in refs so a Save that just awaited an
+    // in-flight draft save reads the ids the draft set, not its stale closure.
+    const dbProjectIdRef = useRef<number | null>(null);
+    const guestUserIdRef = useRef<string | null>(null);
 
     // Parent bumps resetProjectToken after soft-deleting our current project
     // (e.g. guest discarded it to start a new area) — detach so the next save
@@ -315,6 +345,8 @@ export function ParcelResultsPanel({
         if (resetProjectToken === undefined) return;
         setDbProjectId(null);
         setGuestUserId(null);
+        dbProjectIdRef.current = null;
+        guestUserIdRef.current = null;
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [resetProjectToken]);
 
@@ -330,6 +362,8 @@ export function ParcelResultsPanel({
         if (justLoggedIn && guestUserId) {
             setDbProjectId(null);
             setGuestUserId(null);
+            dbProjectIdRef.current = null;
+            guestUserIdRef.current = null;
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [user]);
@@ -377,7 +411,10 @@ export function ParcelResultsPanel({
         if (dbProjectId != null || !initialProjectName) return;
         const nm = initialProjectName.trim().toLowerCase();
         const match = existingProjects.find(p => p.name === nm);
-        if (match) setDbProjectId(match.id);
+        if (match) {
+            setDbProjectId(match.id);
+            dbProjectIdRef.current = match.id;
+        }
     }, [existingProjects, initialProjectName, dbProjectId]);
 
     // A name is a duplicate only if it matches another project — not the one
@@ -418,6 +455,12 @@ export function ParcelResultsPanel({
         onProjectNameChange?.(nm);
         setNameEditing(false);
     };
+
+    // "ประมวลผล" (Process) fires an un-awaited draft save (handleSave with
+    // forceGuest). A real "บันทึกข้อมูล" (Save) right after must wait for that
+    // POST to land first — otherwise it runs with dbProjectId/guestUserId still
+    // unset, POSTs a second row, and leaves the guest draft orphaned.
+    const draftSaveRef = useRef<Promise<unknown> | null>(null);
 
     // Stable IDs that link frontend_plots ↔ polygons_payload ↔ backend_responses.
     // Kept in a ref so handleSave can read them, and in state so render can read them.
@@ -898,8 +941,11 @@ export function ParcelResultsPanel({
 
             // Auto-save as a draft (guest_key) — for BOTH logged-in users and guests.
             // Persists to DB but does NOT appear in My Plots until the user clicks
-            // "บันทึกข้อมูล", which claims the draft into their account.
-            handleSave(results, responses, polygons, { forceGuest: true }).catch(console.error);
+            // "บันทึกข้อมูล", which claims the draft into their account. Tracked in a
+            // ref so a Save clicked before this resolves waits for it.
+            draftSaveRef.current = handleSave(results, responses, polygons, { forceGuest: true })
+                .catch(console.error)
+                .finally(() => { draftSaveRef.current = null; });
         } catch (err) {
             setCarbonErr(getFriendlyErrorMessage(err, plots, plotForms, stablePlotIds));
         } finally {
@@ -931,6 +977,13 @@ export function ParcelResultsPanel({
 
         if (!isDraft) {
             setSaveState("saving");
+            // Wait out any in-flight Process draft save so this Save sees the
+            // draft's dbProjectId/guestUserId and PATCHes (→ in-place claim)
+            // instead of POSTing a duplicate.
+            const inFlightDraft = draftSaveRef.current;
+            if (inFlightDraft) {
+                try { await inFlightDraft; } catch { /* handled in its own .catch */ }
+            }
             await new Promise(r => setTimeout(r, 900));
         }
 
@@ -1019,15 +1072,20 @@ export function ParcelResultsPanel({
             let userId: string | undefined;
             let projectId: string | undefined;
 
+            // guestUserId may have just been set by an awaited draft save whose
+            // value isn't in this closure yet — fall back to the ref.
+            const effectiveGuestKey = guestUserId ?? guestUserIdRef.current;
+            const effectiveDbProjectId = dbProjectId ?? dbProjectIdRef.current;
+
             if (user) {
                 projectId = projectName || "Unnamed Project";
-                // Process/save for a logged-in user works against a guest_key row first,
-                // until they click "บันทึกข้อมูล" (Save) and it gets claimed — reuse the
-                // existing guest_key if a draft already exists
-                userId = guestUserId ?? undefined;
-            } else if (guestUserId) {
+                // A logged-in user's Process writes a guest_key draft row; the
+                // following Save sends that key so the server flips the row to
+                // their account in place (see /api/plots PATCH/POST in-place claim).
+                userId = effectiveGuestKey ?? undefined;
+            } else if (effectiveGuestKey) {
                 // Guest re-save: send the userId from the first POST so PATCH can identify the row
-                userId = guestUserId;
+                userId = effectiveGuestKey;
             }
 
             let res;
@@ -1151,8 +1209,8 @@ export function ParcelResultsPanel({
                 saveBody.projectId = projectId;
             }
 
-            if (dbProjectId) {
-                res = await fetch(`/api/plots/${dbProjectId}`, {
+            if (effectiveDbProjectId) {
+                res = await fetch(`/api/plots/${effectiveDbProjectId}`, {
                     method: "PATCH",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify(saveBody),
@@ -1165,54 +1223,85 @@ export function ParcelResultsPanel({
                 });
             }
 
+            // The user already has an active project with this name — the server
+            // couldn't flip ownership in place. Surface it like the client-side
+            // duplicate-name guard rather than silently failing.
+            if (res.status === 409 && !isDraft) {
+                setCarbonErr("ชื่อโครงการนี้ถูกใช้งานแล้ว กรุณาใช้ชื่ออื่น");
+                setSaveState("idle");
+                return;
+            }
+
             if (res.ok) {
                 const data = await res.json();
-                if (data.project?.id) {
-                    setDbProjectId(data.project.id);
+                const savedId: number | undefined = data.project?.id;
+                if (savedId) {
+                    setDbProjectId(savedId);
+                    dbProjectIdRef.current = savedId;
                 }
-                // Store the guest_key the server returned, for use in the next PATCH / claim
-                if (data.project?.userId && data.project.userId !== guestUserId) {
-                    if (!user) {
-                        // Guest: save to localStorage so it can be seen in My Plots
-                        setGuestUserId(data.project.userId);
+
+                // Server reports the row's owner as guest_uuid ?? user_uuid. A
+                // "Guest-…" value means it's still guest-owned; anything else
+                // means it's now the user's (PATCH/POST flipped it in place).
+                const serverOwner: string | null =
+                    typeof data.project?.userId === "string" ? data.project.userId : null;
+                const serverGuestKey =
+                    serverOwner && serverOwner.startsWith("Guest-") ? serverOwner : null;
+
+                if (isDraft) {
+                    // Draft stays guest-owned. Persist the key (state + ref +
+                    // localStorage) so it can still be claimed later — on the
+                    // next real Save, or by auth-context's on-load claim if the
+                    // user leaves first. Pre-fix, a logged-in user's draft key
+                    // lived only in React state, so the draft was orphaned the
+                    // moment they reloaded / navigated / logged out.
+                    if (serverGuestKey && serverGuestKey !== effectiveGuestKey) {
+                        setGuestUserId(serverGuestKey);
+                        guestUserIdRef.current = serverGuestKey;
                         if (typeof window !== "undefined") {
-                            localStorage.setItem("guest_user_id", data.project.userId);
+                            localStorage.setItem("guest_user_id", serverGuestKey);
                         }
-                    } else if (isDraft) {
-                        // Logged in + draft (Process): keep in state only, don't write to localStorage
-                        setGuestUserId(data.project.userId);
+                    }
+                } else if (user) {
+                    // Real Save by a logged-in user: the row is theirs now.
+                    // Clear the draft key and mop up any stray same-named guest
+                    // row a raced draft save may have left behind — /api/plots/
+                    // claim's dedup soft-deletes it in favour of this project.
+                    const strayKey =
+                        effectiveGuestKey ??
+                        serverGuestKey ??
+                        (typeof window !== "undefined" ? localStorage.getItem("guest_user_id") : null);
+                    if (strayKey) {
+                        try {
+                            await fetch("/api/plots/claim", {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({ guestKey: strayKey }),
+                            });
+                        } catch (e) {
+                            console.error("cleanup claim error:", e);
+                        }
+                    }
+                    setGuestUserId(null);
+                    guestUserIdRef.current = null;
+                    if (typeof window !== "undefined") {
+                        localStorage.removeItem("guest_user_id");
+                    }
+                } else if (serverGuestKey && serverGuestKey !== effectiveGuestKey) {
+                    // Plain guest save: persist the key so My Plots can show it.
+                    setGuestUserId(serverGuestKey);
+                    guestUserIdRef.current = serverGuestKey;
+                    if (typeof window !== "undefined") {
+                        localStorage.setItem("guest_user_id", serverGuestKey);
                     }
                 }
 
-                if (data.project?.id) {
+                if (savedId) {
                     onProjectSaved?.({
-                        projectId: data.project.id,
-                        guestKey: data.project.userId ?? guestUserId ?? null,
+                        projectId: savedId,
+                        projectName: (typeof data.project?.projectName === "string" && data.project.projectName) || projectName || "",
+                        guestKey: (!isDraft && user) ? null : (serverGuestKey ?? effectiveGuestKey ?? null),
                     });
-                }
-
-                // A logged-in user clicking "บันทึกข้อมูล" (Save) → claim the draft (guest_key) into their account
-                // → server clones the guest row into a new project owned by
-                // the user and soft-deletes the guest one, so dbProjectId
-                // must follow the clone or the next save 404s (PATCHing a
-                // now-deleted row).
-                if (!isDraft && user && guestUserId) {
-                    try {
-                        const claimRes = await fetch("/api/plots/claim", {
-                            method: "POST",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({ guestKey: guestUserId }),
-                        });
-                        if (claimRes.ok) {
-                            const claimData = await claimRes.json();
-                            const claimedProjects: { id: number; projectName: string }[] = claimData.projects ?? [];
-                            const clonedProject = claimedProjects.find(p => p.projectName === projectId) ?? claimedProjects[0];
-                            if (clonedProject?.id) setDbProjectId(clonedProject.id);
-                        }
-                        setGuestUserId(null);
-                    } catch (e) {
-                        console.error("claim error:", e);
-                    }
                 }
             }
         } catch (e) { console.error("handleSave error:", e); }
@@ -1273,7 +1362,7 @@ export function ParcelResultsPanel({
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14, gap: 10 }}>
                     <div className="prp-header-block" style={{ marginBottom: 0, flex: 1, minWidth: 0 }}>
                         <div className="prp-main-title" style={{ fontSize: isMobile ? 16 : 18, marginBottom: 0, color: "#1a3d2b", fontWeight: 700, letterSpacing: "-0.2px" }}>
-                            {projectName?.trim() ? `โครงการ ${projectName}` : "กรอกข้อมูลแปลง"}
+                            {projectName?.trim() ? `โครงการ: ${projectName}` : "กรอกข้อมูลแปลง"}
                         </div>
                     </div>
                     <button
@@ -1452,7 +1541,7 @@ export function ParcelResultsPanel({
                 ) : (
                     <div style={{ display: "flex", gap: isMobile ? 6 : 8, marginBottom: 16, flexWrap: "wrap", alignItems: "stretch" }}>
                         {onDrawMore && !isDrawing && (
-                            <button className="prp-btn-ghost" disabled={drawMoreDisabled} style={{ flex: isMobile ? "1 1 100%" : "1 1 calc(33% - 8px)", minWidth: 100, padding: isMobile ? "8px 6px" : "10px 12px", fontSize: isMobile ? 12 : 14, display: "flex", flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 6, background: drawMoreDisabled ? "#cbd5e1" : "#1e7a47", color: "#fff", border: "1px solid transparent", borderRadius: isMobile ? 10 : 12, cursor: drawMoreDisabled ? "not-allowed" : "pointer", boxShadow: drawMoreDisabled ? "none" : "0 4px 10px rgba(30,122,71,0.25)", opacity: drawMoreDisabled ? 0.6 : 1 }} onClick={drawMoreDisabled ? undefined : () => { setExpandedIdx(null); onDrawMore?.(); }}>
+                            <button className="prp-btn-ghost" disabled={drawMoreDisabled} style={{ flex: !user ? "1 1 calc(50% - 4px)" : (isMobile ? "1 1 100%" : "1 1 calc(33% - 8px)"), minWidth: 100, padding: isMobile ? "8px 6px" : "10px 12px", fontSize: isMobile ? 12 : 14, display: "flex", flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 6, background: drawMoreDisabled ? "#cbd5e1" : "#1e7a47", color: "#fff", border: "1px solid transparent", borderRadius: isMobile ? 10 : 12, cursor: drawMoreDisabled ? "not-allowed" : "pointer", boxShadow: drawMoreDisabled ? "none" : "0 4px 10px rgba(30,122,71,0.25)", opacity: drawMoreDisabled ? 0.6 : 1 }} onClick={drawMoreDisabled ? undefined : () => { setExpandedIdx(null); onDrawMore?.(); }}>
                                 <i className="bi bi-pencil-square" style={{ fontSize: isMobile ? 14 : 16 }} /> <span style={{ fontWeight: 600, textAlign: "center", whiteSpace: "nowrap" }}>วาดแปลงเพิ่ม</span>
                             </button>
                         )}
@@ -1461,28 +1550,30 @@ export function ParcelResultsPanel({
                                 <i className="bi bi-x-circle" style={{ fontSize: isMobile ? 14 : 16 }} /> <span style={{ fontWeight: 600, textAlign: "center", whiteSpace: "nowrap" }}>ยกเลิกการวาด</span>
                             </button>
                         )}
-                        <button
-                            className="prp-btn-primary"
-                            onClick={() => handleSave()}
-                            disabled={!user || !projectName.trim() || nameEditing || isDuplicateProjectName || saveState === "saving"}
-                            style={{
-                                flex: isMobile ? "1 1 calc(50% - 4px)" : "1 1 calc(33% - 8px)", minWidth: 110, padding: isMobile ? "8px 6px" : "10px 12px", fontSize: isMobile ? 12 : 14, display: "flex", flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 6,
-                                background: !user ? "#cbd5e1" : (saveState === "done" ? "#94a3b8" : ((projectName.trim() && !nameEditing && !isDuplicateProjectName && !hasEmptyStatus) ? "#0284c7" : "#cbd5e1")),
-                                color: "#fff", border: "1px solid transparent", borderRadius: isMobile ? 10 : 12,
-                                cursor: !user ? "not-allowed" : (saveState !== "idle" ? "not-allowed" : ((projectName.trim() && !nameEditing && !isDuplicateProjectName && !hasEmptyStatus) ? "pointer" : "not-allowed")),
-                                boxShadow: !user ? "none" : (saveState === "done" ? "none" : ((projectName.trim() && !nameEditing && !isDuplicateProjectName && !hasEmptyStatus) ? "0 4px 10px rgba(2,132,199,0.2)" : "none")),
-                                opacity: !user ? 0.5 : (saveState === "done" ? 0.6 : 1),
-                                transition: "all 0.3s"
-                            }}
-                        >
-                            {saveState === "saving" ? (
-                                <><span className="s1-spin" style={{ width: 14, height: 14, border: "2px solid rgba(255,255,255,0.3)", borderTopColor: "#fff" }} /> <span style={{ fontWeight: 600, textAlign: "center", whiteSpace: "nowrap" }}>บันทึก...</span></>
-                            ) : saveState === "done" ? (
-                                <><i className="bi bi-check-circle-fill" style={{ fontSize: isMobile ? 14 : 16 }} /> <span style={{ fontWeight: 600, textAlign: "center", whiteSpace: "nowrap" }}>บันทึกแล้ว</span></>
-                            ) : (
-                                <><i className="bi bi-save" style={{ fontSize: isMobile ? 14 : 16 }} /> <span style={{ fontWeight: 600, textAlign: "center", whiteSpace: "nowrap" }}>บันทึกข้อมูล</span></>
-                            )}
-                        </button>
+                        {user && (
+                            <button
+                                className="prp-btn-primary"
+                                onClick={() => handleSave()}
+                                disabled={!projectName.trim() || nameEditing || isDuplicateProjectName || saveState === "saving"}
+                                style={{
+                                    flex: isMobile ? "1 1 calc(50% - 4px)" : "1 1 calc(33% - 8px)", minWidth: 110, padding: isMobile ? "8px 6px" : "10px 12px", fontSize: isMobile ? 12 : 14, display: "flex", flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 6,
+                                    background: saveState === "done" ? "#94a3b8" : ((projectName.trim() && !nameEditing && !isDuplicateProjectName && !hasEmptyStatus) ? "#0284c7" : "#cbd5e1"),
+                                    color: "#fff", border: "1px solid transparent", borderRadius: isMobile ? 10 : 12,
+                                    cursor: saveState !== "idle" ? "not-allowed" : ((projectName.trim() && !nameEditing && !isDuplicateProjectName && !hasEmptyStatus) ? "pointer" : "not-allowed"),
+                                    boxShadow: saveState === "done" ? "none" : ((projectName.trim() && !nameEditing && !isDuplicateProjectName && !hasEmptyStatus) ? "0 4px 10px rgba(2,132,199,0.2)" : "none"),
+                                    opacity: saveState === "done" ? 0.6 : 1,
+                                    transition: "all 0.3s"
+                                }}
+                            >
+                                {saveState === "saving" ? (
+                                    <><span className="s1-spin" style={{ width: 14, height: 14, border: "2px solid rgba(255,255,255,0.3)", borderTopColor: "#fff" }} /> <span style={{ fontWeight: 600, textAlign: "center", whiteSpace: "nowrap" }}>บันทึก...</span></>
+                                ) : saveState === "done" ? (
+                                    <><i className="bi bi-check-circle-fill" style={{ fontSize: isMobile ? 14 : 16 }} /> <span style={{ fontWeight: 600, textAlign: "center", whiteSpace: "nowrap" }}>บันทึกแล้ว</span></>
+                                ) : (
+                                    <><i className="bi bi-save" style={{ fontSize: isMobile ? 14 : 16 }} /> <span style={{ fontWeight: 600, textAlign: "center", whiteSpace: "nowrap" }}>บันทึกข้อมูล</span></>
+                                )}
+                            </button>
+                        )}
                         <button
                             className="prp-btn-primary"
                             onClick={() => {
@@ -1493,7 +1584,7 @@ export function ParcelResultsPanel({
                             }}
                             disabled={(!!user && (!projectName.trim() || nameEditing || isDuplicateProjectName)) || hasEmptyStatus || processingCarbon}
                             style={{
-                                flex: isMobile ? "1 1 calc(50% - 4px)" : "1 1 calc(33% - 8px)", minWidth: 110, padding: isMobile ? "8px 6px" : "10px 12px", fontSize: isMobile ? 12 : 14, display: "flex", flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 6,
+                                flex: (!user || isMobile) ? "1 1 calc(50% - 4px)" : "1 1 calc(33% - 8px)", minWidth: 110, padding: isMobile ? "8px 6px" : "10px 12px", fontSize: isMobile ? 12 : 14, display: "flex", flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 6,
                                 background: ((!user || (projectName.trim() && !nameEditing && !isDuplicateProjectName)) && !hasEmptyStatus && !processingCarbon) ? "#1e7a47" : "#cbd5e1",
                                 color: "#fff", border: "1px solid transparent", borderRadius: isMobile ? 10 : 12,
                                 cursor: ((!user || (projectName.trim() && !nameEditing && !isDuplicateProjectName)) && !hasEmptyStatus && !processingCarbon) ? "pointer" : "not-allowed",
@@ -1556,8 +1647,13 @@ export function ParcelResultsPanel({
                                 >
                                     <div style={{ pointerEvents: 'none', width: 34, height: 34, borderRadius: 10, background: expandedIdx === i ? "#1e7a47" : "#edfaf3", border: expandedIdx === i ? "1px solid #1e7a47" : "1px solid #d7ede1", color: expandedIdx === i ? "#ffffff" : "#1e7a47", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 14, transition: "all 0.2s", boxShadow: expandedIdx === i ? "0 3px 8px rgba(30,122,71,0.28)" : "none" }}>{plotDisplayNum}</div>
                                     <div style={{ pointerEvents: 'none', flex: 1 }}>
-                                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                                             <div style={{ fontWeight: 800, fontSize: 15, color: "#1a3d2b", letterSpacing: "-0.2px" }}>แปลงที่ {plotDisplayNum}</div>
+                                            {!form.plantStatus && (
+                                                <span style={{ fontSize: 12, fontWeight: 700, color: "#c2410c", display: "inline-flex", alignItems: "center", gap: 4 }}>
+                                                    <i className="bi bi-exclamation-circle-fill" style={{ fontSize: 12 }} /> กรุณาเลือกสถานะแปลง
+                                                </span>
+                                            )}
                                         </div>
                                         {p.areaRai > 0 && (
                                             <div style={{ fontSize: 12.5, color: "#5a7a65", fontWeight: 600, marginTop: 1 }}>{p.areaRai.toFixed(2)} ไร่</div>
@@ -1631,11 +1727,13 @@ export function ParcelResultsPanel({
                                                 ปลูกมาแล้ว
                                             </div>
                                         </div>
+                                        {/*
                                         {!form.plantStatus && (
-                                            <div style={{ fontSize: 11, color: "#f59e0b", marginTop: 8, display: "flex", alignItems: "center", gap: 4 }}>
+                                            <div style={{ fontSize: 12, color: "#c2410c", marginTop: 8, display: "flex", alignItems: "center", gap: 4 }}>
                                                 <i className="bi bi-exclamation-circle-fill" /> กรุณาเลือกสถานะแปลงก่อนจึงจะกรอกข้อมูลด้านล่างได้
                                             </div>
                                         )}
+                                        */}
                                     </div>
 
                                     {/* Fields grid */}
@@ -1689,7 +1787,7 @@ export function ParcelResultsPanel({
                                                     disabled={!form.plantStatus}
                                                 >
                                                     <option value="">— เลือกสายพันธุ์ยาง —</option>
-                                                    {VARIETY_OPTIONS.map(v => <option key={v} value={v}>{v}</option>)}
+                                                    {cloneOptions.map(v => <option key={v} value={v}>{v}</option>)}
                                                 </select>
                                             </div>
                                             <div className="prp-field-group">
@@ -1726,7 +1824,7 @@ export function ParcelResultsPanel({
                                                     disabled={!form.plantStatus}
                                                 >
                                                     <option value="">— เลือกระยะปลูก —</option>
-                                                    {SPACING_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
+                                                    {spacingOptions.map(s => <option key={s} value={s}>{s}</option>)}
                                                 </select>
                                             </div>
                                         </div>
@@ -1927,12 +2025,12 @@ export function ParcelResultsPanel({
                                 </div>
                                 <div>
                                     <div style={{ fontSize: 15, fontWeight: 800, color: "#1a3d2b" }}>แปลงที่ {parseInt((parcelFeatures[deleteConfirmIdx]?.properties as any)?.plot_index) || (deleteConfirmIdx + 1)}</div>
-                                    <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 1 }}>
+                                    <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 1 }}>
                                         {plots[deleteConfirmIdx]?.areaRai ? `${plots[deleteConfirmIdx].areaRai.toFixed(2)} ไร่` : ""}
                                     </div>
                                 </div>
                             </div>
-                            <div style={{ fontSize: 13, color: "#5a7a65", marginBottom: 20, lineHeight: 1.6, padding: "10px 12px", background: "#f8fafc", borderRadius: 10, border: "1px solid #e6f0ea" }}>
+                            <div style={{ fontSize: 14, color: "#5a7a65", marginBottom: 20, lineHeight: 1.6, padding: "10px 12px", background: "#f8fafc", borderRadius: 10, border: "1px solid #e6f0ea" }}>
                                 ต้องการลบแปลงนี้ใช่หรือไม่?<br />
                                 <span style={{ color: "#ef4444", fontWeight: 600 }}>ข้อมูลแปลงนี้จะไม่สามารถกู้คืนได้</span>
                             </div>
@@ -1942,7 +2040,7 @@ export function ParcelResultsPanel({
                                     style={{
                                         flex: 1, padding: "11px 0", borderRadius: 10,
                                         border: "1.5px solid #e6f0ea", background: "#f8fafc",
-                                        cursor: "pointer", fontSize: 13, fontWeight: 600, color: "#5a7a65"
+                                        cursor: "pointer", fontSize: 14, fontWeight: 600, color: "#5a7a65"
                                     }}
                                 >
                                     ยกเลิก
@@ -2020,9 +2118,9 @@ export function ParcelResultsPanel({
                     <div style={{ flex: 1 }}>
                         <div style={{ fontSize: isMobile ? 16 : 18, fontWeight: 700, color: "#1a3d2b", lineHeight: 1.25, letterSpacing: "-0.2px" }}>
                             {isMobile ? (
-                                <>ผลการประเมินผล<br />คาร์บอนเครดิต</>
+                                <>ผลการประเมิน<br />คาร์บอนกักเก็บ</>
                             ) : (
-                                "ผลการประเมินผลคาร์บอนเครดิต"
+                                "ผลการประเมินผลคาร์บอนกักเก็บ"
                             )}
                         </div>
                         <div style={{ fontSize: 12, color: "#5a7a65", marginTop: 3, fontWeight: 500 }}>
@@ -2080,7 +2178,7 @@ export function ParcelResultsPanel({
                         <div style={{ flex: 1 }}>
                             {projectName ? (
                                 <div style={{ display: "flex", alignItems: "baseline", gap: 6, flexWrap: "wrap", lineHeight: 1.25, marginBottom: 2 }}>
-                                    <span style={{ color: "#5a7a65", fontSize: 13, fontWeight: 500 }}>โครงการ</span>
+                                    <span style={{ color: "#5a7a65", fontSize: 13, fontWeight: 500 }}>โครงการ:</span>
                                     <span style={{ fontWeight: 700, fontSize: 15, color: "#1a3d2b" }}>
                                         {projectName}
                                     </span>
@@ -2099,7 +2197,7 @@ export function ParcelResultsPanel({
                         <div style={{ padding: "14px 14px 16px" }}>
                             {aggregatePts.length > 0 && (
                                 <div>
-                                    <CarbonBarChart pts={aggregatePts} isMobile={isMobile} narrowMode={!isMobile} showAge={false} initialMaxYearBE={aggregateMinEndYearBE > 0 ? aggregateMinEndYearBE : undefined} baseline={{ value: summaryTotalCo2, ci: summaryTotalCo2Ci || 0 }} />
+                                    <CarbonBarChart pts={aggregatePts} isMobile={isMobile} narrowMode={!isMobile} showAge={false} title="ปริมาณคาร์บอนสะสม (tCO₂eq/โครงการ)" initialMaxYearBE={aggregateMinEndYearBE > 0 ? aggregateMinEndYearBE : undefined} baseline={{ value: summaryTotalCo2, ci: summaryTotalCo2Ci || 0 }} />
                                 </div>
                             )}
                         </div>

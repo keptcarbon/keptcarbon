@@ -3,12 +3,19 @@ import { randomUUID } from "crypto";
 import { pool } from "@/lib/db";
 import { verifyToken, AUTH_COOKIE } from "@/lib/jwt";
 import { getUserUuid, generateGuestKey, rowToProjectFromNormalized } from "@/lib/carbon-projects";
-import { upsertProjectAndPlots, softDeleteProjectsByOwner } from "@/lib/normalized-plots";
+import {
+  upsertProjectAndPlots,
+  softDeleteProjectsByOwner,
+  transferProjectToUser,
+  ProjectNameConflictError,
+} from "@/lib/normalized-plots";
 
 function generateGuestProjectName(): string {
-  // Just a display label (not a credential like generateGuestKey), so a
-  // short hex suffix is fine — e.g. "Guest-77a345c76d1d".
-  return `Guest-${randomUUID().replace(/-/g, "").slice(0, 8)}`;
+  // A default display label the user is expected to rename (shown in the
+  // project-name box after a claim / post-login auto-save). Not a credential
+  // like generateGuestKey — the hex suffix is only there to keep it unique
+  // against the per-owner unique index. e.g. "โครงการใหม่ 77a345c7".
+  return `โครงการใหม่ ${randomUUID().replace(/-/g, "").slice(0, 8)}`;
 }
 
 const CURRENT_YEAR_BE = new Date().getFullYear() + 543;
@@ -105,7 +112,7 @@ export async function GET(request: NextRequest) {
       `;
       params = [guestUserId];
     } else {
-      return NextResponse.json({ plots: [] });
+      return NextResponse.json({ plots: [], projects: [] });
     }
 
     const projectResult = await pool.query(query, params);
@@ -117,11 +124,44 @@ export async function GET(request: NextRequest) {
       : projectResult.rows;
 
     if (projectRows.length === 0) {
-      return NextResponse.json({ plots: [] });
+      return NextResponse.json({ plots: [], projects: [] });
     }
 
     const projectById = new Map(projectRows.map(row => [row.id, row]));
     const projectIds = projectRows.map(row => row.id);
+
+    // ?summary=true — lightweight listing for the my-plots table view (project
+    // name, plot count, total area only). Skips the geometry/assessment/yearly
+    // joins below so opening the list doesn't pull every plot's full payload.
+    if (searchParams.get("summary") === "true") {
+      const summaryResult = await pool.query(
+        `SELECT project_id, COUNT(*) AS plot_count, SUM(area_m2) AS total_area_m2,
+                MAX(owner_name) AS owner_name, MAX(province_code) AS province_code
+         FROM tbl_plots
+         WHERE project_id = ANY($1) AND deleted_at IS NULL
+         GROUP BY project_id`,
+        [projectIds]
+      );
+      const summaryByProjectId = new Map(summaryResult.rows.map(row => [row.project_id, row]));
+
+      const projects = projectRows
+        .map(row => {
+          const s = summaryByProjectId.get(row.id);
+          if (!s) return null; // no active plots left -> hide, matches prior grouping behavior
+          return {
+            dbProjectId: row.id,
+            projectName: row.project_name,
+            plotCount: Number(s.plot_count),
+            totalArea: s.total_area_m2 != null ? Number(s.total_area_m2) / 1600 : 0,
+            updatedAt: row.updated_at,
+            ownerName: s.owner_name ?? "",
+            province: s.province_code ?? "",
+          };
+        })
+        .filter((p): p is NonNullable<typeof p> => p !== null);
+
+      return NextResponse.json({ projects });
+    }
 
     const plotsResult = await pool.query(
       `SELECT id, project_id, polygon_id, ST_AsGeoJSON(geometry)::json AS geometry,
@@ -295,7 +335,37 @@ export async function POST(request: NextRequest) {
 
       let savedRow;
 
-      if ((existing.rowCount ?? 0) > 0) {
+      // In-place claim: a logged-in user doing a real Save who also passes a
+      // guest_key from a draft this session (body.userId) — adopt that exact
+      // guest row instead of spawning a fresh user row beside it (which would
+      // leave the draft orphaned as guest_uuid-owned). Only when they don't
+      // already have a project of this name.
+      if (userUuid && (existing.rowCount ?? 0) === 0 && !body.forceGuest && body.userId) {
+        const guestRow = await client.query(
+          `SELECT id FROM tbl_projects
+           WHERE guest_uuid = $1 AND project_name = $2 AND status = 'active'`,
+          [body.userId, projectName]
+        );
+        if ((guestRow.rowCount ?? 0) > 0) {
+          const adoptId = guestRow.rows[0].id;
+          try {
+            await transferProjectToUser(client, { projectId: adoptId, userUuid });
+            const reread = await client.query(
+              `SELECT * FROM tbl_projects WHERE id = $1`,
+              [adoptId]
+            );
+            savedRow = reread.rows[0];
+          } catch (e) {
+            if (!(e instanceof ProjectNameConflictError)) throw e;
+            // Fall through to the normal user-owned upsert below; the stray
+            // guest draft gets cleaned by the client's follow-up claim.
+          }
+        }
+      }
+
+      if (savedRow) {
+        // adopted above — nothing more to do for the header
+      } else if ((existing.rowCount ?? 0) > 0) {
         // Update existing record (updated_at handled by trigger)
         const updateResult = await client.query(
           `UPDATE tbl_projects SET updated_at = NOW() WHERE id = $1 RETURNING *`,
