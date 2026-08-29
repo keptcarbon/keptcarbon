@@ -110,6 +110,14 @@ export default function AuthLogsPage() {
 
     return (
         <>
+            {/* Search field: full width on mobile (matches the dropdown row
+                that sits below it), capped like the other admin pages on md+. */}
+            <style>{`
+                @media (min-width: 768px) {
+                    .al-search-field { max-width: 380px; }
+                }
+            `}</style>
+
             {/* ── Hero card ── */}
             <Card className="border-0 shadow-sm mb-4 overflow-hidden">
                 <div className="p-4 p-md-5" style={{ background: HERO_BG, borderBottom: "1px solid rgba(0,0,0,0.06)" }}>
@@ -130,9 +138,11 @@ export default function AuthLogsPage() {
                 </Alert>
             )}
 
-            {/* ── Filter toolbar ── */}
-            <div className="d-flex flex-wrap align-items-center gap-2 mb-3">
-                <div style={{ position: "relative", flex: "1 1 260px", maxWidth: 380 }}>
+            {/* ── Filter toolbar ──
+                 Mobile: stacked — search on its own row, then both dropdowns
+                 side-by-side on the next row. Desktop (md+): single row. */}
+            <div className="d-flex flex-column flex-md-row flex-wrap align-items-stretch align-items-md-center gap-2 mb-3">
+                <div className="al-search-field position-relative flex-md-grow-1">
                     <i className="bi bi-search" style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "#94a3b8", fontSize: 14 }} />
                     <input
                         value={search}
@@ -151,27 +161,31 @@ export default function AuthLogsPage() {
                         </button>
                     )}
                 </div>
-                <select
-                    value={eventTypeFilter}
-                    onChange={(e) => setEventTypeFilter(e.target.value)}
-                    style={{ borderRadius: 12, border: "1px solid #e6f0ea", background: "#fff", padding: "10px 14px", fontSize: 14, color: "#1a3d2b" }}
-                >
-                    <option value="all">ทุกประเภท</option>
-                    <option value="login">เข้าสู่ระบบ</option>
-                    <option value="logout">ออกจากระบบ</option>
-                </select>
-                <select
-                    value={providerFilter}
-                    onChange={(e) => setProviderFilter(e.target.value)}
-                    style={{ borderRadius: 12, border: "1px solid #e6f0ea", background: "#fff", padding: "10px 14px", fontSize: 14, color: "#1a3d2b" }}
-                >
-                    <option value="all">ทุกช่องทาง</option>
-                    <option value="local">อีเมล</option>
-                    <option value="line">LINE</option>
-                    <option value="google">Google</option>
-                    <option value="facebook">Facebook</option>
-                </select>
-                <div className="ms-auto" style={{ fontSize: 13, color: "#5a7a65" }}>
+                <div className="d-flex gap-2">
+                    <select
+                        value={eventTypeFilter}
+                        onChange={(e) => setEventTypeFilter(e.target.value)}
+                        className="flex-fill flex-md-grow-0"
+                        style={{ minWidth: 0, borderRadius: 12, border: "1px solid #e6f0ea", background: "#fff", padding: "10px 14px", fontSize: 14, color: "#1a3d2b" }}
+                    >
+                        <option value="all">ทุกประเภท</option>
+                        <option value="login">เข้าสู่ระบบ</option>
+                        <option value="logout">ออกจากระบบ</option>
+                    </select>
+                    <select
+                        value={providerFilter}
+                        onChange={(e) => setProviderFilter(e.target.value)}
+                        className="flex-fill flex-md-grow-0"
+                        style={{ minWidth: 0, borderRadius: 12, border: "1px solid #e6f0ea", background: "#fff", padding: "10px 14px", fontSize: 14, color: "#1a3d2b" }}
+                    >
+                        <option value="all">ทุกช่องทาง</option>
+                        <option value="local">อีเมล</option>
+                        <option value="line">LINE</option>
+                        <option value="google">Google</option>
+                        <option value="facebook">Facebook</option>
+                    </select>
+                </div>
+                <div className="ms-md-auto" style={{ fontSize: 13, color: "#5a7a65" }}>
                     แสดง <span style={{ fontWeight: 700, color: "#1a3d2b" }}>{filteredLogs.length}</span> จาก {logs.length} รายการ
                 </div>
             </div>
