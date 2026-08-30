@@ -12,6 +12,8 @@ function FacebookIcon({ className }: IconProps) {
   );
 }
 
+/* Hidden until real X / LINE accounts exist — icons + links disabled so
+   nothing shows and nothing is clickable.
 function XIcon({ className }: IconProps) {
   return (
     <svg viewBox="0 0 24 24" fill="currentColor" className={className} aria-hidden="true">
@@ -27,6 +29,7 @@ function LineIcon({ className }: IconProps) {
     </svg>
   );
 }
+*/
 
 const navLinks = [
   { label: "หน้าแรก", href: "/" },
@@ -37,8 +40,9 @@ const navLinks = [
 
 const socialLinks = [
   { label: "Facebook", href: "https://www.facebook.com/profile.php?id=61591328554670", icon: FacebookIcon },
-  { label: "X", href: "#", icon: XIcon },
-  { label: "LINE", href: "#", icon: LineIcon },
+  // Hidden until real accounts exist — do not show or allow clicks.
+  // { label: "X", href: "#", icon: XIcon },
+  // { label: "LINE", href: "#", icon: LineIcon },
 ] as const;
 
 const year = new Date().getFullYear();

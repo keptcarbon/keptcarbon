@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useDeferredValue, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { Alert, Card } from "@/app/components";
 
@@ -18,6 +18,9 @@ type UserRecord = {
 };
 
 const PAGE_SIZE = 10;
+// Cap the search box so a pasted wall of text can't blow out the table
+// layout or make filtering churn on every keystroke.
+const SEARCH_MAX = 200;
 
 // Minimal brand green hero — aligned with the redesigned authenticated pages
 const HERO_BG =
@@ -44,6 +47,10 @@ export default function UserManagementPage() {
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState<string | null>(null);
     const [search, setSearch] = useState("");
+    // Filter off a deferred copy — typing stays snappy while React re-renders
+    // the (potentially large) list at a lower priority, so the page never
+    // freezes or stutters on fast input.
+    const deferredSearch = useDeferredValue(search);
     // Two-step delete confirmation: pendingDelete holds the target user,
     // confirmStep advances 1 → 2 so the admin has to confirm twice.
     const [pendingDelete, setPendingDelete] = useState<UserRecord | null>(null);
@@ -52,19 +59,19 @@ export default function UserManagementPage() {
     const [page, setPage] = useState(1);
 
     const filteredUsers = useMemo(() => {
-        const q = search.trim().toLowerCase();
+        const q = deferredSearch.trim().toLowerCase().slice(0, SEARCH_MAX);
         if (!q) return users;
         return users.filter((u) =>
             (u.displayName || "").toLowerCase().includes(q) ||
             (u.email || "").toLowerCase().includes(q) ||
             (u.username || "").toLowerCase().includes(q)
         );
-    }, [users, search]);
+    }, [users, deferredSearch]);
 
     // Reset to page 1 whenever the search narrows/widens the result set.
     useEffect(() => {
         setPage(1);
-    }, [search]);
+    }, [deferredSearch]);
 
     const totalPages = Math.max(1, Math.ceil(filteredUsers.length / PAGE_SIZE));
     const paginatedUsers = filteredUsers.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
@@ -191,7 +198,8 @@ export default function UserManagementPage() {
                     <i className="bi bi-search" style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "#94a3b8", fontSize: 14 }} />
                     <input
                         value={search}
-                        onChange={(e) => setSearch(e.target.value)}
+                        onChange={(e) => setSearch(e.target.value.slice(0, SEARCH_MAX))}
+                        maxLength={SEARCH_MAX}
                         placeholder="ค้นหาชื่อ อีเมล หรือชื่อผู้ใช้…"
                         style={{ width: "100%", borderRadius: 12, border: "1px solid #e6f0ea", background: "#fff", padding: "10px 14px 10px 38px", fontSize: 14, outline: "none", color: "#1a3d2b" }}
                     />
@@ -313,8 +321,8 @@ export default function UserManagementPage() {
                                 <tr>
                                     <td colSpan={5} className="text-center py-5" style={{ color: "#5a7a65" }}>
                                         <i className="bi bi-search d-block mb-2" style={{ fontSize: 26, color: "#c7dbcf" }} />
-                                        {search
-                                            ? <>ไม่พบผู้ใช้ที่ตรงกับ “{search}”</>
+                                        {deferredSearch
+                                            ? <>ไม่พบผู้ใช้ที่ตรงกับ “<span style={{ overflowWrap: "anywhere" }}>{deferredSearch.slice(0, 60)}{deferredSearch.length > 60 ? "…" : ""}</span>”</>
                                             : "ไม่พบข้อมูลผู้ใช้ในระบบ"}
                                     </td>
                                 </tr>
