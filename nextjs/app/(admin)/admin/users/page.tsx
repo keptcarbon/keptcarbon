@@ -50,6 +50,8 @@ export default function UserManagementPage() {
     const [confirmStep, setConfirmStep] = useState<1 | 2>(1);
     const [deleting, setDeleting] = useState(false);
     const [page, setPage] = useState(1);
+    // IDs of users whose pictureUrl failed to load — fall back to the initial avatar.
+    const [brokenAvatars, setBrokenAvatars] = useState<Set<string>>(new Set());
 
     const filteredUsers = useMemo(() => {
         const q = search.trim().toLowerCase();
@@ -231,16 +233,20 @@ export default function UserManagementPage() {
                                 const initial = (u.displayName?.[0] || u.email[0]).toUpperCase();
                                 const rm = ROLE_META[u.role] ?? ROLE_META.user;
                                 const isSelf = u.id === user?.id;
+                                const showPicture = !!u.pictureUrl && !brokenAvatars.has(u.id);
 
                                 return (
                                     <tr key={u.id}>
                                         <td className="px-4 py-3">
                                             <div className="d-flex align-items-center gap-3">
-                                                {u.pictureUrl ? (
+                                                {showPicture ? (
                                                     <img
-                                                        src={u.pictureUrl}
+                                                        src={u.pictureUrl!}
                                                         alt={displayName}
                                                         referrerPolicy="no-referrer"
+                                                        onError={() =>
+                                                            setBrokenAvatars((prev) => new Set(prev).add(u.id))
+                                                        }
                                                         style={{ width: 40, height: 40, borderRadius: "50%", flexShrink: 0, objectFit: "cover" }}
                                                     />
                                                 ) : (
