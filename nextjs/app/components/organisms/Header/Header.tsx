@@ -57,6 +57,9 @@ export default function Header() {
   const [scrolled, setScrolled] = useState(false);
   const [navOpen, setNavOpen] = useState(false);
   const [avatarOpen, setAvatarOpen] = useState(false);
+  // pictureUrl that failed to load — fall back to the initial avatar.
+  // Tracked by URL so a changed picture recovers on its own.
+  const [brokenAvatarUrl, setBrokenAvatarUrl] = useState<string | null>(null);
 
   const avatarRef = useRef<HTMLDivElement>(null);
 
@@ -162,16 +165,17 @@ export default function Header() {
                   className="flex items-center gap-2 border-0 bg-transparent rounded-full p-0.5 transition-shadow hover:ring-2 hover:ring-[var(--kc-green)]/20 cursor-pointer"
                   onClick={() => setAvatarOpen((v) => !v)}
                 >
-                  {user.pictureUrl ? (
+                  {user.pictureUrl && brokenAvatarUrl !== user.pictureUrl ? (
                     <img
                       src={user.pictureUrl}
                       alt={user.displayName}
                       referrerPolicy="no-referrer"
+                      onError={() => setBrokenAvatarUrl(user.pictureUrl ?? null)}
                       className="size-9 rounded-full object-cover"
                     />
                   ) : (
-                    <span className="flex size-9 items-center justify-center rounded-full bg-[var(--kc-green)] text-white">
-                      <User className="size-4" />
+                    <span className="flex size-9 items-center justify-center rounded-full bg-[var(--kc-green)] text-sm font-bold text-white">
+                      {(user.displayName?.[0] || user.email?.[0] || "?").toUpperCase()}
                     </span>
                   )}
                 </button>
