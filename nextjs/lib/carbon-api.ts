@@ -12,6 +12,9 @@ export interface CarbonAssessRequest {
     rubber_clone?: string | null;
     tree_count?: number | null;
     spacing_system?: string | null;
+    growth_model?: string | null;
+    allometry?: string | null;
+    biomass_profile_version?: string | null;
     selected_lu_classes?: string[];
     project_type?: string;
 }
@@ -56,6 +59,9 @@ export interface AssessParameters {
     rubber_clone: AssessParamSimple;
     tree_count: AssessParamSimple;
     spacing_system: AssessParamSimple;
+    growth_model: AssessParamSimple;
+    allometry: AssessParamSimple;
+    biomass_profile_version: AssessParamSimple;
 }
 
 export interface CarbonAssessResponse {

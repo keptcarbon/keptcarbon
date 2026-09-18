@@ -729,6 +729,9 @@ export function ParcelResultsPanel({
                 rubber_clone: (form.variety && SUPPORTED_CLONES.includes(form.variety)) ? form.variety : null,
                 tree_count: form.treeCount ? (parseInt(form.treeCount) || null) : null,
                 spacing_system: form.spacing || null,
+                growth_model: null, // map-draw has no input for this yet -- backend applies the province default
+                allometry: null, // map-draw has no input for this yet -- backend applies the province default
+                biomass_profile_version: null, // map-draw has no input for this yet -- backend applies the province default
                 selected_lu_classes: (() => {
                     const luData = plotsLuRealData[idx] || {};
                     const hasRealData = Object.keys(luData).length > 0;
