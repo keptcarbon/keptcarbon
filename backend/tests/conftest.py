@@ -139,6 +139,7 @@ _DEFAULT_REGION_CONFIG_ROW = {
     "default_growth": "weibull",
     "default_allometry": "hytonen_2018",
     "default_spacing": "2.5x8",
+    "biomass_profile_version": "v1",
 }
 
 
@@ -146,15 +147,15 @@ _DEFAULT_REGION_CONFIG_ROW = {
 def patch_db_fetch():
     """Patch app.services.carbon_service.get_pool to return rows/raise exc.
 
-    generate_carbon_profile does a fetchrow() (tbl_region_config) followed by
-    a fetch() (tbl_biomass_profile) on the same connection, so this fakes
-    both: fetchrow_results defaults to a RAY-shaped tbl_region_config row
-    unless overridden (e.g. fetchrow_results=[None] to simulate an
-    unsupported province).
+    CarbonService._resolve_region_config does a fetchrow() (tbl_region_config)
+    and generate_carbon_profile does a fetch() (tbl_biomass_profile) -- both on
+    the same connection, so this fakes both: fetchrow_results defaults to a
+    RAY-shaped tbl_region_config row unless overridden (e.g.
+    fetchrow_results=[None] to simulate an unsupported province).
 
     Usage: patch_db_fetch(rows=biomass_rows)
            patch_db_fetch(exc=OSError(...))
-           patch_db_fetch(rows=[], fetchrow_results=[{"default_clone": "FAKE_CLONE", ...}])
+           patch_db_fetch(fetchrow_results=[{"default_clone": "FAKE_CLONE", ...}])
     """
     def _apply(rows=None, exc=None, fetchrow_results=None, fetchval_results=None):
         if fetchrow_results is None:

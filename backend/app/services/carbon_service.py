@@ -30,39 +30,67 @@ class CarbonService:
         self.spatial_svc = SpatialUtils()
 
 
-    async def generate_carbon_profile(self, poly_data, cohorts) -> list:
+    async def _resolve_region_config(self, p_code: str, poly_data: dict) -> dict:
         """
-        Generates a fixed-length yearly carbon stock profile (tCO2e) with 95% CI,
-        spanning the full modeled lifecycle age 0 to GROWTH_MODEL_YEAR, by
-        aggregating multiple age cohorts.
+        Single tbl_region_config lookup per assessment: validates the province
+        is supported (raises 422 if not) and resolves clone/growth_model/
+        allometry/biomass_profile_version -- clone always comes from the
+        region's default (poly_data's own rubber_clone is a separate,
+        display-only field, never consulted here), while growth_model/
+        allometry/biomass_profile_version fall back to the region default only
+        when poly_data sent null (map-draw quick-assess flow); the my-plots
+        re-assess flow can override them explicitly. default_spacing is also
+        returned for the assess_parameters display fallback.
         """
-        p_code = poly_data.get("province_code")
-
         try:
             pool = get_pool()
             async with pool.acquire() as conn:
                 config_row = await conn.fetchrow(
                     """
-                    SELECT default_clone, default_growth, default_allometry, biomass_profile_version
+                    SELECT default_clone, default_spacing, default_growth,
+                           default_allometry, biomass_profile_version
                     FROM tbl_region_config
                     WHERE p_code = $1
                     """,
                     p_code,
                 )
-                if config_row is None:
-                    raise HTTPException(
-                        status_code=422,
-                        detail=f"Province code '{p_code}' is not supported. No region config found in tbl_region_config."
-                    )
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to load region config: {str(e)}")
 
-                # Use the province's default rubber clone/growth model/allometry
-                # from tbl_region_config (poly_data's own rubber_clone is not
-                # consulted here, matching prior behavior).
-                clone = config_row["default_clone"]
-                growth_model = config_row["default_growth"]
-                allometry = config_row["default_allometry"]
-                biomass_profile_version = config_row["biomass_profile_version"]
+        if config_row is None:
+            raise HTTPException(
+                status_code=422,
+                detail=f"Province code '{p_code}' is not supported. No region config found in tbl_region_config."
+            )
 
+        return {
+            "clone": config_row["default_clone"],
+            "default_spacing": config_row["default_spacing"],
+            "growth_model": poly_data.get("growth_model") or config_row["default_growth"],
+            "allometry": poly_data.get("allometry") or config_row["default_allometry"],
+            "biomass_profile_version": poly_data.get("biomass_profile_version") or config_row["biomass_profile_version"],
+        }
+
+    async def generate_carbon_profile(self, poly_data, cohorts) -> list:
+        """
+        Generates a fixed-length yearly carbon stock profile (tCO2e) with 95% CI,
+        spanning the full modeled lifecycle age 0 to GROWTH_MODEL_YEAR, by
+        aggregating multiple age cohorts.
+
+        Expects poly_data['clone'], poly_data['growth_model'], poly_data['allometry']
+        and poly_data['biomass_profile_version'] to already be resolved by
+        get_carbon_profile() (via _resolve_region_config) -- this method only
+        queries tbl_biomass_profile, no tbl_region_config lookup here.
+        """
+        p_code = poly_data.get("province_code")
+        clone = poly_data.get("clone")
+        growth_model = poly_data.get("growth_model")
+        allometry = poly_data.get("allometry")
+        biomass_profile_version = poly_data.get("biomass_profile_version")
+
+        try:
+            pool = get_pool()
+            async with pool.acquire() as conn:
                 rows = await conn.fetch(
                     """
                     SELECT age, biomass_est, biomass_ci_lower, biomass_ci_upper
@@ -71,8 +99,6 @@ class CarbonService:
                     """,
                     p_code, clone, growth_model, allometry, biomass_profile_version,
                 )
-        except HTTPException:
-            raise
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Failed to load biomass profile: {str(e)}")
 
@@ -80,7 +106,7 @@ class CarbonService:
             raise HTTPException(
                 status_code=422,
                 detail=f"No biomass profile for p_code='{p_code}', clone='{clone}', model='{growth_model}', "
-                       f"allometry='{allometry}'."
+                       f"allometry='{allometry}', version='{biomass_profile_version}'."
             )
 
         lookup_by_age = {row["age"]: row for row in rows}
@@ -192,21 +218,6 @@ class CarbonService:
 
         return projections
 
-    async def _get_region_defaults(self, p_code: str) -> dict | None:
-        """Province defaults (default_clone, default_spacing) from
-        tbl_region_config, used to fill assess_parameters when the user
-        didn't supply a rubber_clone/spacing_system."""
-        try:
-            pool = get_pool()
-            async with pool.acquire() as conn:
-                row = await conn.fetchrow(
-                    "SELECT default_clone, default_spacing FROM tbl_region_config WHERE p_code = $1",
-                    p_code,
-                )
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Failed to load region defaults: {str(e)}")
-        return dict(row) if row else None
-
     async def get_carbon_profile(self, poly_data) -> dict:
         current_calendar_year = datetime.now().year
 
@@ -221,9 +232,25 @@ class CarbonService:
                 "assess_parameters": None
             }
 
-        region_defaults = await self._get_region_defaults(poly_data["province_code"])
-        default_clone = region_defaults.get("default_clone") if region_defaults else None
-        default_spacing = region_defaults.get("default_spacing") if region_defaults else None
+        # Resolve region config once here (validates the province, resolves
+        # clone/growth_model/allometry/biomass_profile_version): downstream
+        # generate_carbon_profile() and this method's assess_parameters both
+        # read the resolved values straight off poly_data, no repeat
+        # tbl_region_config lookups. Capture which fields were user-supplied
+        # before overwriting poly_data, so assess_parameters can still report
+        # the right "source" below.
+        growth_model_is_default = poly_data.get('growth_model') is None
+        allometry_is_default = poly_data.get('allometry') is None
+        biomass_profile_version_is_default = poly_data.get('biomass_profile_version') is None
+
+        region_config = await self._resolve_region_config(poly_data["province_code"], poly_data)
+        default_clone = region_config["clone"]
+        default_spacing = region_config["default_spacing"]
+
+        poly_data['clone'] = region_config['clone']
+        poly_data['growth_model'] = region_config['growth_model']
+        poly_data['allometry'] = region_config['allometry']
+        poly_data['biomass_profile_version'] = region_config['biomass_profile_version']
 
         # Step 2: Multi-Polygon Dissolve & Geometry Merge
         poly_data = await self.lu_svc.find_rubber_cultivation_area(poly_data)
@@ -288,10 +315,22 @@ class CarbonService:
                     "spacing_system": {
                         "value": poly_data.get('spacing_system') if poly_data.get('spacing_system') else default_spacing,
                         "source": "user input" if poly_data.get('spacing_system') else "default value applied"
+                    },
+                    "growth_model": {
+                        "value": poly_data.get('growth_model'),
+                        "source": "default value applied" if growth_model_is_default else "user input"
+                    },
+                    "allometry": {
+                        "value": poly_data.get('allometry'),
+                        "source": "default value applied" if allometry_is_default else "user input"
+                    },
+                    "biomass_profile_version": {
+                        "value": poly_data.get('biomass_profile_version'),
+                        "source": "default value applied" if biomass_profile_version_is_default else "user input"
                     }
                 }
             }
-            
+
 
         else:
             cohorts = await self.age_map_svc.get_plantation_age_cohorts(poly_data)
@@ -419,6 +458,18 @@ class CarbonService:
                     "spacing_system": {
                         "value": poly_data.get('spacing_system') if poly_data.get('spacing_system') else default_spacing,
                         "source": "user input" if poly_data.get('spacing_system') else "default value"
+                    },
+                    "growth_model": {
+                        "value": poly_data.get('growth_model'),
+                        "source": "default value applied" if growth_model_is_default else "user input"
+                    },
+                    "allometry": {
+                        "value": poly_data.get('allometry'),
+                        "source": "default value applied" if allometry_is_default else "user input"
+                    },
+                    "biomass_profile_version": {
+                        "value": poly_data.get('biomass_profile_version'),
+                        "source": "default value applied" if biomass_profile_version_is_default else "user input"
                     }
                 }
             }
