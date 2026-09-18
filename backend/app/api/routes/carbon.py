@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException
 from typing import List
-from app.schemas.plots import CarbonAssessRequest, CarbonAssessResponse
+from app.schemas.carbon import CarbonAssessRequest, CarbonAssessResponse
 from app.services.carbon_service import CarbonService
 
 router = APIRouter()
@@ -29,3 +29,7 @@ async def assess_carbon(polygons: List[CarbonAssessRequest]):
             )
 
     return results
+
+
+
+
