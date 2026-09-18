@@ -43,7 +43,7 @@ class CarbonService:
             async with pool.acquire() as conn:
                 config_row = await conn.fetchrow(
                     """
-                    SELECT default_clone, default_growth, default_allometry
+                    SELECT default_clone, default_growth, default_allometry, biomass_profile_version
                     FROM tbl_region_config
                     WHERE p_code = $1
                     """,
@@ -61,14 +61,15 @@ class CarbonService:
                 clone = config_row["default_clone"]
                 growth_model = config_row["default_growth"]
                 allometry = config_row["default_allometry"]
+                biomass_profile_version = config_row["biomass_profile_version"]
 
                 rows = await conn.fetch(
                     """
                     SELECT age, biomass_est, biomass_ci_lower, biomass_ci_upper
                     FROM tbl_biomass_profile
-                    WHERE p_code = $1 AND clone = $2 AND growth_model = $3 AND allometry = $4
+                    WHERE p_code = $1 AND clone = $2 AND growth_model = $3 AND allometry = $4 AND version = $5
                     """,
-                    p_code, clone, growth_model, allometry,
+                    p_code, clone, growth_model, allometry, biomass_profile_version,
                 )
         except HTTPException:
             raise
@@ -190,7 +191,6 @@ class CarbonService:
             })
 
         return projections
-
 
     async def _get_region_defaults(self, p_code: str) -> dict | None:
         """Province defaults (default_clone, default_spacing) from
@@ -423,4 +423,32 @@ class CarbonService:
                 }
             }
 
-        
+    async def get_carbon_simulation(self, sim_data: list) -> list:
+        """
+        Placeholder for future implementation of carbon simulation based on
+        user-provided growth model and allometry. Takes the full batch of rows
+        (one or more plantation-level entries, potentially spanning multiple
+        p_codes) so a later implementation can group/aggregate them for
+        region-level (province/district/sub-district) simulation. Currently
+        returns one skeleton response per row with status indicating that the
+        computation is not yet implemented.
+        """
+        return [
+            {
+                "p_code": row.get("p_code"),
+                "clone": row.get("clone"),
+                "age": row.get("age"),
+                "area_m2": row.get("area_m2"),
+                "growth_model": row.get("growth_model"),
+                "allometry": row.get("allometry"),
+                "rotation_year": row.get("rotation_year"),
+                "replanting_rate": row.get("replanting_rate"),
+                "status": {
+                    "status": "pending",
+                    "status_code": "P01",
+                    "message": "SIMULATION SKELETON — GROWTH MODEL COMPUTATION NOT YET IMPLEMENTED."
+                },
+                "carbon_stock_tCO2e_simulation": None,
+            }
+            for row in sim_data
+        ]

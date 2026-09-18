@@ -68,3 +68,36 @@ class CarbonAssessResponse(BaseModel):
     status: StatusMessage
     carbon_profile: Optional[List[YearlyAssess]] = None
     assess_parameters: Optional[AssessParameters] = None
+
+
+# ── Simulation endpoint (/api/v1/carbon/sim) ──────────────────────────────────
+# Standalone growth-model/allometry simulation -- looks up tbl_biomass_profile
+# directly by (p_code, clone, growth_model, allometry, age), no polygon or
+# raster-derived province lookup.
+
+class CarbonSimulationRequest(BaseModel):
+    p_code: str = Field(..., description="Province code, e.g. 'RAY'")
+    clone: str = Field(..., description="Rubber clone, e.g. 'RRIM 600'")
+    growth_model: str = Field(..., description="Growth model name, e.g. 'weibull', 'schumacher', 'chapman_richards','gompertz','cubic_poly'")
+    allometry: str = Field(..., description="Allometric equation name, e.g. 'chiarawipa', 'hytonen'")
+    age: int = Field(..., description="Stand age in years")
+    area_m2: float = Field(..., description="Area in square meters")
+    tree_count: int = Field(..., description="Number of trees in the area")
+    spacing_system: str = Field(..., description="Spacing system, e.g. '2.5x8' = 500 trees/ha")
+    rotation_year: int = Field(35, description="Rotation length in years before replanting")
+    replanting_rate: int = Field(100, description="Percent of the area replanted at the end of each rotation")
+
+
+class CarbonSimulationResponse(BaseModel):
+    p_code: str
+    clone: str
+    growth_model: str
+    allometry: str
+    age: int
+    area_m2: float
+    tree_count: int
+    spacing_system: str
+    rotation_year: int
+    replanting_rate: int
+    status: StatusMessage
+    carbon_stock_tCO2e_simulation: Optional[float] = Field(None, description="Simulated carbon stock for the given area. None until the growth model is wired up.")
