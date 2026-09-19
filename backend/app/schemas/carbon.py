@@ -87,7 +87,7 @@ class CarbonSimulationRequest(BaseModel):
     growth_model: str = Field(..., description="Growth model name, e.g. 'weibull', 'schumacher', 'chapman_richards','gompertz','cubic_poly'")
     allometry: str = Field(..., description="Allometric equation name, e.g. 'chiarawipa', 'hytonen'")
     biomass_profile_version: str = Field(..., description="Version of the biomass profile to use")
-    age: int = Field(..., description="Stand age in years")
+    year_of_planting: int = Field(..., description="Year the stand was planted")
     area_m2: float = Field(..., description="Area in square meters")
     tree_count: int = Field(..., description="Number of trees in the area")
     spacing_system: str = Field(..., description="Spacing system, e.g. '2.5x8' = 500 trees/ha")
@@ -101,7 +101,7 @@ class CarbonSimulationResponse(BaseModel):
     growth_model: str
     allometry: str
     biomass_profile_version: str
-    age: int
+    year_of_planting: int
     area_m2: float
     tree_count: int
     spacing_system: str

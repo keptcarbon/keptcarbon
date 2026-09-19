@@ -239,19 +239,22 @@ class CarbonService:
         # tbl_region_config lookups. Capture which fields were user-supplied
         # before overwriting poly_data, so assess_parameters can still report
         # the right "source" below.
+    
+        spacing_is_default = poly_data.get('spacing_system') is None
         growth_model_is_default = poly_data.get('growth_model') is None
         allometry_is_default = poly_data.get('allometry') is None
         biomass_profile_version_is_default = poly_data.get('biomass_profile_version') is None
 
         region_config = await self._resolve_region_config(poly_data["province_code"], poly_data)
-        default_clone = region_config["clone"]
+        
+        if (spacing_is_default) poly_data['spacing_system'] = region_config['default_spacing']
+        if (growth_model_is_default) poly_data['growth_model'] = region_config['growth_model']
+        if (allometry_is_default) poly_data['allometry'] = region_config['allometry']
+        if (biomass_profile_version_is_default) poly_data['biomass_profile_version'] = region_config['biomass_profile_version']
+        
         default_spacing = region_config["default_spacing"]
-
-        poly_data['clone'] = region_config['clone']
-        poly_data['growth_model'] = region_config['growth_model']
-        poly_data['allometry'] = region_config['allometry']
-        poly_data['biomass_profile_version'] = region_config['biomass_profile_version']
-
+        poly_data['rubber_clone_config'] = region_config['clone']
+        
         # Step 2: Multi-Polygon Dissolve & Geometry Merge
         poly_data = await self.lu_svc.find_rubber_cultivation_area(poly_data)
         if poly_data["A302_geometry"] is None:
@@ -304,7 +307,7 @@ class CarbonService:
                         "source": "user input" if poly_data.get('year_of_planting') else "calculated from raster"
                     },
                     "rubber_clone": {
-                        "value": poly_data.get('rubber_clone') if poly_data.get('rubber_clone') else default_clone,
+                        "value": poly_data.get('rubber_clone'),
                         "note": "default",
                         "source": "user input" if poly_data.get('rubber_clone') else "default value applied"
                     },
@@ -313,7 +316,7 @@ class CarbonService:
                         "source": "calculated from area and spacing system" if tree_info['is_calculated'] else "user input"
                     },
                     "spacing_system": {
-                        "value": poly_data.get('spacing_system') if poly_data.get('spacing_system') else default_spacing,
+                        "value": poly_data.get('spacing_system'),
                         "source": "user input" if poly_data.get('spacing_system') else "default value applied"
                     },
                     "growth_model": {
@@ -447,8 +450,8 @@ class CarbonService:
                         "source": "calculated from raster"
                     },
                     "rubber_clone": {
-                        "value": poly_data.get('rubber_clone') if poly_data.get('rubber_clone') else default_clone,
-                        "note": "default",
+                        "value": poly_data.get('rubber_clone'),
+                        "note": "default value alway use",
                         "source": "user input" if poly_data.get('rubber_clone') else "default value applied"
                     },
                     "tree_count": {
@@ -456,7 +459,7 @@ class CarbonService:
                         "source": "calculated from area and spacing system"
                     },
                     "spacing_system": {
-                        "value": poly_data.get('spacing_system') if poly_data.get('spacing_system') else default_spacing,
+                        "value": poly_data.get('spacing_system'),
                         "source": "user input" if poly_data.get('spacing_system') else "default value"
                     },
                     "growth_model": {
