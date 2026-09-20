@@ -362,7 +362,7 @@ export default function RndDataManagementPage() {
     }, []);
 
     const regions = useMemo(
-        () => Array.from(new Set(provinces.map((p) => p.region))).sort(),
+        () => Array.from(new Set([...provinces.map((p) => p.region), "E"])).sort(),
         [provinces]
     );
     const provincesInRegion = useMemo(
