@@ -21,10 +21,11 @@ lu_year is likewise injected as a constant, taken from the source filename
 together identify a specific ingested dataset, which is how the planned R&D
 data-ingestion feature will add new vintages without overwriting old ones.
 
-LU_ID_L1/L2/L3 are integer ID codes despite being stored as float64 in the
-source gpkg -- some rows carry ~1e-8 float32->float64 rounding noise (e.g.
-220412205.0 stored as 220412204.99999997), not real fractional values, so
-they're rounded to the nearest integer here.
+LU_ID_L1/L2/L3 (the source gpkg's numeric land-use ID codes) are dropped --
+no application code reads them (LanduseService groups by LUL1_CODE, falling
+back to LU_CODE, for its area calculations), so they're dead weight. See
+migration 013_drop_geo_landuse_lu_id_columns.sql for the same cleanup
+applied to an already-seeded database.
 
 Run inside an env with geopandas installed (the backend container has one):
 
@@ -63,10 +64,6 @@ def esc(val):
     return "'" + str(val).replace("'", "''") + "'"
 
 
-def esc_int(val):
-    return "NULL" if val is None else str(round(val))
-
-
 def to_multipolygon(geom):
     if geom.geom_type == "Polygon":
         return MultiPolygon([geom])
@@ -92,9 +89,6 @@ def main():
         "    id SERIAL PRIMARY KEY,",
         "    p_code text NOT NULL,",
         "    lu_year integer NOT NULL,",
-        "    lu_id_l1 integer,",
-        "    lu_id_l2 integer,",
-        "    lu_id_l3 integer,",
         "    lu_code text,",
         "    lu_des_th text,",
         "    lu_des_en text,",
@@ -105,7 +99,7 @@ def main():
         ");",
         "",
         "INSERT INTO public.geo_landuse",
-        "  (p_code, lu_year, lu_id_l1, lu_id_l2, lu_id_l3, lu_code, lu_des_th, lu_des_en, lul1_code, lul2_code, lu_des, geom)",
+        "  (p_code, lu_year, lu_code, lu_des_th, lu_des_en, lul1_code, lul2_code, lu_des, geom)",
         "VALUES",
     ]
 
@@ -114,7 +108,7 @@ def main():
         wkt = shapely_wkt.dumps(r.geometry, rounding_precision=COORD_PRECISION)
         geom_sql = f"ST_SetSRID('{wkt}'::geometry, 4326)"
         rows.append(
-            f"  ({esc(P_CODE)}, {LU_YEAR}, {esc_int(r['LU_ID_L1'])}, {esc_int(r['LU_ID_L2'])}, {esc_int(r['LU_ID_L3'])}, "
+            f"  ({esc(P_CODE)}, {LU_YEAR}, "
             f"{esc(r['LU_CODE'])}, {esc(r['LU_DES_TH'])}, {esc(r['LU_DES_EN'])}, "
             f"{esc(r['LUL1_CODE'])}, {esc(r['LUL2_CODE'])}, {esc(r['LU_DES'])}, {geom_sql})"
         )

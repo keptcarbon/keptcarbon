@@ -13,8 +13,8 @@ const notoSansThai = Noto_Sans_Thai({
 
 export const metadata: Metadata = {
   title: "KeptCarbon",
-  description: "แพลตฟอร์มจัดการและประเมินคาร์บอนเครดิตสำหรับสวนยางพารา",
-  keywords: ["สวนยางพารา", "คาร์บอนเครดิต", "ยางพารา", "KeptCarbon"],
+  description: "แพลตฟอร์มจัดการและประเมินคาร์บอนกักเก็บสำหรับสวนยางพารา",
+  keywords: ["สวนยางพารา", "คาร์บอนกักเก็บ", "ยางพารา", "KeptCarbon"],
   icons: {
     icon: [
       { url: "/assets/img/keptcarbon-logo.png", type: "image/png" },

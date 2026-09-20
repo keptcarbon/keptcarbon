@@ -20,7 +20,7 @@
 --
 -- Background: commit a28cab2 replaced CarbonService's flat-CSV lookup with
 -- this table and deleted the source CSVs, but never added the load step --
--- this migration (and 007_geo_establishment_year.sql, same commit's other
+-- this migration (and 007_geo_planting_year.sql, same commit's other
 -- half-finished table) fixes that gap.
 -- ============================================================================
 

@@ -29,7 +29,6 @@ import re
 
 from fastapi import HTTPException
 
-from app.core.constants import REGION_CONFIG
 from app.core.database import get_pool
 
 
@@ -119,8 +118,15 @@ class LanduseService:
     """
 
     @staticmethod
-    def _latest_lu_year(p_code: str) -> int | None:
-        version = REGION_CONFIG.get(p_code, {}).get("LU_MAP_VERSION")
+    async def _latest_lu_year(p_code: str) -> int | None:
+        try:
+            pool = get_pool()
+            async with pool.acquire() as conn:
+                version = await conn.fetchval(
+                    "SELECT lu_version FROM tbl_region_config WHERE p_code = $1", p_code
+                )
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to load region config: {str(e)}")
         return int(version) if version is not None else None
 
     # ── Existing endpoint (/api/carbon/assess) ─────────────────────────────────────
@@ -128,7 +134,7 @@ class LanduseService:
     async def find_rubber_cultivation_area(self, poly_data: dict) -> dict:
         """Filter A302 rubber parcels intersecting the drawn polygon."""
         p_code = poly_data.get("province_code")
-        lu_year = self._latest_lu_year(p_code)
+        lu_year = await self._latest_lu_year(p_code)
 
         if lu_year is None:
             poly_data["A302_geometry"] = None
@@ -171,7 +177,7 @@ class LanduseService:
     async def find_lu_class_area(self, poly_data: dict) -> dict:
         """Classify all land use types within the drawn polygon using spatial indexing."""
         p_code = poly_data.get("province_code")
-        lu_year = self._latest_lu_year(p_code)
+        lu_year = await self._latest_lu_year(p_code)
 
         if lu_year is None:
             poly_data["lu_polygon"] = []

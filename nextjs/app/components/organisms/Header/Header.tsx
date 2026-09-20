@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { useRouter, usePathname } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import {
   Menu,
@@ -20,9 +20,13 @@ import {
   Shield,
   Users,
   History,
+  Settings,
+  Database,
 } from "lucide-react";
 
 /* ── Nav data ────────────────────────────────────────────────────────────── */
+/* Shown to every visitor — guest, registered, R&D, and admin — outside the
+   admin/R&D management area. */
 const navLinks = [
   { label: "หน้าแรก", href: "/", icon: LayoutGrid },
   { label: "เกี่ยวกับโครงการ", href: "/about-project", icon: FileText },
@@ -30,15 +34,23 @@ const navLinks = [
   { label: "ประเมินคาร์บอน", href: "/map-draw", icon: Map },
 ] as const;
 
-/* Shown instead of navLinks while browsing the admin/R&D area. */
+/* Shown instead of navLinks while browsing the admin area (/admin).
+   No "หน้าแรก" here: admin accounts are confined to this area (see
+   proxy.ts), so a link to "/" would just bounce straight back. */
 const adminNavLinks = [
-  { label: "ข้อมูลผู้ใช้", href: "/admin/users", icon: Users },
+  { label: "จัดการบัญชีผู้ใช้", href: "/admin/users", icon: Users },
   { label: "บันทึกการเข้าสู่ระบบ", href: "/admin/auth-logs", icon: History },
+] as const;
+
+/* Shown instead of navLinks while browsing the R&D area (/rnd). */
+const rndNavLinks = [
+  { label: "หน้าแรก", href: "/", icon: LayoutGrid },
+  { label: "จัดการข้อมูล GeoAI", href: "/rnd/data-management", icon: Database },
+  { label: "ตั้งค่าพารามิเตอร์", href: "/rnd/configuration", icon: Settings },
 ] as const;
 
 /* ── Component ───────────────────────────────────────────────────────────── */
 export default function Header() {
-  const router = useRouter();
   const pathname = usePathname();
   const { ready, user, openLogin, openRegister, logout } = useAuth();
 
@@ -76,7 +88,11 @@ export default function Header() {
   const onLogout = async () => {
     await logout();
     closeNav();
-    router.push("/");
+    // Don't also router.push("/") here: on guarded routes (admin, profile,
+    // my-plots) the route's own guard already redirects reactively once
+    // `user` clears, and firing a second navigation to the same href at the
+    // same time races it — the transitions interrupt each other and leave
+    // the guard's loading spinner stuck until the user clicks a link.
   };
 
   const isActive = (href: string) => {
@@ -84,15 +100,16 @@ export default function Header() {
     return pathname.startsWith(href);
   };
 
-  /* Admin/R&D area gets its own nav set and drops the general-user links.
-     /profile is a carve-out: admins may view it, and it should look like
-     the admin area for them — but regular users on /profile still get the
-     normal navbar. */
-  const isAdminArea =
-    pathname.startsWith("/admin") ||
-    pathname.startsWith("/rnd") ||
-    (pathname.startsWith("/profile") && user?.role === "admin");
-  const activeNavLinks = isAdminArea ? adminNavLinks : navLinks;
+  const isRnd = user?.role === "rd";
+  const isAdmin = user?.role === "admin";
+  /* จัดการข้อมูล in the account dropdown points at each role's default page.
+     /profile is a carve-out: admins may view it and it should still look
+     like the admin area for them (they're confined there) — R&D users
+     browse the main site normally, so /profile gets the general navbar. */
+  const manageDataHref = isRnd ? "/rnd/configuration" : "/admin/users";
+  const isAdminArea = pathname.startsWith("/admin") || (pathname.startsWith("/profile") && isAdmin);
+  const isRndArea = pathname.startsWith("/rnd");
+  const activeNavLinks = isRndArea ? rndNavLinks : isAdminArea ? adminNavLinks : navLinks;
 
   /* Shared link classes (desktop center nav) */
   const navLinkClass = (active: boolean) =>
@@ -109,8 +126,11 @@ export default function Header() {
       >
         <div className="mx-auto flex h-16 max-w-9xl items-center justify-between px-4 lg:px-8">
           {/* ── Logo ─────────────────────────────────────────────────── */}
+          {/* Admins are confined to the admin area (see proxy.ts), so their
+              logo goes to their own home instead of the general "/" — which
+              would just bounce them straight back. */}
           <Link
-            href="/"
+            href={isAdmin ? "/admin/users" : "/"}
             className="flex shrink-0 items-center gap-2.5 no-underline"
           >
             <Image
@@ -173,7 +193,7 @@ export default function Header() {
                         {user.email}
                       </p>
                     </div>
-                    {!isAdminArea && (
+                    {!isAdmin && (
                       <Link
                         href="/my-plots"
                         className="flex items-center gap-2.5 px-4 py-2.5 text-base text-[var(--kc-ink)] no-underline transition-colors hover:bg-[var(--kc-green-50)]"
@@ -181,6 +201,16 @@ export default function Header() {
                       >
                         <MapPinned className="size-4 text-[var(--kc-sage)]" />
                         แปลงของฉัน
+                      </Link>
+                    )}
+                    {(isAdmin || isRnd) && (
+                      <Link
+                        href={manageDataHref}
+                        className="flex items-center gap-2.5 px-4 py-2.5 text-base text-[var(--kc-ink)] no-underline transition-colors hover:bg-[var(--kc-green-50)]"
+                        onClick={() => setAvatarOpen(false)}
+                      >
+                        <Shield className="size-4 text-[var(--kc-sage)]" />
+                        จัดการข้อมูล
                       </Link>
                     )}
                     <Link
@@ -191,19 +221,6 @@ export default function Header() {
                       <User className="size-4 text-[var(--kc-sage)]" />
                       โปรไฟล์
                     </Link>
-                    {user.role === "admin" && (
-                      <>
-                        <div className="mx-4 border-t border-[var(--kc-border-input)]" />
-                        <Link
-                          href="/admin/users"
-                          className="flex items-center gap-2.5 px-4 py-2.5 text-base text-[var(--kc-ink)] no-underline transition-colors hover:bg-[var(--kc-green-50)]"
-                          onClick={() => setAvatarOpen(false)}
-                        >
-                          <Shield className="size-4 text-[var(--kc-sage)]" />
-                          จัดการข้อมูล
-                        </Link>
-                      </>
-                    )}
                     <div className="mx-4 border-t border-[var(--kc-border-input)]" />
                     <button
                       type="button"
@@ -311,18 +328,7 @@ export default function Header() {
               <div className="mb-1 mt-4 px-3 text-[11px] font-semibold tracking-wider text-[var(--kc-sage)] uppercase">
                 ข้อมูลผู้ใช้
               </div>
-              <Link
-                href="/profile"
-                className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium no-underline transition-colors ${isActive("/profile")
-                  ? "bg-[var(--kc-green-50)] text-[var(--kc-green)]"
-                  : "text-[var(--kc-ink)] hover:bg-[var(--kc-green-50)]"
-                  }`}
-                onClick={closeNav}
-              >
-                <User className="size-4 shrink-0 opacity-60" />
-                โปรไฟล์
-              </Link>
-              {!isAdminArea && (
+              {!isAdmin && (
                 <Link
                   href="/my-plots"
                   className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium no-underline transition-colors ${isActive("/my-plots")
@@ -335,25 +341,30 @@ export default function Header() {
                   แปลงของฉัน
                 </Link>
               )}
-
-              {user.role === "admin" && (
-                <>
-                  <div className="mb-1 mt-4 px-3 text-[11px] font-semibold tracking-wider text-[var(--kc-sage)] uppercase">
-                    สำหรับผู้ดูแลระบบ
-                  </div>
-                  <Link
-                    href="/admin/users"
-                    className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium no-underline transition-colors ${pathname.startsWith("/admin")
-                      ? "bg-[var(--kc-green-50)] text-[var(--kc-green)]"
-                      : "text-[var(--kc-ink)] hover:bg-[var(--kc-green-50)]"
-                      }`}
-                    onClick={closeNav}
-                  >
-                    <Shield className="size-4 shrink-0 opacity-60" />
-                    จัดการข้อมูล
-                  </Link>
-                </>
+              {(isAdmin || isRnd) && (
+                <Link
+                  href={manageDataHref}
+                  className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium no-underline transition-colors ${pathname.startsWith(isRnd ? "/rnd" : "/admin")
+                    ? "bg-[var(--kc-green-50)] text-[var(--kc-green)]"
+                    : "text-[var(--kc-ink)] hover:bg-[var(--kc-green-50)]"
+                    }`}
+                  onClick={closeNav}
+                >
+                  <Shield className="size-4 shrink-0 opacity-60" />
+                  จัดการข้อมูล
+                </Link>
               )}
+              <Link
+                href="/profile"
+                className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium no-underline transition-colors ${isActive("/profile")
+                  ? "bg-[var(--kc-green-50)] text-[var(--kc-green)]"
+                  : "text-[var(--kc-ink)] hover:bg-[var(--kc-green-50)]"
+                  }`}
+                onClick={closeNav}
+              >
+                <User className="size-4 shrink-0 opacity-60" />
+                โปรไฟล์
+              </Link>
             </>
           )}
         </div>

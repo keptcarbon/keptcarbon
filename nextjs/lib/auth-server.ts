@@ -15,3 +15,19 @@ export async function isAdmin(request: NextRequest): Promise<boolean> {
   const result = await pool.query("SELECT role FROM tbl_users WHERE id = $1", [payload.userId]);
   return result.rows[0]?.role === "admin";
 }
+
+/**
+ * Checks whether the requester's JWT cookie belongs to a user with role
+ * 'admin' or 'rd' — the roles allowed into the R&D data-management area.
+ */
+export async function isAdminOrRnd(request: NextRequest): Promise<boolean> {
+  const token = request.cookies.get(AUTH_COOKIE)?.value;
+  if (!token) return false;
+
+  const payload = verifyToken(token);
+  if (!payload) return false;
+
+  const result = await pool.query("SELECT role FROM tbl_users WHERE id = $1", [payload.userId]);
+  const role = result.rows[0]?.role;
+  return role === "admin" || role === "rd";
+}

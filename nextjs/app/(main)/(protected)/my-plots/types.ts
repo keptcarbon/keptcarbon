@@ -34,3 +34,15 @@ export type SavedPlot = {
     lu_polygon?: GeoJSON.Feature[];
   };
 };
+
+/** Lightweight per-project row for the my-plots table list — no plot geometry/
+ *  carbon data, only what's needed to render one table row. */
+export type ProjectSummary = {
+  dbProjectId: number;
+  projectName: string;
+  plotCount: number;
+  totalArea: number;
+  updatedAt: string;
+  ownerName?: string;
+  province?: string;
+};

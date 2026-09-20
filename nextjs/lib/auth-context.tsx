@@ -8,7 +8,6 @@ import {
   useMemo,
   useState,
 } from "react";
-import { useRouter } from "next/navigation";
 
 /** Shape returned by /api/auth/me, /api/auth/login, /api/auth/register. */
 export type SessionUser = {
@@ -33,7 +32,8 @@ type AuthContextValue = {
   openLogin: () => void;
   openRegister: () => void;
   closeModal: () => void;
-  /** Resolves true if a claimed guest project already redirected the user. */
+  /** Re-reads the session (and silently claims a guest's assessed projects off
+   *  the map-draw page). Always resolves false -- kept for call-site compat. */
   refresh: () => Promise<boolean>;
   logout: () => void;
 };
@@ -44,19 +44,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<SessionUser | null>(null);
   const [ready, setReady] = useState(false);
   const [modal, setModal] = useState<ModalKind>(null);
-  const router = useRouter();
 
   const refresh = useCallback(async () => {
-    let claimRedirected = false;
     try {
       const res = await fetch("/api/auth/me");
       if (res.ok) {
         const data = await res.json();
         setUser(data.user);
-        // If a guest built projects before signing in, claim them into the
-        // account so their drawn plots follow them. Covers every login path
-        // (local + OAuth redirect) since it runs whenever a user is present.
-        if (data.user && typeof window !== "undefined") {
+        // If a guest drew + assessed projects before signing in (guest_user_id
+        // is only set once a guest save writes a row), claim them into the
+        // account -- an in-place guest_uuid -> user_uuid flip, no clone, no
+        // redirect. The map-draw page owns its own richer reconcile (restoring
+        // an un-saved client snapshot, filling the project-name box), so skip
+        // here when we're on it to avoid racing that.
+        if (
+          data.user &&
+          typeof window !== "undefined" &&
+          !window.location.pathname.startsWith("/map-draw")
+        ) {
           const guestKey = localStorage.getItem("guest_user_id");
           if (guestKey) {
             try {
@@ -65,22 +70,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ guestKey }),
               });
-              if (claimRes.ok) {
-                localStorage.removeItem("guest_user_id");
-                const claimData = await claimRes.json();
-                const claimedProjects: { projectName: string }[] = claimData.projects ?? [];
-                // Land the user back on map-draw with the claimed project
-                // loaded, same as the >5-plot popup's post-login flow, so a
-                // guest project claimed from a login that had nothing to do
-                // with drawing isn't left invisible under its auto-generated
-                // "Guest-<hex>" name.
-                if (claimedProjects[0]?.projectName) {
-                  router.push(
-                    `/map-draw?project=${encodeURIComponent(claimedProjects[0].projectName)}&action=calc`
-                  );
-                  claimRedirected = true;
-                }
-              }
+              if (claimRes.ok) localStorage.removeItem("guest_user_id");
             } catch {
               /* non-fatal: retried on next load */
             }
@@ -92,8 +82,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch {
       setUser(null);
     }
-    return claimRedirected;
-  }, [router]);
+    return false;
+  }, []);
 
   useEffect(() => {
     refresh().finally(() => setReady(true));

@@ -14,14 +14,11 @@ from shapely.ops import unary_union
 from app.core.constants import (
     CARBON_FRACTION,
     CARBON_EQUIVALENT_FACTOR,
-    REGION_CONFIG,
     GROWTH_MODEL_YEAR,
     MAX_TREE_AGE,
     MEAN_CUT_TREE_AGE,
     MIX_TREE_PROPORTION,
     TREE_AGE_HOMOLOGOUS_THRESHOLD,
-    DEFAULT_SPACING_SYSTEM,
-    DEFAULT_RUBBER_CLONE
 )
 
 class CarbonService:
@@ -40,21 +37,31 @@ class CarbonService:
         aggregating multiple age cohorts.
         """
         p_code = poly_data.get("province_code")
-        config = REGION_CONFIG.get(p_code)
-        if config is None:
-            raise HTTPException(
-                status_code=422,
-                detail=f"Province code '{p_code}' is not supported. Supported: {list(REGION_CONFIG.keys())}"
-            )
-
-        # Use the rubber clone from poly_data if available, otherwise default to DEFAULT_RUBBER_CLONE
-        clone = config.get("DEFAULT_RUBBER_CLONE")  #poly_data.get("rubber_clone") or config.get("DEFAULT_RUBBER_CLONE")
-        growth_model = config.get("DEFAULT_MODEL")
-        allometry = config.get("DEFAULT_BIOMASS_ASSESSMENT_METHOD")
 
         try:
             pool = get_pool()
             async with pool.acquire() as conn:
+                config_row = await conn.fetchrow(
+                    """
+                    SELECT default_clone, default_growth, default_allometry
+                    FROM tbl_region_config
+                    WHERE p_code = $1
+                    """,
+                    p_code,
+                )
+                if config_row is None:
+                    raise HTTPException(
+                        status_code=422,
+                        detail=f"Province code '{p_code}' is not supported. No region config found in tbl_region_config."
+                    )
+
+                # Use the province's default rubber clone/growth model/allometry
+                # from tbl_region_config (poly_data's own rubber_clone is not
+                # consulted here, matching prior behavior).
+                clone = config_row["default_clone"]
+                growth_model = config_row["default_growth"]
+                allometry = config_row["default_allometry"]
+
                 rows = await conn.fetch(
                     """
                     SELECT age, biomass_est, biomass_ci_lower, biomass_ci_upper
@@ -63,6 +70,8 @@ class CarbonService:
                     """,
                     p_code, clone, growth_model, allometry,
                 )
+        except HTTPException:
+            raise
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Failed to load biomass profile: {str(e)}")
 
@@ -183,6 +192,21 @@ class CarbonService:
         return projections
 
 
+    async def _get_region_defaults(self, p_code: str) -> dict | None:
+        """Province defaults (default_clone, default_spacing) from
+        tbl_region_config, used to fill assess_parameters when the user
+        didn't supply a rubber_clone/spacing_system."""
+        try:
+            pool = get_pool()
+            async with pool.acquire() as conn:
+                row = await conn.fetchrow(
+                    "SELECT default_clone, default_spacing FROM tbl_region_config WHERE p_code = $1",
+                    p_code,
+                )
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to load region defaults: {str(e)}")
+        return dict(row) if row else None
+
     async def get_carbon_profile(self, poly_data) -> dict:
         current_calendar_year = datetime.now().year
 
@@ -196,6 +220,10 @@ class CarbonService:
                 "carbon_profile": None,
                 "assess_parameters": None
             }
+
+        region_defaults = await self._get_region_defaults(poly_data["province_code"])
+        default_clone = region_defaults.get("default_clone") if region_defaults else None
+        default_spacing = region_defaults.get("default_spacing") if region_defaults else None
 
         # Step 2: Multi-Polygon Dissolve & Geometry Merge
         poly_data = await self.lu_svc.find_rubber_cultivation_area(poly_data)
@@ -221,7 +249,7 @@ class CarbonService:
                 age = 0
                 planning_year_info = None
 
-            tree_info = self.tree_svc.get_tree_count_user_input(poly_data)
+            tree_info = await self.tree_svc.get_tree_count_user_input(poly_data)
 
             cohorts = [{"age": age,
                         "pixel_count": None,
@@ -249,7 +277,7 @@ class CarbonService:
                         "source": "user input" if poly_data.get('year_of_planting') else "calculated from raster"
                     },
                     "rubber_clone": {
-                        "value": poly_data.get('rubber_clone') if poly_data.get('rubber_clone') else DEFAULT_RUBBER_CLONE,
+                        "value": poly_data.get('rubber_clone') if poly_data.get('rubber_clone') else default_clone,
                         "note": "default",
                         "source": "user input" if poly_data.get('rubber_clone') else "default value applied"
                     },
@@ -258,7 +286,7 @@ class CarbonService:
                         "source": "calculated from area and spacing system" if tree_info['is_calculated'] else "user input"
                     },
                     "spacing_system": {
-                        "value": poly_data.get('spacing_system') if poly_data.get('spacing_system') else DEFAULT_SPACING_SYSTEM,
+                        "value": poly_data.get('spacing_system') if poly_data.get('spacing_system') else default_spacing,
                         "source": "user input" if poly_data.get('spacing_system') else "default value applied"
                     }
                 }
@@ -380,7 +408,7 @@ class CarbonService:
                         "source": "calculated from raster"
                     },
                     "rubber_clone": {
-                        "value": poly_data.get('rubber_clone') if poly_data.get('rubber_clone') else DEFAULT_RUBBER_CLONE,
+                        "value": poly_data.get('rubber_clone') if poly_data.get('rubber_clone') else default_clone,
                         "note": "default",
                         "source": "user input" if poly_data.get('rubber_clone') else "default value applied"
                     },
@@ -389,7 +417,7 @@ class CarbonService:
                         "source": "calculated from area and spacing system"
                     },
                     "spacing_system": {
-                        "value": poly_data.get('spacing_system') if poly_data.get('spacing_system') else DEFAULT_SPACING_SYSTEM,
+                        "value": poly_data.get('spacing_system') if poly_data.get('spacing_system') else default_spacing,
                         "source": "user input" if poly_data.get('spacing_system') else "default value"
                     }
                 }

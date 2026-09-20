@@ -1,6 +1,8 @@
+from fastapi import HTTPException
+
 from app.services.province_service import ProvinceService
 from app.services.landuse_service import LanduseService
-from app.core.constants import REGION_CONFIG
+from app.core.database import get_pool
 
 
 class PlotsService:
@@ -49,7 +51,16 @@ class PlotsService:
                 "message": "POINT DOES NOT INTERSECT WITH ANY THAI PROVINCE."
             }
 
-        if province_code not in REGION_CONFIG:
+        try:
+            pool = get_pool()
+            async with pool.acquire() as conn:
+                supported = await conn.fetchval(
+                    "SELECT 1 FROM tbl_region_config WHERE p_code = $1", province_code
+                )
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to load region config: {str(e)}")
+
+        if not supported:
             return {
                 "supported": False,
                 "province_code": province_code,

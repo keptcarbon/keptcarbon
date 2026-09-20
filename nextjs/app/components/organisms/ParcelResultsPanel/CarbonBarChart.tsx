@@ -54,7 +54,7 @@ export function profileToBarPoints(profile: YearlyAssess[], baseAge: number = 0)
 export function CarbonBarChart({
   pts,
   isMobile,
-  title = "ปริมาณคาร์บอนกักเก็บ (tCO₂eq)",
+  title = "ปริมาณคาร์บอนสะสม (tCO₂eq/แปลง)",
   narrowMode = false,
   showAge = true,
   initialMaxYearBE,
@@ -327,7 +327,7 @@ export function CarbonBarChart({
               </div>
               <div style={{ textAlign: "center" }}>
                 <div style={{ color: "#fff", fontSize: 11, fontWeight: 600, marginBottom: 1, opacity: 0.8 }}>
-                  คาร์บอนกักเก็บ
+                  คาร์บอนสะสม
                 </div>
                 <div style={{ display: "flex", alignItems: "baseline", justifyContent: "center", gap: 3 }}>
                   <span style={{ fontSize: 18, fontWeight: 800, color: "#fff", lineHeight: 1 }}>
@@ -341,7 +341,7 @@ export function CarbonBarChart({
               <div style={{ width: "80%", height: 1, background: "rgba(255,255,255,0.12)" }} />
               <div style={{ textAlign: "center" }}>
                 <div style={{ fontSize: 11, color: "rgba(56,189,248,0.9)", fontWeight: 600, marginBottom: 1 }}>
-                  คาร์บอนเครดิต
+                  คาร์บอนกักเก็บ
                 </div>
                 <div style={{ display: "flex", alignItems: "baseline", justifyContent: "center", gap: 3 }}>
                   <span style={{ fontSize: 18, fontWeight: 800, color: "#38bdf8", lineHeight: 1 }}>

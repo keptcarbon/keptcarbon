@@ -308,6 +308,116 @@ async function upsertProjectHeader(client: any, header: ProjectHeader): Promise<
   ]);
 }
 
+/**
+ * Thrown by transferProjectToUser when the user already has a *different*
+ * active project with the same name (the partial unique index
+ * uq_projects_user_project_active would be violated). The caller decides how to
+ * resolve it -- typically by folding the guest copy into the existing project
+ * via the clone-based /api/plots/claim path instead.
+ */
+export class ProjectNameConflictError extends Error {
+  constructor(public existingProjectId: number) {
+    super("A project with this name already exists for this user");
+    this.name = "ProjectNameConflictError";
+  }
+}
+
+/**
+ * Flip a guest-owned project to user ownership *in place* -- no clone, same row
+ * id. Used when a logged-in user saves (a real Save, not a Process draft) a
+ * project that was written under a guest_key earlier this session: clicking
+ * "ประมวลผล" always persists a guest_key draft, and "บันทึกข้อมูล" then needs
+ * that exact row to become theirs so dbProjectId stays valid and the
+ * plots/assessment history don't have to be copied.
+ *
+ * Must run inside the caller's own transaction. Throws ProjectNameConflictError
+ * if the user already has another active project with the same name.
+ */
+export async function transferProjectToUser(
+  client: any,
+  opts: { projectId: number; userUuid: string }
+): Promise<void> {
+  const { projectId, userUuid } = opts;
+
+  const nameRes = await client.query(
+    `SELECT project_name FROM tbl_projects WHERE id = $1`,
+    [projectId]
+  );
+  const projectName: string | undefined = nameRes.rows[0]?.project_name;
+
+  const clash = await client.query(
+    `SELECT id FROM tbl_projects
+     WHERE user_uuid = $1 AND project_name = $2 AND status = 'active' AND id <> $3`,
+    [userUuid, projectName, projectId]
+  );
+  if ((clash.rowCount ?? 0) > 0) {
+    throw new ProjectNameConflictError(clash.rows[0].id);
+  }
+
+  await client.query(
+    `UPDATE tbl_projects
+     SET user_uuid = $1, guest_uuid = NULL, updated_at = NOW()
+     WHERE id = $2 AND user_uuid IS NULL`,
+    [userUuid, projectId]
+  );
+}
+
+/**
+ * Claim every active project owned by `guestKey` for `userUuid`, in place --
+ * flips guest_uuid -> user_uuid on the same rows (no clone, no soft-delete),
+ * so plots / land-use overlaps / assessment history / yearly carbon rows all
+ * come along for free. Used by POST /api/plots/claim on login.
+ *
+ * A guest may have started several areas in one session (each "start a new
+ * area" writes another guest_uuid row), so this handles N rows. On the rare
+ * name collision with the user's own uq_projects_user_project_active index
+ * (guest project names are the unguessable generateGuestProjectName() so this
+ * is near-impossible), a " (2)", " (3)"… suffix is appended.
+ *
+ * Must run inside the caller's own transaction. Returns the claimed rows with
+ * their final (possibly suffixed) names.
+ */
+export async function transferGuestProjectsToUser(
+  client: any,
+  opts: { guestKey: string; userUuid: string }
+): Promise<{ id: number; project_name: string }[]> {
+  const { guestKey, userUuid } = opts;
+
+  const guestRows = await client.query(
+    `SELECT id, project_name FROM tbl_projects
+     WHERE guest_uuid = $1 AND status = 'active'
+     ORDER BY id`,
+    [guestKey]
+  );
+
+  const claimed: { id: number; project_name: string }[] = [];
+
+  for (const row of guestRows.rows) {
+    let name: string = row.project_name;
+
+    // Resolve a collision with one of the user's own active projects.
+    for (let attempt = 2; attempt < 100; attempt++) {
+      const clash = await client.query(
+        `SELECT 1 FROM tbl_projects
+         WHERE user_uuid = $1 AND project_name = $2 AND status = 'active'`,
+        [userUuid, name]
+      );
+      if ((clash.rowCount ?? 0) === 0) break;
+      name = `${row.project_name} (${attempt})`;
+    }
+
+    await client.query(
+      `UPDATE tbl_projects
+       SET user_uuid = $1, guest_uuid = NULL, project_name = $2, updated_at = NOW()
+       WHERE id = $3 AND user_uuid IS NULL`,
+      [userUuid, name, row.id]
+    );
+    claimed.push({ id: row.id, project_name: name });
+  }
+
+  return claimed;
+}
+
 /** Must run inside the caller's own transaction -- see upsertProjectAndPlots. */
 export async function softDeleteProjectById(client: any, id: number): Promise<void> {
   await client.query(

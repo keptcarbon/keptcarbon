@@ -29,6 +29,7 @@ from pathlib import Path
 
 P_CODE = "RAY"
 CLONE = "RRIM 600"
+VERSION = "v1"  # first import batch/vintage of these lookup CSVs
 LOOKUP_DIR = Path(__file__).resolve().parent.parent / "backend" / "app" / "data" / "lookup_tables"
 
 # filename growth-model segment -> (allometry segment, allometry column, AGB cols, BGB cols)
@@ -59,7 +60,7 @@ def main():
         "-- " + "=" * 76,
         "",
         "INSERT INTO tbl_biomass_profile",
-        "  (p_code, clone, growth_model, allometry, age, dbh_est, agb, bgb, biomass_est, ci, biomass_ci_lower, biomass_ci_upper)",
+        "  (p_code, clone, growth_model, allometry, age, dbh_est, agb, bgb, biomass_est, ci, biomass_ci_lower, biomass_ci_upper, version)",
         "VALUES",
     ]
 
@@ -77,7 +78,7 @@ def main():
                 rows.append(
                     f"  ({esc(P_CODE)}, {esc(CLONE)}, {esc(growth_model)}, {esc(allometry_db)}, "
                     f"{int(age)}, {r['DBH_Est']}, {agb}, {bgb}, {r['Biomass_Est']}, {r['CI']}, "
-                    f"{r['Biomass_CI_Lower']}, {r['Biomass_CI_Upper']})"
+                    f"{r['Biomass_CI_Lower']}, {r['Biomass_CI_Upper']}, {esc(VERSION)})"
                 )
                 total += 1
 
