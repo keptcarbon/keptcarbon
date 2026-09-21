@@ -89,13 +89,23 @@ class CarbonSimulationRequest(BaseModel):
     biomass_profile_version: str = Field(..., description="Version of the biomass profile to use")
     year_of_planting: int = Field(..., description="Year the stand was planted")
     area_m2: float = Field(..., description="Area in square meters")
-    tree_count: int = Field(..., description="Number of trees in the area")
+    tree_count: Optional[int] = Field(None, description="Number of trees in the area. If None, calculate from area_m2 and spacing_system.")
     spacing_system: str = Field(..., description="Spacing system, e.g. '2.5x8' = 500 trees/ha")
     rotation_year: int = Field(35, description="Rotation length in years before replanting")
-    replanting_rate: int = Field(100, description="Percent of the area replanted at the end of each rotation")
+    replanting_rate: float = Field(1.0, description="Replanting rate multiplier applied to tree_count at each rotation, e.g. 0.9 = 90%, 1.1 = 110%")
 
 
-class CarbonSimulationResponse(BaseModel):
+class SimulationYearlyPoint(BaseModel):
+    year: int
+    year_at: int
+    tree_count: int = Field(..., description="Central-scenario tree count, summed across all input rows for this year")
+    carbon_stock_tCO2e: float
+    carbon_stock_upper_tCO2e: float = Field(..., description="Upper-bound scenario: 100% replanting, 35-year rotation, summed across all input rows")
+    carbon_stock_lower_tCO2e: float = Field(..., description="Lower-bound scenario: 0% replanting, 35-year rotation, summed across all input rows")
+
+
+class CarbonSimulationRowSummary(BaseModel):
+    """Resolved input parameters for one row of the sim_data batch, echoed back for traceability."""
     p_code: str
     clone: str
     growth_model: str
@@ -106,6 +116,15 @@ class CarbonSimulationResponse(BaseModel):
     tree_count: int
     spacing_system: str
     rotation_year: int
-    replanting_rate: int
+    replanting_rate: float
+
+
+class CarbonSimulationResponse(BaseModel):
     status: StatusMessage
-    carbon_stock_tCO2e_simulation: Optional[float] = Field(None, description="Simulated carbon stock for the given area. None until the growth model is wired up.")
+    rows: List[CarbonSimulationRowSummary] = Field(..., description="Per-row resolved inputs that went into the summed profile below")
+    total_area_m2: float
+    total_tree_count: int
+    carbon_stock_tCO2e_simulation: Optional[List[SimulationYearlyPoint]] = Field(
+        None,
+        description="71-year (current_year-35 .. current_year+35) carbon stock profile, summed by year across all rows in sim_data."
+    )

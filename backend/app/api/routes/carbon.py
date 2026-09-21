@@ -37,15 +37,16 @@ async def assess_carbon(polygons: List[CarbonAssessRequest]):
     return results
 
 
-@router.post("/carbon/sim", response_model=List[CarbonSimulationResponse])
+@router.post("/carbon/sim", response_model=CarbonSimulationResponse)
 async def simulation_carbon(sim_data: List[CarbonSimulationRequest]):
     try:
-        # Pass the whole batch of rows through in one call so the service can
-        # group/aggregate them (e.g. by p_code) for region-level simulation,
-        # not just one plantation-level row at a time.
+        # Pass the whole batch of rows through in one call -- the service
+        # computes each row's central/upper/lower vectors independently, then
+        # sums them by index into one final profile for the batch (e.g.
+        # multiple cohorts/plantings on the same plot).
         payload = [item.model_dump() for item in sim_data]
 
-        results = await service.get_carbon_simulation(payload)
+        result = await service.get_carbon_simulation(payload)
 
     except Exception as e:
         raise HTTPException(
@@ -53,7 +54,7 @@ async def simulation_carbon(sim_data: List[CarbonSimulationRequest]):
             detail=f"Error processing simulation payload: {str(e)}"
         )
 
-    return results
+    return result
 
 
 

@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import List, Dict
+from typing import List, Dict, Optional
 from fastapi import HTTPException
 from app.core.database import get_pool
 from app.services.province_service import ProvinceService
@@ -247,10 +247,10 @@ class CarbonService:
 
         region_config = await self._resolve_region_config(poly_data["province_code"], poly_data)
         
-        if (spacing_is_default) poly_data['spacing_system'] = region_config['default_spacing']
-        if (growth_model_is_default) poly_data['growth_model'] = region_config['growth_model']
-        if (allometry_is_default) poly_data['allometry'] = region_config['allometry']
-        if (biomass_profile_version_is_default) poly_data['biomass_profile_version'] = region_config['biomass_profile_version']
+        if spacing_is_default: poly_data['spacing_system'] = region_config['default_spacing']
+        if growth_model_is_default: poly_data['growth_model'] = region_config['growth_model']
+        if allometry_is_default: poly_data['allometry'] = region_config['allometry']
+        if biomass_profile_version_is_default: poly_data['biomass_profile_version'] = region_config['biomass_profile_version']
         
         default_spacing = region_config["default_spacing"]
         poly_data['rubber_clone_config'] = region_config['clone']
@@ -477,32 +477,197 @@ class CarbonService:
                 }
             }
 
-    async def get_carbon_simulation(self, sim_data: list) -> list:
+    def _build_simulation_vectors(
+        self,
+        biomass_by_age: Dict[int, dict],
+        base_tree_count: int,
+        year_of_planting: int,
+        rotation_year: int,
+        replanting_rate: float,
+        current_calendar_year: int,
+    ) -> tuple:
         """
-        Placeholder for future implementation of carbon simulation based on
-        user-provided growth model and allometry. Takes the full batch of rows
-        (one or more plantation-level entries, potentially spanning multiple
-        p_codes) so a later implementation can group/aggregate them for
-        region-level (province/district/sub-district) simulation. Currently
-        returns one skeleton response per row with status indicating that the
-        computation is not yet implemented.
+        Builds the fixed-length (2*GROWTH_MODEL_YEAR + 1 = 71) tree_count and
+        biomass_est vectors for one rotation/replanting scenario, spanning
+        calendar years [current_calendar_year - GROWTH_MODEL_YEAR,
+        current_calendar_year + GROWTH_MODEL_YEAR]. Index GROWTH_MODEL_YEAR
+        (0-indexed) is current_calendar_year. Age cycles every
+        (rotation_year + 1) years (ages 0..rotation_year inclusive), and
+        tree_count is scaled by replanting_rate**completed_cycles at each new
+        cycle. Years before year_of_planting hold 0 for both vectors.
         """
-        return [
-            {
-                "p_code": row.get("p_code"),
-                "clone": row.get("clone"),
-                "age": row.get("age"),
-                "area_m2": row.get("area_m2"),
-                "growth_model": row.get("growth_model"),
-                "allometry": row.get("allometry"),
-                "rotation_year": row.get("rotation_year"),
-                "replanting_rate": row.get("replanting_rate"),
-                "status": {
-                    "status": "pending",
-                    "status_code": "P01",
-                    "message": "SIMULATION SKELETON — GROWTH MODEL COMPUTATION NOT YET IMPLEMENTED."
-                },
-                "carbon_stock_tCO2e_simulation": None,
-            }
-            for row in sim_data
-        ]
+        vector_length = 2 * GROWTH_MODEL_YEAR + 1
+        cycle_length = rotation_year + 1
+
+        tree_vec = [0] * vector_length
+        biomass_vec = [0.0] * vector_length
+        age_vec: List[Optional[int]] = [None] * vector_length
+
+        for i in range(vector_length):
+            target_year = current_calendar_year - GROWTH_MODEL_YEAR + i
+            elapsed = target_year - year_of_planting
+            if elapsed < 0:
+                continue
+
+            cycle_number = elapsed // cycle_length
+            age_in_cycle = elapsed % cycle_length
+
+            data = biomass_by_age.get(age_in_cycle)
+            if data is None:
+                continue
+
+            tree_vec[i] = int(base_tree_count * (replanting_rate ** cycle_number))
+            biomass_vec[i] = data["biomass_est"]
+            age_vec[i] = age_in_cycle
+
+        return tree_vec, biomass_vec, age_vec
+
+    async def get_carbon_simulation(self, sim_data: list) -> dict:
+        """
+        Computes a 71-year (current_year-35 .. current_year+35) simulated
+        carbon stock profile, using each row's own year_of_planting,
+        rotation_year and replanting_rate, alongside fixed-scenario upper
+        bound (35-year rotation, 100% replanting) and lower bound (35-year
+        rotation, 0% replanting) profiles. sim_data may contain multiple rows
+        (e.g. several cohorts/plantings for one plot) -- each row's central/
+        upper/lower vectors are computed independently, then summed by index
+        across all rows into one final set of 3 vectors for the batch.
+        """
+        current_calendar_year = datetime.now().year
+        vector_length = 2 * GROWTH_MODEL_YEAR + 1
+
+        sum_central_tree = [0] * vector_length
+        sum_central_carbon = [0.0] * vector_length
+        sum_upper_carbon = [0.0] * vector_length
+        sum_lower_carbon = [0.0] * vector_length
+
+        row_summaries = []
+        total_area_m2 = 0.0
+        total_tree_count = 0
+
+        for row in sim_data:
+            p_code = row.get("p_code")
+            clone = row.get("clone")
+            growth_model = row.get("growth_model")
+            allometry = row.get("allometry")
+            biomass_profile_version = row.get("biomass_profile_version")
+            year_of_planting = row.get("year_of_planting")
+            area_m2 = row.get("area_m2")
+            tree_count = row.get("tree_count")
+            spacing_system = row.get("spacing_system")
+            rotation_year = row.get("rotation_year", GROWTH_MODEL_YEAR)
+            replanting_rate = row.get("replanting_rate", 1.0)
+
+            if rotation_year > GROWTH_MODEL_YEAR:
+                raise HTTPException(
+                    status_code=422,
+                    detail=f"rotation_year ({rotation_year}) cannot exceed the biomass profile's "
+                           f"maximum modeled age ({GROWTH_MODEL_YEAR})."
+                )
+
+            try:
+                pool = get_pool()
+                async with pool.acquire() as conn:
+                    biomass_rows = await conn.fetch(
+                        """
+                        SELECT age, biomass_est
+                        FROM tbl_biomass_profile
+                        WHERE p_code = $1 AND clone = $2 AND growth_model = $3 AND allometry = $4 AND version = $5
+                        """,
+                        p_code, clone, growth_model, allometry, biomass_profile_version,
+                    )
+
+                    if tree_count is None:
+                        density_row = await conn.fetchrow(
+                            "SELECT tree_density_ha FROM tbl_tree_density WHERE tree_spacing = $1",
+                            spacing_system,
+                        )
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=f"Failed to load simulation config: {str(e)}")
+
+            if not biomass_rows:
+                raise HTTPException(
+                    status_code=422,
+                    detail=f"No biomass profile for p_code='{p_code}', clone='{clone}', model='{growth_model}', "
+                           f"allometry='{allometry}', version='{biomass_profile_version}'."
+                )
+
+            if tree_count is None:
+                if density_row is None:
+                    raise HTTPException(
+                        status_code=422,
+                        detail=f"No tree density found for spacing_system='{spacing_system}'."
+                    )
+                tree_count = int(area_m2 * density_row["tree_density_ha"] / 10000)
+
+            biomass_by_age = {r["age"]: r for r in biomass_rows}
+
+            # Central profile: this row's own rotation_year / replanting_rate.
+            central_tree_vec, central_biomass_vec, _ = self._build_simulation_vectors(
+                biomass_by_age, tree_count, year_of_planting, rotation_year, replanting_rate, current_calendar_year,
+            )
+
+            # Upper bound: fixed 35-year rotation, 100% replanting.
+            upper_tree_vec, upper_biomass_vec, _ = self._build_simulation_vectors(
+                biomass_by_age, tree_count, year_of_planting, GROWTH_MODEL_YEAR, 1.0, current_calendar_year,
+            )
+
+            # Lower bound: fixed 35-year rotation, 0% replanting.
+            lower_tree_vec, lower_biomass_vec, _ = self._build_simulation_vectors(
+                biomass_by_age, tree_count, year_of_planting, GROWTH_MODEL_YEAR, 0.0, current_calendar_year,
+            )
+
+            # Accumulate this row's per-year carbon (and tree_count, for the
+            # central scenario) into the batch-wide sums, index by index.
+            for i in range(vector_length):
+                sum_central_tree[i] += central_tree_vec[i]
+                sum_central_carbon[i] += (
+                    central_biomass_vec[i] * central_tree_vec[i] * CARBON_FRACTION * CARBON_EQUIVALENT_FACTOR
+                ) / 1000.0
+                sum_upper_carbon[i] += (
+                    upper_biomass_vec[i] * upper_tree_vec[i] * CARBON_FRACTION * CARBON_EQUIVALENT_FACTOR
+                ) / 1000.0
+                sum_lower_carbon[i] += (
+                    lower_biomass_vec[i] * lower_tree_vec[i] * CARBON_FRACTION * CARBON_EQUIVALENT_FACTOR
+                ) / 1000.0
+
+            total_area_m2 += area_m2
+            total_tree_count += tree_count
+
+            row_summaries.append({
+                "p_code": p_code,
+                "clone": clone,
+                "growth_model": growth_model,
+                "allometry": allometry,
+                "biomass_profile_version": biomass_profile_version,
+                "year_of_planting": year_of_planting,
+                "area_m2": area_m2,
+                "tree_count": tree_count,
+                "spacing_system": spacing_system,
+                "rotation_year": rotation_year,
+                "replanting_rate": replanting_rate,
+            })
+
+        carbon_profile = []
+        for i in range(vector_length):
+            target_year = current_calendar_year - GROWTH_MODEL_YEAR + i
+            carbon_profile.append({
+                "year": target_year,
+                "year_at": target_year - current_calendar_year,
+                "tree_count": sum_central_tree[i],
+                "carbon_stock_tCO2e": round(sum_central_carbon[i], 4),
+                "carbon_stock_upper_tCO2e": round(sum_upper_carbon[i], 4),
+                "carbon_stock_lower_tCO2e": round(sum_lower_carbon[i], 4),
+            })
+
+        return {
+            "status": {
+                "status": "success",
+                "status_code": "S05",
+                "message": "CARBON SIMULATION PROFILE GENERATED."
+            },
+            "rows": row_summaries,
+            "total_area_m2": total_area_m2,
+            "total_tree_count": total_tree_count,
+            "carbon_stock_tCO2e_simulation": carbon_profile,
+        }
