@@ -26,6 +26,10 @@ export interface RawShadowPayload {
   polygonsPayload?: unknown;
   backendResponses?: unknown;
   frontendPlots?: unknown;
+  // polygon_ids whose current assessment should be retired (is_current =
+  // FALSE) because the save changed a carbon-affecting field but did NOT
+  // include a fresh backendResponses -- see invalidateAssessments().
+  staleAssessmentPolygonIds?: unknown;
 }
 
 type AnyRecord = Record<string, any>;
@@ -83,13 +87,13 @@ const UPSERT_PLOT_SQL = `
     project_id, polygon_id, geometry, area_m2, province_code,
     status, status_code, message,
     year_of_planting, rubber_clone, tree_count, spacing_system, project_type,
-    selected_lu_classes, owner_name, deleted_at
+    selected_lu_classes, owner_name, growth_model, allometry, deleted_at
   )
   VALUES (
     $1, $2,
     CASE WHEN $3::text IS NULL THEN NULL ELSE ST_SetSRID(ST_GeomFromGeoJSON($3::text), 4326) END,
     $4, $5, $6, $7, $8, $9, $10, $11, $12, $13,
-    COALESCE($14::text[], '{}'), $15, NULL
+    COALESCE($14::text[], '{}'), $15, $16, $17, NULL
   )
   ON CONFLICT (project_id, polygon_id) DO UPDATE SET
     geometry            = COALESCE(EXCLUDED.geometry, tbl_plots.geometry),
@@ -105,6 +109,8 @@ const UPSERT_PLOT_SQL = `
     project_type          = COALESCE(EXCLUDED.project_type, tbl_plots.project_type),
     selected_lu_classes   = COALESCE($14::text[], tbl_plots.selected_lu_classes),
     owner_name            = COALESCE(EXCLUDED.owner_name, tbl_plots.owner_name),
+    growth_model          = COALESCE(EXCLUDED.growth_model, tbl_plots.growth_model),
+    allometry             = COALESCE(EXCLUDED.allometry, tbl_plots.allometry),
     deleted_at            = NULL
 `;
 
@@ -154,6 +160,8 @@ async function upsertPlots(
       payload?.project_type ?? null,
       selectedLuClasses,
       fp?.ownerName || null,
+      payload?.growth_model ?? null,
+      payload?.allometry ?? null,
     ]);
   }
 
@@ -209,6 +217,25 @@ async function recomputeLandUseOverlaps(
       );
     }
   }
+}
+
+/**
+ * Retires the current assessment for the given plots (by polygon_id) WITHOUT
+ * inserting a replacement -- used when a plot edit changes a carbon-affecting
+ * field (plant year, spacing, tree count, growth model, allometry, ...) so
+ * the plot correctly reads back as "ยังไม่ประมวลผล" (and the stale graph/
+ * assess_parameters stop showing) until the user reruns the estimate. Safe
+ * to call even if the plot has no current assessment (affects 0 rows).
+ */
+async function invalidateAssessments(client: any, projectId: number, polygonIds: string[]): Promise<void> {
+  if (polygonIds.length === 0) return;
+  await client.query(
+    `UPDATE tbl_plot_assessments a
+     SET is_current = FALSE
+     FROM tbl_plots p
+     WHERE a.plot_id = p.id AND p.project_id = $1 AND p.polygon_id = ANY($2::text[]) AND a.is_current = TRUE`,
+    [projectId, polygonIds]
+  );
 }
 
 async function appendAssessments(client: any, projectId: number, backendResponses: AnyRecord[]): Promise<void> {
@@ -288,6 +315,13 @@ export async function upsertProjectAndPlots(client: any, header: ProjectHeader, 
 
   if (plantationInfoMap.size > 0) {
     await recomputeLandUseOverlaps(client, header.id, frontendPlots, plantationInfoMap);
+  }
+
+  const staleAssessmentPolygonIds = Array.isArray(raw.staleAssessmentPolygonIds)
+    ? (raw.staleAssessmentPolygonIds as unknown[]).filter((id): id is string => typeof id === "string")
+    : [];
+  if (staleAssessmentPolygonIds.length > 0) {
+    await invalidateAssessments(client, header.id, staleAssessmentPolygonIds);
   }
 
   if (backendResponses) {

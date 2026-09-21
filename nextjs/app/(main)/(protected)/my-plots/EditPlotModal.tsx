@@ -6,6 +6,16 @@ import styles from "./EditPlotModal.module.css";
 
 const VARIETY_OPTIONS = ["RRIM 600", "RRIT 251"];
 const SPACING_OPTIONS = ["2.5x8", "3x7", "2.5x7", "2x6", "3x8"];
+const GROWTH_MODEL_OPTIONS = [
+  { label: "Anchored Chapman-Richards", value: "chapman_richards" },
+  { label: "Anchored Weibull", value: "weibull" },
+  { label: "Anchored Gompertz", value: "gompertz" },
+  { label: "Anchored Schumacher", value: "schumacher" },
+];
+const ALLOMETRY_OPTIONS = [
+  { label: "Hytonen et al. (2018)", value: "hytonen_2018" },
+  { label: "Chiarawipa et al. (2012)", value: "chiarawipa_2012" },
+];
 
 const CURRENT_BE_YEAR = new Date().getFullYear() + 543;
 const NEW_YEAR_OPTIONS = Array.from({ length: 4 }, (_, i) => String(CURRENT_BE_YEAR + i));
@@ -28,6 +38,8 @@ export function EditPlotModal({ plot, index, onClose, onSave, isMobile }: { plot
     plantYearBE: isUserYear && plot.plantYearBE ? plot.plantYearBE.toString() : "",
     variety: isUserVariety && plot.variety ? plot.variety : "",
     spacing: isUserSpacing && plot.spacing ? plot.spacing : "",
+    growthModel: form?.growthModel || "",
+    allometry: form?.allometry || "",
   });
 
   const handleSave = () => {
@@ -55,12 +67,16 @@ export function EditPlotModal({ plot, index, onClose, onSave, isMobile }: { plot
     const prevTrees = plot.trees || 0;
     const prevSpacing = plot.spacing || "";
     const prevStatus = plot.plantStatus || "";
+    const prevGrowthModel = form?.growthModel || "";
+    const prevAllometry = form?.allometry || "";
 
     const carbonFieldsChanged =
       newPlantYear !== prevPlantYear ||
       treesNum !== prevTrees ||
       sp !== prevSpacing ||
-      formData.plantStatus !== prevStatus;
+      formData.plantStatus !== prevStatus ||
+      formData.growthModel !== prevGrowthModel ||
+      formData.allometry !== prevAllometry;
 
     const newForm = {
       ...(plot.backendData?.form || {}),
@@ -69,6 +85,8 @@ export function EditPlotModal({ plot, index, onClose, onSave, isMobile }: { plot
       treeCount: formData.trees ? formData.trees : undefined,
       variety: formData.variety ? formData.variety : undefined,
       spacing: formData.spacing ? formData.spacing : undefined,
+      growthModel: formData.growthModel ? formData.growthModel : undefined,
+      allometry: formData.allometry ? formData.allometry : undefined,
     };
 
     // If carbon-affecting fields changed, mark as needing reprocessing.
@@ -176,26 +194,21 @@ export function EditPlotModal({ plot, index, onClose, onSave, isMobile }: { plot
           {/* Fields section */}
           <div className={`${styles.fieldsSection} ${!formData.plantStatus ? styles.fieldsSectionDisabled : ""}`}>
 
-            {/* ปีที่ปลูก */}
-            <div>
-              {fieldLabel("bi-calendar-event", <>
-                <span>ปีที่ปลูก (พ.ศ.)</span>
-                {formData.plantStatus === "existing" && <span className={styles.requiredMark}>*</span>}
-              </>)}
-              <SelectField
-                value={formData.plantYearBE}
-                onChange={v => setFormData(f => ({ ...f, plantYearBE: v }))}
-                disabled={!formData.plantStatus}
-              >
-                <option value="">— เลือกปีที่ปลูก —</option>
-                {(formData.plantStatus === "replanting" ? NEW_YEAR_OPTIONS : formData.plantStatus === "existing" ? OLD_YEAR_OPTIONS : []).map(y => (
-                  <option key={y} value={y}>{y}</option>
-                ))}
-              </SelectField>
-            </div>
-
-            {/* พันธุ์ยาง + ระยะปลูก */}
+            {/* ปีที่ปลูก + พันธุ์ยาง + จำนวนต้น + ระยะปลูก — 2x2, same order as map-draw */}
             <div className={`${styles.fieldGrid} ${isMobile ? styles.fieldGridMobile : ""}`}>
+              <div>
+                {fieldLabel("bi-calendar-event", "ปีที่ปลูก (พ.ศ.)")}
+                <SelectField
+                  value={formData.plantYearBE}
+                  onChange={v => setFormData(f => ({ ...f, plantYearBE: v }))}
+                  disabled={!formData.plantStatus}
+                >
+                  <option value="">— เลือกปีที่ปลูก —</option>
+                  {(formData.plantStatus === "replanting" ? NEW_YEAR_OPTIONS : formData.plantStatus === "existing" ? OLD_YEAR_OPTIONS : []).map(y => (
+                    <option key={y} value={y}>{y}</option>
+                  ))}
+                </SelectField>
+              </div>
               <div>
                 {fieldLabel("bi-tags", "พันธุ์ยาง")}
                 <SelectField value={formData.variety} onChange={v => setFormData(f => ({ ...f, variety: v }))}>
@@ -204,7 +217,28 @@ export function EditPlotModal({ plot, index, onClose, onSave, isMobile }: { plot
                 </SelectField>
               </div>
               <div>
-                {fieldLabel("bi-arrows-fullscreen", "ระยะปลูก")}
+                {fieldLabel("bi-tree-fill", "จำนวนต้น")}
+                <div className={styles.inputWrap}>
+                  <input
+                    type="number"
+                    step="1"
+                    min="0"
+                    value={formData.trees}
+                    onKeyDown={e => {
+                      if (['.', 'e', 'E', '+', '-'].includes(e.key)) e.preventDefault();
+                    }}
+                    onChange={e => {
+                      const val = e.target.value.split('.')[0].replace(/\D/g, '');
+                      setFormData(f => ({ ...f, trees: val }));
+                    }}
+                    placeholder="ระบุจำนวนต้น"
+                    className={styles.input}
+                  />
+                  <span className={styles.inputSuffix}>ต้น</span>
+                </div>
+              </div>
+              <div>
+                {fieldLabel("bi-arrows-fullscreen", "ระยะปลูก (ม.)")}
                 <SelectField value={formData.spacing} onChange={v => setFormData(f => ({ ...f, spacing: v }))}>
                   <option value="">— ไม่ระบุ —</option>
                   {SPACING_OPTIONS.map(s => <option key={s} value={s}>{s} ม.</option>)}
@@ -212,26 +246,21 @@ export function EditPlotModal({ plot, index, onClose, onSave, isMobile }: { plot
               </div>
             </div>
 
-            {/* จำนวนต้น */}
-            <div>
-              {fieldLabel("bi-tree-fill", "จำนวนต้น")}
-              <div className={styles.inputWrap}>
-                <input
-                  type="number"
-                  step="1"
-                  min="0"
-                  value={formData.trees}
-                  onKeyDown={e => {
-                    if (['.', 'e', 'E', '+', '-'].includes(e.key)) e.preventDefault();
-                  }}
-                  onChange={e => {
-                    const val = e.target.value.split('.')[0].replace(/\D/g, '');
-                    setFormData(f => ({ ...f, trees: val }));
-                  }}
-                  placeholder="ระบุจำนวนต้น"
-                  className={styles.input}
-                />
-                <span className={styles.inputSuffix}>ต้น</span>
+            {/* Growth Model + สมการ Allometry */}
+            <div className={`${styles.fieldGrid} ${isMobile ? styles.fieldGridMobile : ""}`}>
+              <div>
+                {fieldLabel("bi-graph-up", "Growth Model")}
+                <SelectField value={formData.growthModel} onChange={v => setFormData(f => ({ ...f, growthModel: v }))}>
+                  <option value="">— เลือก model —</option>
+                  {GROWTH_MODEL_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                </SelectField>
+              </div>
+              <div>
+                {fieldLabel("bi-calculator", "สมการ Allometry")}
+                <SelectField value={formData.allometry} onChange={v => setFormData(f => ({ ...f, allometry: v }))}>
+                  <option value="">— เลือกสมการ —</option>
+                  {ALLOMETRY_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                </SelectField>
               </div>
             </div>
           </div>

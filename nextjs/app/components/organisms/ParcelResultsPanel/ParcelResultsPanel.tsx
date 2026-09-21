@@ -1795,7 +1795,7 @@ export function ParcelResultsPanel({
                                             </div>
                                             <div className="prp-field-group">
                                                 <div style={{ fontSize: 15, fontWeight: 700, color: "#1a3d2b", marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
-                                                    <i className="bi bi-tree" style={{ color: "#1e7a47" }} /> จำนวนต้นยาง
+                                                    <i className="bi bi-tree" style={{ color: "#1e7a47" }} /> จำนวนต้น
                                                 </div>
                                                 <input
                                                     className="prp-input"

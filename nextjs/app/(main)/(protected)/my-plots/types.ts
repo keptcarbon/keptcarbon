@@ -45,4 +45,6 @@ export type ProjectSummary = {
   updatedAt: string;
   ownerName?: string;
   province?: string;
+  /** true when every active plot in the project has a current assessment. */
+  processed: boolean;
 };

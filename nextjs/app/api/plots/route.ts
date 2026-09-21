@@ -117,9 +117,13 @@ export async function GET(request: NextRequest) {
 
     const projectResult = await pool.query(query, params);
 
-    // Filter by project name if ?name= is provided
+    // Filter by project name if ?name= is provided, or by db id if ?id= is provided
     const projName = searchParams.get("name");
-    const projectRows = projName
+    const projIdParam = searchParams.get("id");
+    const projId = projIdParam ? Number(projIdParam) : null;
+    const projectRows = projId
+      ? projectResult.rows.filter(row => row.id === projId)
+      : projName
       ? projectResult.rows.filter(row => row.project_name === projName)
       : projectResult.rows;
 
@@ -136,7 +140,13 @@ export async function GET(request: NextRequest) {
     if (searchParams.get("summary") === "true") {
       const summaryResult = await pool.query(
         `SELECT project_id, COUNT(*) AS plot_count, SUM(area_m2) AS total_area_m2,
-                MAX(owner_name) AS owner_name, MAX(province_code) AS province_code
+                MAX(owner_name) AS owner_name, MAX(province_code) AS province_code,
+                COUNT(*) FILTER (
+                  WHERE EXISTS (
+                    SELECT 1 FROM tbl_plot_assessments a
+                    WHERE a.plot_id = tbl_plots.id AND a.is_current = TRUE
+                  )
+                ) AS processed_count
          FROM tbl_plots
          WHERE project_id = ANY($1) AND deleted_at IS NULL
          GROUP BY project_id`,
@@ -156,6 +166,7 @@ export async function GET(request: NextRequest) {
             updatedAt: row.updated_at,
             ownerName: s.owner_name ?? "",
             province: s.province_code ?? "",
+            processed: Number(s.processed_count) === Number(s.plot_count),
           };
         })
         .filter((p): p is NonNullable<typeof p> => p !== null);
@@ -166,7 +177,8 @@ export async function GET(request: NextRequest) {
     const plotsResult = await pool.query(
       `SELECT id, project_id, polygon_id, ST_AsGeoJSON(geometry)::json AS geometry,
               area_m2, province_code, year_of_planting, rubber_clone, tree_count,
-              spacing_system, project_type, selected_lu_classes, owner_name, updated_at
+              spacing_system, project_type, selected_lu_classes, owner_name,
+              growth_model, allometry, updated_at
        FROM tbl_plots
        WHERE project_id = ANY($1) AND deleted_at IS NULL`,
       [projectIds]
@@ -271,6 +283,8 @@ export async function GET(request: NextRequest) {
             treeCount: pl.tree_count != null ? String(pl.tree_count) : "",
             variety: pl.rubber_clone ?? "",
             spacing: pl.spacing_system ?? "",
+            growthModel: pl.growth_model ?? "",
+            allometry: pl.allometry ?? "",
             luChecked,
           },
         },

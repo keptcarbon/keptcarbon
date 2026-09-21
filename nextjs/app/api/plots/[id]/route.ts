@@ -186,6 +186,7 @@ export async function PATCH(
           polygonsPayload: body.polygonsPayload,
           backendResponses: body.backendResponses,
           frontendPlots: body.frontendPlots,
+          staleAssessmentPolygonIds: body.staleAssessmentPolygonIds,
         }
       );
 
