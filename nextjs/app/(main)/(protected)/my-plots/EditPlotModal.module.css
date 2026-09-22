@@ -313,6 +313,20 @@
 .btnSave {
   padding: 10px 22px;
   border-radius: 11px;
+  border: 1.5px solid #1e7a47;
+  background: #fff;
+  color: #1e7a47;
+  font-weight: 700;
+  font-size: 15px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.btnSaveProcess {
+  padding: 10px 22px;
+  border-radius: 11px;
   border: none;
   background: #1e7a47;
   color: #fff;
@@ -323,4 +337,13 @@
   align-items: center;
   gap: 7px;
   box-shadow: 0 4px 14px rgba(30, 122, 71, 0.35);
+}
+
+.btnDisabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.spinIcon {
+  animation: spin 1s linear infinite;
 }

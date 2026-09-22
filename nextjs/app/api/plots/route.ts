@@ -414,6 +414,7 @@ export async function POST(request: NextRequest) {
           polygonsPayload: body.polygonsPayload,
           backendResponses: body.backendResponses,
           frontendPlots: body.frontendPlots,
+          staleAssessmentPolygonIds: body.staleAssessmentPolygonIds,
         }
       );
 

@@ -1094,6 +1094,12 @@ export function ParcelResultsPanel({
             let res;
 
             const CURRENT_BE_NOW = new Date().getFullYear() + 543;
+            // Plots whose carbon-affecting fields changed this save but which did NOT
+            // get a fresh backend response (edited without re-running "ประมวลผล") —
+            // their current tbl_plot_assessments row would otherwise keep reporting
+            // "ประมวลผลแล้ว" with numbers that no longer match the saved inputs. See
+            // invalidateAssessments() in lib/normalized-plots.ts.
+            const staleAssessmentPolygonIds: string[] = [];
             const frontendPlots = parcelFeatures.map((feat, i) => {
                 const props = (feat?.properties || {}) as any;
                 const form = plotForms[i] || {};
@@ -1149,6 +1155,26 @@ export function ParcelResultsPanel({
                     }))
                     : (Array.isArray(savedLuPolygon) ? savedLuPolygon : []);
 
+                // Detect a carbon-affecting edit that wasn't re-processed this session
+                // (mirrors EditPlotModal's carbonFieldsChanged check in my-plots).
+                if (!hasNewResult) {
+                    const prevPlantYear = props.plantYearBE || 0;
+                    const prevTrees = props.trees || 0;
+                    const prevSpacing = props.spacing || "";
+                    const prevStatus = props.plantStatus || "";
+                    const newStatus = form?.plantStatus || "";
+
+                    const carbonFieldsChanged =
+                        (finalPlantYear || 0) !== prevPlantYear ||
+                        trees !== prevTrees ||
+                        spacing !== prevSpacing ||
+                        newStatus !== prevStatus;
+
+                    if (carbonFieldsChanged) {
+                        staleAssessmentPolygonIds.push(stablePlotIds[i]);
+                    }
+                }
+
                 return {
                     id: stablePlotIds[i],
                     name: projectName || props.farm_name || "แปลงยางใหม่",
@@ -1203,6 +1229,7 @@ export function ParcelResultsPanel({
                 backendResponses: activeResponses,
                 frontendPlots: finalFrontendPlots,
             };
+            if (staleAssessmentPolygonIds.length > 0) saveBody.staleAssessmentPolygonIds = staleAssessmentPolygonIds;
             if (userId) saveBody.userId = userId;
             // Draft (Process): force-save as guest_key even while logged in → doesn't show up in My Plots
             if (isDraft) saveBody.forceGuest = true;

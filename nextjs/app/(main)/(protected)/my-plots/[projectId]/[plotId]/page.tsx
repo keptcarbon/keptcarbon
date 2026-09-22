@@ -4,12 +4,14 @@ import { useCallback, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import Link from "next/link";
-import { ChevronLeft, Pencil, Trash2, Pin, Check, Clock } from "lucide-react";
+import { ChevronLeft, Pencil, Trash2, Pin, Check, Clock, Loader2 } from "lucide-react";
 import { CarbonBarChart, type BarPoint } from "@/app/components/organisms/ParcelResultsPanel/CarbonBarChart";
+import { assessCarbon } from "@/lib/carbon-api";
 import type { SavedPlot } from "../../types";
 import { PlotMiniMap } from "../../PlotMiniMap";
 import { EditPlotModal } from "../../EditPlotModal";
 import { CollapsibleSection } from "../../CollapsibleSection";
+import { buildAssessRequest, applyAssessResponse } from "../../assessPlot";
 import plotStyles from "../../PlotCard.module.css";
 
 const plantStatusLabel = (status?: string) =>
@@ -28,6 +30,8 @@ export default function PlotDetailPage() {
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [expandYears, setExpandYears] = useState(false);
   const [expandNotes, setExpandNotes] = useState(false);
+  const [estimating, setEstimating] = useState(false);
+  const [errorModalMsg, setErrorModalMsg] = useState<string | null>(null);
 
   const isAdmin = user?.role === "admin";
   const isGuestUser = () => !user && typeof window !== "undefined" && !!localStorage.getItem("guest_user_id");
@@ -133,6 +137,32 @@ export default function PlotDetailPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ ...buildSaveBody(newPlots), staleAssessmentPolygonIds }),
     }).catch(console.error);
+  };
+
+  const handleSaveAndProcess = async (updated: SavedPlot) => {
+    if (!user && !isGuestUser()) return;
+    setEstimating(true);
+
+    try {
+      const polygon = buildAssessRequest(updated);
+      const responses = await assessCarbon([polygon]);
+      const resp = responses.find(r => r.polygon_id === updated.id);
+      const finalPlot = applyAssessResponse(updated, resp);
+
+      const newPlots = plots.map(p => p.id === updated.id ? finalPlot : p);
+      setPlots(newPlots);
+      setEditing(false);
+
+      await fetch(`/api/plots/${projectId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...buildSaveBody(newPlots), backendResponses: responses }),
+      });
+    } catch (err) {
+      setErrorModalMsg("เกิดข้อผิดพลาดในการประมวลผลคาร์บอนกักเก็บ");
+    } finally {
+      setEstimating(false);
+    }
   };
 
   const handleDeletePlot = () => {
@@ -241,10 +271,15 @@ export default function PlotDetailPage() {
     <div className="kc-tw min-h-screen bg-muted/30 pt-[108px] pb-16">
       <div className="mx-auto w-full max-w-6xl px-4 sm:px-6 lg:px-8">
 
-        {/* Back to plot list */}
+        {/* Back to plot list — guarded while a save-and-process PATCH is still in
+           flight, so navigating away can't outrace it and land the project page
+           on a fetch that reads the DB a moment too early (stale numbers). */}
         <Link
           href={`/my-plots/${projectId}`}
-          className="mb-4 flex h-10 w-fit items-center gap-1.5 whitespace-nowrap rounded-lg border border-primary/25 bg-primary/5 px-4 text-sm font-semibold text-primary no-underline transition-colors hover:bg-primary/10"
+          onClick={(e) => { if (estimating) e.preventDefault(); }}
+          aria-disabled={estimating}
+          title={estimating ? "กำลังประมวลผล กรุณารอสักครู่..." : undefined}
+          className={`mb-4 flex h-10 w-fit items-center gap-1.5 whitespace-nowrap rounded-lg border border-primary/25 bg-primary/5 px-4 text-sm font-semibold text-primary no-underline transition-colors hover:bg-primary/10 ${estimating ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}
         >
           <ChevronLeft className="size-4" aria-hidden="true" /> กลับไปดูรายการแปลง
         </Link>
@@ -263,6 +298,11 @@ export default function PlotDetailPage() {
                   <Clock className="size-3" aria-hidden="true" />ยังไม่ประมวลผล
                 </span>
               )}
+              {estimating && (
+                <span className="inline-flex items-center gap-1 whitespace-nowrap rounded-full border border-primary/25 bg-primary/10 px-2 py-0.5 text-[11px] font-bold text-primary">
+                  <Loader2 className="size-3 animate-spin" aria-hidden="true" />กำลังประมวลผล...
+                </span>
+              )}
             </div>
             <div className="flex flex-wrap gap-4 text-sm font-medium text-muted-foreground">
               <span><strong className={plotStyles.strongDark}>{new Date(plot.date).toLocaleDateString("th-TH", { year: "numeric", month: "short", day: "numeric" })}</strong></span>
@@ -274,19 +314,24 @@ export default function PlotDetailPage() {
           <div className="flex w-full flex-wrap items-center gap-2 md:w-auto">
             <Link
               href={`/map-draw?project=${encodeURIComponent(plot.name)}&action=calc&plotId=${plot.id}`}
-              className="flex h-10 flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-border bg-card px-4 text-sm font-semibold text-foreground no-underline transition-colors hover:bg-muted/60 md:flex-initial"
+              onClick={(e) => { if (estimating) e.preventDefault(); }}
+              aria-disabled={estimating}
+              title={estimating ? "กำลังประมวลผล กรุณารอสักครู่..." : undefined}
+              className={`flex h-10 flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-border bg-card px-4 text-sm font-semibold text-foreground no-underline transition-colors hover:bg-muted/60 md:flex-initial ${estimating ? "cursor-not-allowed opacity-50" : ""}`}
             >
               <Pin className="size-4" aria-hidden="true" /> แก้ไขขอบเขต
             </Link>
             <button
               onClick={() => setEditing(true)}
-              className="flex h-10 flex-1 cursor-pointer items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-border bg-card px-4 text-sm font-semibold text-foreground transition-colors hover:bg-muted/60 md:flex-initial"
+              disabled={estimating}
+              className="flex h-10 flex-1 cursor-pointer items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-border bg-card px-4 text-sm font-semibold text-foreground transition-colors hover:bg-muted/60 disabled:cursor-not-allowed disabled:opacity-50 md:flex-initial"
             >
               <Pencil className="size-4" aria-hidden="true" /> แก้ไข
             </button>
             <button
               onClick={() => setConfirmingDelete(true)}
-              className="flex h-10 flex-1 cursor-pointer items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-destructive/30 bg-destructive/5 px-4 text-sm font-semibold text-destructive transition-colors hover:bg-destructive/10 md:flex-initial"
+              disabled={estimating}
+              className="flex h-10 flex-1 cursor-pointer items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-destructive/30 bg-destructive/5 px-4 text-sm font-semibold text-destructive transition-colors hover:bg-destructive/10 disabled:cursor-not-allowed disabled:opacity-50 md:flex-initial"
             >
               <Trash2 className="size-4" aria-hidden="true" /> ลบ
             </button>
@@ -429,7 +474,15 @@ export default function PlotDetailPage() {
       </div>
 
       {editing && (
-        <EditPlotModal plot={plot} index={plotIndex + 1} onClose={() => setEditing(false)} onSave={handleUpdatePlot} isMobile={isMobile} />
+        <EditPlotModal
+          plot={plot}
+          index={plotIndex + 1}
+          onClose={() => setEditing(false)}
+          onSave={handleUpdatePlot}
+          onSaveAndProcess={handleSaveAndProcess}
+          processing={estimating}
+          isMobile={isMobile}
+        />
       )}
 
       {confirmingDelete && (
@@ -457,6 +510,26 @@ export default function PlotDetailPage() {
                 <i className="bi bi-trash3-fill" /> ยืนยัน
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {errorModalMsg && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 20, animation: "fadeIn 0.2s" }}>
+          <div style={{ background: "#fff", padding: "24px", borderRadius: 20, maxWidth: 360, width: "100%", textAlign: "center", boxShadow: "0 20px 40px rgba(0,0,0,0.2)", animation: "scaleUp 0.2s" }}>
+            <div style={{ width: 60, height: 60, borderRadius: "50%", background: "#fee2e2", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
+              <i className="bi bi-exclamation-triangle" style={{ fontSize: 30, color: "#ef4444" }} />
+            </div>
+            <h3 style={{ margin: "0 0 10px 0", fontSize: 18, fontWeight: 800, color: "#1e293b" }}>เกิดข้อผิดพลาด</h3>
+            <p style={{ margin: "0 0 20px 0", fontSize: 14, color: "#64748b", lineHeight: 1.5 }}>
+              {errorModalMsg}
+            </p>
+            <button
+              onClick={() => setErrorModalMsg(null)}
+              style={{ width: "100%", padding: "12px", background: "#ef4444", color: "#fff", border: "none", borderRadius: 12, fontSize: 15, fontWeight: 700, cursor: "pointer" }}
+            >
+              ตกลง
+            </button>
           </div>
         </div>
       )}

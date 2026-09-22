@@ -21,7 +21,7 @@ const CURRENT_BE_YEAR = new Date().getFullYear() + 543;
 const NEW_YEAR_OPTIONS = Array.from({ length: 4 }, (_, i) => String(CURRENT_BE_YEAR + i));
 const OLD_YEAR_OPTIONS = Array.from({ length: CURRENT_BE_YEAR - 2534 + 1 }, (_, i) => String(CURRENT_BE_YEAR - i));
 
-export function EditPlotModal({ plot, index, onClose, onSave, isMobile }: { plot: SavedPlot; index: number; onClose: () => void; onSave: (p: SavedPlot) => void; isMobile: boolean }) {
+export function EditPlotModal({ plot, index, onClose, onSave, onSaveAndProcess, processing, isMobile }: { plot: SavedPlot; index: number; onClose: () => void; onSave: (p: SavedPlot) => void; onSaveAndProcess?: (p: SavedPlot) => void; processing?: boolean; isMobile: boolean }) {
   const form = plot.backendData?.form;
   const isUserYear = !!form?.plantYear;
   const isUserTrees = !!form?.treeCount;
@@ -42,7 +42,7 @@ export function EditPlotModal({ plot, index, onClose, onSave, isMobile }: { plot
     allometry: form?.allometry || "",
   });
 
-  const handleSave = () => {
+  const buildUpdatedPlot = (): SavedPlot => {
     // Current year BE to calculate age
     const currentBE = new Date().getFullYear() + 543;
     let ageNum = 0;
@@ -92,7 +92,7 @@ export function EditPlotModal({ plot, index, onClose, onSave, isMobile }: { plot
     // If carbon-affecting fields changed, mark as needing reprocessing.
     // Do NOT recalculate locally — wait for the user to hit "ประมวลผล" to get
     // accurate backend results.
-    onSave({
+    return {
       ...plot,
       name: formData.name,
       ownerName: formData.ownerName,
@@ -115,8 +115,11 @@ export function EditPlotModal({ plot, index, onClose, onSave, isMobile }: { plot
         // Clear stale backend ep data so the details panel doesn't show old results
         ep: carbonFieldsChanged ? null : (plot.backendData?.ep ?? null),
       }
-    });
+    };
   };
+
+  const handleSaveClick = () => onSave(buildUpdatedPlot());
+  const handleSaveAndProcessClick = () => onSaveAndProcess?.(buildUpdatedPlot());
 
   const fieldLabel = (icon: string, text: React.ReactNode) => (
     <label className={styles.fieldLabel}>
@@ -270,14 +273,31 @@ export function EditPlotModal({ plot, index, onClose, onSave, isMobile }: { plot
         <div className={`${styles.footer} ${isMobile ? styles.footerMobile : ""}`}>
           <button
             onClick={onClose}
-            className={styles.btnCancel}
+            disabled={processing}
+            className={`${styles.btnCancel} ${processing ? styles.btnDisabled : ""}`}
           >ยกเลิก</button>
           <button
-            onClick={handleSave}
-            className={styles.btnSave}
+            onClick={handleSaveClick}
+            disabled={processing}
+            className={`${styles.btnSave} ${processing ? styles.btnDisabled : ""}`}
+            title="บันทึกข้อมูล โดยยังไม่ประมวลผลคาร์บอนใหม่"
           >
             <i className="bi bi-floppy-disk" /> บันทึก
           </button>
+          {onSaveAndProcess && (
+            <button
+              onClick={handleSaveAndProcessClick}
+              disabled={processing}
+              className={`${styles.btnSaveProcess} ${processing ? styles.btnDisabled : ""}`}
+              title="บันทึกและประมวลผลคาร์บอนใหม่ทันที"
+            >
+              {processing ? (
+                <><i className={`bi bi-arrow-repeat ${styles.spinIcon}`} /> กำลังประมวลผล...</>
+              ) : (
+                <><i className="bi bi-lightning-charge-fill" /> บันทึกและประมวลผล</>
+              )}
+            </button>
+          )}
         </div>
       </div>
     </div>
