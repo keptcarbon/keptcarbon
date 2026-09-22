@@ -1952,7 +1952,7 @@ export default function RndDataManagementPage() {
                     )}
 
                     {/* ── Step navigation ── */}
-                    <div className="d-flex justify-content-between mt-4">
+                    <div className="d-flex justify-content-between gap-3 mt-4">
                         <button
                             onClick={() => setImportStep((s) => (s > 1 ? ((s - 1) as ImportStep) : s))}
                             disabled={importStep === 1}
