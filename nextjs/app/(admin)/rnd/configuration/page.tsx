@@ -562,18 +562,29 @@ export default function RndConfigurationPage() {
                             กำลังโหลด…
                         </div>
                     ) : (
-                        <div className="table-responsive">
-                            <table className="table align-middle mb-0" style={{ fontSize: 13 }}>
-                                <thead style={{ background: "#f8fbf9" }}>
-                                    <tr>
-                                        <th className="px-4 py-2" style={{ fontWeight: 700, fontSize: 12, color: "#5a7a65", textTransform: "uppercase" }}>ระบบระยะปลูก</th>
-                                        <th className="py-2" style={{ fontWeight: 700, fontSize: 12, color: "#5a7a65", textTransform: "uppercase" }}>ความหนาแน่น (ต้น/เฮกตาร์)</th>
-                                        <th className="py-2" style={{ fontWeight: 700, fontSize: 12, color: "#5a7a65", textTransform: "uppercase" }}>ความหนาแน่น (ต้น/ไร่)</th>
-                                        <th className="py-2" style={{ fontWeight: 700, fontSize: 12, color: "#5a7a65", textTransform: "uppercase" }}>คำอธิบาย</th>
-                                        <th className="py-2 pe-4 text-end" style={{ fontWeight: 700, fontSize: 12, color: "#5a7a65", textTransform: "uppercase" }}>จัดการ</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
+                        <>
+                            <div className="d-md-none px-4 py-2 d-flex justify-content-center align-items-center gap-1" style={{ background: "#f4f9f6", color: "#1e7a47", fontSize: 12.5, fontWeight: 600, borderBottom: "1px solid #e6f0ea" }}>
+                                <span style={{ color: "#dc2626" }}>*</span>
+                                <i className="bi bi-arrows-move" /> เลื่อนตาราง ซ้าย-ขวา / ขึ้น-ลง ได้
+                            </div>
+                            <div 
+                                className="table-responsive" 
+                                style={{ 
+                                    maxHeight: "450px", 
+                                    overflow: "auto"
+                                }}
+                            >
+                                <table className="table align-middle mb-0" style={{ fontSize: 13, minWidth: 700 }}>
+                                    <thead style={{ position: "sticky", top: 0, zIndex: 10, background: "#f8fbf9", boxShadow: "0 2px 4px rgba(0,0,0,0.04)" }}>
+                                        <tr>
+                                            <th className="px-4 py-2" style={{ fontWeight: 700, fontSize: 12, color: "#5a7a65", textTransform: "uppercase", borderBottom: "none" }}>ระบบระยะปลูก</th>
+                                            <th className="py-2" style={{ fontWeight: 700, fontSize: 12, color: "#5a7a65", textTransform: "uppercase", borderBottom: "none" }}>ความหนาแน่น (ต้น/เฮกตาร์)</th>
+                                            <th className="py-2" style={{ fontWeight: 700, fontSize: 12, color: "#5a7a65", textTransform: "uppercase", borderBottom: "none" }}>ความหนาแน่น (ต้น/ไร่)</th>
+                                            <th className="py-2" style={{ fontWeight: 700, fontSize: 12, color: "#5a7a65", textTransform: "uppercase", borderBottom: "none" }}>คำอธิบาย</th>
+                                            <th className="py-2 pe-4 text-end" style={{ fontWeight: 700, fontSize: 12, color: "#5a7a65", textTransform: "uppercase", borderBottom: "none" }}>จัดการ</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
                                     {treeDensities.map((row) => (
                                         <tr key={row.id}>
                                             <td className="px-4 py-2" style={{ width: "18%" }}>
@@ -683,6 +694,7 @@ export default function RndConfigurationPage() {
                                 </div>
                             )}
                         </div>
+                        </>
                     )}
                 </div>
             )}
