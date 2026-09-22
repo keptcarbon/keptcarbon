@@ -313,6 +313,15 @@ export default function RndDataManagementPage() {
     const [success, setSuccess] = useState<string | null>(null);
     const [pendingDelete, setPendingDelete] = useState<ResearchDataset | null>(null);
 
+    // ── Responsive: ตรวจจับขนาดหน้าจอ <= 639px สำหรับ Stepper ──
+    const [isMobile, setIsMobile] = useState(false);
+    useEffect(() => {
+        const check = () => setIsMobile(window.innerWidth <= 639);
+        check();
+        window.addEventListener("resize", check);
+        return () => window.removeEventListener("resize", check);
+    }, []);
+
     // ── Import wizard state ──
     const [importStep, setImportStep] = useState<ImportStep>(1);
     const [importRegion, setImportRegion] = useState("");
@@ -1410,35 +1419,57 @@ export default function RndDataManagementPage() {
 
             {activeTab === "import" && (
                 <div style={{ background: "#fff", border: "1px solid #e6f0ea", borderRadius: 16, padding: "32px 40px", maxWidth: 640, margin: "0 auto" }}>
-                    {/* ── Step indicator ── */}
-                    <div className="d-flex align-items-start justify-content-center mb-4">
-                        {IMPORT_STEPS.map((s, i) => (
-                            <div key={s.step} className="d-flex align-items-start">
-                                <div className="d-flex flex-column align-items-center" style={{ minWidth: 100 }}>
-                                    <div style={{
-                                        width: 34, height: 34, borderRadius: "50%",
-                                        display: "flex", alignItems: "center", justifyContent: "center",
-                                        fontWeight: 700, fontSize: 14,
-                                        background: importStep >= s.step ? "#1e7a47" : "#f1f6f3",
-                                        color: importStep >= s.step ? "#fff" : "#5a7a65",
-                                        boxShadow: importStep === s.step ? "0 0 0 4px #d7f0e1" : "none",
-                                        transition: "all 0.15s ease",
-                                    }}>
-                                        {importStep > s.step ? <i className="bi bi-check-lg" /> : s.step}
+                    {/* ── Step indicator: สลับระหว่าง Desktop/Mobile ด้วย isMobile state ── */}
+                    {!isMobile ? (
+                        /* Desktop View (> 639px): UI เดิมเป๊ะ */
+                        <div className="d-flex align-items-start justify-content-center mb-4">
+                            {IMPORT_STEPS.map((s, i) => (
+                                <div key={s.step} className="d-flex align-items-start">
+                                    <div className="d-flex flex-column align-items-center" style={{ minWidth: 100 }}>
+                                        <div style={{
+                                            width: 34, height: 34, borderRadius: "50%",
+                                            display: "flex", alignItems: "center", justifyContent: "center",
+                                            fontWeight: 700, fontSize: 14,
+                                            background: importStep >= s.step ? "#1e7a47" : "#f1f6f3",
+                                            color: importStep >= s.step ? "#fff" : "#5a7a65",
+                                            boxShadow: importStep === s.step ? "0 0 0 4px #d7f0e1" : "none",
+                                            transition: "all 0.15s ease",
+                                        }}>
+                                            {importStep > s.step ? <i className="bi bi-check-lg" /> : s.step}
+                                        </div>
+                                        <div style={{
+                                            fontSize: 12, marginTop: 6, fontWeight: 600, textAlign: "center",
+                                            color: importStep >= s.step ? "#1a3d2b" : "#94a3b8",
+                                        }}>
+                                            {s.label}
+                                        </div>
                                     </div>
-                                    <div style={{
-                                        fontSize: 12, marginTop: 6, fontWeight: 600, textAlign: "center",
-                                        color: importStep >= s.step ? "#1a3d2b" : "#94a3b8",
-                                    }}>
-                                        {s.label}
-                                    </div>
+                                    {i < IMPORT_STEPS.length - 1 && (
+                                        <div style={{ width: 48, height: 2, background: importStep > s.step ? "#1e7a47" : "#e6f0ea", marginTop: 16 }} />
+                                    )}
                                 </div>
-                                {i < IMPORT_STEPS.length - 1 && (
-                                    <div style={{ width: 48, height: 2, background: importStep > s.step ? "#1e7a47" : "#e6f0ea", marginTop: 16 }} />
-                                )}
+                            ))}
+                        </div>
+                    ) : (
+                        /* Mobile View (<= 639px): วงกลมตัวเลข + ข้อความใต้ */
+                        <div className="d-flex flex-column align-items-center mb-4">
+                            <div style={{
+                                width: 38, height: 38, borderRadius: "50%",
+                                display: "flex", alignItems: "center", justifyContent: "center",
+                                fontWeight: 700, fontSize: 16,
+                                background: "#1e7a47", color: "#fff",
+                                boxShadow: "0 0 0 4px #d7f0e1",
+                            }}>
+                                {importStep}
                             </div>
-                        ))}
-                    </div>
+                            <div style={{ fontSize: 11.5, fontWeight: 600, color: "#5a7a65", marginTop: 4 }}>
+                                ขั้นตอนที่ {importStep} จาก {IMPORT_STEPS.length}
+                            </div>
+                            <div style={{ fontSize: 14, fontWeight: 700, color: "#1a3d2b" }}>
+                                {IMPORT_STEPS.find((s) => s.step === importStep)?.label}
+                            </div>
+                        </div>
+                    )}
 
                     {/* ── Step 1: province ── */}
                     {importStep === 1 && (
