@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState,useRef } from "react";
 import { fromArrayBuffer, GeoTIFFImage } from "geotiff";
 import initSqlJs from "sql.js";
 import { Alert, Card } from "@/app/components";
@@ -331,6 +331,10 @@ export default function RndDataManagementPage() {
     const [importLuYear, setImportLuYear] = useState("");
     const [importFile, setImportFile] = useState<File | null>(null);
     const [importing, setImporting] = useState(false);
+    // Ref guard: prevents duplicate concurrent submissions even if state update
+    // hasn't flushed yet (React batching). importingRef.current is set to true
+    // synchronously at the top of handleConfirmImport and cleared in finally.
+    const importingRef = useRef(false);
     const [confirmError, setConfirmError] = useState<string | null>(null);
     const [fileMeta, setFileMeta] = useState<FileMeta | null>(null);
     const [fileMetaLoading, setFileMetaLoading] = useState(false);
@@ -912,6 +916,10 @@ export default function RndDataManagementPage() {
     async function handleConfirmImport() {
         if (!selectedProvince || !importCategory || !importFile || (versionApplicable && !importVersion.trim())) return;
         if (importCategory === "planting_year_distribution" && (!importPlantingYear.trim() || !importLuYear.trim())) return;
+        // Synchronous guard: prevents a second call even before React re-renders
+        // the button as disabled (covers fast double-clicks and React batching edge cases).
+        if (importingRef.current) return;
+        importingRef.current = true;
         setConfirmError(null);
         setImporting(true);
 
@@ -921,6 +929,7 @@ export default function RndDataManagementPage() {
             if (fileMeta?.kind !== "tiff" || !fileMeta.crsValid || !fileMeta.noDataValid || !fileMeta.pixelSizeValid || yearExists !== false) {
                 setConfirmError("ไฟล์ยังไม่ผ่านเงื่อนไข CRS/No-Data/Pixel Size หรือจังหวัด+ปีนี้มีข้อมูลอยู่แล้ว ย้อนกลับไปตรวจสอบข้อมูลอีกครั้ง");
                 setImporting(false);
+                importingRef.current = false;
                 return;
             }
             // Real import — persisted into geo_planting_year via PostGIS.
@@ -931,6 +940,9 @@ export default function RndDataManagementPage() {
                 body.set("year", importVersion.trim());
 
                 const res = await fetch("/api/rnd/geo-planting-year", { method: "POST", body });
+                if (res.status === 409) {
+                    throw new Error("ไฟล์นี้มีข้อมูลซ้ำในระบบแล้ว กรุณาตรวจสอบ");
+                }
                 const data = await res.json().catch(() => ({}));
                 if (!res.ok) {
                     throw new Error(data.error || "นำเข้าไฟล์ไม่สำเร็จ");
@@ -955,6 +967,7 @@ export default function RndDataManagementPage() {
                 setConfirmError(err instanceof Error ? err.message : "นำเข้าไฟล์ไม่สำเร็จ");
             } finally {
                 setImporting(false);
+                importingRef.current = false;
             }
             return;
         }
@@ -965,6 +978,7 @@ export default function RndDataManagementPage() {
             if (fileMeta?.kind !== "gpkg" || !fileMeta.crsValid || !fileMeta.schemaValid || yearExists !== false) {
                 setConfirmError("ไฟล์ยังไม่ผ่านการตรวจสอบ CRS/โครงสร้างฟิลด์ หรือจังหวัด+ปีนี้มีข้อมูลอยู่แล้ว ย้อนกลับไปตรวจสอบข้อมูลอีกครั้ง");
                 setImporting(false);
+                importingRef.current = false;
                 return;
             }
             try {
@@ -974,6 +988,9 @@ export default function RndDataManagementPage() {
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ pCode: selectedProvince.pCode, year: Number(importVersion.trim()), rows }),
                 });
+                if (res.status === 409) {
+                    throw new Error("ไฟล์นี้มีข้อมูลซ้ำในระบบแล้ว กรุณาตรวจสอบ");
+                }
                 const data = await res.json().catch(() => ({}));
                 if (!res.ok) {
                     throw new Error(data.error || "นำเข้าไฟล์ไม่สำเร็จ");
@@ -998,6 +1015,7 @@ export default function RndDataManagementPage() {
                 setConfirmError(err instanceof Error ? err.message : "นำเข้าไฟล์ไม่สำเร็จ");
             } finally {
                 setImporting(false);
+                importingRef.current = false;
             }
             return;
         }
@@ -1008,11 +1026,13 @@ export default function RndDataManagementPage() {
             if (fileMeta?.kind !== "csv" || !fileMeta.columnsValid) {
                 setConfirmError("ไฟล์ยังไม่ผ่านเงื่อนไขคอลัมน์ ย้อนกลับไปตรวจสอบข้อมูลอีกครั้ง");
                 setImporting(false);
+                importingRef.current = false;
                 return;
             }
             try {
                 const rows = await extractPlantingYearDistRows(importFile, fileMeta.headers);
-                const res = await fetch("/api/rnd/planting-year-dist", {
+                // Added trailing slash to prevent 308 redirect
+                const res = await fetch("/api/rnd/planting-year-dist/", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
@@ -1022,6 +1042,9 @@ export default function RndDataManagementPage() {
                         rows,
                     }),
                 });
+                if (res.status === 409) {
+                    throw new Error("ไฟล์นี้มีข้อมูลซ้ำในระบบแล้ว กรุณาตรวจสอบ");
+                }
                 const data = await res.json().catch(() => ({}));
                 if (!res.ok) {
                     throw new Error(data.error || "นำเข้าไฟล์ไม่สำเร็จ");
@@ -1046,6 +1069,7 @@ export default function RndDataManagementPage() {
                 setConfirmError(err instanceof Error ? err.message : "นำเข้าไฟล์ไม่สำเร็จ");
             } finally {
                 setImporting(false);
+                importingRef.current = false;
             }
             return;
         }
@@ -1057,6 +1081,7 @@ export default function RndDataManagementPage() {
         if (fileMeta?.kind !== "csv" || !fileMeta.columnsValid || !fileMeta.rowCountValid) {
             setConfirmError("ไฟล์ยังไม่ผ่านเงื่อนไขคอลัมน์/จำนวนแถว ย้อนกลับไปตรวจสอบข้อมูลอีกครั้ง");
             setImporting(false);
+            importingRef.current = false;
             return;
         }
         try {
@@ -1073,6 +1098,9 @@ export default function RndDataManagementPage() {
                     rows,
                 }),
             });
+            if (res.status === 409) {
+                throw new Error("ไฟล์นี้มีข้อมูลซ้ำในระบบแล้ว กรุณาตรวจสอบ");
+            }
             const data = await res.json().catch(() => ({}));
             if (!res.ok) {
                 throw new Error(data.error || "นำเข้าไฟล์ไม่สำเร็จ");
@@ -1097,6 +1125,7 @@ export default function RndDataManagementPage() {
             setConfirmError(err instanceof Error ? err.message : "นำเข้าไฟล์ไม่สำเร็จ");
         } finally {
             setImporting(false);
+            importingRef.current = false;
         }
     }
 
