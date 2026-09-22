@@ -1662,13 +1662,13 @@ export default function RndDataManagementPage() {
                                         display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
                                         gap: 6, padding: "28px 16px", borderRadius: 12,
                                         border: "1.5px dashed #cfe4d8", background: "#f8fbf9",
-                                        cursor: "pointer", textAlign: "center",
+                                        cursor: "pointer", textAlign: "center", width: "100%", overflow: "hidden"
                                     }}
                                 >
                                     <i className="bi bi-cloud-arrow-up" style={{ fontSize: 26, color: "#1e7a47" }} />
                                     {importFile ? (
                                         <>
-                                            <span style={{ fontSize: 13.5, fontWeight: 600, color: "#1a3d2b" }}>{importFile.name}</span>
+                                            <span style={{ fontSize: 13.5, fontWeight: 600, color: "#1a3d2b", wordBreak: "break-all" }}>{importFile.name}</span>
                                             {(importCategory === "planting_year_map" || importCategory === "lulc_map") && (
                                                 <span style={{ fontSize: 12, color: fileMetaError ? "#c53030" : "#94a3b8" }}>
                                                     {fileMetaLoading ? "กำลังอ่าน metadata ของไฟล์…" : fileMetaError ? fileMetaError : fileMeta ? "อ่าน metadata สำเร็จ" : ""}
@@ -1706,11 +1706,11 @@ export default function RndDataManagementPage() {
                                 {reviewRows.map((row, i) => (
                                     <div
                                         key={row.label}
-                                        className="d-flex justify-content-between"
-                                        style={{ padding: "12px 16px", borderTop: i === 0 ? "none" : "1px solid #f1f5f9" }}
+                                        className="d-flex flex-column flex-sm-row justify-content-sm-between align-items-start align-items-sm-center"
+                                        style={{ padding: "12px 16px", borderTop: i === 0 ? "none" : "1px solid #f1f5f9", gap: "4px" }}
                                     >
-                                        <span style={{ fontSize: 13, color: "#5a7a65" }}>{row.label}</span>
-                                        <span style={{ fontSize: 13, fontWeight: 600, color: "#1a3d2b" }}>{row.value}</span>
+                                        <span style={{ fontSize: 13, color: "#5a7a65", flexShrink: 0 }}>{row.label}</span>
+                                        <span style={{ fontSize: 13, fontWeight: 600, color: "#1a3d2b", wordBreak: "break-all", textAlign: "left" }} className="text-sm-end">{row.value}</span>
                                     </div>
                                 ))}
                             </div>
@@ -1730,12 +1730,19 @@ export default function RndDataManagementPage() {
                                                     </tr>
                                                 </thead>
                                                 <tbody>
-                                                    {fileMeta.fields.map((field) => (
-                                                        <tr key={field.name}>
-                                                            <td className="px-3 py-2" style={{ color: "#1a3d2b" }}>{field.name}</td>
-                                                            <td className="px-3 py-2" style={{ color: "#5a7a65" }}>{field.type || "-"}</td>
-                                                        </tr>
-                                                    ))}
+                                                    {fileMeta.fields.map((f) => {
+                                                        const isMissing = !(LULC_REQUIRED_FIELDS as readonly string[]).includes(f.name) && fileMeta.missingFields.includes(f.name);
+                                                        return (
+                                                            <tr key={f.name}>
+                                                                <td className="px-3 py-2" style={{ color: isMissing ? "#dc2626" : "#1a3d2b", fontWeight: 500 }}>
+                                                                    {f.name} {isMissing && <span style={{ fontSize: 11, color: "#ef4444" }}>(ขาด/ผิด)</span>}
+                                                                </td>
+                                                                <td className="px-3 py-2" style={{ color: "#5a7a65", fontFamily: "monospace" }}>
+                                                                    {f.type}
+                                                                </td>
+                                                            </tr>
+                                                        );
+                                                    })}
                                                 </tbody>
                                             </table>
                                         </div>
@@ -1754,7 +1761,9 @@ export default function RndDataManagementPage() {
                                                 <thead style={{ background: "#f8fbf9" }}>
                                                     <tr>
                                                         {fileMeta.headers.map((header, i) => (
-                                                            <th key={i} className="px-3 py-2" style={TH_STYLE}>{header}</th>
+                                                            <th key={i} className="px-3 py-2 text-nowrap" style={TH_STYLE}>
+                                                                {header}
+                                                            </th>
                                                         ))}
                                                     </tr>
                                                 </thead>
@@ -1762,7 +1771,9 @@ export default function RndDataManagementPage() {
                                                     {fileMeta.sampleRows.map((row, i) => (
                                                         <tr key={i}>
                                                             {row.map((cell, j) => (
-                                                                <td key={j} className="px-3 py-2" style={{ color: "#1a3d2b" }}>{cell || "-"}</td>
+                                                                <td key={j} className="px-3 py-2 text-nowrap" style={{ color: "#1a3d2b" }}>
+                                                                    {cell || "-"}
+                                                                </td>
                                                             ))}
                                                         </tr>
                                                     ))}
@@ -1775,8 +1786,8 @@ export default function RndDataManagementPage() {
 
                             {fileDebug && (
                                 <details className="mt-3">
-                                    <summary style={{ fontSize: 12, color: "#94a3b8", cursor: "pointer" }}>
-                                        Metadata ที่อ่านได้จากไฟล์
+                                    <summary style={{ fontSize: 12, color: "#64748b", cursor: "pointer", userSelect: "none" }}>
+                                        Show raw debug info
                                     </summary>
                                     <pre style={{
                                         marginTop: 8, padding: 12, borderRadius: 8,
@@ -1800,7 +1811,7 @@ export default function RndDataManagementPage() {
                             }}>
                                 <i className="bi bi-upload" />
                             </div>
-                            <h3 className="fw-bold mb-2" style={{ fontSize: 18, color: "#1a3d2b" }}>
+                            <h3 className="fw-bold mb-2" style={{ fontSize: 18, color: "#1a3d2b", wordBreak: "break-all" }}>
                                 พร้อมนำเข้า &ldquo;{importFile?.name}&rdquo;
                             </h3>
                             {importCategory === "lulc_map" && (
