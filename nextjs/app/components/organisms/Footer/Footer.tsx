@@ -52,9 +52,9 @@ export default function Footer() {
     <footer id="footer" className="border-t border-border bg-white">
       <div className="mx-auto max-w-8xl px-6 py-8 md:py-12">
         {/* Main grid */}
-        <div className="grid grid-cols-2 gap-x-6 gap-y-10 md:grid-cols-4 md:gap-8">
+        <div className="grid grid-cols-1 gap-y-10 sm:grid-cols-2 sm:gap-x-6 md:grid-cols-4 md:gap-8">
           {/* Brand */}
-          <div className="col-span-2">
+          <div className="sm:col-span-2">
             <Link href="/" className="inline-flex items-center gap-2.5 no-underline">
               <Image
                 src="/assets/img/keptcarbon-logo.png"
@@ -114,7 +114,7 @@ export default function Footer() {
               <li>
                 <a
                   href="mailto:keptcarbon@gmail.com"
-                  className="flex items-center gap-2.5 text-base text-slate-500 no-underline transition-colors hover:text-emerald-600"
+                  className="flex items-center gap-1.5 sm:gap-2.5 text-sm sm:text-base text-slate-500 no-underline transition-colors hover:text-emerald-600"
                 >
                   <Mail className="size-4 shrink-0" aria-hidden="true" />
                   keptcarbon@gmail.com
