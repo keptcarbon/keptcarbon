@@ -82,12 +82,19 @@ const UPSERT_PROJECT_SQL = `
     updated_at   = EXCLUDED.updated_at
 `;
 
+/** Plot info (owner name, land title no.) -- free text, max 100 chars, blank -> NULL. */
+function normalizePlotNote(raw: unknown): string | null {
+  if (typeof raw !== "string") return null;
+  const v = raw.trim().slice(0, 100);
+  return v || null;
+}
+
 const UPSERT_PLOT_SQL = `
   INSERT INTO tbl_plots (
     project_id, polygon_id, geometry, area_m2, province_code,
     status, status_code, message,
     year_of_planting, rubber_clone, tree_count, spacing_system, project_type,
-    selected_lu_classes, owner_name, growth_model, allometry, deleted_at
+    selected_lu_classes, plot_note, growth_model, allometry, deleted_at
   )
   VALUES (
     $1, $2,
@@ -108,7 +115,9 @@ const UPSERT_PLOT_SQL = `
     spacing_system        = COALESCE(EXCLUDED.spacing_system, tbl_plots.spacing_system),
     project_type          = COALESCE(EXCLUDED.project_type, tbl_plots.project_type),
     selected_lu_classes   = COALESCE($14::text[], tbl_plots.selected_lu_classes),
-    owner_name            = COALESCE(EXCLUDED.owner_name, tbl_plots.owner_name),
+    -- $18: the save sent a plotNote string, so it's authoritative even
+    -- when blank (the user cleared it); otherwise keep the stored value.
+    plot_note             = CASE WHEN $18::boolean THEN EXCLUDED.plot_note ELSE tbl_plots.plot_note END,
     growth_model          = COALESCE(EXCLUDED.growth_model, tbl_plots.growth_model),
     allometry             = COALESCE(EXCLUDED.allometry, tbl_plots.allometry),
     deleted_at            = NULL
@@ -159,9 +168,10 @@ async function upsertPlots(
       payload?.spacing_system ?? null,
       payload?.project_type ?? null,
       selectedLuClasses,
-      fp?.ownerName || null,
+      normalizePlotNote(fp?.plotNote),
       payload?.growth_model ?? null,
       payload?.allometry ?? null,
+      typeof fp?.plotNote === "string",
     ]);
   }
 

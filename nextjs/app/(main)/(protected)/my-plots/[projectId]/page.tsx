@@ -1,11 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import Link from "next/link";
 import {
-  Plus, ChevronLeft, ChevronRight, Map as MapIcon, LayoutGrid, Sparkles, Loader2, Check, Clock,
+  Plus, ChevronLeft, ChevronRight, Map as MapIcon, LayoutGrid, Sparkles, Loader2, Check, Clock, Eye, Search, X,
 } from "lucide-react";
 import { assessCarbon } from "@/lib/carbon-api";
 import type { SavedPlot } from "../types";
@@ -31,6 +31,7 @@ export default function ProjectDetailPage() {
   const [loading, setLoading] = useState(true);
   const [estimating, setEstimating] = useState(false);
   const [page, setPage] = useState(1);
+  const [searchTerm, setSearchTerm] = useState("");
   const [errorModalMsg, setErrorModalMsg] = useState<string | null>(null);
 
   const isAdmin = user?.role === "admin";
@@ -66,12 +67,31 @@ export default function ProjectDetailPage() {
     fetchPlots();
   }, [fetchPlots]);
 
-  const totalPages = Math.max(1, Math.ceil(plots.length / PAGE_SIZE));
+  useEffect(() => {
+    setPage(1);
+  }, [searchTerm]);
+
+  // Keep each plot's original position so the # column (and "แปลงที่ N" on the
+  // plot page) stays stable while filtering.
+  const filteredPlots = useMemo(() => {
+    const indexed = plots.map((plot, idx) => ({ plot, no: idx + 1 }));
+    const term = searchTerm.toLowerCase().trim();
+    if (!term) return indexed;
+    return indexed.filter(({ plot, no }) =>
+      String(no) === term ||
+      (plot.plotNote ?? "").toLowerCase().includes(term) ||
+      formatPlotLocation(plot).toLowerCase().includes(term) ||
+      plantStatusLabel(plot.plantStatus).includes(term) ||
+      (isPlotProcessed(plot) ? "ประมวลผลแล้ว" : "ยังไม่ประมวลผล").includes(term)
+    );
+  }, [plots, searchTerm]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredPlots.length / PAGE_SIZE));
   useEffect(() => {
     if (page > totalPages) setPage(totalPages);
   }, [page, totalPages]);
 
-  const paginatedPlots = plots.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const paginatedPlots = filteredPlots.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   const projectName = plots[0]?.name || "ไม่มีชื่อโครงการ";
   const totalAreaRai = plots.reduce((s, p) => s + (p.areaRai || 0), 0);
@@ -199,15 +219,49 @@ export default function ProjectDetailPage() {
               <div className="flex flex-col gap-4">
                 <ProjectCarbonSummary plots={plots} isMobile={isMobile} />
 
+                {/* Search -- same look as the project list's search bar */}
+                <div className="flex items-center gap-3 rounded-xl border border-border bg-card p-3 shadow-sm">
+                  <div className="relative min-w-0 flex-1">
+                    <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+                    <input
+                      type="text"
+                      placeholder="ค้นหาข้อมูลแปลง, ที่ตั้ง, สถานะ..."
+                      value={searchTerm}
+                      onChange={e => setSearchTerm(e.target.value)}
+                      className="h-10 w-full rounded-lg border border-input bg-background pl-9 pr-9 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/15"
+                    />
+                    {searchTerm && (
+                      <button onClick={() => setSearchTerm("")} aria-label="ล้างการค้นหา" className="absolute right-2.5 top-1/2 -translate-y-1/2 cursor-pointer border-0 bg-transparent p-1 text-muted-foreground transition-colors hover:text-foreground">
+                        <X className="size-4" aria-hidden="true" />
+                      </button>
+                    )}
+                  </div>
+                  {searchTerm && (
+                    <span className="shrink-0 text-sm text-muted-foreground">พบ {filteredPlots.length.toLocaleString("th-TH")}</span>
+                  )}
+                </div>
+
                 {/* Plot list — paginated table (lightweight rows; the map + carbon
                    graph for a plot only render on its own dashboard page once
                    opened, so this stays fast even with 100+ plots). */}
+                {filteredPlots.length === 0 ? (
+                  <div className="rounded-xl border border-dashed border-border bg-card px-6 py-12 text-center text-sm text-muted-foreground">
+                    <Search className="mx-auto mb-1 mr-2 size-5 opacity-50" aria-hidden="true" />
+                    ไม่พบแปลงที่ตรงกับ &ldquo;<strong className="text-foreground">{searchTerm}</strong>&rdquo;
+                    <div>
+                      <button onClick={() => setSearchTerm("")} className="mt-3 cursor-pointer rounded-lg border border-primary/30 bg-primary/5 px-4 py-1.5 text-[13px] font-semibold text-primary transition-colors hover:bg-primary/10">
+                        ล้างการค้นหา
+                      </button>
+                    </div>
+                  </div>
+                ) : (
                 <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
                   <div className="overflow-x-auto">
                     <table className="w-full min-w-[640px] border-collapse text-sm">
                       <thead>
                         <tr className="border-b border-border bg-muted/40 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                           <th className="px-4 py-3">#</th>
+                          <th className="px-4 py-3">ข้อมูลแปลง</th>
                           <th className="px-4 py-3">ที่ตั้ง</th>
                           <th className="px-4 py-3 text-center">พื้นที่ (ไร่)</th>
                           <th className="px-4 py-3 text-center">สถานะแปลง</th>
@@ -216,9 +270,10 @@ export default function ProjectDetailPage() {
                         </tr>
                       </thead>
                       <tbody>
-                        {paginatedPlots.map((plot, i) => (
+                        {paginatedPlots.map(({ plot, no }) => (
                           <tr key={plot.id} className="border-b border-border/60 last:border-b-0 transition-colors hover:bg-muted/40">
-                            <td className="px-4 py-3 text-muted-foreground">{(page - 1) * PAGE_SIZE + i + 1}</td>
+                            <td className="px-4 py-3 text-muted-foreground">{no}</td>
+                            <td className="max-w-[220px] truncate px-4 py-3 text-foreground" title={plot.plotNote || undefined}>{plot.plotNote || <span className="text-muted-foreground">—</span>}</td>
                             <td className="px-4 py-3 text-foreground">{formatPlotLocation(plot) || <span className="text-muted-foreground">—</span>}</td>
                             <td className="px-4 py-3 text-center text-muted-foreground">{(plot.selectedAreaRai || plot.areaRai || 0).toFixed(2)}</td>
                             <td className="px-4 py-3 text-center text-muted-foreground">{plantStatusLabel(plot.plantStatus)}</td>
@@ -236,9 +291,11 @@ export default function ProjectDetailPage() {
                             <td className="px-4 py-3 text-right">
                               <Link
                                 href={`/my-plots/${projectId}/${encodeURIComponent(plot.id)}`}
-                                className="inline-flex h-9 cursor-pointer items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-border bg-card px-3.5 text-sm font-semibold text-foreground no-underline transition-colors hover:bg-muted/60"
+                                title="ดูข้อมูลแปลง"
+                                aria-label="ดูข้อมูลแปลง"
+                                className="inline-flex size-9 cursor-pointer items-center justify-center rounded-lg border border-border bg-card text-foreground no-underline transition-colors hover:bg-muted/60"
                               >
-                                ดูข้อมูลแปลง <ChevronRight className="size-4" aria-hidden="true" />
+                                <Eye className="size-4" aria-hidden="true" />
                               </Link>
                             </td>
                           </tr>
@@ -250,7 +307,7 @@ export default function ProjectDetailPage() {
                   {totalPages > 1 && (
                     <div className="flex items-center justify-between gap-3 border-t border-border px-4 py-3">
                       <span className="text-xs text-muted-foreground">
-                        หน้า {page} จาก {totalPages} ({plots.length.toLocaleString("th-TH")} แปลง)
+                        หน้า {page} จาก {totalPages} ({filteredPlots.length.toLocaleString("th-TH")} แปลง)
                       </span>
                       <div className="flex items-center gap-2">
                         <button
@@ -271,6 +328,7 @@ export default function ProjectDetailPage() {
                     </div>
                   )}
                 </div>
+                )}
               </div>
             )}
           </div>

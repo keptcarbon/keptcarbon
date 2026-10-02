@@ -671,7 +671,7 @@ function MapDrawContent() {
             geojson: f.geometry,
             province: plantationInfo[i].province_code || "",
             plantStatus: props.plantStatus || "",
-            ownerName: "",
+            plotNote: props.plotNote || props.backendData?.form?.plotNote || "",
           };
         });
 
@@ -3593,7 +3593,6 @@ function MapDrawContent() {
                 parcelFeatures={drawnParcels}
                 luFeatures={parcelFeatures}
                 rawPlantationInfo={rawPlantationInfo}
-                userDisplayName={user?.displayName ?? ""}
                 drawnGeometry={drawnGeometry}
                 onFlyTo={flyToFeature}
                 onReset={clearDraw}

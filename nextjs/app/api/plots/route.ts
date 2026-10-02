@@ -140,7 +140,7 @@ export async function GET(request: NextRequest) {
     if (searchParams.get("summary") === "true") {
       const summaryResult = await pool.query(
         `SELECT project_id, COUNT(*) AS plot_count, SUM(area_m2) AS total_area_m2,
-                MAX(owner_name) AS owner_name, MAX(province_code) AS province_code,
+                MAX(province_code) AS province_code,
                 COUNT(*) FILTER (
                   WHERE EXISTS (
                     SELECT 1 FROM tbl_plot_assessments a
@@ -154,6 +154,14 @@ export async function GET(request: NextRequest) {
       );
       const summaryByProjectId = new Map(summaryResult.rows.map(row => [row.project_id, row]));
 
+      // Project owner = the account (tbl_plots.plot_note is per-plot free-text
+      // plot info, not the account holder).
+      const ownerUuids = [...new Set(projectRows.map(row => row.user_uuid).filter(Boolean))];
+      const ownersResult = ownerUuids.length
+        ? await pool.query(`SELECT uuid, display_name FROM tbl_users WHERE uuid = ANY($1)`, [ownerUuids])
+        : { rows: [] as any[] };
+      const displayNameByUuid = new Map(ownersResult.rows.map(row => [row.uuid, row.display_name]));
+
       const projects = projectRows
         .map(row => {
           const s = summaryByProjectId.get(row.id);
@@ -164,7 +172,7 @@ export async function GET(request: NextRequest) {
             plotCount: Number(s.plot_count),
             totalArea: s.total_area_m2 != null ? Number(s.total_area_m2) / 1600 : 0,
             updatedAt: row.updated_at,
-            ownerName: s.owner_name ?? "",
+            ownerName: (row.user_uuid && displayNameByUuid.get(row.user_uuid)) || "",
             province: s.province_code ?? "",
             processed: Number(s.processed_count) === Number(s.plot_count),
           };
@@ -177,7 +185,7 @@ export async function GET(request: NextRequest) {
     const plotsResult = await pool.query(
       `SELECT id, project_id, polygon_id, ST_AsGeoJSON(geometry)::json AS geometry,
               area_m2, province_code, year_of_planting, rubber_clone, tree_count,
-              spacing_system, project_type, selected_lu_classes, owner_name,
+              spacing_system, project_type, selected_lu_classes, plot_note,
               growth_model, allometry, province_th, district_th, subdistrict_th,
               updated_at
        FROM tbl_plots
@@ -263,7 +271,7 @@ export async function GET(request: NextRequest) {
         spacing: pl.spacing_system ?? "",
         luChecked,
         plantStatus: pl.project_type ?? "",
-        ownerName: pl.owner_name ?? "",
+        plotNote: pl.plot_note ?? "",
         province: pl.province_code ?? "",
         provinceName: pl.province_th ?? "",
         district: pl.district_th ?? "",
@@ -287,6 +295,7 @@ export async function GET(request: NextRequest) {
             treeCount: pl.tree_count != null ? String(pl.tree_count) : "",
             variety: pl.rubber_clone ?? "",
             spacing: pl.spacing_system ?? "",
+            plotNote: pl.plot_note ?? "",
             growthModel: pl.growth_model ?? "",
             allometry: pl.allometry ?? "",
             luChecked,

@@ -100,4 +100,9 @@ BEGIN
     IF n > 0 THEN RAISE NOTICE '024_tbl_biomass_profile_backfill_versn RUN (% NULL-version rows)', n;
     ELSE          RAISE NOTICE '024_tbl_biomass_profile_backfill_versn DONE';  END IF;
   ELSE RAISE NOTICE '024_tbl_biomass_profile_backfill_versn RUN after 008/014';  END IF;
+
+  IF EXISTS (SELECT 1 FROM information_schema.columns
+             WHERE table_schema='public' AND table_name='tbl_plots' AND column_name='plot_note')
+  THEN RAISE NOTICE '028_rename_tbl_plots_owner_name_note .. DONE';
+  ELSE RAISE NOTICE '028_rename_tbl_plots_owner_name_note .. RUN (after 011)';  END IF;
 END $$;

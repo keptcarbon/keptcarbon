@@ -5,7 +5,7 @@ import { useAuth } from "@/lib/auth-context";
 import Link from "next/link";
 import {
   Plus, Search, X, Check, Trash2, ChevronLeft, ChevronRight,
-  User, Users, Loader2,
+  User, Users, Loader2, Eye,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { ProjectSummary } from "./types";
@@ -377,9 +377,11 @@ export default function MyPlotsPage() {
                                 href={`/my-plots/${s.dbProjectId}`}
                                 onClick={(e) => deleteMode && e.preventDefault()}
                                 aria-disabled={deleteMode}
-                                className={`inline-flex h-9 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-border bg-card px-3.5 text-sm font-semibold text-foreground no-underline transition-colors hover:bg-muted/60 ${deleteMode ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}
+                                title="ดูแปลงทั้งหมด"
+                                aria-label="ดูแปลงทั้งหมด"
+                                className={`inline-flex size-9 items-center justify-center rounded-lg border border-border bg-card text-foreground no-underline transition-colors hover:bg-muted/60 ${deleteMode ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}
                               >
-                                ดูแปลงทั้งหมด <ChevronRight className="size-4" aria-hidden="true" />
+                                <Eye className="size-4" aria-hidden="true" />
                               </Link>
                             </td>
                           </tr>

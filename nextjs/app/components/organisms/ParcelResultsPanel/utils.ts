@@ -9,7 +9,11 @@ export interface PlotFormData {
     spacing: string;
     luChecked: Record<string, boolean>;
     plotIndex?: number;
+    /** Free-text plot note (owner name, land title no.) -- stored in tbl_plots.plot_note. */
+    plotNote?: string;
 }
+
+export const PLOT_INFO_MAX_LENGTH = 100;
 
 export const VARIETY_OPTIONS = [
     "RRIM 600", "RRIT 251",

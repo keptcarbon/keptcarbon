@@ -10,6 +10,7 @@ import { PlotDetailCard } from "./PlotDetailCard";
 import {
     type PlotFormData,
     type CarbonResult,
+    PLOT_INFO_MAX_LENGTH,
     VARIETY_OPTIONS,
     SPACING_OPTIONS,
     SUPPORTED_CLONES,
@@ -34,7 +35,6 @@ type Props = {
     parcelFeatures: GeoJSON.Feature[];
     luFeatures?: GeoJSON.Feature[];
     rawPlantationInfo?: any[];
-    userDisplayName?: string;
     drawnGeometry?: GeoJSON.Geometry | null;
     onFlyTo: (feature: GeoJSON.Feature) => void;
     onReset?: () => void;
@@ -99,7 +99,6 @@ export function ParcelResultsPanel({
     parcelFeatures,
     luFeatures = [],
     rawPlantationInfo,
-    userDisplayName = "",
     drawnGeometry = null,
     onFlyTo,
     onReset,
@@ -324,7 +323,6 @@ export function ParcelResultsPanel({
     const searchParams = useSearchParams();
     const initialProjectName = searchParams.get("project") || "";
 
-    const [ownerName, setOwnerName] = useState(userDisplayName);
     const [province, setProvince] = useState("");
     const [saveState, setSaveState] = useState<"idle" | "saving" | "done">("idle");
 
@@ -602,6 +600,7 @@ export function ParcelResultsPanel({
                         variety: bdForm.variety || "",
                         spacing: bdForm.spacing || "",
                         luChecked: { ...initialLU },
+                        plotNote: bdForm.plotNote ?? props.plotNote ?? "",
                     });
                 }
                 return next;
@@ -1191,7 +1190,7 @@ export function ParcelResultsPanel({
                         : ((props.luChecked && Object.keys(props.luChecked).length > 0) ? props.luChecked : { A: true, A302: true }),
                     plantStatus: form?.plantStatus || props.plantStatus || "",
                     confidence: p.confidence,
-                    ownerName: ownerName || props.owner_name || props.ownerName || "",
+                    plotNote: form.plotNote ?? props.plotNote ?? "",
                     province: province || plots[i]?.province || props.province || "",
                     date: new Date().toISOString(),
                     geojson: feat?.geometry || null,
@@ -1705,9 +1704,24 @@ export function ParcelResultsPanel({
                                     </div>
                                 </div>
                                 <Accordion open={expandedIdx === i}>
-                                    {/* Status Selection */}
+                                    {/* Plot info (owner name, land title no.) -- optional free text */}
                                     <div style={{ padding: isMobile ? "16px 16px 0" : "20px 24px 0", background: "#fff" }}>
                                         <div style={{ fontSize: 15, fontWeight: 700, color: "#1a3d2b", marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
+                                            <i className="bi bi-card-text" style={{ color: "#1e7a47" }} /> ข้อมูลแปลง (เช่น ชื่อเจ้าของแปลง, เลขโฉนด)
+                                        </div>
+                                        <input
+                                            className="prp-input"
+                                            style={{ marginBottom: 0, height: 46, borderRadius: 10, border: "1.5px solid #e6f0ea", padding: "0 12px", width: "100%", boxSizing: "border-box" }}
+                                            type="text"
+                                            maxLength={PLOT_INFO_MAX_LENGTH}
+                                            placeholder="ไม่บังคับ"
+                                            value={form.plotNote ?? ""}
+                                            onChange={e => updateForm(i, "plotNote", e.target.value)}
+                                        />
+                                    </div>
+                                    {/* Status Selection -- label and radios on one line, wraps on narrow screens */}
+                                    <div style={{ padding: isMobile ? "16px 16px 0" : "20px 24px 0", background: "#fff", display: "flex", alignItems: "center", flexWrap: "wrap", columnGap: 24, rowGap: 8 }}>
+                                        <div style={{ fontSize: 15, fontWeight: 700, color: "#1a3d2b", display: "flex", alignItems: "center", gap: 6 }}>
                                             <i className="bi bi-info-circle" style={{ color: "#1e7a47" }} /> สถานะแปลง <span style={{ color: "#ef4444" }}>*</span>
                                         </div>
                                         <div style={{ display: "flex", gap: 24 }}>

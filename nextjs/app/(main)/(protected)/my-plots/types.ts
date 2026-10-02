@@ -13,7 +13,7 @@ export type SavedPlot = {
   variety?: string;
   spacing?: string;
   userId?: string;
-  ownerName?: string;
+  plotNote?: string;
   /** geo_thailand.p_code, e.g. "RAY". */
   province?: string;
   /** จังหวัด / อำเภอ / ตำบล the plot lies in (tbl_plots.province_th /

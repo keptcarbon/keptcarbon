@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { SavedPlot } from "./types";
 import styles from "./EditPlotModal.module.css";
+import { PLOT_INFO_MAX_LENGTH } from "@/app/components/organisms/ParcelResultsPanel/utils";
 
 const VARIETY_OPTIONS = ["RRIM 600", "RRIT 251"];
 const SPACING_OPTIONS = ["2.5x8", "3x7", "2.5x7", "2x6", "3x8"];
@@ -30,7 +31,7 @@ export function EditPlotModal({ plot, index, onClose, onSave, onSaveAndProcess, 
 
   const [formData, setFormData] = useState({
     name: plot.name || "",
-    ownerName: plot.ownerName || "",
+    plotNote: plot.plotNote || "",
     province: plot.province || "",
     areaRai: (plot.selectedAreaRai || plot.areaRai)?.toString() || "",
     plantStatus: form?.plantStatus || "",
@@ -87,6 +88,7 @@ export function EditPlotModal({ plot, index, onClose, onSave, onSaveAndProcess, 
       spacing: formData.spacing ? formData.spacing : undefined,
       growthModel: formData.growthModel ? formData.growthModel : undefined,
       allometry: formData.allometry ? formData.allometry : undefined,
+      plotNote: formData.plotNote.trim(),
     };
 
     // If carbon-affecting fields changed, mark as needing reprocessing.
@@ -95,7 +97,7 @@ export function EditPlotModal({ plot, index, onClose, onSave, onSaveAndProcess, 
     return {
       ...plot,
       name: formData.name,
-      ownerName: formData.ownerName,
+      plotNote: formData.plotNote.trim(),
       province: formData.province,
       selectedAreaRai: parseFloat(formData.areaRai) || 0,
       rubberAge: ageNum,
@@ -161,6 +163,20 @@ export function EditPlotModal({ plot, index, onClose, onSave, onSaveAndProcess, 
 
         {/* Scrollable body */}
         <div className={`${styles.body} ${isMobile ? styles.bodyMobile : ""}`}>
+
+          {/* ข้อมูลแปลง -- optional free text (owner name, land title no.) */}
+          <div className={styles.statusSection}>
+            {fieldLabel("bi-card-text", "ข้อมูลแปลง (เช่น ชื่อเจ้าของแปลง, เลขโฉนด)")}
+            <input
+              type="text"
+              maxLength={PLOT_INFO_MAX_LENGTH}
+              value={formData.plotNote}
+              onChange={e => setFormData(f => ({ ...f, plotNote: e.target.value }))}
+              placeholder="ไม่บังคับ"
+              className={styles.input}
+              style={{ paddingRight: 14 }}
+            />
+          </div>
 
           {/* สถานะแปลง */}
           <div className={styles.statusSection}>
