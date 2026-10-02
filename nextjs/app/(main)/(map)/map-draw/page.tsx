@@ -15,8 +15,9 @@ import {
   detectUtmZoneAuto,
   sanitizePolygonForApi,
   generatePolygonId,
+  MAP_DRAW_ANIMATION_DURATION,
 } from "@/lib/map-utils";
-import { getPlotsInfo, getPlotsNav } from "@/lib/carbon-api";
+import { getPlotsInfo, getPlotsLocate } from "@/lib/carbon-api";
 import { ParcelResultsPanel } from "@/app/components/organisms";
 import type { PlotFormData } from "@/app/components/organisms/ParcelResultsPanel/utils";
 import { useSearchParams, useRouter } from "next/navigation";
@@ -31,6 +32,7 @@ import {
 } from "./utils";
 import { useMapInit } from "./useMapInit";
 import { useBoundarySelection } from "./useBoundarySelection";
+import { useLocationTour, boundsToPolygon } from "./useLocationTour";
 import { NodeWarningPopup } from "./components/NodeWarningPopup";
 import { AreaErrorPopup } from "./components/AreaErrorPopup";
 import { ErrorPopup } from "./components/ErrorPopup";
@@ -84,23 +86,13 @@ function MapDrawContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
 
-  const projNameParam = useMemo(() => {
-    let pName = searchParams?.get("project");
-    if (!pName && typeof window !== "undefined") {
-      const params = new URLSearchParams(window.location.search);
-      pName = params.get("project");
-    }
-    return pName || "";
-  }, [searchParams]);
+  // Read the query only from useSearchParams. Don't fall back to
+  // window.location.search: after router.replace() the new searchParams render
+  // runs before Next commits the history update, so window.location still holds
+  // the old ?plotId= and the stale value would get memoized.
+  const projNameParam = useMemo(() => searchParams?.get("project") || "", [searchParams]);
 
-  const isEditingPlotParam = useMemo(() => {
-    let pId = searchParams?.get("plotId");
-    if (!pId && typeof window !== "undefined") {
-      const params = new URLSearchParams(window.location.search);
-      pId = params.get("plotId");
-    }
-    return !!pId;
-  }, [searchParams]);
+  const isEditingPlotParam = useMemo(() => !!searchParams?.get("plotId"), [searchParams]);
 
   const handleExitProject = useCallback(() => {
     window.location.href = "/map-draw";
@@ -131,6 +123,18 @@ function MapDrawContent() {
     tambonsFromDb,
     tambonsLoading,
   } = useBoundarySelection({ mapRef, mapLoadedRef, mapLoaded, suppressAutoZoomRef: suppressBoundaryZoomRef });
+
+  // Staged zoom (province → district → plot/point) for the
+  // my-plots deep links and lat/long search.
+  const { startTour, playTour, cancelTour } = useLocationTour({
+    mapRef,
+    suppressAutoZoomRef: suppressBoundaryZoomRef,
+    selection: { province: selectedProvince, amphoe: selectedAmphoe, tambon: selectedTambon },
+    setSelectedRegion,
+    setSelectedProvince,
+    setSelectedAmphoe,
+    setSelectedTambon,
+  });
 
   // SHP state
   const [shpFile, setShpFile] = useState<File | null>(null);
@@ -234,6 +238,23 @@ function MapDrawContent() {
     }
   };
 
+  // Default area selection (Eastern region → Rayong), staggered so the map
+  // zooms to the region first and then the province. Used on first load and
+  // again when the user starts a new area from step 2.
+  const defaultAreaTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const clearDefaultAreaTimers = useCallback(() => {
+    defaultAreaTimersRef.current.forEach(clearTimeout);
+    defaultAreaTimersRef.current = [];
+  }, []);
+  const selectDefaultArea = useCallback(() => {
+    clearDefaultAreaTimers();
+    defaultAreaTimersRef.current = [
+      setTimeout(() => setSelectedRegion("ภาคตะวันออก"), 250),
+      setTimeout(() => setSelectedProvince("ระยอง"), 250 + MAP_DRAW_ANIMATION_DURATION + 250),
+    ];
+  }, [clearDefaultAreaTimers, setSelectedRegion, setSelectedProvince]);
+  useEffect(() => clearDefaultAreaTimers, [clearDefaultAreaTimers]);
+
   useEffect(() => {
     if (projNameParam || isEditingPlotParam) return;
     // Returning from the guest-limit auth flow: the restore effect will zoom
@@ -255,9 +276,8 @@ function MapDrawContent() {
         sessionStorage.removeItem(MAP_DRAW_RESUME_KEY);
       }
     } catch { /* storage unavailable — fall through to default */ }
-    const tRegion = setTimeout(() => setSelectedRegion("ภาคตะวันออก"), 250);
-    const tProvince = setTimeout(() => setSelectedProvince("ระยอง"), 2600);
-    return () => { clearTimeout(tRegion); clearTimeout(tProvince); };
+    selectDefaultArea();
+    return clearDefaultAreaTimers;
   }, []);
 
   // Area Validation State
@@ -323,9 +343,29 @@ function MapDrawContent() {
     setActiveDbProjectId(null);
     setActiveGuestKey(null);
     setResetProjectToken(t => t + 1);
+    cancelTour();
+    setExistingProjectPlots([]);
+    setHiddenProjectPlots([]);
+    setEditingPlotId(null);
+    refPlotsLoadedRef.current = false;
     clearDraw();
     setCurrentStep(1);
     setProjectName("");
+    // Arrived via a deep-link (?project=…&action=calc&plotId=…, e.g. "แก้ไขขอบเขต"
+    // from my-plots): drop it, otherwise isEditingPlotParam stays true and keeps
+    // "เริ่มวาดแปลง" disabled for the new area.
+    if (searchParams?.get("project") || searchParams?.get("action") || searchParams?.get("plotId")) {
+      router.replace("/map-draw");
+    }
+    // Start over like a fresh page load: clear the area selection (the map was
+    // parked on the previous plot, and an unchanged province wouldn't re-zoom),
+    // then replay the default Eastern region → Rayong selection.
+    suppressBoundaryZoomRef.current = false;
+    setSelectedTambon("");
+    setSelectedAmphoe("");
+    setSelectedProvince("");
+    setSelectedRegion("");
+    selectDefaultArea();
   };
 
   // Multi-parcel support
@@ -581,9 +621,9 @@ function MapDrawContent() {
             ? { top: 50, bottom: 320, left: 50, right: 50 }
             : { top: 56, bottom: 56, left: 90, right: 390 };
           try {
-            map.fitBounds(bounds, { padding: pad, duration: 2400, maxZoom: 17, essential: true });
+            map.fitBounds(bounds, { padding: pad, duration: MAP_DRAW_ANIMATION_DURATION, maxZoom: 17, essential: true });
           } catch {
-            map.fitBounds(bounds, { padding: 60, duration: 2400, maxZoom: 17, essential: true });
+            map.fitBounds(bounds, { padding: 60, duration: MAP_DRAW_ANIMATION_DURATION, maxZoom: 17, essential: true });
           }
         }, 450);
       }
@@ -1290,17 +1330,9 @@ function MapDrawContent() {
     const map = mapRef.current;
     if (!map || !mapLoaded || !user) return;
 
-    let projName = searchParams?.get("project");
-    let action = searchParams?.get("action");
-    let plotId = searchParams?.get("plotId");
-
-    // Fallback in case searchParams is not available
-    if (!projName && typeof window !== 'undefined') {
-      const params = new URLSearchParams(window.location.search);
-      projName = params.get("project") || projName;
-      action = params.get("action") || action;
-      plotId = params.get("plotId") || plotId;
-    }
+    const projName = searchParams?.get("project");
+    const action = searchParams?.get("action");
+    const plotId = searchParams?.get("plotId");
 
     // Add-plot mode: project specified but no action/plotId — load existing plots into step 2
     if (projName && !action && !plotId && !refPlotsLoadedRef.current) {
@@ -1388,15 +1420,7 @@ function MapDrawContent() {
                 coords.forEach((coord: any) => bounds.extend(coord));
               });
               if (!bounds.isEmpty()) {
-                const isMob = typeof window !== "undefined" && window.innerWidth < 768;
-                const pad = isMob
-                  ? { top: 60, bottom: 350, left: 60, right: 60 }
-                  : { top: 80, bottom: 80, left: 80, right: 420 };
-                try {
-                  refMap.fitBounds(bounds, { padding: pad, duration: 700, maxZoom: 17 });
-                } catch (e) {
-                  refMap.fitBounds(bounds, { padding: 60, duration: 700, maxZoom: 17 });
-                }
+                startTour(boundsToPolygon(bounds), { kind: "bounds", bounds });
               }
             }
           }
@@ -1419,23 +1443,6 @@ function MapDrawContent() {
           const projectPlots = allProjectPlots;
 
           if (projectPlots.length > 0) {
-            // action=calc with no plotId only happens on the post-login
-            // guest-project claim redirect (auth-context.tsx). That redirect
-            // can follow a full-page OAuth round-trip, which wipes the
-            // in-memory region/province selection — so the boundary polygon
-            // the guest had on screen before logging in would otherwise stay
-            // blank. Re-derive it from the claimed plot's own saved province
-            // instead of relying on state that may no longer exist.
-            if (action && !plotId && !selectedProvince) {
-              const claimedProvince = projectPlots[0]?.province;
-              if (claimedProvince) {
-                const claimedRegion = REGIONS_DATA.find(r => r.provinces.includes(claimedProvince))?.name;
-                suppressBoundaryZoomRef.current = true;
-                if (claimedRegion) setSelectedRegion(claimedRegion);
-                setSelectedProvince(claimedProvince);
-              }
-            }
-
             const feats: GeoJSON.Feature[] = projectPlots.map((p: any, i: number) => ({
               type: "Feature",
               geometry: p.geojson,
@@ -1544,21 +1551,17 @@ function MapDrawContent() {
                 coords.forEach((coord: any) => bounds.extend(coord));
               });
               if (!bounds.isEmpty()) {
-                const isMob = typeof window !== "undefined" && window.innerWidth < 768;
-                const pad = isMob
-                  ? { top: 60, bottom: 350, left: 60, right: 60 }
-                  : { top: 80, bottom: 80, left: 80, right: 420 };
-                // action=calc with no plotId only happens on the post-login
-                // guest-project claim redirect (auth-context.tsx) — match the
-                // >5-plot popup restore's slower reveal there. The My Plots
-                // "edit a plot" deep link always pairs action with plotId and
-                // keeps the snappier duration since that's a deliberate click.
-                const duration = action && !plotId ? 2400 : 700;
-                try {
-                  map.fitBounds(bounds, { padding: pad, duration, maxZoom: 17 });
-                } catch (e) {
-                  map.fitBounds(bounds, { padding: 60, duration, maxZoom: 17 });
-                }
+                // Staged zoom down to the plot(s). It also sets region /
+                // province / district, which restores the boundary after the
+                // guest-claim redirect (action=calc, no plotId) — a full-page
+                // OAuth round-trip wipes that selection.
+                // One plot: locate the plot itself, so a plot near a
+                // district border isn't pushed up to province level by its
+                // bounding box.
+                const locateGeom = visibleFeats.length === 1 && visibleFeats[0].geometry
+                  ? visibleFeats[0].geometry
+                  : boundsToPolygon(bounds);
+                startTour(locateGeom, { kind: "bounds", bounds });
               }
             }
           }
@@ -1658,7 +1661,8 @@ function MapDrawContent() {
       ],
       {
         padding: { top: 60, bottom: 60, left: 60, right: 60 },
-        duration: 900,
+        duration: MAP_DRAW_ANIMATION_DURATION,
+        essential: true,
         pitch: 0,
       },
     );
@@ -1738,10 +1742,10 @@ function MapDrawContent() {
           : { top: 60, bottom: 60, left: 60, right: 380 };
 
         try {
-          map.fitBounds(bounds, { padding: pad, duration: 700, maxZoom: 17 });
+          map.fitBounds(bounds, { padding: pad, duration: MAP_DRAW_ANIMATION_DURATION, maxZoom: 17, essential: true });
         } catch (e) {
           // fallback if padding exceeds container dimensions
-          map.fitBounds(bounds, { padding: 40, duration: 700, maxZoom: 17 });
+          map.fitBounds(bounds, { padding: 40, duration: MAP_DRAW_ANIMATION_DURATION, maxZoom: 17, essential: true });
         }
       }
     }
@@ -2059,7 +2063,7 @@ function MapDrawContent() {
         if (coordMode === "latlng") {
           const la = parseFloat(coordLat.replace(/,/g, '')), lo = parseFloat(coordLng.replace(/,/g, ''));
           if (!isNaN(la) && !isNaN(lo) && la >= -90 && la <= 90 && lo >= -180 && lo <= 180) {
-            map.flyTo({ center: [lo, la], zoom: 15, duration: 2400, essential: true });
+            map.flyTo({ center: [lo, la], zoom: 15, duration: MAP_DRAW_ANIMATION_DURATION, essential: true });
           }
         } else {
           const ev = parseFloat(coordE.replace(/,/g, '')), nv = parseFloat(coordN.replace(/,/g, ''));
@@ -2067,7 +2071,7 @@ function MapDrawContent() {
             try {
               const { lat: la, lng: lo } = utmToLatLng(ev, nv, coordUtmZone, true);
               if (la >= -90 && la <= 90 && lo >= -180 && lo <= 180) {
-                map.flyTo({ center: [lo, la], zoom: 15, duration: 2400, essential: true });
+                map.flyTo({ center: [lo, la], zoom: 15, duration: MAP_DRAW_ANIMATION_DURATION, essential: true });
               }
             } catch { /* ignore invalid coords */ }
           }
@@ -2076,7 +2080,7 @@ function MapDrawContent() {
     }
   };
 
-  // "ค้นหาแปลงจากพิกัด" (Search plot by coordinates) — check the lat/lng against /plots/nav, then zoom + drop a marker if serviced
+  // "ค้นหาแปลงจากพิกัด" (Search plot by coordinates) — locate the lat/lng via /plots/locate, then tour down to it + drop a marker if serviced
   const handleCoordSearch = async () => {
     const map = mapRef.current;
     const la = parseFloat(coordLat.replace(/,/g, '')), lo = parseFloat(coordLng.replace(/,/g, ''));
@@ -2089,9 +2093,11 @@ function MapDrawContent() {
     setNavSearching(true);
     setNavError(null);
     try {
-      const result = await getPlotsNav({ lat: la, lon: lo });
+      const [result] = await getPlotsLocate([
+        { id: "nav-point", geometry: { type: "Point", coordinates: [lo, la] } },
+      ]);
 
-      if (!result.supported) {
+      if (!result?.supported) {
         setNavError("พิกัดนี้ไม่อยู่ในพื้นที่จังหวัดที่ให้บริการ");
         navMarkerRef.current?.remove();
         navMarkerRef.current = null;
@@ -2099,7 +2105,9 @@ function MapDrawContent() {
       }
 
       if (map) {
-        map.flyTo({ center: [lo, la], zoom: 17, duration: 2400, essential: true });
+        // Don't let the page-load default (ภาคตะวันออก → ระยอง) land mid-tour.
+        clearDefaultAreaTimers();
+        playTour(result, { kind: "point", center: [lo, la], zoom: 17 });
 
         if (!navMarkerRef.current) {
           const el = document.createElement("div");
@@ -2109,7 +2117,7 @@ function MapDrawContent() {
         navMarkerRef.current.setLngLat([lo, la]).addTo(map);
       }
     } catch (err) {
-      console.error("plots/nav search failed:", err);
+      console.error("plots/locate search failed:", err);
       setNavError("เกิดข้อผิดพลาดในการค้นหาพิกัด กรุณาลองใหม่อีกครั้ง");
     } finally {
       setNavSearching(false);
@@ -2188,6 +2196,7 @@ function MapDrawContent() {
     prevUserRef.current = user;
     if (!justLoggedOut) return;
 
+    cancelTour();
     setActiveDbProjectId(null);
     setActiveGuestKey(null);
     setResetProjectToken(t => t + 1); // → ParcelResultsPanel drops dbProjectId/guestUserId
@@ -2254,7 +2263,7 @@ function MapDrawContent() {
     // Cancelling a "draw more" pass with existing plots should return to
     // those plots, not zoom all the way back out to the step-1 region.
     if (drawnParcels.length > 0 && map) {
-      zoomToGeoJSONFeatures(drawnParcels, map);
+      zoomToGeoJSONFeatures(drawnParcels, map, MAP_DRAW_ANIMATION_DURATION);
     } else {
       zoomToSelectedProvince();
     }
@@ -2453,7 +2462,7 @@ function MapDrawContent() {
             if (!bounds.isEmpty()) {
               map.fitBounds(bounds, {
                 padding: 60,
-                duration: 2400,
+                duration: MAP_DRAW_ANIMATION_DURATION,
                 easing: (t) => t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t
               });
             }
@@ -2471,7 +2480,7 @@ function MapDrawContent() {
               if (!bounds.isEmpty()) {
                 map.fitBounds(bounds, {
                   padding: 60,
-                  duration: 2400,
+                  duration: MAP_DRAW_ANIMATION_DURATION,
                   easing: (t) => t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t
                 });
               }
@@ -2726,7 +2735,8 @@ function MapDrawContent() {
         center: [parseFloat(item.lon), parseFloat(item.lat)],
         zoom: 12,
         pitch: 0,
-        duration: 2500,
+        duration: MAP_DRAW_ANIMATION_DURATION,
+        essential: true,
       });
     }
     setSearchValue(item.display_name);
@@ -2759,7 +2769,7 @@ function MapDrawContent() {
     const lats = coords.map(([, y]) => y);
     map.fitBounds(
       [[Math.min(...lngs), Math.min(...lats)], [Math.max(...lngs), Math.max(...lats)]],
-      { padding: 80, duration: 2400, maxZoom: 18, easing: (t) => t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t },
+      { padding: 80, duration: MAP_DRAW_ANIMATION_DURATION, essential: true, maxZoom: 18, easing: (t) => t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t },
     );
   }, []);
 
@@ -3670,7 +3680,7 @@ function MapDrawContent() {
                           f.geometry.coordinates[0][0].forEach((coord: any) => bounds.extend(coord));
                         }
                       });
-                      if (!bounds.isEmpty()) map.fitBounds(bounds, { padding: 50 });
+                      if (!bounds.isEmpty()) map.fitBounds(bounds, { padding: 50, duration: MAP_DRAW_ANIMATION_DURATION, essential: true });
                     }
 
                     setTimeout(() => {

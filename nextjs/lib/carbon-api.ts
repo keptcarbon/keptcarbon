@@ -169,6 +169,44 @@ export async function getPlotsNav(point: {
     return response.json();
 }
 
+/** [minLng, minLat, maxLng, maxLat] */
+export type BBox = [number, number, number, number];
+
+export interface PlotsLocateResult {
+    id: string;
+    /** Smallest area that fully contains the geometry. */
+    level: "subdistrict" | "district" | "province" | "multi_province" | "none";
+    supported: boolean;
+    region_th: string | null;
+    province_code: string | null;
+    province_th: string | null;
+    province_bbox: BBox | null;
+    district_th: string | null;
+    district_bbox: BBox | null;
+    subdistrict_th: string | null;
+    subdistrict_bbox: BBox | null;
+}
+
+/**
+ * Find the province / district / subdistrict containing each geometry — a
+ * lat/long point, a plot, or a project's bounding box.
+ */
+export async function getPlotsLocate(
+    items: { id: string; geometry: GeoJSON.Geometry }[]
+): Promise<PlotsLocateResult[]> {
+    const response = await fetch(`${API_BASE_URL}/plots/locate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ items }),
+    });
+    if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        throw new Error(`Backend API error: ${response.status} ${JSON.stringify(err)}`);
+    }
+    const data = await response.json();
+    return data.results;
+}
+
 /**
  * Get the current year in Buddhist Era (BE)
  * @returns Current year in BE

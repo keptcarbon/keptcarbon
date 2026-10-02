@@ -178,7 +178,8 @@ export async function GET(request: NextRequest) {
       `SELECT id, project_id, polygon_id, ST_AsGeoJSON(geometry)::json AS geometry,
               area_m2, province_code, year_of_planting, rubber_clone, tree_count,
               spacing_system, project_type, selected_lu_classes, owner_name,
-              growth_model, allometry, updated_at
+              growth_model, allometry, province_th, district_th, subdistrict_th,
+              updated_at
        FROM tbl_plots
        WHERE project_id = ANY($1) AND deleted_at IS NULL`,
       [projectIds]
@@ -264,6 +265,9 @@ export async function GET(request: NextRequest) {
         plantStatus: pl.project_type ?? "",
         ownerName: pl.owner_name ?? "",
         province: pl.province_code ?? "",
+        provinceName: pl.province_th ?? "",
+        district: pl.district_th ?? "",
+        subdistrict: pl.subdistrict_th ?? "",
         date: (assessment?.created_at ?? pl.updated_at) as unknown as string,
         geojson: pl.geometry,
         boundaryGeojson: null,

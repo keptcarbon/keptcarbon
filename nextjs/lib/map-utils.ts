@@ -4,6 +4,14 @@ export function emptyFC(): GeoJSON.FeatureCollection {
   return { type: "FeatureCollection", features: [] };
 }
 
+// Durations (ms) for animated map camera moves — zooming in/out and flying to
+// a location.
+// map-draw: every move. The plot tour (province → district → plot) chains
+// three of these, so each step is kept short.
+export const MAP_DRAW_ANIMATION_DURATION = 1800;
+// Dashboard and My Plots (แปลงของฉัน) maps, e.g. jumping back to a plot.
+export const MAP_VIEW_ANIMATION_DURATION = 2500;
+
 export function isMobile() {
   return typeof window !== "undefined" && window.innerWidth <= 768;
 }

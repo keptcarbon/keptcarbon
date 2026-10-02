@@ -11,6 +11,7 @@ import type { SavedPlot } from "../../types";
 import { PlotMiniMap } from "../../PlotMiniMap";
 import { EditPlotModal } from "../../EditPlotModal";
 import { CollapsibleSection } from "../../CollapsibleSection";
+import { formatPlotLocation } from "../../plotLocation";
 import { buildAssessRequest, applyAssessResponse } from "../../assessPlot";
 import plotStyles from "../../PlotCard.module.css";
 
@@ -306,7 +307,7 @@ export default function PlotDetailPage() {
             </div>
             <div className="flex flex-wrap gap-4 text-sm font-medium text-muted-foreground">
               <span><strong className={plotStyles.strongDark}>{new Date(plot.date).toLocaleDateString("th-TH", { year: "numeric", month: "short", day: "numeric" })}</strong></span>
-              <span>พื้นที่ <strong className={plotStyles.strongDark}>{(plot.selectedAreaRai || plot.areaRai || 0).toFixed(2)} ไร่</strong></span>
+              <span>พื้นที่ <strong className={plotStyles.strongDark}>{(plot.selectedAreaRai || plot.areaRai || 0).toFixed(2)}</strong> ไร่</span>
               <span>สถานะแปลง: <strong className={plotStyles.strongDark}>{plantStatusLabel(plot.plantStatus)}</strong></span>
             </div>
           </div>
@@ -326,7 +327,7 @@ export default function PlotDetailPage() {
               disabled={estimating}
               className="flex h-10 flex-1 cursor-pointer items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-border bg-card px-4 text-sm font-semibold text-foreground transition-colors hover:bg-muted/60 disabled:cursor-not-allowed disabled:opacity-50 md:flex-initial"
             >
-              <Pencil className="size-4" aria-hidden="true" /> แก้ไข
+              <Pencil className="size-4" aria-hidden="true" /> แก้ไขข้อมูลแปลง
             </button>
             <button
               onClick={() => setConfirmingDelete(true)}
@@ -465,7 +466,7 @@ export default function PlotDetailPage() {
             </div>
           </CollapsibleSection>
 
-          <CollapsibleSection icon="bi-map-fill" title="แผนที่ขอบเขต" isMobile={isMobile}>
+          <CollapsibleSection icon="bi-map-fill" title="แผนที่แปลง" subtitle={formatPlotLocation(plot)} isMobile={isMobile}>
             <div className={`${plotStyles.content} ${isMobile ? plotStyles.contentMobile : ""}`}>
               <PlotMiniMap plot={plot} isMobile={isMobile} index={plotIndex + 1} />
             </div>

@@ -253,7 +253,7 @@ class CarbonService:
         if biomass_profile_version_is_default: poly_data['biomass_profile_version'] = region_config['biomass_profile_version']
         
         default_spacing = region_config["default_spacing"]
-        poly_data['rubber_clone_config'] = region_config['clone']
+        poly_data['clone'] = region_config['clone']
         
         # Step 2: Multi-Polygon Dissolve & Geometry Merge
         poly_data = await self.lu_svc.find_rubber_cultivation_area(poly_data)
@@ -307,7 +307,7 @@ class CarbonService:
                         "source": "user input" if poly_data.get('year_of_planting') else "calculated from raster"
                     },
                     "rubber_clone": {
-                        "value": poly_data.get('rubber_clone'),
+                        "value": poly_data.get('rubber_clone') or poly_data.get('clone'),
                         "note": "default",
                         "source": "user input" if poly_data.get('rubber_clone') else "default value applied"
                     },
@@ -450,7 +450,7 @@ class CarbonService:
                         "source": "calculated from raster"
                     },
                     "rubber_clone": {
-                        "value": poly_data.get('rubber_clone'),
+                        "value": poly_data.get('rubber_clone') or poly_data.get('clone'),
                         "note": "default value alway use",
                         "source": "user input" if poly_data.get('rubber_clone') else "default value applied"
                     },

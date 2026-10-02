@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import maplibregl, { type Map as MLMap } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
+import { MAP_VIEW_ANIMATION_DURATION } from "@/lib/map-utils";
 
 export type MapPlot = {
   id: number | string;
@@ -437,7 +438,7 @@ export default function DashboardMap({
 
       // ── Fit bounds ─────────────────────────────────────────────────────────
       if (bbox) {
-        map.fitBounds([[bbox.minLng, bbox.minLat], [bbox.maxLng, bbox.maxLat]], { padding: 60, duration: 1800, maxZoom: 16 });
+        map.fitBounds([[bbox.minLng, bbox.minLat], [bbox.maxLng, bbox.maxLat]], { padding: 60, duration: MAP_VIEW_ANIMATION_DURATION, maxZoom: 16, essential: true });
       }
     });
 
@@ -469,7 +470,7 @@ export default function DashboardMap({
   // ── Fly to selected district ──────────────────────────────────────────────
   useEffect(() => {
     if (!mapRef.current || !flyToCenter) return;
-    mapRef.current.flyTo({ center: flyToCenter, zoom: flyZoom, duration: 1000 });
+    mapRef.current.flyTo({ center: flyToCenter, zoom: flyZoom, duration: MAP_VIEW_ANIMATION_DURATION, essential: true });
   }, [flyToCenter, flyZoom]);
 
   return (

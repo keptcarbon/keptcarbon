@@ -60,3 +60,33 @@ class PlotsNavResponse(BaseModel):
     supported: bool = Field(..., description="True if the point is within a Thai province supported by the system")
     province_code: Optional[str] = Field(None, description="Matched province code, if any")
     message: str
+
+
+# ── Locate endpoint (/api/v1/plots/locate) ────────────────
+
+class LocateItem(BaseModel):
+    id: str = Field(..., description="Caller's id for this geometry, echoed back in the result")
+    geometry: Dict[str, Any] = Field(..., description="GeoJSON Point (lat/long navigation) or Polygon (a plot's or a project's bounding box), EPSG:4326")
+
+
+class PlotsLocateRequest(BaseModel):
+    """Payload for /plots/locate (find the administrative area containing each geometry)"""
+    items: List[LocateItem] = Field(..., min_length=1, max_length=500)
+
+
+class LocateResult(BaseModel):
+    id: str
+    level: str = Field(..., description="Smallest area that fully contains the geometry: 'subdistrict' | 'district' | 'province' | 'multi_province' | 'none'")
+    supported: bool = Field(..., description="True if the province is supported by the system (tbl_region_config)")
+    region_th: Optional[str] = None
+    province_code: Optional[str] = Field(None, description="geo_thailand.p_code, e.g. 'RAY'")
+    province_th: Optional[str] = None
+    province_bbox: Optional[List[float]] = Field(None, description="[minLng, minLat, maxLng, maxLat]")
+    district_th: Optional[str] = None
+    district_bbox: Optional[List[float]] = None
+    subdistrict_th: Optional[str] = None
+    subdistrict_bbox: Optional[List[float]] = None
+
+
+class PlotsLocateResponse(BaseModel):
+    results: List[LocateResult]

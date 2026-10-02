@@ -6,9 +6,11 @@ import { Accordion } from "./Accordion";
 
 /** Same collapsible header shell as ProjectCarbonSummary's "ปริมาณคาร์บอนรวม" —
  *  reused here so the plot dashboard's map/graph sections toggle the same way. */
-export function CollapsibleSection({ icon, title, isMobile, defaultOpen = false, children }: {
+export function CollapsibleSection({ icon, title, subtitle, isMobile, defaultOpen = false, children }: {
   icon: string;
   title: string;
+  /** Shown after the title (e.g. the plot's location); hidden when empty. */
+  subtitle?: string;
   isMobile: boolean;
   defaultOpen?: boolean;
   children: React.ReactNode;
@@ -22,7 +24,15 @@ export function CollapsibleSection({ icon, title, isMobile, defaultOpen = false,
           <div className={styles.headerIcon}>
             <i className={`bi ${icon}`} />
           </div>
-          <div className={`${styles.headerTitle} ${isMobile ? styles.headerTitleMobile : ""}`}>{title}</div>
+          <div className={styles.headerTitleGroup}>
+            <div className={`${styles.headerTitle} ${isMobile ? styles.headerTitleMobile : ""}`}>{title}</div>
+            {subtitle && (
+              <div className={styles.headerSubtitle}>
+                <i className="bi bi-geo-alt" aria-hidden="true" />
+                {subtitle}
+              </div>
+            )}
+          </div>
         </div>
         <button
           type="button"

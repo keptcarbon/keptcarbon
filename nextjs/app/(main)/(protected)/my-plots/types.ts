@@ -14,7 +14,13 @@ export type SavedPlot = {
   spacing?: string;
   userId?: string;
   ownerName?: string;
+  /** geo_thailand.p_code, e.g. "RAY". */
   province?: string;
+  /** จังหวัด / อำเภอ / ตำบล the plot lies in (tbl_plots.province_th /
+   *  district_th / subdistrict_th — all from the same lookup, so consistent). */
+  provinceName?: string;
+  district?: string;
+  subdistrict?: string;
   date: string;
   geojson?: unknown;
   boundaryGeojson?: unknown;

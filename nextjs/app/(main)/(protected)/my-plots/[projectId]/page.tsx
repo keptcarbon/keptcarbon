@@ -11,6 +11,7 @@ import { assessCarbon } from "@/lib/carbon-api";
 import type { SavedPlot } from "../types";
 import { ProjectCarbonSummary } from "../ProjectCarbonSummary";
 import { buildAssessRequest, applyAssessResponse } from "../assessPlot";
+import { formatPlotLocation } from "../plotLocation";
 
 const PAGE_SIZE = 10;
 
@@ -203,10 +204,11 @@ export default function ProjectDetailPage() {
                    opened, so this stays fast even with 100+ plots). */}
                 <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
                   <div className="overflow-x-auto">
-                    <table className="w-full min-w-[480px] border-collapse text-sm">
+                    <table className="w-full min-w-[640px] border-collapse text-sm">
                       <thead>
                         <tr className="border-b border-border bg-muted/40 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                           <th className="px-4 py-3">#</th>
+                          <th className="px-4 py-3">ที่ตั้ง</th>
                           <th className="px-4 py-3 text-center">พื้นที่ (ไร่)</th>
                           <th className="px-4 py-3 text-center">สถานะแปลง</th>
                           <th className="px-4 py-3 text-center">สถานะการประมวลผล</th>
@@ -217,6 +219,7 @@ export default function ProjectDetailPage() {
                         {paginatedPlots.map((plot, i) => (
                           <tr key={plot.id} className="border-b border-border/60 last:border-b-0 transition-colors hover:bg-muted/40">
                             <td className="px-4 py-3 text-muted-foreground">{(page - 1) * PAGE_SIZE + i + 1}</td>
+                            <td className="px-4 py-3 text-foreground">{formatPlotLocation(plot) || <span className="text-muted-foreground">—</span>}</td>
                             <td className="px-4 py-3 text-center text-muted-foreground">{(plot.selectedAreaRai || plot.areaRai || 0).toFixed(2)}</td>
                             <td className="px-4 py-3 text-center text-muted-foreground">{plantStatusLabel(plot.plantStatus)}</td>
                             <td className="px-4 py-3 text-center">

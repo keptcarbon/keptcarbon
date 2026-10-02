@@ -5,6 +5,7 @@ import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import type { SavedPlot } from "./types";
 import styles from "./PlotsMapView.module.css";
+import { MAP_VIEW_ANIMATION_DURATION } from "@/lib/map-utils";
 
 const PROJECT_COLORS = [
   "#f97316",
@@ -228,7 +229,7 @@ export function PlotsMapView({ plots, isMobile }: { plots: SavedPlot[], isMobile
           };
           processCoords(geom.coordinates);
         });
-        map.fitBounds(bounds, { padding: isMobile ? 40 : 80, duration: 1800 });
+        map.fitBounds(bounds, { padding: isMobile ? 40 : 80, duration: MAP_VIEW_ANIMATION_DURATION, essential: true });
       }
     };
 
@@ -297,7 +298,7 @@ export function PlotsMapView({ plots, isMobile }: { plots: SavedPlot[], isMobile
       if (!bounds.isEmpty()) {
         const prevCount = map.getContainer().getAttribute('data-plot-count');
         if (prevCount !== String(plots.length)) {
-          map.fitBounds(bounds, { padding: isMobile ? 40 : 80, duration: 1200 });
+          map.fitBounds(bounds, { padding: isMobile ? 40 : 80, duration: MAP_VIEW_ANIMATION_DURATION, essential: true });
           map.getContainer().setAttribute('data-plot-count', String(plots.length));
         }
       }

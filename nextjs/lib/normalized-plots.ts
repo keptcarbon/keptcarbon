@@ -203,16 +203,20 @@ async function recomputeLandUseOverlaps(
 
     for (const lu of entry.lu_polygon) {
       if (!lu?.geometry) continue;
+      // lu_polygon arrives flat ({lu_class, ...}) from ParcelResultsPanel's
+      // save, but as GeoJSON Features ({properties: {lu_class, ...}}) when
+      // my-plots re-saves what GET /api/plots returned -- read either.
+      const props = lu.properties ?? lu;
       await client.query(
         `INSERT INTO tbl_plot_landuse_overlaps (plot_id, lu_class, lu_class_desc_th, geometry, area_m2, area_percent)
          VALUES ($1, $2, $3, ST_SetSRID(ST_GeomFromGeoJSON($4::text), 4326), $5, $6)`,
         [
           plotId,
-          lu.lu_class ?? null,
-          lu.lu_class_desc_th ?? null,
+          props.lu_class ?? null,
+          props.lu_class_desc_th ?? null,
           JSON.stringify(lu.geometry),
-          lu.area_m2 ?? null,
-          lu.area_percent ?? null,
+          props.area_m2 ?? null,
+          props.area_percent ?? null,
         ]
       );
     }

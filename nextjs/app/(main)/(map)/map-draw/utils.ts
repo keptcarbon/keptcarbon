@@ -1,4 +1,5 @@
 import maplibregl from "maplibre-gl";
+import { MAP_DRAW_ANIMATION_DURATION } from "@/lib/map-utils";
 
 export type Tab = "draw" | "shp";
 
@@ -8,7 +9,11 @@ export const REGIONS_DATA = [
   { name: "ภาคใต้", provinces: ["สุราษฎร์ธานี"] },
 ];
 
-export const zoomToGeoJSONFeatures = (features: GeoJSON.Feature[], map: maplibregl.Map) => {
+export const zoomToGeoJSONFeatures = (
+  features: GeoJSON.Feature[],
+  map: maplibregl.Map,
+  duration: number = MAP_DRAW_ANIMATION_DURATION,
+) => {
   if (!features || !features.length || !map) return;
   let minLng = 180, maxLng = -180, minLat = 90, maxLat = -90;
   let hasCoords = false;
@@ -38,7 +43,7 @@ export const zoomToGeoJSONFeatures = (features: GeoJSON.Feature[], map: maplibre
     if (minLat === maxLat) { minLat -= 0.01; maxLat += 0.01; }
     map.fitBounds([[minLng, minLat], [maxLng, maxLat]], {
       padding: 60,
-      duration: 2500, // Slower, smoother animation
+      duration,
       essential: true
     });
   }
