@@ -526,9 +526,9 @@ class CarbonService:
         """
         Computes a 71-year (current_year-35 .. current_year+35) simulated
         carbon stock profile, using each row's own year_of_planting,
-        rotation_year and replanting_rate, alongside fixed-scenario upper
-        bound (35-year rotation, 100% replanting) and lower bound (35-year
-        rotation, 0% replanting) profiles. sim_data may contain multiple rows
+        rotation_year and replanting_rate, alongside upper bound (same
+        rotation_year, 100% replanting) and lower bound (same rotation_year,
+        0% replanting) profiles. sim_data may contain multiple rows
         (e.g. several cohorts/plantings for one plot) -- each row's central/
         upper/lower vectors are computed independently, then summed by index
         across all rows into one final set of 3 vectors for the batch.
@@ -607,14 +607,14 @@ class CarbonService:
                 biomass_by_age, tree_count, year_of_planting, rotation_year, replanting_rate, current_calendar_year,
             )
 
-            # Upper bound: fixed 35-year rotation, 100% replanting.
+            # Upper bound: this row's rotation_year, 100% replanting.
             upper_tree_vec, upper_biomass_vec, _ = self._build_simulation_vectors(
-                biomass_by_age, tree_count, year_of_planting, GROWTH_MODEL_YEAR, 1.0, current_calendar_year,
+                biomass_by_age, tree_count, year_of_planting, rotation_year, 1.0, current_calendar_year,
             )
 
-            # Lower bound: fixed 35-year rotation, 0% replanting.
+            # Lower bound: this row's rotation_year, 0% replanting.
             lower_tree_vec, lower_biomass_vec, _ = self._build_simulation_vectors(
-                biomass_by_age, tree_count, year_of_planting, GROWTH_MODEL_YEAR, 0.0, current_calendar_year,
+                biomass_by_age, tree_count, year_of_planting, rotation_year, 0.0, current_calendar_year,
             )
 
             # Accumulate this row's per-year carbon (and tree_count, for the

@@ -100,8 +100,8 @@ class SimulationYearlyPoint(BaseModel):
     year_at: int
     tree_count: int = Field(..., description="Central-scenario tree count, summed across all input rows for this year")
     carbon_stock_tCO2e: float
-    carbon_stock_upper_tCO2e: float = Field(..., description="Upper-bound scenario: 100% replanting, 35-year rotation, summed across all input rows")
-    carbon_stock_lower_tCO2e: float = Field(..., description="Lower-bound scenario: 0% replanting, 35-year rotation, summed across all input rows")
+    carbon_stock_upper_tCO2e: float = Field(..., description="Upper-bound scenario: each row's rotation_year with 100% replanting, summed across all input rows")
+    carbon_stock_lower_tCO2e: float = Field(..., description="Lower-bound scenario: each row's rotation_year with 0% replanting, summed across all input rows")
 
 
 class CarbonSimulationRowSummary(BaseModel):

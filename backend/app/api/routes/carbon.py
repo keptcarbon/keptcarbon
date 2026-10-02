@@ -48,6 +48,10 @@ async def simulation_carbon(sim_data: List[CarbonSimulationRequest]):
 
         result = await service.get_carbon_simulation(payload)
 
+    except HTTPException:
+        # Preserve service-raised status codes (e.g. 422 for unknown
+        # biomass profile / spacing, or rotation_year > 35).
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=500,

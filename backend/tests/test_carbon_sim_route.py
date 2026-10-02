@@ -6,31 +6,39 @@ connection is needed.
 """
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
+from fastapi import HTTPException
 from httpx import AsyncClient, ASGITransport
 
 
-GOOD_PAYLOAD = [{
+GOOD_ROW = {
     "p_code": "RAY",
     "clone": "RRIM 600",
-    "age": 16,
-    "area_m2": 12000.0,
     "growth_model": "weibull",
     "allometry": "chiarawipa",
-}]
+    "biomass_profile_version": "v1",
+    "year_of_planting": 2010,
+    "area_m2": 12000.0,
+    "spacing_system": "2.5x8",
+}
+GOOD_PAYLOAD = [GOOD_ROW]
 
 SIM_RESPONSE = {
-    "p_code": "RAY",
-    "clone": "RRIM 600",
-    "age": 16,
-    "area_m2": 12000.0,
-    "growth_model": "weibull",
-    "allometry": "chiarawipa",
     "status": {
-        "status": "pending",
-        "status_code": "P01",
-        "message": "SIMULATION SKELETON — GROWTH MODEL COMPUTATION NOT YET IMPLEMENTED.",
+        "status": "success",
+        "status_code": "S05",
+        "message": "CARBON SIMULATION PROFILE GENERATED.",
     },
-    "carbon_stock_tCO2e": None,
+    "rows": [{**GOOD_ROW, "tree_count": 600, "rotation_year": 35, "replanting_rate": 1.0}],
+    "total_area_m2": 12000.0,
+    "total_tree_count": 600,
+    "carbon_stock_tCO2e_simulation": [{
+        "year": 2026,
+        "year_at": 0,
+        "tree_count": 600,
+        "carbon_stock_tCO2e": 120.5,
+        "carbon_stock_upper_tCO2e": 120.5,
+        "carbon_stock_lower_tCO2e": 120.5,
+    }],
 }
 
 
@@ -55,53 +63,27 @@ async def test_sim_success(app, mock_service):
         resp = await ac.post("/api/v1/carbon/sim", json=GOOD_PAYLOAD)
     assert resp.status_code == 200
     data = resp.json()
-    assert isinstance(data, list)
-    assert data[0]["age"] == 16
-    assert data[0]["growth_model"] == "weibull"
-    assert data[0]["allometry"] == "chiarawipa"
-    assert data[0]["carbon_stock_tCO2e"] is None
-    assert data[0]["status"]["status"] == "pending"
-    mock_service.get_carbon_simulation.assert_awaited_once_with({
-        "p_code": "RAY",
-        "clone": "RRIM 600",
-        "age": 16,
-        "area_m2": 12000.0,
-        "growth_model": "weibull",
-        "allometry": "chiarawipa",
-    })
+    assert data["status"]["status_code"] == "S05"
+    assert data["total_tree_count"] == 600
+    assert data["rows"][0]["growth_model"] == "weibull"
+    assert data["carbon_stock_tCO2e_simulation"][0]["carbon_stock_tCO2e"] == 120.5
+    # Optional fields are filled with their schema defaults before reaching the service
+    mock_service.get_carbon_simulation.assert_awaited_once_with([{
+        **GOOD_ROW,
+        "tree_count": None,
+        "rotation_year": 35,
+        "replanting_rate": 1.0,
+    }])
 
 
 @pytest.mark.asyncio
-async def test_sim_returns_list(app, mock_service):
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
-        resp = await ac.post("/api/v1/carbon/sim", json=GOOD_PAYLOAD)
-    assert isinstance(resp.json(), list)
-    assert len(resp.json()) == 1
-
-
-@pytest.mark.asyncio
-async def test_sim_multiple_items(app, mock_service):
-    payload = GOOD_PAYLOAD + [{
-        "p_code": "RAY",
-        "clone": "RRIM 600",
-        "age": 5,
-        "area_m2": 3000.0,
-        "growth_model": "schumacher",
-        "allometry": "hytonen",
-    }]
+async def test_sim_multiple_rows_sent_as_one_batch(app, mock_service):
+    payload = GOOD_PAYLOAD + [{**GOOD_ROW, "year_of_planting": 2020, "growth_model": "schumacher"}]
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
         resp = await ac.post("/api/v1/carbon/sim", json=payload)
     assert resp.status_code == 200
-    assert len(resp.json()) == 2
-    assert mock_service.get_carbon_simulation.await_count == 2
-
-
-@pytest.mark.asyncio
-async def test_sim_empty_body_returns_200_empty(app):
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
-        resp = await ac.post("/api/v1/carbon/sim", json=[])
-    assert resp.status_code == 200
-    assert resp.json() == []
+    mock_service.get_carbon_simulation.assert_awaited_once()
+    assert len(mock_service.get_carbon_simulation.await_args.args[0]) == 2
 
 
 @pytest.mark.asyncio
@@ -114,6 +96,17 @@ async def test_sim_service_error_returns_500(app, mock_service):
 
 
 @pytest.mark.asyncio
+async def test_sim_service_http_exception_passes_through(app, mock_service):
+    mock_service.get_carbon_simulation = AsyncMock(
+        side_effect=HTTPException(status_code=422, detail="No biomass profile for p_code='RAY'")
+    )
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+        resp = await ac.post("/api/v1/carbon/sim", json=GOOD_PAYLOAD)
+    assert resp.status_code == 422
+    assert resp.json()["detail"] == "No biomass profile for p_code='RAY'"
+
+
+@pytest.mark.asyncio
 async def test_sim_missing_field_returns_422(app):
     bad_payload = [{k: v for k, v in GOOD_PAYLOAD[0].items() if k != "growth_model"}]
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
@@ -123,7 +116,7 @@ async def test_sim_missing_field_returns_422(app):
 
 @pytest.mark.asyncio
 async def test_sim_wrong_type_returns_422(app):
-    bad_payload = [{**GOOD_PAYLOAD[0], "age": "not-a-number"}]
+    bad_payload = [{**GOOD_ROW, "year_of_planting": "not-a-number"}]
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
         resp = await ac.post("/api/v1/carbon/sim", json=bad_payload)
     assert resp.status_code == 422
