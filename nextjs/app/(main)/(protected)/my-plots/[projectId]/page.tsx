@@ -10,6 +10,10 @@ import {
 import { assessCarbon } from "@/lib/carbon-api";
 import type { SavedPlot } from "../types";
 import { ProjectCarbonSummary } from "../ProjectCarbonSummary";
+import { CollapsibleSection } from "../CollapsibleSection";
+import { CarbonSimulationChart } from "../CarbonSimulationChart";
+import { buildProjectSimRows } from "../simulationRequest";
+import plotStyles from "../PlotCard.module.css";
 import { buildAssessRequest, applyAssessResponse } from "../assessPlot";
 import { formatPlotLocation } from "../plotLocation";
 
@@ -85,6 +89,8 @@ export default function ProjectDetailPage() {
       (isPlotProcessed(plot) ? "ประมวลผลแล้ว" : "ยังไม่ประมวลผล").includes(term)
     );
   }, [plots, searchTerm]);
+
+  const projectSim = useMemo(() => buildProjectSimRows(plots), [plots]);
 
   const totalPages = Math.max(1, Math.ceil(filteredPlots.length / PAGE_SIZE));
   useEffect(() => {
@@ -218,6 +224,24 @@ export default function ProjectDetailPage() {
             ) : (
               <div className="flex flex-col gap-4">
                 <ProjectCarbonSummary plots={plots} isMobile={isMobile} />
+
+                {/* Every assessed plot's cohorts in one /carbon/sim batch — the backend sums them */}
+                <CollapsibleSection icon="bi-sliders" title="กราฟจำลองคาร์บอนกักเก็บ" isMobile={isMobile} keepMounted>
+                  <div className={`${plotStyles.content} ${isMobile ? plotStyles.contentMobile : ""}`}>
+                    {projectSim.rows.length === 0 ? (
+                      <div className={plotStyles.emptyText} style={{ fontSize: 13 }}>กรุณาประเมินคาร์บอนของแปลงในโครงการก่อน จึงจะแสดงกราฟจำลองได้</div>
+                    ) : (
+                      <>
+                        {projectSim.skipped > 0 && (
+                          <div className={plotStyles.emptyText} style={{ fontSize: 13, marginBottom: 12 }}>
+                            รวม {projectSim.included.toLocaleString("th-TH")} จาก {plots.length.toLocaleString("th-TH")} แปลง ({projectSim.skipped.toLocaleString("th-TH")} แปลงยังไม่ได้ประเมินหรือข้อมูลไม่ครบ)
+                          </div>
+                        )}
+                        <CarbonSimulationChart baseRows={projectSim.rows} isMobile={isMobile} unitLabel="โครงการ" />
+                      </>
+                    )}
+                  </div>
+                </CollapsibleSection>
 
                 {/* Search -- same look as the project list's search bar */}
                 <div className="flex items-center gap-3 rounded-xl border border-border bg-card p-3 shadow-sm">

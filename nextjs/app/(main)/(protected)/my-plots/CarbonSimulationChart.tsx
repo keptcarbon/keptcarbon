@@ -59,10 +59,12 @@ function SliderField({ label, value, min, max, step = 1, unit, onChange, ticks }
   );
 }
 
-export function CarbonSimulationChart({ baseRows, isMobile }: {
+export function CarbonSimulationChart({ baseRows, isMobile, unitLabel = "แปลง" }: {
   /** Cohort rows from the plot's assessment (buildSimRows); sliders add rotation/replanting. */
   baseRows: SimBaseRow[];
   isMobile?: boolean;
+  /** What the totals are per, shown in the chart title (tCO₂eq/<unitLabel>). */
+  unitLabel?: string;
 }) {
   const [rotationYear, setRotationYear] = useState(35);
   const [replantingPct, setReplantingPct] = useState(100);
@@ -119,7 +121,7 @@ export function CarbonSimulationChart({ baseRows, isMobile }: {
       </div>
 
       <div style={{ textAlign: "center", fontSize: isMobile ? 14 : 16, fontWeight: 800, color: "#17603a" }}>
-        ปริมาณคาร์บอนกักเก็บจำลอง (tCO₂eq/แปลง)
+        ปริมาณคาร์บอนกักเก็บจำลอง (tCO₂eq/{unitLabel})
       </div>
 
       {/* Legend */}

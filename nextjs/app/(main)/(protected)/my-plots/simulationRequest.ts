@@ -1,4 +1,5 @@
 import type { AssessParameters, CarbonSimulationRow } from "@/lib/carbon-api";
+import type { SavedPlot } from "./types";
 
 /** A /carbon/sim row before the UI's rotation/replanting sliders are applied. */
 export type SimBaseRow = Omit<CarbonSimulationRow, "rotation_year" | "replanting_rate">;
@@ -86,4 +87,27 @@ export function buildSimRows(ep: AssessParameters | null | undefined, fallbackPC
     .filter((r) => r.tree_count !== 0);
 
   return rows.length ? { ok: true, rows } : { ok: false, missing: ["tree_count"] };
+}
+
+export type ProjectSimRows = { rows: SimBaseRow[]; included: number; skipped: number };
+
+/**
+ * Concatenates every plot's cohort rows into one /carbon/sim batch — the
+ * backend sums the profile by year across rows, giving the project total.
+ * Plots without a complete assessment are skipped and counted.
+ */
+export function buildProjectSimRows(plots: SavedPlot[]): ProjectSimRows {
+  let included = 0;
+  let skipped = 0;
+  const rows: SimBaseRow[] = [];
+  for (const plot of plots) {
+    const res = buildSimRows(plot.backendData?.ep, plot.province);
+    if (res.ok) {
+      rows.push(...res.rows);
+      included += 1;
+    } else {
+      skipped += 1;
+    }
+  }
+  return { rows, included, skipped };
 }
