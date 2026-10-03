@@ -9,7 +9,7 @@ import { CarbonBarChart, type BarPoint } from "@/app/components/organisms/Parcel
 import { assessCarbon } from "@/lib/carbon-api";
 import type { SavedPlot } from "../../types";
 import { PlotMiniMap } from "../../PlotMiniMap";
-import { EditPlotModal } from "../../EditPlotModal";
+import { EditPlotModal, GROWTH_MODEL_OPTIONS, ALLOMETRY_OPTIONS } from "../../EditPlotModal";
 import { CollapsibleSection } from "../../CollapsibleSection";
 import { formatPlotLocation } from "../../plotLocation";
 import { buildAssessRequest, applyAssessResponse } from "../../assessPlot";
@@ -33,6 +33,10 @@ export default function PlotDetailPage() {
   const [expandNotes, setExpandNotes] = useState(false);
   const [estimating, setEstimating] = useState(false);
   const [errorModalMsg, setErrorModalMsg] = useState<string | null>(null);
+  // Accordion: only one dashboard section open at a time; clicking the open one closes it.
+  const [openSection, setOpenSection] = useState<"graph" | "simulation" | "map" | null>("graph");
+  const toggleSection = (key: "graph" | "simulation" | "map") =>
+    setOpenSection((cur) => (cur === key ? null : key));
 
   const isAdmin = user?.role === "admin";
   const isGuestUser = () => !user && typeof window !== "undefined" && !!localStorage.getItem("guest_user_id");
@@ -266,6 +270,16 @@ export default function PlotDetailPage() {
   const spacingDesc = getSourceText(ep?.spacing_system?.source, !!form?.spacing);
   const treeCountDesc = getSourceText(ep?.tree_count?.source, !!form?.treeCount);
 
+  // Backend returns codes (e.g. "chapman_richards"); show the same labels as the edit modal, raw code otherwise.
+  const optionLabel = (options: { label: string; value: string }[], value: string) =>
+    options.find(o => o.value === value)?.label || value;
+  const growthModelValue = ep?.growth_model?.value ? String(ep.growth_model.value) : (form?.growthModel || "");
+  const allometryValue = ep?.allometry?.value ? String(ep.allometry.value) : (form?.allometry || "");
+  const displayGrowthModel = growthModelValue ? optionLabel(GROWTH_MODEL_OPTIONS, growthModelValue) : "";
+  const displayAllometry = allometryValue ? optionLabel(ALLOMETRY_OPTIONS, allometryValue) : "";
+  const growthModelDesc = getSourceText(ep?.growth_model?.source, !!form?.growthModel);
+  const allometryDesc = getSourceText(ep?.allometry?.source, !!form?.allometry);
+
   const convertYearNoteToBE = (note: string) => note.replace(/^(\d{4})/, (_, y) => String(parseInt(y) + 543));
 
   return (
@@ -339,9 +353,9 @@ export default function PlotDetailPage() {
           </div>
         </div>
 
-        {/* Dashboard: carbon graph (default open) + boundary map (default closed) */}
+        {/* Dashboard: carbon graph (default open), simulation, boundary map — one open at a time */}
         <div className="flex flex-col gap-4">
-          <CollapsibleSection icon="bi-bar-chart-fill" title="กราฟคาร์บอนกักเก็บ" isMobile={isMobile} defaultOpen>
+          <CollapsibleSection icon="bi-bar-chart-fill" title="กราฟคาร์บอนกักเก็บ" isMobile={isMobile} open={openSection === "graph"} onToggle={() => toggleSection("graph")}>
             <div className={`${plotStyles.content} ${isMobile ? plotStyles.contentMobile : ""}`}>
               <div className={`${plotStyles.carbonGrid} ${!isMobile && isProcessed ? plotStyles.carbonGridTwoCol : ""}`}>
                 {/* Left side: Graph Section */}
@@ -453,11 +467,13 @@ export default function PlotDetailPage() {
                         </div>
                       )}
 
-                      {/* Common params: variety, spacing, tree count */}
+                      {/* Common params: variety, spacing, tree count, growth model, allometry */}
                       <div className={plotStyles.paramsSection}>
                         {displayVariety && <div>• พันธุ์ยาง: <strong className={plotStyles.strongDark}>{displayVariety}</strong> {varietyDesc && <span className={plotStyles.paramSource}>{varietyDesc}</span>}</div>}
                         {displaySpacing && <div>• ระยะปลูก: <strong className={plotStyles.strongDark}>{displaySpacing}</strong> {spacingDesc && <span className={plotStyles.paramSource}>{spacingDesc}</span>}</div>}
                         {displayTreeCount > 0 && <div>• จำนวนต้น: <strong className={plotStyles.strongDark}>{displayTreeCount.toLocaleString("th-TH")}</strong> ต้น {treeCountDesc && <span className={plotStyles.paramSource}>{treeCountDesc}</span>}</div>}
+                        {displayGrowthModel && <div>• Growth Model: <strong className={plotStyles.strongDark}>{displayGrowthModel}</strong> {growthModelDesc && <span className={plotStyles.paramSource}>{growthModelDesc}</span>}</div>}
+                        {displayAllometry && <div>• สมการ Allometry: <strong className={plotStyles.strongDark}>{displayAllometry}</strong> {allometryDesc && <span className={plotStyles.paramSource}>{allometryDesc}</span>}</div>}
                       </div>
                     </div>
                   </div>
@@ -466,7 +482,13 @@ export default function PlotDetailPage() {
             </div>
           </CollapsibleSection>
 
-          <CollapsibleSection icon="bi-map-fill" title="แผนที่แปลง" subtitle={formatPlotLocation(plot)} isMobile={isMobile}>
+          <CollapsibleSection icon="bi-sliders" title="จำลองคาร์บอนกักเก็บ" isMobile={isMobile} open={openSection === "simulation"} onToggle={() => toggleSection("simulation")}>
+            <div className={`${plotStyles.content} ${isMobile ? plotStyles.contentMobile : ""}`}>
+              {/* TODO: carbon simulation content */}
+            </div>
+          </CollapsibleSection>
+
+          <CollapsibleSection icon="bi-map-fill" title="แผนที่แปลง" subtitle={formatPlotLocation(plot)} isMobile={isMobile} open={openSection === "map"} onToggle={() => toggleSection("map")}>
             <div className={`${plotStyles.content} ${isMobile ? plotStyles.contentMobile : ""}`}>
               <PlotMiniMap plot={plot} isMobile={isMobile} index={plotIndex + 1} />
             </div>

@@ -7,13 +7,13 @@ import { PLOT_INFO_MAX_LENGTH } from "@/app/components/organisms/ParcelResultsPa
 
 const VARIETY_OPTIONS = ["RRIM 600", "RRIT 251"];
 const SPACING_OPTIONS = ["2.5x8", "3x7", "2.5x7", "2x6", "3x8"];
-const GROWTH_MODEL_OPTIONS = [
+export const GROWTH_MODEL_OPTIONS = [
   { label: "Anchored Chapman-Richards", value: "chapman_richards" },
   { label: "Anchored Weibull", value: "weibull" },
   { label: "Anchored Gompertz", value: "gompertz" },
   { label: "Anchored Schumacher", value: "schumacher" },
 ];
-const ALLOMETRY_OPTIONS = [
+export const ALLOMETRY_OPTIONS = [
   { label: "Hytonen et al. (2018)", value: "hytonen_2018" },
   { label: "Chiarawipa et al. (2012)", value: "chiarawipa_2012" },
 ];

@@ -6,16 +6,22 @@ import { Accordion } from "./Accordion";
 
 /** Same collapsible header shell as ProjectCarbonSummary's "ปริมาณคาร์บอนรวม" —
  *  reused here so the plot dashboard's map/graph sections toggle the same way. */
-export function CollapsibleSection({ icon, title, subtitle, isMobile, defaultOpen = false, children }: {
+export function CollapsibleSection({ icon, title, subtitle, isMobile, defaultOpen = false, open, onToggle, children }: {
   icon: string;
   title: string;
   /** Shown after the title (e.g. the plot's location); hidden when empty. */
   subtitle?: string;
   isMobile: boolean;
   defaultOpen?: boolean;
+  /** Controlled mode: when set, the parent owns the open state (e.g. accordion
+   *  groups where opening one section closes the others). */
+  open?: boolean;
+  onToggle?: () => void;
   children: React.ReactNode;
 }) {
-  const [isExpanded, setIsExpanded] = useState(defaultOpen);
+  const [localExpanded, setLocalExpanded] = useState(defaultOpen);
+  const isExpanded = open ?? localExpanded;
+  const toggle = onToggle ?? (() => setLocalExpanded(!localExpanded));
 
   return (
     <div className={styles.container}>
@@ -36,7 +42,7 @@ export function CollapsibleSection({ icon, title, subtitle, isMobile, defaultOpe
         </div>
         <button
           type="button"
-          onClick={() => setIsExpanded(!isExpanded)}
+          onClick={toggle}
           className={`${styles.headerToggle} ${isExpanded ? styles.headerToggleExpanded : styles.headerToggleCollapsed}`}
         >
           ดูข้อมูล
