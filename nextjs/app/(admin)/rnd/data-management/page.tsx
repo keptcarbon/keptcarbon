@@ -313,6 +313,15 @@ export default function RndDataManagementPage() {
     const [success, setSuccess] = useState<string | null>(null);
     const [pendingDelete, setPendingDelete] = useState<ResearchDataset | null>(null);
 
+    // ── Responsive: ตรวจจับขนาดหน้าจอ <= 639px สำหรับ Stepper ──
+    const [isMobile, setIsMobile] = useState(false);
+    useEffect(() => {
+        const check = () => setIsMobile(window.innerWidth <= 639);
+        check();
+        window.addEventListener("resize", check);
+        return () => window.removeEventListener("resize", check);
+    }, []);
+
     // ── Import wizard state ──
     const [importStep, setImportStep] = useState<ImportStep>(1);
     const [importRegion, setImportRegion] = useState("");
@@ -1410,35 +1419,57 @@ export default function RndDataManagementPage() {
 
             {activeTab === "import" && (
                 <div style={{ background: "#fff", border: "1px solid #e6f0ea", borderRadius: 16, padding: "32px 40px", maxWidth: 640, margin: "0 auto" }}>
-                    {/* ── Step indicator ── */}
-                    <div className="d-flex align-items-start justify-content-center mb-4">
-                        {IMPORT_STEPS.map((s, i) => (
-                            <div key={s.step} className="d-flex align-items-start">
-                                <div className="d-flex flex-column align-items-center" style={{ minWidth: 100 }}>
-                                    <div style={{
-                                        width: 34, height: 34, borderRadius: "50%",
-                                        display: "flex", alignItems: "center", justifyContent: "center",
-                                        fontWeight: 700, fontSize: 14,
-                                        background: importStep >= s.step ? "#1e7a47" : "#f1f6f3",
-                                        color: importStep >= s.step ? "#fff" : "#5a7a65",
-                                        boxShadow: importStep === s.step ? "0 0 0 4px #d7f0e1" : "none",
-                                        transition: "all 0.15s ease",
-                                    }}>
-                                        {importStep > s.step ? <i className="bi bi-check-lg" /> : s.step}
+                    {/* ── Step indicator: สลับระหว่าง Desktop/Mobile ด้วย isMobile state ── */}
+                    {!isMobile ? (
+                        /* Desktop View (> 639px): UI เดิมเป๊ะ */
+                        <div className="d-flex align-items-start justify-content-center mb-4">
+                            {IMPORT_STEPS.map((s, i) => (
+                                <div key={s.step} className="d-flex align-items-start">
+                                    <div className="d-flex flex-column align-items-center" style={{ minWidth: 100 }}>
+                                        <div style={{
+                                            width: 34, height: 34, borderRadius: "50%",
+                                            display: "flex", alignItems: "center", justifyContent: "center",
+                                            fontWeight: 700, fontSize: 14,
+                                            background: importStep >= s.step ? "#1e7a47" : "#f1f6f3",
+                                            color: importStep >= s.step ? "#fff" : "#5a7a65",
+                                            boxShadow: importStep === s.step ? "0 0 0 4px #d7f0e1" : "none",
+                                            transition: "all 0.15s ease",
+                                        }}>
+                                            {importStep > s.step ? <i className="bi bi-check-lg" /> : s.step}
+                                        </div>
+                                        <div style={{
+                                            fontSize: 12, marginTop: 6, fontWeight: 600, textAlign: "center",
+                                            color: importStep >= s.step ? "#1a3d2b" : "#94a3b8",
+                                        }}>
+                                            {s.label}
+                                        </div>
                                     </div>
-                                    <div style={{
-                                        fontSize: 12, marginTop: 6, fontWeight: 600, textAlign: "center",
-                                        color: importStep >= s.step ? "#1a3d2b" : "#94a3b8",
-                                    }}>
-                                        {s.label}
-                                    </div>
+                                    {i < IMPORT_STEPS.length - 1 && (
+                                        <div style={{ width: 48, height: 2, background: importStep > s.step ? "#1e7a47" : "#e6f0ea", marginTop: 16 }} />
+                                    )}
                                 </div>
-                                {i < IMPORT_STEPS.length - 1 && (
-                                    <div style={{ width: 48, height: 2, background: importStep > s.step ? "#1e7a47" : "#e6f0ea", marginTop: 16 }} />
-                                )}
+                            ))}
+                        </div>
+                    ) : (
+                        /* Mobile View (<= 639px): วงกลมตัวเลข + ข้อความใต้ */
+                        <div className="d-flex flex-column align-items-center mb-4">
+                            <div style={{
+                                width: 38, height: 38, borderRadius: "50%",
+                                display: "flex", alignItems: "center", justifyContent: "center",
+                                fontWeight: 700, fontSize: 16,
+                                background: "#1e7a47", color: "#fff",
+                                boxShadow: "0 0 0 4px #d7f0e1",
+                            }}>
+                                {importStep}
                             </div>
-                        ))}
-                    </div>
+                            <div style={{ fontSize: 11.5, fontWeight: 600, color: "#5a7a65", marginTop: 4 }}>
+                                ขั้นตอนที่ {importStep} จาก {IMPORT_STEPS.length}
+                            </div>
+                            <div style={{ fontSize: 14, fontWeight: 700, color: "#1a3d2b" }}>
+                                {IMPORT_STEPS.find((s) => s.step === importStep)?.label}
+                            </div>
+                        </div>
+                    )}
 
                     {/* ── Step 1: province ── */}
                     {importStep === 1 && (
@@ -1631,13 +1662,13 @@ export default function RndDataManagementPage() {
                                         display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
                                         gap: 6, padding: "28px 16px", borderRadius: 12,
                                         border: "1.5px dashed #cfe4d8", background: "#f8fbf9",
-                                        cursor: "pointer", textAlign: "center",
+                                        cursor: "pointer", textAlign: "center", width: "100%", overflow: "hidden"
                                     }}
                                 >
                                     <i className="bi bi-cloud-arrow-up" style={{ fontSize: 26, color: "#1e7a47" }} />
                                     {importFile ? (
                                         <>
-                                            <span style={{ fontSize: 13.5, fontWeight: 600, color: "#1a3d2b" }}>{importFile.name}</span>
+                                            <span style={{ fontSize: 13.5, fontWeight: 600, color: "#1a3d2b", wordBreak: "break-all" }}>{importFile.name}</span>
                                             {(importCategory === "planting_year_map" || importCategory === "lulc_map") && (
                                                 <span style={{ fontSize: 12, color: fileMetaError ? "#c53030" : "#94a3b8" }}>
                                                     {fileMetaLoading ? "กำลังอ่าน metadata ของไฟล์…" : fileMetaError ? fileMetaError : fileMeta ? "อ่าน metadata สำเร็จ" : ""}
@@ -1675,11 +1706,11 @@ export default function RndDataManagementPage() {
                                 {reviewRows.map((row, i) => (
                                     <div
                                         key={row.label}
-                                        className="d-flex justify-content-between"
-                                        style={{ padding: "12px 16px", borderTop: i === 0 ? "none" : "1px solid #f1f5f9" }}
+                                        className="d-flex flex-column flex-sm-row justify-content-sm-between align-items-start align-items-sm-center"
+                                        style={{ padding: "12px 16px", borderTop: i === 0 ? "none" : "1px solid #f1f5f9", gap: "4px" }}
                                     >
-                                        <span style={{ fontSize: 13, color: "#5a7a65" }}>{row.label}</span>
-                                        <span style={{ fontSize: 13, fontWeight: 600, color: "#1a3d2b" }}>{row.value}</span>
+                                        <span style={{ fontSize: 13, color: "#5a7a65", flexShrink: 0 }}>{row.label}</span>
+                                        <span style={{ fontSize: 13, fontWeight: 600, color: "#1a3d2b", wordBreak: "break-all", textAlign: "left" }} className="text-sm-end">{row.value}</span>
                                     </div>
                                 ))}
                             </div>
@@ -1699,12 +1730,19 @@ export default function RndDataManagementPage() {
                                                     </tr>
                                                 </thead>
                                                 <tbody>
-                                                    {fileMeta.fields.map((field) => (
-                                                        <tr key={field.name}>
-                                                            <td className="px-3 py-2" style={{ color: "#1a3d2b" }}>{field.name}</td>
-                                                            <td className="px-3 py-2" style={{ color: "#5a7a65" }}>{field.type || "-"}</td>
-                                                        </tr>
-                                                    ))}
+                                                    {fileMeta.fields.map((f) => {
+                                                        const isMissing = !(LULC_REQUIRED_FIELDS as readonly string[]).includes(f.name) && fileMeta.missingFields.includes(f.name);
+                                                        return (
+                                                            <tr key={f.name}>
+                                                                <td className="px-3 py-2" style={{ color: isMissing ? "#dc2626" : "#1a3d2b", fontWeight: 500 }}>
+                                                                    {f.name} {isMissing && <span style={{ fontSize: 11, color: "#ef4444" }}>(ขาด/ผิด)</span>}
+                                                                </td>
+                                                                <td className="px-3 py-2" style={{ color: "#5a7a65", fontFamily: "monospace" }}>
+                                                                    {f.type}
+                                                                </td>
+                                                            </tr>
+                                                        );
+                                                    })}
                                                 </tbody>
                                             </table>
                                         </div>
@@ -1723,7 +1761,9 @@ export default function RndDataManagementPage() {
                                                 <thead style={{ background: "#f8fbf9" }}>
                                                     <tr>
                                                         {fileMeta.headers.map((header, i) => (
-                                                            <th key={i} className="px-3 py-2" style={TH_STYLE}>{header}</th>
+                                                            <th key={i} className="px-3 py-2 text-nowrap" style={TH_STYLE}>
+                                                                {header}
+                                                            </th>
                                                         ))}
                                                     </tr>
                                                 </thead>
@@ -1731,7 +1771,9 @@ export default function RndDataManagementPage() {
                                                     {fileMeta.sampleRows.map((row, i) => (
                                                         <tr key={i}>
                                                             {row.map((cell, j) => (
-                                                                <td key={j} className="px-3 py-2" style={{ color: "#1a3d2b" }}>{cell || "-"}</td>
+                                                                <td key={j} className="px-3 py-2 text-nowrap" style={{ color: "#1a3d2b" }}>
+                                                                    {cell || "-"}
+                                                                </td>
                                                             ))}
                                                         </tr>
                                                     ))}
@@ -1744,8 +1786,8 @@ export default function RndDataManagementPage() {
 
                             {fileDebug && (
                                 <details className="mt-3">
-                                    <summary style={{ fontSize: 12, color: "#94a3b8", cursor: "pointer" }}>
-                                        Metadata ที่อ่านได้จากไฟล์
+                                    <summary style={{ fontSize: 12, color: "#64748b", cursor: "pointer", userSelect: "none" }}>
+                                        Show raw debug info
                                     </summary>
                                     <pre style={{
                                         marginTop: 8, padding: 12, borderRadius: 8,
@@ -1769,7 +1811,7 @@ export default function RndDataManagementPage() {
                             }}>
                                 <i className="bi bi-upload" />
                             </div>
-                            <h3 className="fw-bold mb-2" style={{ fontSize: 18, color: "#1a3d2b" }}>
+                            <h3 className="fw-bold mb-2" style={{ fontSize: 18, color: "#1a3d2b", wordBreak: "break-all" }}>
                                 พร้อมนำเข้า &ldquo;{importFile?.name}&rdquo;
                             </h3>
                             {importCategory === "lulc_map" && (
@@ -1921,7 +1963,7 @@ export default function RndDataManagementPage() {
                     )}
 
                     {/* ── Step navigation ── */}
-                    <div className="d-flex justify-content-between mt-4">
+                    <div className="d-flex justify-content-between gap-3 mt-4">
                         <button
                             onClick={() => setImportStep((s) => (s > 1 ? ((s - 1) as ImportStep) : s))}
                             disabled={importStep === 1}

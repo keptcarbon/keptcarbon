@@ -777,22 +777,33 @@ export default function RndConfigurationPage() {
                                         </span>
                                         <span style={{ fontWeight: 600, color: "#1a3d2b", fontSize: 14 }}>{region.provinceName}</span>
                                     </div>
-                                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-                                        <Field required label="Planting Year Map Version" value={region.plantingYearMapVersion} onChange={(v) => updateRegion(region.code, "plantingYearMapVersion", v)} options={toOptions(regionOptions?.plantingYearVersionOptions ?? [])} />
-                                        <Field required label="LU Map Version" value={region.luMapVersion} onChange={(v) => updateRegion(region.code, "luMapVersion", v)} options={toOptions(regionOptions?.luVersionOptions ?? [])} />
-                                        <Field required label="Default Spacing System" value={region.defaultSpacingSystem} onChange={(v) => updateRegion(region.code, "defaultSpacingSystem", v)} options={toOptions(regionOptions?.spacingOptions ?? [])} />
-                                        <Field required label="Default Rubber Clone" value={region.defaultRubberClone} onChange={(v) => updateRegion(region.code, "defaultRubberClone", v)} options={toOptions(regionOptions?.cloneOptions ?? [])} />
-                                        <Field required label="Default Growth Model" value={region.defaultModel} onChange={(v) => updateRegion(region.code, "defaultModel", v)} options={toOptions(regionOptions?.growthOptions ?? [])} />
-                                        <Field required label="Default Biomass Assessment Method" value={region.defaultBiomassAssessmentMethod} onChange={(v) => updateRegion(region.code, "defaultBiomassAssessmentMethod", v)} options={toOptions(regionOptions?.allometryOptions ?? [])} />
-                                        <Field required label="Biomass Profile Version" value={region.biomassProfileVersion} onChange={(v) => updateRegion(region.code, "biomassProfileVersion", v)} options={toOptions(regionOptions?.biomassProfileVersionOptions ?? [])} />
+                                    <div className="row g-3">
+                                        <div className="col-12 col-lg-6">
+                                            <Field required label="Planting Year Map Version" value={region.plantingYearMapVersion} onChange={(v) => updateRegion(region.code, "plantingYearMapVersion", v)} options={toOptions(regionOptions?.plantingYearVersionOptions ?? [])} />
+                                        </div>
+                                        <div className="col-12 col-lg-6">
+                                            <Field required label="LU Map Version" value={region.luMapVersion} onChange={(v) => updateRegion(region.code, "luMapVersion", v)} options={toOptions(regionOptions?.luVersionOptions ?? [])} />
+                                        </div>
+                                        <div className="col-12 col-lg-6">
+                                            <Field required label="Default Spacing System" value={region.defaultSpacingSystem} onChange={(v) => updateRegion(region.code, "defaultSpacingSystem", v)} options={toOptions(regionOptions?.spacingOptions ?? [])} />
+                                        </div>
+                                        <div className="col-12 col-lg-6">
+                                            <Field required label="Default Rubber Clone" value={region.defaultRubberClone} onChange={(v) => updateRegion(region.code, "defaultRubberClone", v)} options={toOptions(regionOptions?.cloneOptions ?? [])} />
+                                        </div>
+                                        <div className="col-12 col-lg-6">
+                                            <Field required label="Default Growth Model" value={region.defaultModel} onChange={(v) => updateRegion(region.code, "defaultModel", v)} options={toOptions(regionOptions?.growthOptions ?? [])} />
+                                        </div>
+                                        <div className="col-12 col-lg-6">
+                                            <Field required label="Biomass Profile Version" value={region.biomassProfileVersion} onChange={(v) => updateRegion(region.code, "biomassProfileVersion", v)} options={toOptions(regionOptions?.biomassProfileVersionOptions ?? [])} />
+                                        </div>
 
-                                        {/* ── Validate button — confirms the clone/growth/allometry
-                                             combination actually has rows in tbl_biomass_profile
-                                             before saving, mirroring CarbonService's real lookup.
-                                             Placed as the next grid item so it auto-flows into the
-                                             right column, directly under "Default Biomass Assessment
-                                             Method". ── */}
-                                        <div style={{ alignSelf: "start" }}>
+                                        {/* ── ย้ายฟิลด์ที่มีข้อความยาวมากมาไว้ด้านล่างสุด และให้กางเต็ม 100% (col-12) ── */}
+                                        <div className="col-12">
+                                            <Field required label="Default Biomass Assessment Method" value={region.defaultBiomassAssessmentMethod} onChange={(v) => updateRegion(region.code, "defaultBiomassAssessmentMethod", v)} options={toOptions(regionOptions?.allometryOptions ?? [])} />
+                                        </div>
+
+                                        {/* ── Validate button ── */}
+                                        <div className="col-12">
                                             <div style={FIELD_LABEL_STYLE}>
                                                 ตรวจสอบพารามิเตอร์ <span style={{ color: "#dc2626" }}>*</span>
                                             </div>
