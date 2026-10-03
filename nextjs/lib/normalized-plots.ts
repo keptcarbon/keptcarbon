@@ -89,6 +89,10 @@ function normalizePlotNote(raw: unknown): string | null {
   return v || null;
 }
 
+/** True when a polygons_payload entry carries `key` (even as null). JSON drops undefined, so absent = not sent. */
+const has = (payload: AnyRecord | undefined, key: string): boolean =>
+  !!payload && Object.prototype.hasOwnProperty.call(payload, key);
+
 const UPSERT_PLOT_SQL = `
   INSERT INTO tbl_plots (
     project_id, polygon_id, geometry, area_m2, province_code,
@@ -109,17 +113,22 @@ const UPSERT_PLOT_SQL = `
     status                = COALESCE(EXCLUDED.status, tbl_plots.status),
     status_code           = COALESCE(EXCLUDED.status_code, tbl_plots.status_code),
     message               = COALESCE(EXCLUDED.message, tbl_plots.message),
-    year_of_planting      = COALESCE(EXCLUDED.year_of_planting, tbl_plots.year_of_planting),
-    rubber_clone          = COALESCE(EXCLUDED.rubber_clone, tbl_plots.rubber_clone),
-    tree_count            = COALESCE(EXCLUDED.tree_count, tbl_plots.tree_count),
-    spacing_system        = COALESCE(EXCLUDED.spacing_system, tbl_plots.spacing_system),
-    project_type          = COALESCE(EXCLUDED.project_type, tbl_plots.project_type),
+    -- $19-$25: the plot's polygons_payload entry carries that key, so it's the
+    -- user's current form value and authoritative even when null (the user
+    -- cleared it -> e.g. year falls back to the raster). Key absent (no payload
+    -- entry for this plot, or a payload that doesn't track the field) -> keep.
+    -- Plain COALESCE here made a cleared field impossible to save.
+    year_of_planting      = CASE WHEN $19::boolean THEN EXCLUDED.year_of_planting ELSE tbl_plots.year_of_planting END,
+    rubber_clone          = CASE WHEN $20::boolean THEN EXCLUDED.rubber_clone ELSE tbl_plots.rubber_clone END,
+    tree_count            = CASE WHEN $21::boolean THEN EXCLUDED.tree_count ELSE tbl_plots.tree_count END,
+    spacing_system        = CASE WHEN $22::boolean THEN EXCLUDED.spacing_system ELSE tbl_plots.spacing_system END,
+    project_type          = CASE WHEN $23::boolean THEN EXCLUDED.project_type ELSE tbl_plots.project_type END,
     selected_lu_classes   = COALESCE($14::text[], tbl_plots.selected_lu_classes),
     -- $18: the save sent a plotNote string, so it's authoritative even
     -- when blank (the user cleared it); otherwise keep the stored value.
     plot_note             = CASE WHEN $18::boolean THEN EXCLUDED.plot_note ELSE tbl_plots.plot_note END,
-    growth_model          = COALESCE(EXCLUDED.growth_model, tbl_plots.growth_model),
-    allometry             = COALESCE(EXCLUDED.allometry, tbl_plots.allometry),
+    growth_model          = CASE WHEN $24::boolean THEN EXCLUDED.growth_model ELSE tbl_plots.growth_model END,
+    allometry             = CASE WHEN $25::boolean THEN EXCLUDED.allometry ELSE tbl_plots.allometry END,
     deleted_at            = NULL
 `;
 
@@ -153,6 +162,21 @@ async function upsertPlots(
       ? payload.selected_lu_classes
       : null;
 
+    // No geometry → this entry can't be INSERTed (geometry is NOT NULL, and
+    // Postgres checks that before ON CONFLICT kicks in). It's a partial save of
+    // an existing plot (e.g. editing ข้อมูลแปลง from the list table), so only
+    // apply the plot note, if one was sent.
+    if (!geometryObj) {
+      if (typeof fp?.plotNote === "string") {
+        await client.query(
+          `UPDATE tbl_plots SET plot_note = $3, updated_at = NOW()
+           WHERE project_id = $1 AND polygon_id = $2`,
+          [projectId, polygonId, normalizePlotNote(fp.plotNote)]
+        );
+      }
+      continue;
+    }
+
     await client.query(UPSERT_PLOT_SQL, [
       projectId,
       polygonId,
@@ -172,6 +196,13 @@ async function upsertPlots(
       payload?.growth_model ?? null,
       payload?.allometry ?? null,
       typeof fp?.plotNote === "string",
+      has(payload, "year_of_planting"),
+      has(payload, "rubber_clone"),
+      has(payload, "tree_count"),
+      has(payload, "spacing_system"),
+      has(payload, "project_type"),
+      has(payload, "growth_model"),
+      has(payload, "allometry"),
     ]);
   }
 

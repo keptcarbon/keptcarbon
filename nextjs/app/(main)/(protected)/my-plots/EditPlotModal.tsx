@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import type { SavedPlot } from "./types";
 import styles from "./EditPlotModal.module.css";
+import { Sprout, TreeDeciduous } from "lucide-react";
 import { PLOT_INFO_MAX_LENGTH, VARIETY_OPTIONS } from "@/app/components/organisms/ParcelResultsPanel/utils";
 
 const SPACING_OPTIONS = ["2.5x8", "3x7", "2.5x7", "2x6", "3x8"];
@@ -195,11 +196,12 @@ export function EditPlotModal({ plot, index, onClose, onSave, onSaveAndProcess, 
 
           {/* สถานะแปลง */}
           <div className={styles.statusSection}>
-            {fieldLabel("bi-info-circle", <><span>สถานะแปลง</span><span className={styles.requiredMark}>*</span></>)}
+            {fieldLabel("bi-signpost-split", <><span>สถานะแปลง</span><span className={styles.requiredMark}>*</span></>)}
             <div className={styles.statusRow}>
               {(["replanting", "existing"] as const).map(status => {
                 const active = formData.plantStatus === status;
                 const label = status === "replanting" ? "เริ่มปลูกใหม่" : "ปลูกมาแล้ว";
+                const StatusIcon = status === "replanting" ? Sprout : TreeDeciduous;
                 return (
                   <div
                     key={status}
@@ -213,6 +215,7 @@ export function EditPlotModal({ plot, index, onClose, onSave, onSaveAndProcess, 
                     <div className={`${styles.statusRadio} ${active ? styles.statusRadioActive : ""}`}>
                       {active && <div className={styles.statusRadioDot} />}
                     </div>
+                    <StatusIcon size={18} color={active ? "#1e7a47" : "#94a3b8"} aria-hidden="true" style={{ flexShrink: 0 }} />
                     <span className={`${styles.statusLabel} ${active ? styles.statusLabelActive : ""}`}>{label}</span>
                   </div>
                 );
@@ -292,7 +295,7 @@ export function EditPlotModal({ plot, index, onClose, onSave, onSaveAndProcess, 
                 </SelectField>
               </div>
               <div>
-                {fieldLabel("bi-calculator", "สมการ Allometry")}
+                {fieldLabel("bi-superscript", "สมการ Allometry")}
                 <SelectField value={formData.allometry} onChange={v => setFormData(f => ({ ...f, allometry: v }))}>
                   <option value="">— เลือกสมการ —</option>
                   {ALLOMETRY_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}

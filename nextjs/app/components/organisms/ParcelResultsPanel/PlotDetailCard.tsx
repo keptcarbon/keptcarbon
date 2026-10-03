@@ -4,6 +4,8 @@ import { useState } from "react";
 import type { AssessParameters } from "@/lib/carbon-api";
 import { type PlotFormData, type CarbonResult, convertYearNoteToBE } from "./utils";
 import styles from "./PlotDetailCard.module.css";
+import { LayoutGrid } from "lucide-react";
+import { ClickTooltip } from "@/components/ui/tooltip";
 
 export function PlotDetailCard({
     form,
@@ -19,10 +21,19 @@ export function PlotDetailCard({
     const [expandYears, setExpandYears] = useState(false);
     const [expandNotes, setExpandNotes] = useState(false);
 
-    const userEnteredYear = !!form?.plantYear;
+    // What the assessment actually used, not the form: the form can say a year
+    // while the stored assessment came from the raster (e.g. the year was cleared,
+    // or edited without re-processing) -- labelling that "ผู้ใช้ระบุ" was wrong.
+    const epYearSource = ep?.year_of_planting?.source;
+    const userEnteredYear = ep?.year_of_planting
+        ? typeof ep.year_of_planting.value === "number" && /user/i.test(epYearSource ?? "")
+        : !!form?.plantYear;
     const yearParam = ep?.year_of_planting;
     const rawNotes = yearParam?.note ?? [];
-    const yearNotes = rawNotes;
+    // note holds every year found in the plot (incl. NA / too-old years); it's a
+    // hint only, so show the top 5 by % share — same as the plot page.
+    const notePct = (n: string) => parseFloat(n.match(/\(([\d.]+)%\)/)?.[1] ?? "0");
+    const yearNotes = [...rawNotes].sort((a, b) => notePct(b) - notePct(a)).slice(0, 5);
 
     // Parse year boxes from value
     let yearBoxItems: Array<{ label: string; pct: number }> = [];
@@ -47,6 +58,11 @@ export function PlotDetailCard({
         }
     }
     if (!displayYearBE && cr.plantYearBE > 0) displayYearBE = cr.plantYearBE;
+
+    // Same as the plot page: shares are % of the whole plot, so a system-mixed
+    // set of years adds up to < 100% (NA and years > MAX_TREE_AGE = 29 excluded).
+    const usedYearsPctSum = yearBoxItems.reduce((sum, y) => sum + y.pct, 0);
+    const showPctSumNote = !userEnteredYear && yearBoxItems.length > 1 && usedYearsPctSum > 0 && usedYearsPctSum < 99.95;
 
     const getSourceText = (source?: string | null, isFromUserFallback?: boolean) => {
         if (!source) return isFromUserFallback ? "" : "(คำนวณจากระบบ)";
@@ -75,6 +91,7 @@ export function PlotDetailCard({
                     </span>
                     {areaRai !== undefined && (
                         <div className={styles.areaText}>
+                            <LayoutGrid size={14} color="#1e7a47" aria-hidden="true" style={{ display: "inline-block", verticalAlign: "-2px", marginRight: 6 }} />
                             พื้นที่: <strong className={styles.strongDark}>{areaRai.toFixed(2)}</strong> ไร่
                         </div>
                     )}
@@ -83,7 +100,8 @@ export function PlotDetailCard({
                 {/* Main Year Info (from user or value) */}
                 <div className={yearNotes.length > 0 ? styles.yearSectionWithNotes : styles.yearSection}>
                     <div className={styles.yearLabel}>
-                        ปีที่เริ่มปลูกที่ใช้ในการคำนวณ{" "}
+                        <i className="bi bi-calendar-event" style={{ color: "#1e7a47", marginRight: 6 }} aria-hidden="true" />
+                        ปีเริ่มปลูกที่ใช้ในการคำนวณ{" "}
                         {userEnteredYear ? (
                             <span className={styles.yearLabelHighlight}>
                                 (1 ปี: ข้อมูลที่ผู้ใช้ระบุ)
@@ -96,6 +114,24 @@ export function PlotDetailCard({
                             <span className={styles.yearLabelHighlight}>
                                 (ข้อมูลอ้างอิงจากระบบ)
                             </span>
+                        )}
+                        {showPctSumNote && (
+                            <ClickTooltip
+                                className="max-w-[300px] whitespace-normal py-2 font-medium leading-relaxed"
+                                content={<>
+                                    สัดส่วน (%) คิดจากพื้นที่ทั้งแปลง รวมเป็น {usedYearsPctSum.toFixed(1)}% เนื่องจากไม่นำพื้นที่ที่ระบุปีปลูกไม่ได้ (NA)
+                                    และพื้นที่ที่มีอายุเกิน 29 ปี (คาดว่าเป็นค่าคลาดเคลื่อนจากภาพถ่าย) มาใช้ในการคำนวณ
+                                    หากทราบปีที่ปลูกจริง แนะนำให้แก้ไขข้อมูลแปลงเพื่อผลการประเมินที่แม่นยำขึ้น
+                                </>}
+                            >
+                                <span
+                                    tabIndex={0}
+                                    aria-label="ทำไมสัดส่วนรวมไม่ถึง 100%"
+                                    style={{ marginLeft: 6, color: "#1e7a47", cursor: "pointer", outline: "none" }}
+                                >
+                                    <i className="bi bi-info-circle" aria-hidden="true" />
+                                </span>
+                            </ClickTooltip>
                         )}
                     </div>
                     <div className={styles.yearBoxRow}>
@@ -130,7 +166,7 @@ export function PlotDetailCard({
                 {yearNotes.length > 0 && (
                     <div className={styles.notesBox}>
                         <div className={styles.notesBoxLabel}>
-                            <i className={`bi bi-pie-chart-fill ${styles.notesBoxIcon}`} /> สัดส่วนปีที่เริ่มปลูกที่ตรวจพบในแปลง:
+                            <i className={`bi bi-pie-chart-fill ${styles.notesBoxIcon}`} /> ปีเริ่มปลูก 5 ปีแรกเรียงตามสัดส่วนที่ตรวจพบในแปลง:
                         </div>
                         <div className={styles.yearBoxRow}>
                             {yearNotes.slice(0, expandNotes ? yearNotes.length : 3).map((note, ni) => {
@@ -155,11 +191,11 @@ export function PlotDetailCard({
                     </div>
                 )}
 
-                {/* Common params: variety, spacing, tree count */}
+                {/* Common params: variety, spacing, tree count — icons match the plot page / EditPlotModal */}
                 <div className={styles.paramsSection}>
-                    {variety && <div>• พันธุ์ยาง: <strong className={styles.strongDark}>{variety}</strong> {varietyDesc && <span className={styles.paramSource}>{varietyDesc}</span>}</div>}
-                    {spacing && <div>• ระยะปลูก: <strong className={styles.strongDark}>{spacing}</strong> {spacingDesc && <span className={styles.paramSource}>{spacingDesc}</span>}</div>}
-                    {treeCount > 0 && <div>• จำนวนต้น: <strong className={styles.strongDark}>{treeCount.toLocaleString("th-TH")}</strong> ต้น {treeCountDesc && <span className={styles.paramSource}>{treeCountDesc}</span>}</div>}
+                    {variety && <div><i className="bi bi-tags" style={{ color: "#1e7a47", marginRight: 6 }} aria-hidden="true" />พันธุ์ยาง: <strong className={styles.strongDark}>{variety}</strong> {varietyDesc && <span className={styles.paramSource}>{varietyDesc}</span>}</div>}
+                    {spacing && <div><i className="bi bi-arrows-fullscreen" style={{ color: "#1e7a47", marginRight: 6 }} aria-hidden="true" />ระยะปลูก: <strong className={styles.strongDark}>{spacing}</strong> {spacingDesc && <span className={styles.paramSource}>{spacingDesc}</span>}</div>}
+                    {treeCount > 0 && <div><i className="bi bi-tree-fill" style={{ color: "#1e7a47", marginRight: 6 }} aria-hidden="true" />จำนวนต้น: <strong className={styles.strongDark}>{treeCount.toLocaleString("th-TH")}</strong> ต้น {treeCountDesc && <span className={styles.paramSource}>{treeCountDesc}</span>}</div>}
                 </div>
             </div>
         </div>

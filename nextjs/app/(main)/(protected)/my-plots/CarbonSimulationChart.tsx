@@ -114,7 +114,7 @@ export function CarbonSimulationChart({ baseRows, isMobile, unitLabel = "แป�
     <div style={{ background: "#edfaf3", borderRadius: 16, border: "1px solid rgba(30,122,71,0.15)", padding: isMobile ? "14px 12px 10px" : "18px 20px 14px", boxShadow: "0 10px 30px -5px rgba(30,122,71,0.12)" }}>
       {/* Scenario controls */}
       <div style={{ display: "flex", flexWrap: "wrap", gap: isMobile ? 14 : 32, marginBottom: 16 }}>
-        <SliderField label="รอบการปลูก (Rotation)" value={rotationYear} min={15} max={35} unit="ปี"
+        <SliderField label="รอบการปลูกทดแทน (Rotation)" value={rotationYear} min={15} max={35} unit="ปี"
           onChange={setRotationYear} ticks={[15, 20, 25, 30, 35]} />
         <SliderField label="อัตราการปลูกทดแทน (Replanting)" value={replantingPct} min={0} max={200} unit="%"
           onChange={setReplantingPct} ticks={[0, 50, 100, 150, 200]} />

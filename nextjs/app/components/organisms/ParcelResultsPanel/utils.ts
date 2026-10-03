@@ -11,6 +11,10 @@ export interface PlotFormData {
     plotIndex?: number;
     /** Free-text plot note (owner name, land title no.) -- stored in tbl_plots.plot_note. */
     plotNote?: string;
+    /** No map-draw input -- carried through from the saved plot (set in my-plots'
+     *  EditPlotModal) so re-assessing/saving here keeps the user's choice. */
+    growthModel?: string;
+    allometry?: string;
 }
 
 export const PLOT_INFO_MAX_LENGTH = 100;

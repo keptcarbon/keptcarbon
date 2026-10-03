@@ -5,7 +5,7 @@ import { useParams } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import Link from "next/link";
 import {
-  Plus, ChevronLeft, ChevronRight, Map as MapIcon, LayoutGrid, Sparkles, Loader2, Check, Clock, Eye, Search, X,
+  Plus, ChevronLeft, ChevronRight, Map as MapIcon, LayoutGrid, Sparkles, Loader2, Check, Clock, Eye, Search, X, Pencil, Sprout, TreeDeciduous,
 } from "lucide-react";
 import { assessCarbon } from "@/lib/carbon-api";
 import type { SavedPlot } from "../types";
@@ -16,6 +16,9 @@ import { buildProjectSimRows } from "../simulationRequest";
 import plotStyles from "../PlotCard.module.css";
 import { buildAssessRequest, applyAssessResponse } from "../assessPlot";
 import { formatPlotLocation } from "../plotLocation";
+import { EditFieldModal } from "../EditFieldModal";
+import { Tooltip } from "@/components/ui/tooltip";
+import { PLOT_INFO_MAX_LENGTH } from "@/app/components/organisms/ParcelResultsPanel/utils";
 
 const PAGE_SIZE = 10;
 
@@ -37,6 +40,11 @@ export default function ProjectDetailPage() {
   const [page, setPage] = useState(1);
   const [searchTerm, setSearchTerm] = useState("");
   const [errorModalMsg, setErrorModalMsg] = useState<string | null>(null);
+
+  // ข้อมูลแปลง (plotNote) edit modal state
+  const [noteEdit, setNoteEdit] = useState<{ id: string; no: number } | null>(null);
+  const [noteSaving, setNoteSaving] = useState(false);
+  const [noteError, setNoteError] = useState<string | null>(null);
 
   const isAdmin = user?.role === "admin";
   const isGuestUser = () => !user && typeof window !== "undefined" && !!localStorage.getItem("guest_user_id");
@@ -89,6 +97,11 @@ export default function ProjectDetailPage() {
       (isPlotProcessed(plot) ? "ประมวลผลแล้ว" : "ยังไม่ประมวลผล").includes(term)
     );
   }, [plots, searchTerm]);
+
+  // Accordion: both sections start closed; opening one closes the other.
+  const [openSection, setOpenSection] = useState<"summary" | "simulation" | null>(null);
+  const toggleSection = (key: "summary" | "simulation") =>
+    setOpenSection((cur) => (cur === key ? null : key));
 
   const projectSim = useMemo(() => buildProjectSimRows(plots), [plots]);
 
@@ -156,6 +169,38 @@ export default function ProjectDetailPage() {
     }
   };
 
+  const closeNoteEdit = () => {
+    setNoteEdit(null);
+    setNoteError(null);
+  };
+
+  const saveNote = async (note: string) => {
+    if (!noteEdit || noteSaving) return;
+    setNoteSaving(true);
+    setNoteError(null);
+    try {
+      const guestId = isGuestUser() ? localStorage.getItem("guest_user_id") : null;
+      // Every plot id must be sent — plots missing from frontendPlots get
+      // soft-deleted. Only the edited plot carries plotNote; the save merges
+      // per column (COALESCE), so nothing else on any plot is touched.
+      const res = await fetch(`/api/plots/${projectId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          frontendPlots: plots.map(p => p.id === noteEdit.id ? { id: p.id, plotNote: note } : { id: p.id }),
+          ...(guestId ? { userId: guestId } : {}),
+        }),
+      });
+      if (!res.ok) { setNoteError("บันทึกข้อมูลไม่สำเร็จ กรุณาลองใหม่"); return; }
+      setPlots(prev => prev.map(p => p.id === noteEdit.id ? { ...p, plotNote: note } : p));
+      closeNoteEdit();
+    } catch {
+      setNoteError("บันทึกข้อมูลไม่สำเร็จ กรุณาลองใหม่");
+    } finally {
+      setNoteSaving(false);
+    }
+  };
+
   if (!ready || !mounted)
     return (
       <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#f8fdfb" }}>
@@ -190,8 +235,8 @@ export default function ProjectDetailPage() {
                 )}
               </h2>
               <div className="flex flex-wrap gap-4 text-sm font-medium text-muted-foreground">
-                <span className="inline-flex items-center gap-1.5"><MapIcon className="size-3.5 text-primary" aria-hidden="true" /> <strong>{plots.length} แปลง</strong></span>
-                <span className="inline-flex items-center gap-1.5"><LayoutGrid className="size-3.5 text-primary" aria-hidden="true" /> <strong>{totalAreaRai.toFixed(2)} ไร่</strong></span>
+                <span className="inline-flex items-center gap-1.5"><MapIcon className="size-3.5 text-primary" aria-hidden="true" /> <strong className={plotStyles.strongDark}>{plots.length}</strong> แปลง</span>
+                <span className="inline-flex items-center gap-1.5"><LayoutGrid className="size-3.5 text-primary" aria-hidden="true" /> <strong className={plotStyles.strongDark}>{totalAreaRai.toFixed(2)}</strong> ไร่</span>
               </div>
             </div>
             <div className="flex w-full flex-wrap items-center gap-2 md:w-auto">
@@ -223,10 +268,10 @@ export default function ProjectDetailPage() {
               </div>
             ) : (
               <div className="flex flex-col gap-4">
-                <ProjectCarbonSummary plots={plots} isMobile={isMobile} />
+                <ProjectCarbonSummary plots={plots} isMobile={isMobile} open={openSection === "summary"} onToggle={() => toggleSection("summary")} />
 
                 {/* Every assessed plot's cohorts in one /carbon/sim batch — the backend sums them */}
-                <CollapsibleSection icon="bi-sliders" title="กราฟจำลองคาร์บอนกักเก็บ" isMobile={isMobile} keepMounted>
+                <CollapsibleSection icon="bi-sliders" title="กราฟจำลองคาร์บอนกักเก็บ" isMobile={isMobile} open={openSection === "simulation"} onToggle={() => toggleSection("simulation")} keepMounted>
                   <div className={`${plotStyles.content} ${isMobile ? plotStyles.contentMobile : ""}`}>
                     {projectSim.rows.length === 0 ? (
                       <div className={plotStyles.emptyText} style={{ fontSize: 13 }}>กรุณาประเมินคาร์บอนของแปลงในโครงการก่อน จึงจะแสดงกราฟจำลองได้</div>
@@ -300,7 +345,24 @@ export default function ProjectDetailPage() {
                             <td className="max-w-[220px] truncate px-4 py-3 text-foreground" title={plot.plotNote || undefined}>{plot.plotNote || <span className="text-muted-foreground">—</span>}</td>
                             <td className="px-4 py-3 text-foreground">{formatPlotLocation(plot) || <span className="text-muted-foreground">—</span>}</td>
                             <td className="px-4 py-3 text-center text-muted-foreground">{(plot.selectedAreaRai || plot.areaRai || 0).toFixed(2)}</td>
-                            <td className="px-4 py-3 text-center text-muted-foreground">{plantStatusLabel(plot.plantStatus)}</td>
+                            <td className="px-4 py-3 text-center text-muted-foreground">
+                              {plot.plantStatus === "replanting" || plot.plantStatus === "existing" ? (
+                                // Icon only, boxed like the action buttons — the label lives in the
+                                // tooltip / screen-reader name. Focusable so keyboard users get it too.
+                                <Tooltip content={plantStatusLabel(plot.plantStatus)}>
+                                  <span
+                                    role="img"
+                                    tabIndex={0}
+                                    aria-label={plantStatusLabel(plot.plantStatus)}
+                                    className="inline-flex size-9 cursor-help items-center justify-center rounded-lg border border-border bg-card text-primary outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+                                  >
+                                    {plot.plantStatus === "replanting"
+                                      ? <Sprout className="size-4" aria-hidden="true" />
+                                      : <TreeDeciduous className="size-4" aria-hidden="true" />}
+                                  </span>
+                                </Tooltip>
+                              ) : "—"}
+                            </td>
                             <td className="px-4 py-3 text-center">
                               {isPlotProcessed(plot) ? (
                                 <span className="inline-flex items-center gap-1 whitespace-nowrap rounded-full border border-[#d7ede1] bg-[#edfaf3] px-2 py-0.5 text-[11px] font-bold text-[#1e7a47]">
@@ -313,14 +375,27 @@ export default function ProjectDetailPage() {
                               )}
                             </td>
                             <td className="px-4 py-3 text-right">
+                              <div className="inline-flex items-center gap-2">
+                              <Tooltip content="แก้ไขข้อมูลแปลง">
+                              <button
+                                onClick={() => { setNoteError(null); setNoteEdit({ id: plot.id, no }); }}
+                                disabled={estimating}
+                                aria-label="แก้ไขข้อมูลแปลง"
+                                className="inline-flex size-9 cursor-pointer items-center justify-center rounded-lg border border-border bg-card text-foreground transition-colors hover:bg-muted/60 disabled:cursor-not-allowed disabled:opacity-50"
+                              >
+                                <Pencil className="size-4" aria-hidden="true" />
+                              </button>
+                              </Tooltip>
+                              <Tooltip content="ดูข้อมูลแปลง">
                               <Link
                                 href={`/my-plots/${projectId}/${encodeURIComponent(plot.id)}`}
-                                title="ดูข้อมูลแปลง"
                                 aria-label="ดูข้อมูลแปลง"
                                 className="inline-flex size-9 cursor-pointer items-center justify-center rounded-lg border border-border bg-card text-foreground no-underline transition-colors hover:bg-muted/60"
                               >
                                 <Eye className="size-4" aria-hidden="true" />
                               </Link>
+                              </Tooltip>
+                              </div>
                             </td>
                           </tr>
                         ))}
@@ -358,6 +433,23 @@ export default function ProjectDetailPage() {
           </div>
         </div>
       </div>
+
+      {noteEdit && (
+        <EditFieldModal
+          title={`แก้ไขข้อมูลแปลงที่ ${noteEdit.no}`}
+          subtitle="ข้อมูลเพิ่มเติมของแปลง ไม่บังคับกรอก"
+          label="ข้อมูลแปลง (เช่น ชื่อเจ้าของแปลง, เลขโฉนด)"
+          icon="bi-card-text"
+          placeholder="ไม่บังคับ"
+          maxLength={PLOT_INFO_MAX_LENGTH}
+          value={plots.find(p => p.id === noteEdit.id)?.plotNote ?? ""}
+          onClose={closeNoteEdit}
+          onSave={saveNote}
+          saving={noteSaving}
+          error={noteError}
+          isMobile={isMobile}
+        />
+      )}
 
       {/* Error Modal */}
       {errorModalMsg && (

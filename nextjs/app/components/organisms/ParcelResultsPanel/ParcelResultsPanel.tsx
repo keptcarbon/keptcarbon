@@ -1,6 +1,7 @@
 "use client";
 import { useState, useMemo, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
+import { Sprout, TreeDeciduous, LayoutGrid, Map as MapIcon } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { CarbonBarChart, profileToBarPoints, type BarPoint } from "./CarbonBarChart";
@@ -601,6 +602,8 @@ export function ParcelResultsPanel({
                         spacing: bdForm.spacing || "",
                         luChecked: { ...initialLU },
                         plotNote: bdForm.plotNote ?? props.plotNote ?? "",
+                        growthModel: bdForm.growthModel || "",
+                        allometry: bdForm.allometry || "",
                     });
                 }
                 return next;
@@ -728,8 +731,11 @@ export function ParcelResultsPanel({
                 rubber_clone: (form.variety && SUPPORTED_CLONES.includes(form.variety)) ? form.variety : null,
                 tree_count: form.treeCount ? (parseInt(form.treeCount) || null) : null,
                 spacing_system: form.spacing || null,
-                growth_model: null, // map-draw has no input for this yet -- backend applies the province default
-                allometry: null, // map-draw has no input for this yet -- backend applies the province default
+                // No map-draw input: send the saved plot's choice (from my-plots' edit modal),
+                // or null so the backend applies the province default. Also what gets
+                // saved to tbl_plots, so it must not be a blanket null.
+                growth_model: form.growthModel || null,
+                allometry: form.allometry || null,
                 biomass_profile_version: null, // map-draw has no input for this yet -- backend applies the province default
                 selected_lu_classes: (() => {
                     const luData = plotsLuRealData[idx] || {};
@@ -1685,7 +1691,7 @@ export function ParcelResultsPanel({
                                             )}
                                         </div>
                                         {p.areaRai > 0 && (
-                                            <div style={{ fontSize: 12.5, color: "#5a7a65", fontWeight: 600, marginTop: 1 }}>{p.areaRai.toFixed(2)} ไร่</div>
+                                            <div style={{ fontSize: 12.5, color: "#5a7a65", fontWeight: 600, marginTop: 1 }}><LayoutGrid size={12} color="#1e7a47" aria-hidden="true" style={{ display: "inline-block", verticalAlign: "-1px", marginRight: 4 }} /><strong style={{ color: "#0f172a", fontWeight: 700 }}>{p.areaRai.toFixed(2)}</strong> ไร่</div>
                                         )}
                                     </div>
                                     <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
@@ -1722,7 +1728,7 @@ export function ParcelResultsPanel({
                                     {/* Status Selection -- label and radios on one line, wraps on narrow screens */}
                                     <div style={{ padding: isMobile ? "16px 16px 0" : "20px 24px 0", background: "#fff", display: "flex", alignItems: "center", flexWrap: "wrap", columnGap: 24, rowGap: 8 }}>
                                         <div style={{ fontSize: 15, fontWeight: 700, color: "#1a3d2b", display: "flex", alignItems: "center", gap: 6 }}>
-                                            <i className="bi bi-info-circle" style={{ color: "#1e7a47" }} /> สถานะแปลง <span style={{ color: "#ef4444" }}>*</span>
+                                             สถานะแปลง <span style={{ color: "#ef4444" }}>*</span>
                                         </div>
                                         <div style={{ display: "flex", gap: 24 }}>
                                             <div onClick={() => {
@@ -1745,6 +1751,7 @@ export function ParcelResultsPanel({
                                                 <div style={{ width: 20, height: 20, borderRadius: "50%", border: "2px solid", borderColor: form.plantStatus === "replanting" ? "#1e7a47" : "#cbd5e1", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "all 0.2s" }}>
                                                     {form.plantStatus === "replanting" && <div style={{ width: 10, height: 10, borderRadius: "50%", background: "#1e7a47" }} />}
                                                 </div>
+                                                <Sprout size={18} color={form.plantStatus === "replanting" ? "#1e7a47" : "#94a3b8"} aria-hidden="true" style={{ flexShrink: 0, marginRight: -2 }} />
                                                 เริ่มปลูกใหม่
                                             </div>
                                             <div onClick={() => {
@@ -1768,6 +1775,7 @@ export function ParcelResultsPanel({
                                                 <div style={{ width: 20, height: 20, borderRadius: "50%", border: "2px solid", borderColor: form.plantStatus === "existing" ? "#1e7a47" : "#cbd5e1", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "all 0.2s" }}>
                                                     {form.plantStatus === "existing" && <div style={{ width: 10, height: 10, borderRadius: "50%", background: "#1e7a47" }} />}
                                                 </div>
+                                                <TreeDeciduous size={18} color={form.plantStatus === "existing" ? "#1e7a47" : "#94a3b8"} aria-hidden="true" style={{ flexShrink: 0, marginRight: -2 }} />
                                                 ปลูกมาแล้ว
                                             </div>
                                         </div>
@@ -2231,7 +2239,7 @@ export function ParcelResultsPanel({
                                 <div style={{ fontWeight: 700, fontSize: 14, color: "#1a3d2b", lineHeight: 1.25, marginBottom: 2 }}>โครงการ</div>
                             )}
                             <div style={{ fontSize: 12, color: "#5a7a65" }}>
-                                {carbonResults.length} แปลง · {totalArea.toFixed(2)} ไร่
+                                <MapIcon size={12} color="#1e7a47" aria-hidden="true" style={{ display: "inline-block", verticalAlign: "-1px", marginRight: 4 }} /><strong style={{ color: "#0f172a", fontWeight: 700 }}>{carbonResults.length}</strong> แปลง · <LayoutGrid size={12} color="#1e7a47" aria-hidden="true" style={{ display: "inline-block", verticalAlign: "-1px", marginRight: 4 }} /><strong style={{ color: "#0f172a", fontWeight: 700 }}>{totalArea.toFixed(2)}</strong> ไร่
                             </div>
                         </div>
                         <i className={`bi bi-chevron-${expandedResultIdx === "total" ? 'up' : 'down'}`} style={{ color: "#5a7a65", fontSize: 14 }} />
@@ -2310,14 +2318,14 @@ export function ParcelResultsPanel({
                                         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                                             <div style={{ fontWeight: 700, fontSize: 14, color: "#1a3d2b" }}>แปลงที่ {plotDisplayNum}</div>
                                             {form?.plantStatus === "replanting" && (
-                                                <span style={{ fontSize: 10, background: "#edfaf3", color: "#1e7a47", padding: "2px 8px", borderRadius: 20, fontWeight: 600 }}>เริ่มปลูกใหม่</span>
+                                                <span style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 11, background: "#edfaf3", color: "#1e7a47", padding: "2px 8px", borderRadius: 20, fontWeight: 600 }}><Sprout size={13} aria-hidden="true" />เริ่มปลูกใหม่</span>
                                             )}
                                             {form?.plantStatus === "existing" && (
-                                                <span style={{ fontSize: 10, background: "#f1f5f9", color: "#5a7a65", padding: "2px 8px", borderRadius: 20, fontWeight: 600 }}>ปลูกมาแล้ว</span>
+                                                <span style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 11, background: "#f1f5f9", color: "#5a7a65", padding: "2px 8px", borderRadius: 20, fontWeight: 600 }}><TreeDeciduous size={13} aria-hidden="true" />ปลูกมาแล้ว</span>
                                             )}
                                         </div>
                                         <div style={{ fontSize: 12, color: "#5a7a65" }}>
-                                            {plot?.areaRai.toFixed(2)} ไร่
+                                            <LayoutGrid size={12} color="#1e7a47" aria-hidden="true" style={{ display: "inline-block", verticalAlign: "-1px", marginRight: 4 }} /><strong style={{ color: "#0f172a", fontWeight: 700 }}>{plot?.areaRai.toFixed(2)}</strong> ไร่
                                         </div>
                                     </div>
                                     <i className={`bi bi-chevron-${expandedResultIdx === i ? 'up' : 'down'}`} style={{ color: "#5a7a65", fontSize: 14 }} />

@@ -198,6 +198,11 @@ export async function PATCH(
       });
     } catch (err) {
       await client.query("ROLLBACK");
+      // Renaming onto a name the owner already uses trips the partial unique
+      // index uq_projects_user_project_active — report it as a conflict, not a 500.
+      if ((err as { code?: string })?.code === "23505") {
+        return NextResponse.json({ error: "duplicate_name" }, { status: 409 });
+      }
       throw err;
     } finally {
       client.release();

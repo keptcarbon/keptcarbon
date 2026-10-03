@@ -4,7 +4,8 @@ import { useCallback, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import Link from "next/link";
-import { ChevronLeft, Pencil, Trash2, Pin, Check, Clock, Loader2 } from "lucide-react";
+import { ChevronLeft, Pencil, Trash2, Pin, Check, Clock, Loader2, Sprout, TreeDeciduous, LayoutGrid } from "lucide-react";
+import { ClickTooltip } from "@/components/ui/tooltip";
 import { CarbonBarChart, type BarPoint } from "@/app/components/organisms/ParcelResultsPanel/CarbonBarChart";
 import { assessCarbon } from "@/lib/carbon-api";
 import type { SavedPlot } from "../../types";
@@ -228,11 +229,21 @@ export default function PlotDetailPage() {
   // Simulation needs a saved assessment: its parameters become the /carbon/sim cohort rows.
   const simRows = buildSimRows(ep, plot.province);
 
-  const userEnteredYear = !!form?.plantYear;
+  // What the assessment actually used, not the form: the form can say a year
+  // while the stored assessment came from the raster (e.g. the year was cleared,
+  // or edited without re-processing) -- labelling that "ผู้ใช้ระบุ" was wrong.
+  const epYearSource = ep?.year_of_planting?.source;
+  const userEnteredYear = ep?.year_of_planting
+      ? typeof ep.year_of_planting.value === "number" && /user/i.test(epYearSource ?? "")
+      : !!form?.plantYear;
   const showPlotAge = !!form?.plantYear || (plot.carbonProfile?.some(p => p.isAgeValid) ?? false);
   const yearParam = ep?.year_of_planting;
   const rawNotes: string[] = yearParam?.notes ?? yearParam?.note ?? [];
-  const yearNotes = rawNotes.slice(0, 5);
+  // year_of_planting.note stores every year found in the plot (incl. NA and
+  // years > MAX_TREE_AGE that the model drops). It's only a hint for users who
+  // don't know their planting year, so show just the top 5 by % share.
+  const notePct = (n: string) => parseFloat(n.match(/\(([\d.]+)%\)/)?.[1] ?? "0");
+  const yearNotes = [...rawNotes].sort((a, b) => notePct(b) - notePct(a)).slice(0, 5);
 
   let yearBoxItems: Array<{ label: string; pct: number; yearBE: number }> = [];
   let displayYearBE: number | null = null;
@@ -256,6 +267,12 @@ export default function PlotDetailPage() {
     }
   }
   if (!displayYearBE && plot.plantYearBE && plot.plantYearBE > 0) displayYearBE = plot.plantYearBE;
+
+  // Shares of the years used are % of the whole plot, so when the system mixes
+  // several years they don't add up to 100%: NA pixels and implausibly old
+  // years (> MAX_TREE_AGE = 29 in the backend) are excluded from the calculation.
+  const usedYearsPctSum = yearBoxItems.reduce((sum, y) => sum + y.pct, 0);
+  const showPctSumNote = !userEnteredYear && yearBoxItems.length > 1 && usedYearsPctSum > 0 && usedYearsPctSum < 99.95;
 
   const getSourceText = (source?: string | null, isFromUserFallback?: boolean) => {
     if (!source) return isFromUserFallback ? "" : "(คำนวณจากระบบ)";
@@ -332,8 +349,12 @@ export default function PlotDetailPage() {
             </div>
             <div className="flex flex-wrap gap-4 text-sm font-medium text-muted-foreground">
               <span><strong className={plotStyles.strongDark}>{new Date(plot.date).toLocaleDateString("th-TH", { year: "numeric", month: "short", day: "numeric" })}</strong></span>
-              <span>พื้นที่ <strong className={plotStyles.strongDark}>{(plot.selectedAreaRai || plot.areaRai || 0).toFixed(2)}</strong> ไร่</span>
-              <span>สถานะแปลง: <strong className={plotStyles.strongDark}>{plantStatusLabel(plot.plantStatus)}</strong></span>
+              <span className="inline-flex items-center gap-1.5"><LayoutGrid className="size-3.5 text-primary" aria-hidden="true" /><strong className={plotStyles.strongDark}>{(plot.selectedAreaRai || plot.areaRai || 0).toFixed(2)}</strong> ไร่</span>
+              <span className="inline-flex items-center gap-1">
+                {plot.plantStatus === "replanting" && <Sprout className="ml-0.5 size-4 text-primary" aria-hidden="true" />}
+                {plot.plantStatus === "existing" && <TreeDeciduous className="ml-0.5 size-4 text-primary" aria-hidden="true" />}
+                <strong className={plotStyles.strongDark}>{plantStatusLabel(plot.plantStatus)}</strong>
+              </span>
             </div>
           </div>
 
@@ -345,7 +366,7 @@ export default function PlotDetailPage() {
               title={estimating ? "กำลังประมวลผล กรุณารอสักครู่..." : undefined}
               className={`flex h-10 flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-border bg-card px-4 text-sm font-semibold text-foreground no-underline transition-colors hover:bg-muted/60 md:flex-initial ${estimating ? "cursor-not-allowed opacity-50" : ""}`}
             >
-              <Pin className="size-4" aria-hidden="true" /> แก้ไขขอบเขต
+              <Pin className="size-4" aria-hidden="true" /> แก้ไขขอบเขตแปลง
             </Link>
             <button
               onClick={() => setEditing(true)}
@@ -399,6 +420,7 @@ export default function PlotDetailPage() {
                         </span>
                         {(plot.selectedAreaRai || plot.areaRai) > 0 && (
                           <div className={plotStyles.detailsAreaText}>
+                            <LayoutGrid size={14} color="#1e7a47" aria-hidden="true" style={{ display: "inline-block", verticalAlign: "-2px", marginRight: 6 }} />
                             พื้นที่: <strong className={plotStyles.strongDark}>{(plot.selectedAreaRai || plot.areaRai).toFixed(2)}</strong> ไร่
                           </div>
                         )}
@@ -407,7 +429,8 @@ export default function PlotDetailPage() {
                       {/* Main Year Info (from user or value) */}
                       <div className={yearNotes.length > 0 ? plotStyles.yearSectionWithNotes : plotStyles.yearSection}>
                         <div className={plotStyles.yearLabel}>
-                          ปีที่เริ่มปลูกที่ใช้ในการคำนวณ{" "}
+                          <i className="bi bi-calendar-event" style={{ color: "#1e7a47", marginRight: 6 }} aria-hidden="true" />
+                          ปีเริ่มปลูกที่ใช้ในการคำนวณ{" "}
                           {userEnteredYear ? (
                             <span className={plotStyles.yearLabelHighlight}>
                               (1 ปี: ข้อมูลที่ผู้ใช้ระบุ)
@@ -420,6 +443,24 @@ export default function PlotDetailPage() {
                             <span className={plotStyles.yearLabelHighlight}>
                               (ข้อมูลอ้างอิงจากระบบ)
                             </span>
+                          )}
+                          {showPctSumNote && (
+                            <ClickTooltip
+                              className="max-w-[300px] whitespace-normal py-2 font-medium leading-relaxed"
+                              content={<>
+                                สัดส่วน (%) คิดจากพื้นที่ทั้งแปลง รวมเป็น {usedYearsPctSum.toFixed(1)}% เนื่องจากไม่นำพื้นที่ที่ระบุปีปลูกไม่ได้ (NA)
+                                และพื้นที่ที่มีอายุเกิน 29 ปี (คาดว่าเป็นค่าคลาดเคลื่อนจากภาพถ่าย) มาใช้ในการคำนวณ
+                                หากทราบปีที่ปลูกจริง แนะนำให้แก้ไขข้อมูลแปลงเพื่อผลการประเมินที่แม่นยำขึ้น
+                              </>}
+                            >
+                              <span
+                                tabIndex={0}
+                                aria-label="ทำไมสัดส่วนรวมไม่ถึง 100%"
+                                style={{ marginLeft: 6, color: "#1e7a47", cursor: "pointer", outline: "none" }}
+                              >
+                                <i className="bi bi-info-circle" aria-hidden="true" />
+                              </span>
+                            </ClickTooltip>
                           )}
                         </div>
                         <div className={plotStyles.yearBoxRow}>
@@ -454,7 +495,7 @@ export default function PlotDetailPage() {
                       {yearNotes.length > 0 && (
                         <div className={plotStyles.notesBox}>
                           <div className={plotStyles.notesBoxLabel}>
-                            <i className={`bi bi-pie-chart-fill ${plotStyles.notesBoxIcon}`} /> สัดส่วนปีที่เริ่มปลูกที่ตรวจพบในแปลง:
+                            <i className={`bi bi-pie-chart-fill ${plotStyles.notesBoxIcon}`} /> ปีเริ่มปลูก 5 ปีแรกเรียงตามสัดส่วนที่ตรวจพบในแปลง:
                           </div>
                           <div className={plotStyles.yearBoxRow}>
                             {yearNotes.slice(0, expandNotes ? yearNotes.length : 3).map((note, ni) => {
@@ -478,13 +519,14 @@ export default function PlotDetailPage() {
                         </div>
                       )}
 
-                      {/* Common params: variety, spacing, tree count, growth model, allometry */}
+                      {/* Common params: variety, spacing, tree count, growth model, allometry.
+                          Icons match the field labels in EditPlotModal. */}
                       <div className={plotStyles.paramsSection}>
-                        {displayVariety && <div>• พันธุ์ยาง: <strong className={plotStyles.strongDark}>{displayVariety}</strong> {varietyDesc && <span className={plotStyles.paramSource}>{varietyDesc}</span>} {showUserClone && <span className={plotStyles.paramSource}>(ผู้ใช้ระบุ: {userClone})</span>}</div>}
-                        {displaySpacing && <div>• ระยะปลูก: <strong className={plotStyles.strongDark}>{displaySpacing}</strong> {spacingDesc && <span className={plotStyles.paramSource}>{spacingDesc}</span>}</div>}
-                        {displayTreeCount > 0 && <div>• จำนวนต้น: <strong className={plotStyles.strongDark}>{displayTreeCount.toLocaleString("th-TH")}</strong> ต้น {treeCountDesc && <span className={plotStyles.paramSource}>{treeCountDesc}</span>}</div>}
-                        {displayGrowthModel && <div>• Growth Model: <strong className={plotStyles.strongDark}>{displayGrowthModel}</strong> {growthModelDesc && <span className={plotStyles.paramSource}>{growthModelDesc}</span>}</div>}
-                        {displayAllometry && <div>• สมการ Allometry: <strong className={plotStyles.strongDark}>{displayAllometry}</strong> {allometryDesc && <span className={plotStyles.paramSource}>{allometryDesc}</span>}</div>}
+                        {displayVariety && <div><i className="bi bi-tags" style={{ color: "#1e7a47", marginRight: 6 }} aria-hidden="true" />พันธุ์ยาง: <strong className={plotStyles.strongDark}>{displayVariety}</strong> {varietyDesc && <span className={plotStyles.paramSource}>{varietyDesc}</span>} {showUserClone && <span className={plotStyles.paramSource}>(ผู้ใช้ระบุ: {userClone})</span>}</div>}
+                        {displaySpacing && <div><i className="bi bi-arrows-fullscreen" style={{ color: "#1e7a47", marginRight: 6 }} aria-hidden="true" />ระยะปลูก: <strong className={plotStyles.strongDark}>{displaySpacing}</strong> {spacingDesc && <span className={plotStyles.paramSource}>{spacingDesc}</span>}</div>}
+                        {displayTreeCount > 0 && <div><i className="bi bi-tree-fill" style={{ color: "#1e7a47", marginRight: 6 }} aria-hidden="true" />จำนวนต้น: <strong className={plotStyles.strongDark}>{displayTreeCount.toLocaleString("th-TH")}</strong> ต้น {treeCountDesc && <span className={plotStyles.paramSource}>{treeCountDesc}</span>}</div>}
+                        {displayGrowthModel && <div><i className="bi bi-graph-up" style={{ color: "#1e7a47", marginRight: 6 }} aria-hidden="true" />Growth Model: <strong className={plotStyles.strongDark}>{displayGrowthModel}</strong> {growthModelDesc && <span className={plotStyles.paramSource}>{growthModelDesc}</span>}</div>}
+                        {displayAllometry && <div><i className="bi bi-superscript" style={{ color: "#1e7a47", marginRight: 6 }} aria-hidden="true" />สมการ Allometry: <strong className={plotStyles.strongDark}>{displayAllometry}</strong> {allometryDesc && <span className={plotStyles.paramSource}>{allometryDesc}</span>}</div>}
                       </div>
                     </div>
                   </div>

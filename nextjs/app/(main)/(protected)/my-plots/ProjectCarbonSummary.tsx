@@ -6,9 +6,16 @@ import type { SavedPlot } from "./types";
 import styles from "./ProjectCarbonSummary.module.css";
 import { Accordion } from "./Accordion";
 
-export function ProjectCarbonSummary({ plots, isMobile, onToggle }: { plots: SavedPlot[]; isMobile: boolean; onToggle?: () => void }) {
+export function ProjectCarbonSummary({ plots, isMobile, open, onToggle }: {
+  plots: SavedPlot[];
+  isMobile: boolean;
+  /** Controlled mode: when set, the parent owns the open state (accordion groups). */
+  open?: boolean;
+  onToggle?: () => void;
+}) {
   const currentYearBE = new Date().getFullYear() + 543;
-  const [isExpanded, setIsExpanded] = useState(false);
+  const [localExpanded, setLocalExpanded] = useState(false);
+  const isExpanded = open ?? localExpanded;
 
   const { combinedPts, totalNow, ciNow, initialMaxYearBE } = useMemo(() => {
     let fallbackTotal = 0;
@@ -136,7 +143,7 @@ export function ProjectCarbonSummary({ plots, isMobile, onToggle }: { plots: Sav
         </div>
         <button
           type="button"
-          onClick={() => { setIsExpanded(!isExpanded); onToggle?.(); }}
+          onClick={() => { if (open === undefined) setLocalExpanded(!localExpanded); onToggle?.(); }}
           className={`${styles.headerToggle} ${isExpanded ? styles.headerToggleExpanded : styles.headerToggleCollapsed}`}
         >
           ดูข้อมูล

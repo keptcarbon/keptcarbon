@@ -5,10 +5,12 @@ import { useAuth } from "@/lib/auth-context";
 import Link from "next/link";
 import {
   Plus, Search, X, Check, Trash2, ChevronLeft, ChevronRight,
-  User, Users, Loader2, Eye,
+  User, Users, Loader2, Eye, Pencil,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { ProjectSummary } from "./types";
+import { EditFieldModal } from "./EditFieldModal";
+import { Tooltip } from "@/components/ui/tooltip";
 
 const PAGE_SIZE = 10;
 
@@ -29,6 +31,12 @@ export default function MyPlotsPage() {
   const [deleteMode, setDeleteMode] = useState(false);
   const [selectedProjectIds, setSelectedProjectIds] = useState<Set<number>>(new Set());
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+
+  // Project rename (EditProjectModal) state — for claimed projects still
+  // carrying a default name the user never changed in map-draw.
+  const [renamingId, setRenamingId] = useState<number | null>(null);
+  const [renameError, setRenameError] = useState<string | null>(null);
+  const [renameSaving, setRenameSaving] = useState(false);
 
   const isAdmin = user?.role === "admin";
   const isGuestUser = () => !user && typeof window !== "undefined" && !!localStorage.getItem("guest_user_id");
@@ -118,6 +126,44 @@ export default function MyPlotsPage() {
     setDeleteMode(false);
   };
 
+  const startRename = (s: ProjectSummary) => {
+    setRenamingId(s.dbProjectId);
+    setRenameError(null);
+  };
+
+  const cancelRename = () => {
+    setRenamingId(null);
+    setRenameError(null);
+  };
+
+  const confirmRename = async (nm: string) => {
+    if (renamingId === null || renameSaving) return;
+    // Names are unique per owner; in admin "all" view other users' names don't
+    // collide, so leave that case to the server's 409.
+    if (viewMode === "mine" && projectSummaries.some(p => p.dbProjectId !== renamingId && p.projectName.trim().toLowerCase() === nm.toLowerCase())) {
+      setRenameError("ชื่อนี้ถูกใช้แล้ว กรุณาใช้ชื่ออื่น");
+      return;
+    }
+
+    setRenameSaving(true);
+    setRenameError(null);
+    try {
+      const guestId = isGuestUser() ? localStorage.getItem("guest_user_id") : null;
+      const res = await fetch(`/api/plots/${renamingId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectId: nm, ...(guestId ? { userId: guestId } : {}) }),
+      });
+      if (res.status === 409) { setRenameError("ชื่อนี้ถูกใช้แล้ว กรุณาใช้ชื่ออื่น"); return; }
+      if (!res.ok) { setRenameError("บันทึกชื่อไม่สำเร็จ กรุณาลองใหม่"); return; }
+      setProjectSummaries(prev => prev.map(p => p.dbProjectId === renamingId ? { ...p, projectName: nm } : p));
+      cancelRename();
+    } catch {
+      setRenameError("บันทึกชื่อไม่สำเร็จ กรุณาลองใหม่");
+    } finally {
+      setRenameSaving(false);
+    }
+  };
 
   if (!ready || !mounted)
     return (
@@ -373,16 +419,29 @@ export default function MyPlotsPage() {
                               {new Date(s.updatedAt).toLocaleDateString("th-TH", { year: "numeric", month: "short", day: "numeric" })}
                             </td>
                             <td className="px-4 py-3 text-right">
+                              <div className="inline-flex items-center gap-2">
+                              <Tooltip content="แก้ไขข้อมูลโครงการ">
+                              <button
+                                onClick={(e) => { e.stopPropagation(); if (!deleteMode) startRename(s); }}
+                                disabled={deleteMode}
+                                aria-label="แก้ไขข้อมูลโครงการ"
+                                className="inline-flex size-9 cursor-pointer items-center justify-center rounded-lg border border-border bg-card text-foreground transition-colors hover:bg-muted/60 disabled:cursor-not-allowed disabled:opacity-50"
+                              >
+                                <Pencil className="size-4" aria-hidden="true" />
+                              </button>
+                              </Tooltip>
+                              <Tooltip content="ดูแปลงทั้งหมด">
                               <Link
                                 href={`/my-plots/${s.dbProjectId}`}
                                 onClick={(e) => deleteMode && e.preventDefault()}
                                 aria-disabled={deleteMode}
-                                title="ดูแปลงทั้งหมด"
                                 aria-label="ดูแปลงทั้งหมด"
                                 className={`inline-flex size-9 items-center justify-center rounded-lg border border-border bg-card text-foreground no-underline transition-colors hover:bg-muted/60 ${deleteMode ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}
                               >
                                 <Eye className="size-4" aria-hidden="true" />
                               </Link>
+                              </Tooltip>
+                              </div>
                             </td>
                           </tr>
                         ))}
@@ -416,6 +475,24 @@ export default function MyPlotsPage() {
               )}
             </div>
       </div>
+
+      {renamingId !== null && (
+        <EditFieldModal
+          title="แก้ไขข้อมูลโครงการ"
+          subtitle="ตั้งชื่อโครงการให้จำง่าย"
+          label="ชื่อโครงการ"
+          icon="bi-folder2"
+          placeholder="เช่น สวนยางลุงสมชาย"
+          required
+          requiredMessage="กรุณากรอกชื่อโครงการ"
+          value={projectSummaries.find(p => p.dbProjectId === renamingId)?.projectName ?? ""}
+          onClose={cancelRename}
+          onSave={confirmRename}
+          saving={renameSaving}
+          error={renameError}
+          isMobile={isMobile}
+        />
+      )}
 
       {/* Delete Multiple Projects Confirmation Modal */}
       {isDeleteModalOpen && selectedProjectIds.size > 0 && (
