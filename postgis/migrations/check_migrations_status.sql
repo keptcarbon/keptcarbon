@@ -105,4 +105,12 @@ BEGIN
              WHERE table_schema='public' AND table_name='tbl_plots' AND column_name='plot_note')
   THEN RAISE NOTICE '028_rename_tbl_plots_owner_name_note .. DONE';
   ELSE RAISE NOTICE '028_rename_tbl_plots_owner_name_note .. RUN (after 011)';  END IF;
+
+  IF to_regclass('public.tbl_plot_assessments') IS NULL
+  THEN RAISE NOTICE '030_drop_unused_plot_assessment_columns SKIP (run 009 first)';
+  ELSIF EXISTS (SELECT 1 FROM information_schema.columns
+                WHERE table_schema='public' AND table_name='tbl_plot_assessments'
+                  AND column_name IN ('message_th', 'ci', 'model_version'))
+  THEN RAISE NOTICE '030_drop_unused_plot_assessment_columns RUN (after 009)';
+  ELSE RAISE NOTICE '030_drop_unused_plot_assessment_columns DONE';  END IF;
 END $$;

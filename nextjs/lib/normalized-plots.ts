@@ -267,15 +267,13 @@ async function appendAssessments(client: any, projectId: number, backendResponse
     await client.query(`UPDATE tbl_plot_assessments SET is_current = FALSE WHERE plot_id = $1 AND is_current`, [plotId]);
 
     const assessRes = await client.query(
-      `INSERT INTO tbl_plot_assessments (plot_id, status, status_code, message, message_th, ci, assess_parameters, model_version, is_current)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,NULL,TRUE) RETURNING id`,
+      `INSERT INTO tbl_plot_assessments (plot_id, status, status_code, message, assess_parameters, is_current)
+       VALUES ($1,$2,$3,$4,$5,TRUE) RETURNING id`,
       [
         plotId,
         br?.status?.status ?? null,
         br?.status?.status_code ?? null,
         br?.status?.message ?? null,
-        br?.status?.message_th ?? null,
-        br?.ci ?? null,
         JSON.stringify(br?.assess_parameters ?? {}),
       ]
     );

@@ -23,7 +23,6 @@ export interface StatusMessage {
     status: string;
     status_code: string;
     message: string;
-    message_th?: string;
 }
 
 export interface CarbonValue {
@@ -67,7 +66,6 @@ export interface AssessParameters {
 export interface CarbonAssessResponse {
     polygon_id: string;
     status: StatusMessage;
-    ci?: number | null;
     carbon_profile?: YearlyAssess[] | null;
     assess_parameters?: AssessParameters | null;
 }

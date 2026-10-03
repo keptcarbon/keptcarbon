@@ -173,13 +173,6 @@ export function getFriendlyErrorMessage(err: unknown, plots: PlotInfo[], plotFor
 
     // Translate English errors from the backend
     if (backendMessage) {
-        if (backendErrData?.message_th) {
-            return `${backendErrData.message_th}${plotSuffix}`;
-        }
-        if (backendErrData?.status?.message_th) {
-            return `${backendErrData.status.message_th}${plotSuffix}`;
-        }
-
         const engMsg = backendMessage.toLowerCase();
         if (engMsg.includes("not found")) return `ไม่พบข้อมูลในระบบ กรุณาตรวจสอบอีกครั้ง${plotSuffix}`;
         if (engMsg.includes("invalid") && engMsg.includes("polygon")) return `รูปทรงหรือขอบเขตพื้นที่ไม่ถูกต้อง กรุณาลบแล้ววาดแปลงใหม่${plotSuffix}`;
