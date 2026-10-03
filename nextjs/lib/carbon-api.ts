@@ -53,6 +53,9 @@ export interface AssessParamSimple {
 }
 
 export interface AssessParameters {
+    /** Province the assessment resolved from the geometry (keys tbl_biomass_profile).
+     *  Missing on assessments saved before it was added. */
+    p_code?: string;
     area_m2?: number;
     year_of_planting: AssessParamYear;
     rubber_clone: AssessParamSimple;
@@ -68,6 +71,43 @@ export interface CarbonAssessResponse {
     status: StatusMessage;
     carbon_profile?: YearlyAssess[] | null;
     assess_parameters?: AssessParameters | null;
+}
+
+/** One row of POST /carbon/sim — a planting cohort; the backend sums all rows by year. */
+export interface CarbonSimulationRow {
+    p_code: string;
+    clone: string;
+    growth_model: string;
+    allometry: string;
+    biomass_profile_version: string;
+    year_of_planting: number;
+    area_m2: number;
+    /** null = backend derives it from area_m2 and spacing_system */
+    tree_count: number | null;
+    spacing_system: string;
+    rotation_year: number;
+    /** 1 = 100% */
+    replanting_rate: number;
+}
+
+export interface SimulationYearlyPoint {
+    year: number;
+    /** offset from the current year, -35..35 */
+    year_at: number;
+    tree_count: number;
+    carbon_stock_tCO2e: number;
+    /** same rotation_year, 100% replanting */
+    carbon_stock_upper_tCO2e: number;
+    /** same rotation_year, 0% replanting */
+    carbon_stock_lower_tCO2e: number;
+}
+
+export interface CarbonSimulationResponse {
+    status: StatusMessage;
+    rows: CarbonSimulationRow[];
+    total_area_m2: number;
+    total_tree_count: number;
+    carbon_stock_tCO2e_simulation: SimulationYearlyPoint[] | null;
 }
 
 export interface LUPolygon {
@@ -86,6 +126,29 @@ export interface PlotsInfoResponse {
     area_m2: number | null;
     status: StatusMessage;
     lu_polygon: LUPolygon[] | null;
+}
+
+/**
+ * Simulated 71-year carbon stock profile for one plot's cohorts.
+ * Throws with the backend's `detail` message (e.g. a 422 for an unknown biomass profile).
+ */
+export async function simulateCarbon(
+    rows: CarbonSimulationRow[],
+    signal?: AbortSignal
+): Promise<CarbonSimulationResponse> {
+    const response = await fetch(`${API_BASE_URL}/carbon/sim`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(rows),
+        signal,
+    });
+    if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(
+            typeof errorData?.detail === "string" ? errorData.detail : `Backend API error: ${response.status}`
+        );
+    }
+    return response.json();
 }
 
 /**

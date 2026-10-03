@@ -6,7 +6,7 @@ import { Accordion } from "./Accordion";
 
 /** Same collapsible header shell as ProjectCarbonSummary's "ปริมาณคาร์บอนรวม" —
  *  reused here so the plot dashboard's map/graph sections toggle the same way. */
-export function CollapsibleSection({ icon, title, subtitle, isMobile, defaultOpen = false, open, onToggle, children }: {
+export function CollapsibleSection({ icon, title, subtitle, isMobile, defaultOpen = false, open, onToggle, keepMounted, children }: {
   icon: string;
   title: string;
   /** Shown after the title (e.g. the plot's location); hidden when empty. */
@@ -17,6 +17,8 @@ export function CollapsibleSection({ icon, title, subtitle, isMobile, defaultOpe
    *  groups where opening one section closes the others). */
   open?: boolean;
   onToggle?: () => void;
+  /** Keep the content mounted after its first open so its state survives collapsing. */
+  keepMounted?: boolean;
   children: React.ReactNode;
 }) {
   const [localExpanded, setLocalExpanded] = useState(defaultOpen);
@@ -49,7 +51,7 @@ export function CollapsibleSection({ icon, title, subtitle, isMobile, defaultOpe
           <i className={`bi bi-chevron-${isExpanded ? "up" : "down"}`} />
         </button>
       </div>
-      <Accordion open={isExpanded}>
+      <Accordion open={isExpanded} keepMounted={keepMounted}>
         {children}
       </Accordion>
     </div>

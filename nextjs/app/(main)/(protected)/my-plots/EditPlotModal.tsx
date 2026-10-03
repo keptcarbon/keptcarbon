@@ -1,11 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { SavedPlot } from "./types";
 import styles from "./EditPlotModal.module.css";
-import { PLOT_INFO_MAX_LENGTH } from "@/app/components/organisms/ParcelResultsPanel/utils";
+import { PLOT_INFO_MAX_LENGTH, VARIETY_OPTIONS } from "@/app/components/organisms/ParcelResultsPanel/utils";
 
-const VARIETY_OPTIONS = ["RRIM 600", "RRIT 251"];
 const SPACING_OPTIONS = ["2.5x8", "3x7", "2.5x7", "2x6", "3x8"];
 export const GROWTH_MODEL_OPTIONS = [
   { label: "Anchored Chapman-Richards", value: "chapman_richards" },
@@ -28,6 +27,22 @@ export function EditPlotModal({ plot, index, onClose, onSave, onSaveAndProcess, 
   const isUserTrees = !!form?.treeCount;
   const isUserVariety = !!form?.variety;
   const isUserSpacing = !!form?.spacing;
+
+  // Same พันธุ์ยาง list as map-draw (ParcelResultsPanel): tbl_rubber_clone,
+  // falling back to the static defaults if the lookup fails.
+  const [cloneOptions, setCloneOptions] = useState<string[]>(VARIETY_OPTIONS);
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/rubber-clone")
+      .then(res => (res.ok ? res.json() : Promise.reject(res)))
+      .then(data => {
+        if (!cancelled && Array.isArray(data.rows) && data.rows.length > 0) {
+          setCloneOptions(data.rows.map((r: { clone: string }) => r.clone));
+        }
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
 
   const [formData, setFormData] = useState({
     name: plot.name || "",
@@ -232,7 +247,9 @@ export function EditPlotModal({ plot, index, onClose, onSave, onSaveAndProcess, 
                 {fieldLabel("bi-tags", "พันธุ์ยาง")}
                 <SelectField value={formData.variety} onChange={v => setFormData(f => ({ ...f, variety: v }))}>
                   <option value="">— ไม่ระบุ —</option>
-                  {VARIETY_OPTIONS.map(v => <option key={v} value={v}>{v}</option>)}
+                  {/* Keep a saved clone selectable even if it's no longer in the lookup list. */}
+                  {(formData.variety && !cloneOptions.includes(formData.variety) ? [formData.variety, ...cloneOptions] : cloneOptions)
+                    .map(v => <option key={v} value={v}>{v}</option>)}
                 </SelectField>
               </div>
               <div>

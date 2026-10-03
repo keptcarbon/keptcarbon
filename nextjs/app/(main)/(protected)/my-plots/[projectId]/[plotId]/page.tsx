@@ -11,6 +11,8 @@ import type { SavedPlot } from "../../types";
 import { PlotMiniMap } from "../../PlotMiniMap";
 import { EditPlotModal, GROWTH_MODEL_OPTIONS, ALLOMETRY_OPTIONS } from "../../EditPlotModal";
 import { CollapsibleSection } from "../../CollapsibleSection";
+import { CarbonSimulationChart } from "../../CarbonSimulationChart";
+import { buildSimRows } from "../../simulationRequest";
 import { formatPlotLocation } from "../../plotLocation";
 import { buildAssessRequest, applyAssessResponse } from "../../assessPlot";
 import plotStyles from "../../PlotCard.module.css";
@@ -223,6 +225,8 @@ export default function PlotDetailPage() {
   const backendData = plot.backendData || {};
   const form = backendData.form;
   const ep = backendData.ep;
+  // Simulation needs a saved assessment: its parameters become the /carbon/sim cohort rows.
+  const simRows = buildSimRows(ep, plot.province);
 
   const userEnteredYear = !!form?.plantYear;
   const showPlotAge = !!form?.plantYear || (plot.carbonProfile?.some(p => p.isAgeValid) ?? false);
@@ -267,7 +271,14 @@ export default function PlotDetailPage() {
     : (parseInt(form?.treeCount || "0") || plot.trees || 0);
 
   const varietyDesc = getSourceText(ep?.rubber_clone?.source, !!form?.variety);
-  const spacingDesc = getSourceText(ep?.spacing_system?.source, !!form?.spacing);
+  // rubber_clone.value is the clone the model used (region default); the clone the
+  // user entered is kept in note (older assessments: "default…" text there, so fall back to the form).
+  const cloneNote = typeof ep?.rubber_clone?.note === "string" && !/^default/i.test(ep.rubber_clone.note) ? ep.rubber_clone.note : "";
+  const userClone = cloneNote || form?.variety || "";
+  const showUserClone = !!userClone && userClone !== displayVariety;
+  // Assessments saved before the backend fix always report spacing as "user input";
+  // an empty spacing field in the plot's form means the default was applied.
+  const spacingDesc = form && !form.spacing ? "(ค่าเริ่มต้น)" : getSourceText(ep?.spacing_system?.source, !!form?.spacing);
   const treeCountDesc = getSourceText(ep?.tree_count?.source, !!form?.treeCount);
 
   // Backend returns codes (e.g. "chapman_richards"); show the same labels as the edit modal, raw code otherwise.
@@ -355,7 +366,7 @@ export default function PlotDetailPage() {
 
         {/* Dashboard: carbon graph (default open), simulation, boundary map — one open at a time */}
         <div className="flex flex-col gap-4">
-          <CollapsibleSection icon="bi-bar-chart-fill" title="กราฟคาร์บอนกักเก็บ" isMobile={isMobile} open={openSection === "graph"} onToggle={() => toggleSection("graph")}>
+          <CollapsibleSection icon="bi-bar-chart-fill" title="กราฟคาร์บอนกักเก็บ" isMobile={isMobile} open={openSection === "graph"} onToggle={() => toggleSection("graph")} keepMounted>
             <div className={`${plotStyles.content} ${isMobile ? plotStyles.contentMobile : ""}`}>
               <div className={`${plotStyles.carbonGrid} ${!isMobile && isProcessed ? plotStyles.carbonGridTwoCol : ""}`}>
                 {/* Left side: Graph Section */}
@@ -469,7 +480,7 @@ export default function PlotDetailPage() {
 
                       {/* Common params: variety, spacing, tree count, growth model, allometry */}
                       <div className={plotStyles.paramsSection}>
-                        {displayVariety && <div>• พันธุ์ยาง: <strong className={plotStyles.strongDark}>{displayVariety}</strong> {varietyDesc && <span className={plotStyles.paramSource}>{varietyDesc}</span>}</div>}
+                        {displayVariety && <div>• พันธุ์ยาง: <strong className={plotStyles.strongDark}>{displayVariety}</strong> {varietyDesc && <span className={plotStyles.paramSource}>{varietyDesc}</span>} {showUserClone && <span className={plotStyles.paramSource}>(ผู้ใช้ระบุ: {userClone})</span>}</div>}
                         {displaySpacing && <div>• ระยะปลูก: <strong className={plotStyles.strongDark}>{displaySpacing}</strong> {spacingDesc && <span className={plotStyles.paramSource}>{spacingDesc}</span>}</div>}
                         {displayTreeCount > 0 && <div>• จำนวนต้น: <strong className={plotStyles.strongDark}>{displayTreeCount.toLocaleString("th-TH")}</strong> ต้น {treeCountDesc && <span className={plotStyles.paramSource}>{treeCountDesc}</span>}</div>}
                         {displayGrowthModel && <div>• Growth Model: <strong className={plotStyles.strongDark}>{displayGrowthModel}</strong> {growthModelDesc && <span className={plotStyles.paramSource}>{growthModelDesc}</span>}</div>}
@@ -482,13 +493,21 @@ export default function PlotDetailPage() {
             </div>
           </CollapsibleSection>
 
-          <CollapsibleSection icon="bi-sliders" title="จำลองคาร์บอนกักเก็บ" isMobile={isMobile} open={openSection === "simulation"} onToggle={() => toggleSection("simulation")}>
+          <CollapsibleSection icon="bi-sliders" title="กราฟจำลองคาร์บอนกักเก็บ" isMobile={isMobile} open={openSection === "simulation"} onToggle={() => toggleSection("simulation")} keepMounted>
             <div className={`${plotStyles.content} ${isMobile ? plotStyles.contentMobile : ""}`}>
-              {/* TODO: carbon simulation content */}
+              {!ep ? (
+                <div className={plotStyles.emptyText} style={{ fontSize: 13 }}>กรุณาประเมินคาร์บอนของแปลงนี้ก่อน จึงจะแสดงกราฟจำลองได้</div>
+              ) : simRows.ok ? (
+                <CarbonSimulationChart baseRows={simRows.rows} isMobile={isMobile} />
+              ) : (
+                <div className={plotStyles.emptyText} style={{ fontSize: 13 }}>
+                  ข้อมูลการประเมินไม่ครบ ({simRows.missing.join(", ")}) กรุณาประเมินคาร์บอนใหม่อีกครั้ง
+                </div>
+              )}
             </div>
           </CollapsibleSection>
 
-          <CollapsibleSection icon="bi-map-fill" title="แผนที่แปลง" subtitle={formatPlotLocation(plot)} isMobile={isMobile} open={openSection === "map"} onToggle={() => toggleSection("map")}>
+          <CollapsibleSection icon="bi-map-fill" title="แผนที่แปลง" subtitle={formatPlotLocation(plot)} isMobile={isMobile} open={openSection === "map"} onToggle={() => toggleSection("map")} keepMounted>
             <div className={`${plotStyles.content} ${isMobile ? plotStyles.contentMobile : ""}`}>
               <PlotMiniMap plot={plot} isMobile={isMobile} index={plotIndex + 1} />
             </div>

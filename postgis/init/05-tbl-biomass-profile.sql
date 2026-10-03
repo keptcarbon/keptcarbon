@@ -30,11 +30,8 @@ CREATE TABLE IF NOT EXISTS tbl_biomass_profile (
   biomass_ci_upper   FLOAT,
 
   -- Import batch/vintage of the lookup CSV a row's data came from.
-  version            VARCHAR(10),
+  version            VARCHAR(10)   NOT NULL,
 
-  CONSTRAINT uq_biomass_profile_key UNIQUE (p_code, clone, growth_model, allometry, age)
+  -- Its index also serves lookups by (p_code, clone, growth_model, allometry, version).
+  CONSTRAINT uq_biomass_profile_key UNIQUE (p_code, clone, growth_model, allometry, version, age)
 );
-
--- Index for lookup by region/clone/model/allometry (age range scans)
-CREATE INDEX IF NOT EXISTS idx_biomass_profile_lookup
-  ON tbl_biomass_profile (p_code, clone, growth_model, allometry);

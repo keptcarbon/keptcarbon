@@ -106,6 +106,12 @@ BEGIN
   THEN RAISE NOTICE '028_rename_tbl_plots_owner_name_note .. DONE';
   ELSE RAISE NOTICE '028_rename_tbl_plots_owner_name_note .. RUN (after 011)';  END IF;
 
+  IF EXISTS (SELECT 1 FROM pg_constraint c
+             JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = ANY (c.conkey)
+             WHERE c.conname = 'uq_biomass_profile_key' AND a.attname = 'version')
+  THEN RAISE NOTICE '029_biomass_profile_version_unique_key DONE';
+  ELSE RAISE NOTICE '029_biomass_profile_version_unique_key RUN (after 024)';  END IF;
+
   IF to_regclass('public.tbl_plot_assessments') IS NULL
   THEN RAISE NOTICE '030_drop_unused_plot_assessment_columns SKIP (run 009 first)';
   ELSIF EXISTS (SELECT 1 FROM information_schema.columns

@@ -300,6 +300,7 @@ class CarbonService:
                 },
                 "carbon_profile": profile,
                 "assess_parameters": {
+                    "p_code": poly_data["province_code"],
                     "area_m2": poly_data["A302_area_m2"],
                     "year_of_planting": {
                         "value": poly_data.get("year_of_planting"),
@@ -307,9 +308,11 @@ class CarbonService:
                         "source": "user input" if poly_data.get('year_of_planting') else "calculated from raster"
                     },
                     "rubber_clone": {
-                        "value": poly_data.get('rubber_clone') or poly_data.get('clone'),
-                        "note": "default",
-                        "source": "user input" if poly_data.get('rubber_clone') else "default value applied"
+                        # value = clone the biomass lookup actually used (always the
+                        # region default); a user-entered clone is kept in note only.
+                        "value": poly_data.get('clone'),
+                        "note": poly_data.get('rubber_clone') or None,
+                        "source": "default value applied"
                     },
                     "tree_count": {
                         "value": tree_info['tree_count'],
@@ -317,7 +320,7 @@ class CarbonService:
                     },
                     "spacing_system": {
                         "value": poly_data.get('spacing_system'),
-                        "source": "user input" if poly_data.get('spacing_system') else "default value applied"
+                        "source": "default value applied" if spacing_is_default else "user input"
                     },
                     "growth_model": {
                         "value": poly_data.get('growth_model'),
@@ -443,6 +446,7 @@ class CarbonService:
                 },
                 "carbon_profile": profile,
                 "assess_parameters": {
+                    "p_code": poly_data["province_code"],
                     "area_m2": poly_data["A302_area_m2"],
                     "year_of_planting": {
                         "value": formatted_years,
@@ -450,9 +454,11 @@ class CarbonService:
                         "source": "calculated from raster"
                     },
                     "rubber_clone": {
-                        "value": poly_data.get('rubber_clone') or poly_data.get('clone'),
-                        "note": "default value alway use",
-                        "source": "user input" if poly_data.get('rubber_clone') else "default value applied"
+                        # value = clone the biomass lookup actually used (always the
+                        # region default); a user-entered clone is kept in note only.
+                        "value": poly_data.get('clone'),
+                        "note": poly_data.get('rubber_clone') or None,
+                        "source": "default value applied"
                     },
                     "tree_count": {
                         "value": total_tree_count,
@@ -460,7 +466,7 @@ class CarbonService:
                     },
                     "spacing_system": {
                         "value": poly_data.get('spacing_system'),
-                        "source": "user input" if poly_data.get('spacing_system') else "default value"
+                        "source": "default value applied" if spacing_is_default else "user input"
                     },
                     "growth_model": {
                         "value": poly_data.get('growth_model'),

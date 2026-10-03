@@ -41,6 +41,7 @@ class AssessParamSimple(BaseModel):
 
 
 class AssessParameters(BaseModel):
+    p_code: str = Field(..., description="Province code the assessment resolved from the geometry; keys the tbl_biomass_profile lookup")
     area_m2: float = Field(..., description="Area in square meters")
     year_of_planting: AssessParamYear
     rubber_clone: AssessParamSimple
