@@ -224,3 +224,44 @@ class TestMultipleCohorts:
 
         for s, d in zip(single, double):
             assert abs(d["stocks"]["value"] - 2 * s["stocks"]["value"]) < 0.001
+
+
+# ── raster majority path: tree count (get_carbon_profile) ─────────────────────
+
+class TestRasterMajorityTreeCount:
+
+    @pytest.mark.asyncio
+    async def test_majority_uses_dominant_full_area_count_not_sum(self, mock_carbon_service):
+        """Above the homogeneity threshold the dominant cohort's tree_count is
+        already the full-area count (TreeService skips pixel-ratio scaling), so
+        the minor cohorts must not be added on top (was 6,883 + 321 = 7,204)."""
+        from datetime import datetime
+        from unittest.mock import AsyncMock
+
+        year = datetime.now().year
+        svc = mock_carbon_service
+        poly = {"id": "p1", "year_of_planting": None, "spacing_system": None,
+                "growth_model": None, "allometry": None, "biomass_profile_version": None}
+        located = {**poly, "province_code": "RAY"}
+        clipped = {**located, "A302_geometry": {"type": "Polygon"}, "A302_area_m2": 137663.9363}
+
+        svc.pro_svc.get_province = AsyncMock(return_value=located)
+        svc._resolve_region_config = AsyncMock(return_value={
+            "default_spacing": "2.5x8", "growth_model": "weibull", "allometry": "hytonen_2018",
+            "biomass_profile_version": "v1", "clone": "RRIM 600"})
+        svc.lu_svc.find_rubber_cultivation_area = AsyncMock(return_value=clipped)
+        svc.age_map_svc.get_plantation_year_count = AsyncMock(return_value=clipped)
+        svc.age_map_svc.get_plantation_age_cohorts = AsyncMock(return_value=[
+            {"age": year - 2012, "pixel_count": 953, "proportion": 0.953, "tree_count": 6883},  # full area
+            {"age": year - 2007, "pixel_count": 24, "proportion": 0.024, "tree_count": 165},
+            {"age": year - 2019, "pixel_count": 12, "proportion": 0.012, "tree_count": 82},
+            {"age": year - 2008, "pixel_count": 11, "proportion": 0.011, "tree_count": 75},
+        ])
+        svc.age_map_svc.get_plantation_year_of_planting_info = AsyncMock(return_value=[])
+        svc.generate_carbon_profile = AsyncMock(return_value=[])
+
+        result = await svc.get_carbon_profile(poly)
+
+        assert result["assess_parameters"]["tree_count"]["value"] == 6883
+        cohorts_used = svc.generate_carbon_profile.call_args.args[1]
+        assert cohorts_used == [{"age": year - 2012, "pixel_count": None, "proportion": 1, "tree_count": 6883}]

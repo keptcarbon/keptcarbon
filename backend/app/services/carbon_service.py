@@ -381,10 +381,15 @@ class CarbonService:
 
             # Found mojority age
             if highest_proportion > TREE_AGE_HOMOLOGOUS_THRESHOLD:
-                
-                total_tree_count = sum((cohort.get('tree_count') or 0) for cohort in cohorts)
 
-                cohorts = [{"age": highest_proportion_age, 
+                # The dominant cohort's tree_count already covers the WHOLE area
+                # (TreeService.get_tree_count_raster_pixel skips the pixel-ratio
+                # scaling above the homogeneity threshold). Summing every cohort
+                # double-counted the minor cohorts' share on top of it (e.g. 95.3%
+                # dominant -> 6,883 + ~321 = 7,204 instead of 6,883).
+                total_tree_count = dominant_cohort.get('tree_count') or 0
+
+                cohorts = [{"age": highest_proportion_age,
                             "pixel_count": None,
                             "proportion": 1, 
                             "tree_count": total_tree_count}
