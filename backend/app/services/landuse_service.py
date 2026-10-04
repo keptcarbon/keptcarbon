@@ -9,20 +9,22 @@ polygon, grouped by a derived class key, and dissolved -- all server-side.
 group_key mirrors the original _determine_group(): LUL1_CODE for U/F/M/W,
 the finer LU_CODE for agriculture ("A"), else "OTHER".
 
-CRS is NOT uniform across the two methods -- this matches the original
-service exactly, not an arbitrary choice:
+Geometry CRS differs between the two methods; AREA does not:
   - find_lu_class_area's returned geometries are reprojected to the
-    caller's output_crs (default WGS84) for API/display consumption; area
-    is computed on the geography type (CRS-independent).
-  - find_rubber_cultivation_area's A302_geometry MUST stay in EPSG:32647:
-    SpatialUtils.calculate_area() and AgeMapService's rasterio.mask() both
-    consume it directly assuming UTM-metre coordinates (the age/tree
-    rasters are themselves stored in EPSG:32647), with no reprojection of
-    their own. Its area is likewise the planar UTM area of the *unioned*
-    per-group geometries, summed per group (not the area of the final
-    cross-group union) -- reproducing the original's dissolve-by-group-then-
-    sum-of-group-areas behaviour, including its quirk of double-counting an
-    area if two different classes' clipped slivers happen to overlap.
+    caller's output_crs (default WGS84) for API/display consumption.
+  - find_rubber_cultivation_area's A302_geometry is returned in the
+    province's UTM zone (tbl_region_config.utm_epsg: 32647 = 47N, 32648 =
+    48N): AgeMapService clips the planting-year raster with it, and those
+    rasters are stored in that zone, with no reprojection of their own.
+  - Both compute area on the geography type (geodesic, CRS-independent), so
+    the selected-classes area shown from find_lu_class_area and
+    A302_area_m2 (used for the tree count and reported as the assessed
+    area) agree. Planar UTM area overstated it by ~0.1% in Rayong and more
+    further from the zone's central meridian.
+  - A302_area_m2 is summed per group (not the area of the final cross-group
+    union) -- reproducing the original's dissolve-by-group-then-sum
+    behaviour, including its quirk of double-counting an area if two
+    different classes' clipped slivers happen to overlap.
 """
 import json
 import re
@@ -84,9 +86,11 @@ class LanduseService:
         FROM dissolved
     """
 
-    # $4 = selected_lu_classes (text[]). geom kept in EPSG:32647 -- see module
-    # docstring; area is the planar UTM sum of per-group unions (not the
-    # union of the final cross-group geometry), matching the original.
+    # $4 = selected_lu_classes (text[]), $5 = the province's UTM EPSG
+    # (tbl_region_config.utm_epsg). Geometry is returned in that UTM zone (see
+    # module docstring); area is GEODESIC, measured on the WGS84 per-group
+    # unions before reprojecting, summed per group (not the area of the final
+    # cross-group union), matching the original dissolve-then-sum behaviour.
     _RUBBER_AREA_QUERY = f"""
         WITH target AS (
             SELECT ST_SetSRID(ST_GeomFromGeoJSON($1), 4326) AS geom
@@ -107,13 +111,13 @@ class LanduseService:
             SELECT * FROM nonempty WHERE group_key = ANY($4::text[])
         ),
         per_group AS (
-            SELECT group_key, ST_Transform(ST_Union(clipped_geom), 32647) AS geom
+            SELECT group_key, ST_Union(clipped_geom) AS geom
             FROM selected
             GROUP BY group_key
         )
         SELECT
-            ST_AsGeoJSON(ST_Union(geom)) AS geometry_json,
-            SUM(ST_Area(geom)) AS area_m2
+            ST_AsGeoJSON(ST_Transform(ST_Union(geom), $5::integer)) AS geometry_json,
+            SUM(ST_Area(geom::geography)) AS area_m2
         FROM per_group
     """
 
@@ -156,6 +160,7 @@ class LanduseService:
                     p_code,
                     lu_year,
                     poly_data["selected_lu_classes"],
+                    poly_data["utm_epsg"],
                 )
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Landuse filtering failed: {str(e)}")

@@ -13,11 +13,13 @@ CREATE TABLE IF NOT EXISTS tbl_region_config (
   default_clone       VARCHAR(50)  NOT NULL,          -- default rubber clone, e.g. 'RRIM 600'
   default_growth      VARCHAR(50)  NOT NULL,          -- default growth model, e.g. 'weibull'
   default_allometry   VARCHAR(50)  NOT NULL,          -- default allometry equation, e.g. 'hytonen_2018'
-  biomass_profile_version VARCHAR(50)  NOT NULL       -- biomass profile dataset version in use for this region
+  biomass_profile_version VARCHAR(50)  NOT NULL,      -- biomass profile dataset version in use for this region
+  utm_epsg            INTEGER      NOT NULL            -- UTM zone of the planting-year raster: 32647 = 47N, 32648 = 48N
+    CONSTRAINT chk_region_config_utm_epsg CHECK (utm_epsg IN (32647, 32648))
 );
 
 INSERT INTO tbl_region_config
-  (p_code, p_name, lu_version, planting_year_version, default_spacing, default_clone, default_growth, default_allometry, biomass_profile_version)
+  (p_code, p_name, lu_version, planting_year_version, default_spacing, default_clone, default_growth, default_allometry, biomass_profile_version, utm_epsg)
 VALUES
-  ('RAY', 'Rayong', 2567, 2026, '2.5x8', 'RRIM 600', 'weibull', 'hytonen_2018', 'v1')
+  ('RAY', 'Rayong', 2567, 2026, '2.5x8', 'RRIM 600', 'weibull', 'hytonen_2018', 'v1', 32647)
 ON CONFLICT (p_code) DO NOTHING;

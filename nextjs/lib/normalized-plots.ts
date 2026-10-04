@@ -103,7 +103,11 @@ const UPSERT_PLOT_SQL = `
   VALUES (
     $1, $2,
     CASE WHEN $3::text IS NULL THEN NULL ELSE ST_SetSRID(ST_GeomFromGeoJSON($3::text), 4326) END,
-    $4, $5, $6, $7, $8, $9, $10, $11, $12, $13,
+    -- area_m2 is always the geodesic area of the saved boundary (what the
+    -- browser now shows while drawing), not whatever area the client sent.
+    CASE WHEN $3::text IS NULL THEN $4::float8
+         ELSE ST_Area(ST_SetSRID(ST_GeomFromGeoJSON($3::text), 4326)::geography) END,
+    $5, $6, $7, $8, $9, $10, $11, $12, $13,
     COALESCE($14::text[], '{}'), $15, $16, $17, NULL
   )
   ON CONFLICT (project_id, polygon_id) DO UPDATE SET
@@ -157,7 +161,11 @@ async function upsertPlots(
     const payload = polygonsById.get(polygonId);
     const pinfo = plantationInfoMap.get(polygonId);
 
-    const geometryObj = pinfo?.geometry ?? payload?.geometry ?? fp?.geojson ?? null;
+    // Plot boundary: the drawn/saved shape (plantation info, else the plot's own
+    // geojson). The assess payload's geometry is the union of the *selected
+    // land-use classes* sent for assessment -- only a last resort, or the plot
+    // gets saved already clipped to those classes.
+    const geometryObj = pinfo?.geometry ?? fp?.geojson ?? payload?.geometry ?? null;
     const selectedLuClasses = Array.isArray(payload?.selected_lu_classes)
       ? payload.selected_lu_classes
       : null;

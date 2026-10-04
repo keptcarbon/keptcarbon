@@ -10,7 +10,8 @@ import {
 import { Button } from "@/components/ui/button";
 import type { ProjectSummary } from "./types";
 import { EditFieldModal } from "./EditFieldModal";
-import { Tooltip } from "@/components/ui/tooltip";
+import { Tooltip, ClickTooltip } from "@/components/ui/tooltip";
+import { AREA_RULE_NOTE } from "./plotArea";
 
 const PAGE_SIZE = 10;
 
@@ -372,7 +373,14 @@ export default function MyPlotsPage() {
                           <th className="px-4 py-3">#</th>
                           <th className="px-4 py-3">ชื่อโครงการ</th>
                           <th className="px-4 py-3 text-center">จำนวนแปลง</th>
-                          <th className="px-4 py-3 text-center">พื้นที่รวม (ไร่)</th>
+                          <th className="px-4 py-3 text-center">
+                            พื้นที่รวม (ไร่)
+                            <ClickTooltip className="max-w-[300px] whitespace-normal py-2 font-medium normal-case leading-relaxed tracking-normal" content={AREA_RULE_NOTE}>
+                              <span tabIndex={0} aria-label="ความหมายของพื้นที่รวม" className="ml-1 cursor-pointer text-primary outline-none">
+                                <i className="bi bi-info-circle" aria-hidden="true" />
+                              </span>
+                            </ClickTooltip>
+                          </th>
                           <th className="px-4 py-3 text-center">สถานะการประมวลผล</th>
                           <th className="hidden px-4 py-3 md:table-cell">อัปเดตล่าสุด</th>
                           <th className="px-4 py-3 text-right">การจัดการ</th>

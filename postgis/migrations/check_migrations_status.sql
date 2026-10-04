@@ -119,4 +119,9 @@ BEGIN
                   AND column_name IN ('message_th', 'ci', 'model_version'))
   THEN RAISE NOTICE '030_drop_unused_plot_assessment_columns RUN (after 009)';
   ELSE RAISE NOTICE '030_drop_unused_plot_assessment_columns DONE';  END IF;
+
+  IF EXISTS (SELECT 1 FROM information_schema.columns
+             WHERE table_schema='public' AND table_name='tbl_region_config' AND column_name='utm_epsg')
+  THEN RAISE NOTICE '031_tbl_region_config_utm_epsg ........ DONE';
+  ELSE RAISE NOTICE '031_tbl_region_config_utm_epsg ........ RUN (after 016)';  END IF;
 END $$;

@@ -64,9 +64,12 @@ export function applyAssessResponse(plot: SavedPlot, resp: CarbonAssessResponse 
   const epSpacingRaw = typeof ep?.spacing_system?.value === "string" ? ep.spacing_system.value : "";
   const epSpacing = epSpacingRaw.replace(/\s*\([^)]*\)/, "").trim();
 
-  // Use the already-saved selectedAreaRai (from original map-draw selection) as first priority.
-  // Only recalculate from LU features if it hasn't been set yet.
-  let selectedAreaRai = plot.selectedAreaRai && plot.selectedAreaRai > 0 ? plot.selectedAreaRai : 0;
+  // The area the backend actually assessed (selected land-use classes, geodesic)
+  // is the source of truth; the fallbacks below only apply to a failed response.
+  const epAreaRai = typeof ep?.area_m2 === "number" ? ep.area_m2 / 1600 : 0;
+  let selectedAreaRai = epAreaRai > 0
+    ? epAreaRai
+    : (plot.selectedAreaRai && plot.selectedAreaRai > 0 ? plot.selectedAreaRai : 0);
   if (selectedAreaRai <= 0) {
     const luFeatures = plot.backendData?.lu_polygon || [];
     const luChecked = plot.luChecked || { A: true, A302: true };
@@ -92,8 +95,10 @@ export function applyAssessResponse(plot: SavedPlot, resp: CarbonAssessResponse 
   const currentSpacing = spacing || "2.5x8";
   const density = currentSpacing === "2.5x7" ? 91 : (currentSpacing === "3x7" ? 76 : (currentSpacing === "3x8" ? 66 : 80));
 
-  let crTrees = formTrees > 0 ? formTrees : Math.round(selectedAreaRai * density);
-  if (crTrees <= 0 && epTrees > 0) crTrees = epTrees;
+  // Backend tree count first: it already uses the user's count when it's within
+  // the validation threshold and replaces it otherwise -- recomputing here with a
+  // local density table made the shown count drift from the assessed one.
+  let crTrees = epTrees > 0 ? epTrees : (formTrees > 0 ? formTrees : Math.round(selectedAreaRai * density));
 
   const age = userPlantYear > 0 ? (CURRENT_BE_NOW - userPlantYear) : (epPlantYearBE > 0 ? (CURRENT_BE_NOW - epPlantYearBE) : 0);
   const finalPlantYear = userPlantYear > 0 ? userPlantYear : epPlantYearBE;

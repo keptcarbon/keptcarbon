@@ -92,7 +92,7 @@ export function PlotDetailCard({
                     {areaRai !== undefined && (
                         <div className={styles.areaText}>
                             <LayoutGrid size={14} color="#1e7a47" aria-hidden="true" style={{ display: "inline-block", verticalAlign: "-2px", marginRight: 6 }} />
-                            พื้นที่: <strong className={styles.strongDark}>{areaRai.toFixed(2)}</strong> ไร่
+                            พื้นที่ที่ใช้ประเมิน: <strong className={styles.strongDark}>{areaRai.toFixed(2)}</strong> ไร่
                         </div>
                     )}
                 </div>

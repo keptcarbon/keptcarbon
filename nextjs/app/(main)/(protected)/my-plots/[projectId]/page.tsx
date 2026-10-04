@@ -17,7 +17,8 @@ import plotStyles from "../PlotCard.module.css";
 import { buildAssessRequest, applyAssessResponse } from "../assessPlot";
 import { formatPlotLocation } from "../plotLocation";
 import { EditFieldModal } from "../EditFieldModal";
-import { Tooltip } from "@/components/ui/tooltip";
+import { Tooltip, ClickTooltip } from "@/components/ui/tooltip";
+import { plotDisplayArea, AREA_RULE_NOTE } from "../plotArea";
 import { PLOT_INFO_MAX_LENGTH } from "@/app/components/organisms/ParcelResultsPanel/utils";
 
 const PAGE_SIZE = 10;
@@ -113,7 +114,8 @@ export default function ProjectDetailPage() {
   const paginatedPlots = filteredPlots.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   const projectName = plots[0]?.name || "ไม่มีชื่อโครงการ";
-  const totalAreaRai = plots.reduce((s, p) => s + (p.areaRai || 0), 0);
+  // Same per-plot rule as the table and the project list total.
+  const totalAreaRai = plots.reduce((s, p) => s + plotDisplayArea(p).rai, 0);
 
   const handleInlineEstimate = async () => {
     const isGuest = isGuestUser();
@@ -332,7 +334,14 @@ export default function ProjectDetailPage() {
                           <th className="px-4 py-3">#</th>
                           <th className="px-4 py-3">ข้อมูลแปลง</th>
                           <th className="px-4 py-3">ที่ตั้ง</th>
-                          <th className="px-4 py-3 text-center">พื้นที่ (ไร่)</th>
+                          <th className="px-4 py-3 text-center">
+                            พื้นที่ (ไร่)
+                            <ClickTooltip className="max-w-[300px] whitespace-normal py-2 font-medium normal-case leading-relaxed tracking-normal" content={AREA_RULE_NOTE}>
+                              <span tabIndex={0} aria-label="ความหมายของพื้นที่" className="ml-1 cursor-pointer text-primary outline-none">
+                                <i className="bi bi-info-circle" aria-hidden="true" />
+                              </span>
+                            </ClickTooltip>
+                          </th>
                           <th className="px-4 py-3 text-center">สถานะแปลง</th>
                           <th className="px-4 py-3 text-center">สถานะการประมวลผล</th>
                           <th className="px-4 py-3 text-right">การจัดการ</th>
@@ -344,7 +353,7 @@ export default function ProjectDetailPage() {
                             <td className="px-4 py-3 text-muted-foreground">{no}</td>
                             <td className="max-w-[220px] truncate px-4 py-3 text-foreground" title={plot.plotNote || undefined}>{plot.plotNote || <span className="text-muted-foreground">—</span>}</td>
                             <td className="px-4 py-3 text-foreground">{formatPlotLocation(plot) || <span className="text-muted-foreground">—</span>}</td>
-                            <td className="px-4 py-3 text-center text-muted-foreground">{(plot.selectedAreaRai || plot.areaRai || 0).toFixed(2)}</td>
+                            <td className="px-4 py-3 text-center text-muted-foreground">{plotDisplayArea(plot).rai.toFixed(2)}</td>
                             <td className="px-4 py-3 text-center text-muted-foreground">
                               {plot.plantStatus === "replanting" || plot.plantStatus === "existing" ? (
                                 // Icon only, boxed like the action buttons — the label lives in the

@@ -55,12 +55,10 @@ def mock_carbon_service():
 
 @pytest.fixture
 def mock_tree_service():
-    """TreeService with SpatialUtils mocked."""
-    with patch("app.services.tree_service.SpatialUtils") as mock_su:
-        from app.services.tree_service import TreeService
-        svc = TreeService()
-        svc.spatial_utils = mock_su.return_value
-        yield svc
+    """TreeService -- area now comes from poly_data["A302_area_m2"], so no
+    SpatialUtils to mock; DB reads are faked via patch_tree_db."""
+    from app.services.tree_service import TreeService
+    yield TreeService()
 
 
 # ── Fake asyncpg pool/connection ────────────────────────────────────────────
@@ -140,6 +138,7 @@ _DEFAULT_REGION_CONFIG_ROW = {
     "default_allometry": "hytonen_2018",
     "default_spacing": "2.5x8",
     "biomass_profile_version": "v1",
+    "utm_epsg": 32647,
 }
 
 

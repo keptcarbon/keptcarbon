@@ -41,6 +41,12 @@ describe("truncateCoords", () => {
 
 // ── polygonAreaM2 ─────────────────────────────────────────────────────────────
 
+// tbl_plots geometry of plot 4KKPvFUy (closed ring, EPSG:4326).
+const PLOT_4KKPVFUY: [number, number][] = [
+  [101.489775, 12.984941], [101.494303, 12.986015], [101.493988, 12.988469],
+  [101.491386, 12.988034], [101.489, 12.987041], [101.489775, 12.984941],
+];
+
 describe("polygonAreaM2", () => {
   // A roughly 1km² square near Rayong (approx values)
   const SQUARE_1KM: [number, number][] = [
@@ -59,6 +65,13 @@ describe("polygonAreaM2", () => {
     // Expect within 5% of 1,000,000 m²
     expect(area).toBeGreaterThan(950_000);
     expect(area).toBeLessThan(1_050_000);
+  });
+
+  it("matches PostGIS geodesic area (WGS84) for a Rayong plot", () => {
+    // Stored tbl_plots geometry of plot 4KKPvFUy; ST_Area(geom::geography) = 147,492.96 m² (92.1831 rai).
+    // The plain-sphere formula gave 92.5342 rai (+0.38%).
+    const ring: [number, number][] = PLOT_4KKPVFUY;
+    expect(polygonAreaM2(ring) / 1600).toBeCloseTo(92.1831, 3);
   });
 
   it("larger polygon has larger area", () => {

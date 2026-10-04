@@ -5,7 +5,6 @@ Tree count reliability check.
 from fastapi import HTTPException
 
 from app.core.database import get_pool
-from app.services.spatial_utils import SpatialUtils
 from app.core.constants import (
     TREE_COUNT_VALIDATION_THRESHOLD,
     TREE_AGE_HOMOLOGOUS_THRESHOLD,
@@ -20,8 +19,14 @@ _FALLBACK_SPACING = "2.5x8"
 _FALLBACK_DENSITY = 500
 
 class TreeService:
-    def __init__(self):
-        self.spatial_utils = SpatialUtils()
+    @staticmethod
+    def _area_ha(poly_data: dict) -> float:
+        """Rubber (A302) area in hectares -- the geodesic A302_area_m2 that
+        LanduseService.find_rubber_cultivation_area already measured, so the
+        tree count uses the same area that is reported as the assessed area.
+        (Re-measuring A302_geometry here used its planar UTM area, ~0.1% larger
+        in Rayong and more toward a zone edge.)"""
+        return float(poly_data.get("A302_area_m2") or 0.0) / 10000.0
 
     async def _resolve_spacing_and_density(self, poly_data: dict) -> tuple[str, int]:
         """Resolve the spacing system (user input, else the province's
@@ -51,8 +56,7 @@ class TreeService:
         return spacing, density
 
     async def get_tree_count_user_input(self, poly_data: dict) -> dict:
-        geom = poly_data.get("A302_geometry")
-        area_ha = self.spatial_utils.calculate_area_ha(geom)
+        area_ha = self._area_ha(poly_data)
 
         _, density = await self._resolve_spacing_and_density(poly_data)
 
@@ -95,8 +99,7 @@ class TreeService:
         }
 
     async def get_tree_count_raster_pixel(self, poly_data: dict, num_pixel: int, total_pixels: int) -> dict:
-        geom = poly_data.get("A302_geometry")
-        area_ha = self.spatial_utils.calculate_area_ha(geom)
+        area_ha = self._area_ha(poly_data)
 
         if (num_pixel / total_pixels) > TREE_AGE_HOMOLOGOUS_THRESHOLD:
             # If the age map data is dominated by one age class, we will use the calculated tree count based on area

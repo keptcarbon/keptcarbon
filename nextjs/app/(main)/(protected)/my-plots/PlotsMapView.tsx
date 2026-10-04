@@ -6,6 +6,7 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import type { SavedPlot } from "./types";
 import styles from "./PlotsMapView.module.css";
 import { MAP_VIEW_ANIMATION_DURATION } from "@/lib/map-utils";
+import { plotDisplayArea } from "./plotArea";
 
 const PROJECT_COLORS = [
   "#f97316",
@@ -104,7 +105,7 @@ export function PlotsMapView({ plots, isMobile }: { plots: SavedPlot[], isMobile
           const props = {
             id: p.id,
             projectName: name,
-            area: (p.selectedAreaRai || p.areaRai).toFixed(2),
+            area: plotDisplayArea(p).rai.toFixed(2),
             carbon: p.carbonTotal.toFixed(2),
             carbonPerTree: carbonPerTree ?? "—",
             province: p.province || "—",
@@ -263,7 +264,7 @@ export function PlotsMapView({ plots, isMobile }: { plots: SavedPlot[], isMobile
       const props = {
         id: p.id,
         projectName: name,
-        area: (p.selectedAreaRai || p.areaRai).toFixed(2),
+        area: plotDisplayArea(p).rai.toFixed(2),
         carbon: p.carbonTotal.toFixed(2),
         carbonPerTree: carbonPerTree ?? "—",
         province: p.province || "—",

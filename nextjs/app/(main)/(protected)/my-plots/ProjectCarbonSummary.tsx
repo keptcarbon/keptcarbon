@@ -5,6 +5,7 @@ import { CarbonBarChart, type BarPoint } from "@/app/components/organisms/Parcel
 import type { SavedPlot } from "./types";
 import styles from "./ProjectCarbonSummary.module.css";
 import { Accordion } from "./Accordion";
+import { plotDisplayArea } from "./plotArea";
 
 export function ProjectCarbonSummary({ plots, isMobile, open, onToggle }: {
   plots: SavedPlot[];
@@ -109,7 +110,7 @@ export function ProjectCarbonSummary({ plots, isMobile, open, onToggle }: {
   const processedCount = plots.filter(p =>
     p.processed === true || (p.carbonProfile && p.carbonProfile.length > 0) || p.carbonTotal > 0
   ).length;
-  const totalAreaRai = plots.reduce((s, p) => s + (p.selectedAreaRai || p.areaRai || 0), 0);
+  const totalAreaRai = plots.reduce((s, p) => s + plotDisplayArea(p).rai, 0);
   const totalTrees = plots.reduce((s, p) => s + (p.trees || 0), 0);
   const cyclePts = combinedPts.filter(pt => pt.year_at > 0 && pt.year_at % 7 === 0);
 

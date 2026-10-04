@@ -48,7 +48,7 @@ class CarbonService:
                 config_row = await conn.fetchrow(
                     """
                     SELECT default_clone, default_spacing, default_growth,
-                           default_allometry, biomass_profile_version
+                           default_allometry, biomass_profile_version, utm_epsg
                     FROM tbl_region_config
                     WHERE p_code = $1
                     """,
@@ -69,6 +69,9 @@ class CarbonService:
             "growth_model": poly_data.get("growth_model") or config_row["default_growth"],
             "allometry": poly_data.get("allometry") or config_row["default_allometry"],
             "biomass_profile_version": poly_data.get("biomass_profile_version") or config_row["biomass_profile_version"],
+            # UTM zone of this province's planting-year raster (32647 / 32648);
+            # A302_geometry is clipped in it so it lines up with the raster.
+            "utm_epsg": config_row["utm_epsg"],
         }
 
     async def generate_carbon_profile(self, poly_data, cohorts) -> list:
@@ -254,6 +257,7 @@ class CarbonService:
         
         default_spacing = region_config["default_spacing"]
         poly_data['clone'] = region_config['clone']
+        poly_data['utm_epsg'] = region_config['utm_epsg']
         
         # Step 2: Multi-Polygon Dissolve & Geometry Merge
         poly_data = await self.lu_svc.find_rubber_cultivation_area(poly_data)

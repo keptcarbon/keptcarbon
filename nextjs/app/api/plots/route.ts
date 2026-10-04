@@ -139,17 +139,17 @@ export async function GET(request: NextRequest) {
     // joins below so opening the list doesn't pull every plot's full payload.
     if (searchParams.get("summary") === "true") {
       const summaryResult = await pool.query(
-        `SELECT project_id, COUNT(*) AS plot_count, SUM(area_m2) AS total_area_m2,
-                MAX(province_code) AS province_code,
-                COUNT(*) FILTER (
-                  WHERE EXISTS (
-                    SELECT 1 FROM tbl_plot_assessments a
-                    WHERE a.plot_id = tbl_plots.id AND a.is_current = TRUE
-                  )
-                ) AS processed_count
-         FROM tbl_plots
-         WHERE project_id = ANY($1) AND deleted_at IS NULL
-         GROUP BY project_id`,
+        // Area per plot = the assessed area (the selected land-use classes the
+        // carbon/tree count was calculated on) once assessed, else the plot's
+        // own area -- same rule as plotDisplayArea() on the plot pages.
+        `SELECT p.project_id, COUNT(*) AS plot_count,
+                SUM(COALESCE((a.assess_parameters->>'area_m2')::float8, p.area_m2)) AS total_area_m2,
+                MAX(p.province_code) AS province_code,
+                COUNT(a.id) AS processed_count
+         FROM tbl_plots p
+         LEFT JOIN tbl_plot_assessments a ON a.plot_id = p.id AND a.is_current = TRUE
+         WHERE p.project_id = ANY($1) AND p.deleted_at IS NULL
+         GROUP BY p.project_id`,
         [projectIds]
       );
       const summaryByProjectId = new Map(summaryResult.rows.map(row => [row.project_id, row]));
@@ -240,6 +240,8 @@ export async function GET(request: NextRequest) {
     const plots = plotRows.map((pl) => {
       const project = projectById.get(pl.project_id);
       const assessment = assessmentByPlotId.get(pl.id);
+      const assessedAreaM2 = typeof assessment?.assess_parameters?.area_m2 === "number"
+        ? assessment.assess_parameters.area_m2 : null;
       const yearly = assessment ? (yearlyByAssessmentId.get(assessment.id) ?? []) : [];
 
       const plantYearBE = pl.year_of_planting ? pl.year_of_planting + 543 : 0;
@@ -263,6 +265,9 @@ export async function GET(request: NextRequest) {
         dbProjectId: pl.project_id,
         name: project?.project_name ?? "",
         areaRai: pl.area_m2 != null ? pl.area_m2 / 1600 : 0,
+        // Area the current assessment was calculated on (selected land-use
+        // classes, geodesic). Pages show this instead of areaRai once assessed.
+        selectedAreaRai: assessedAreaM2 != null ? assessedAreaM2 / 1600 : undefined,
         carbonTotal: currentYearly?.stock_value ?? 0,
         rubberAge,
         plantYearBE,

@@ -2,6 +2,7 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { Sprout, TreeDeciduous, LayoutGrid, Map as MapIcon } from "lucide-react";
+import { ClickTooltip } from "@/components/ui/tooltip";
 import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { CarbonBarChart, profileToBarPoints, type BarPoint } from "./CarbonBarChart";
@@ -71,6 +72,35 @@ type Props = {
 
 // ── Accordion body: pure height slide, animates open AND close, keeps the
 //    content mounted until the collapse finishes so it doesn't snap shut. ──────
+/** ⓘ icon that opens an explanation of an area number on click/tap. Stops the
+ *  click from reaching the clickable plot-card header it sits in, and re-enables
+ *  pointer events (some headers set pointerEvents: "none" on their text). */
+function AreaInfo({ title, text }: { title: string; text: string }) {
+    return (
+        <ClickTooltip
+            className="max-w-[280px] whitespace-normal py-2 font-medium leading-relaxed"
+            content={<><strong>{title}</strong><br />{text}</>}
+        >
+            <span
+                tabIndex={0}
+                aria-label={title}
+                onClick={(e) => e.stopPropagation()}
+                onKeyDown={(e) => e.stopPropagation()}
+                style={{ marginLeft: 5, color: "#1e7a47", cursor: "pointer", outline: "none", pointerEvents: "auto", fontSize: "0.95em" }}
+            >
+                <i className="bi bi-info-circle" aria-hidden="true" />
+            </span>
+        </ClickTooltip>
+    );
+}
+
+const AREA_INFO = {
+    drawnTotal: { title: "พื้นที่ที่วาดรวม:", text: "ผลรวมพื้นที่ของทุกแปลงที่วาด" },
+    plot: { title: "พื้นที่แปลง:", text: "พื้นที่ทั้งหมดของแปลงที่วาด" },
+    assessed: { title: "พื้นที่ที่ใช้ประเมิน:", text: "พื้นที่เฉพาะประเภทการใช้ที่ดินที่เลือก ซึ่งใช้คำนวณจำนวนต้นและคาร์บอน จึงอาจน้อยกว่าพื้นที่แปลง" },
+    assessedTotal: { title: "พื้นที่ที่ใช้ประเมินรวม:", text: "ผลรวมพื้นที่ที่ใช้ประเมินของทุกแปลง (เฉพาะประเภทการใช้ที่ดินที่เลือก)" },
+};
+
 function Accordion({ open, children }: { open: boolean; children: React.ReactNode }) {
     const [render, setRender] = useState(open);
     useEffect(() => {
@@ -914,7 +944,9 @@ export function ParcelResultsPanel({
                 }
                 const userTrees = form.treeCount ? parseInt(form.treeCount) : 0;
                 const epTrees = typeof resp?.assess_parameters?.tree_count?.value === "number" ? resp.assess_parameters.tree_count.value : 0;
-                const finalTrees = userTrees > 0 ? userTrees : (epTrees > 0 ? epTrees : Math.round(totalAreaRai * 76));
+                // Backend count first: it keeps the user's count when it's within the
+                // validation threshold and replaces it otherwise.
+                const finalTrees = epTrees > 0 ? epTrees : (userTrees > 0 ? userTrees : Math.round(totalAreaRai * 76));
                 const co2Now = nowEntry?.stocks?.value ?? 0;
                 const co2NowCi = nowEntry?.stocks?.ci ?? 0;
 
@@ -932,7 +964,11 @@ export function ParcelResultsPanel({
                     co2NowCi,
                     source: "backend" as const,
                     yearUsedDetails,
-                    selectedAreaRai: totalPlotSelectedRai,
+                    // Area the backend assessed (selected land-use classes, geodesic) --
+                    // same number the plot page shows; local LU sum only as a fallback.
+                    selectedAreaRai: typeof resp?.assess_parameters?.area_m2 === "number" && resp.assess_parameters.area_m2 > 0
+                        ? resp.assess_parameters.area_m2 / 1600
+                        : totalPlotSelectedRai,
                     luBreakdown: finalBreakdown
                 });
             }
@@ -1644,8 +1680,9 @@ export function ParcelResultsPanel({
                     <div style={{ fontSize: 15, fontWeight: 700, color: "#475569" }}>
                         แปลงที่วาดแล้ว
                     </div>
-                    <div style={{ fontSize: 16, fontWeight: 800, color: "#1e7a47" }}>
+                    <div style={{ fontSize: 16, fontWeight: 800, color: "#1e7a47", display: "flex", alignItems: "center" }}>
                         {totalArea.toFixed(2)} ไร่
+                        <AreaInfo {...AREA_INFO.drawnTotal} />
                     </div>
                 </div>
 
@@ -1691,7 +1728,7 @@ export function ParcelResultsPanel({
                                             )}
                                         </div>
                                         {p.areaRai > 0 && (
-                                            <div style={{ fontSize: 12.5, color: "#5a7a65", fontWeight: 600, marginTop: 1 }}><LayoutGrid size={12} color="#1e7a47" aria-hidden="true" style={{ display: "inline-block", verticalAlign: "-1px", marginRight: 4 }} /><strong style={{ color: "#0f172a", fontWeight: 700 }}>{p.areaRai.toFixed(2)}</strong> ไร่</div>
+                                            <div style={{ fontSize: 12.5, color: "#5a7a65", fontWeight: 600, marginTop: 1 }}><LayoutGrid size={12} color="#1e7a47" aria-hidden="true" style={{ display: "inline-block", verticalAlign: "-1px", marginRight: 4 }} /><strong style={{ color: "#0f172a", fontWeight: 700 }}>{p.areaRai.toFixed(2)}</strong> ไร่<AreaInfo {...AREA_INFO.plot} /></div>
                                         )}
                                     </div>
                                     <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
@@ -2239,7 +2276,7 @@ export function ParcelResultsPanel({
                                 <div style={{ fontWeight: 700, fontSize: 14, color: "#1a3d2b", lineHeight: 1.25, marginBottom: 2 }}>โครงการ</div>
                             )}
                             <div style={{ fontSize: 12, color: "#5a7a65" }}>
-                                <MapIcon size={12} color="#1e7a47" aria-hidden="true" style={{ display: "inline-block", verticalAlign: "-1px", marginRight: 4 }} /><strong style={{ color: "#0f172a", fontWeight: 700 }}>{carbonResults.length}</strong> แปลง · <LayoutGrid size={12} color="#1e7a47" aria-hidden="true" style={{ display: "inline-block", verticalAlign: "-1px", marginRight: 4 }} /><strong style={{ color: "#0f172a", fontWeight: 700 }}>{totalArea.toFixed(2)}</strong> ไร่
+                                <MapIcon size={12} color="#1e7a47" aria-hidden="true" style={{ display: "inline-block", verticalAlign: "-1px", marginRight: 4 }} /><strong style={{ color: "#0f172a", fontWeight: 700 }}>{carbonResults.length}</strong> แปลง · <LayoutGrid size={12} color="#1e7a47" aria-hidden="true" style={{ display: "inline-block", verticalAlign: "-1px", marginRight: 4 }} /><strong style={{ color: "#0f172a", fontWeight: 700 }}>{carbonResults.reduce((sum, r, ri) => sum + ((r?.selectedAreaRai ?? 0) > 0 ? (r.selectedAreaRai as number) : (plots[ri]?.areaRai || 0)), 0).toFixed(2)}</strong> ไร่<AreaInfo {...AREA_INFO.assessedTotal} />
                             </div>
                         </div>
                         <i className={`bi bi-chevron-${expandedResultIdx === "total" ? 'up' : 'down'}`} style={{ color: "#5a7a65", fontSize: 14 }} />
@@ -2325,7 +2362,7 @@ export function ParcelResultsPanel({
                                             )}
                                         </div>
                                         <div style={{ fontSize: 12, color: "#5a7a65" }}>
-                                            <LayoutGrid size={12} color="#1e7a47" aria-hidden="true" style={{ display: "inline-block", verticalAlign: "-1px", marginRight: 4 }} /><strong style={{ color: "#0f172a", fontWeight: 700 }}>{plot?.areaRai.toFixed(2)}</strong> ไร่
+                                            <LayoutGrid size={12} color="#1e7a47" aria-hidden="true" style={{ display: "inline-block", verticalAlign: "-1px", marginRight: 4 }} /><strong style={{ color: "#0f172a", fontWeight: 700 }}>{((cr.selectedAreaRai ?? 0) > 0 ? (cr.selectedAreaRai as number) : (plot?.areaRai ?? 0)).toFixed(2)}</strong> ไร่<AreaInfo {...AREA_INFO.assessed} />
                                         </div>
                                     </div>
                                     <i className={`bi bi-chevron-${expandedResultIdx === i ? 'up' : 'down'}`} style={{ color: "#5a7a65", fontSize: 14 }} />
