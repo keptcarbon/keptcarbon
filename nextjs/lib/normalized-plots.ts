@@ -303,6 +303,21 @@ async function appendAssessments(client: any, projectId: number, backendResponse
     const plotId = plotRes.rows[0]?.id;
     if (!plotId) continue;
 
+    // Same result as the current assessment -> keep it, don't append a copy.
+    // map-draw's "ประมวลผล" draft save and the following "บันทึกข้อมูล" both send
+    // the same responses, and re-saving / re-assessing an unchanged plot does
+    // too. The backend is deterministic for identical assess_parameters (which
+    // include the data versions), so equal parameters + status = equal profile.
+    // jsonb '=' ignores key order. A real change still appends a new row.
+    const unchanged = await client.query(
+      `SELECT 1 FROM tbl_plot_assessments
+       WHERE plot_id = $1 AND is_current
+         AND status_code IS NOT DISTINCT FROM $2
+         AND assess_parameters = $3::jsonb`,
+      [plotId, br?.status?.status_code ?? null, JSON.stringify(br?.assess_parameters ?? {})]
+    );
+    if (unchanged.rowCount > 0) continue;
+
     await client.query(`UPDATE tbl_plot_assessments SET is_current = FALSE WHERE plot_id = $1 AND is_current`, [plotId]);
 
     const assessRes = await client.query(
