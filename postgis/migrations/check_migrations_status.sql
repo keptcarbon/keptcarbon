@@ -124,4 +124,11 @@ BEGIN
              WHERE table_schema='public' AND table_name='tbl_region_config' AND column_name='utm_epsg')
   THEN RAISE NOTICE '031_tbl_region_config_utm_epsg ........ DONE';
   ELSE RAISE NOTICE '031_tbl_region_config_utm_epsg ........ RUN (after 016)';  END IF;
+
+  IF to_regclass('public.tbl_biomass_profile') IS NULL
+  THEN RAISE NOTICE '032_growth_model_allometry_codes SKIP (run 008/014 first)';
+  ELSIF EXISTS (SELECT 1 FROM public.tbl_biomass_profile
+                WHERE growth_model NOT LIKE 'anchored\_%' OR allometry = 'hytonen_2018')
+  THEN RAISE NOTICE '032_growth_model_allometry_codes ...... RUN (after 016)';
+  ELSE RAISE NOTICE '032_growth_model_allometry_codes ...... DONE';  END IF;
 END $$;

@@ -13,7 +13,7 @@ from httpx import AsyncClient, ASGITransport
 GOOD_ROW = {
     "p_code": "RAY",
     "clone": "RRIM 600",
-    "growth_model": "weibull",
+    "growth_model": "anchored_weibull",
     "allometry": "chiarawipa",
     "biomass_profile_version": "v1",
     "year_of_planting": 2010,
@@ -65,7 +65,7 @@ async def test_sim_success(app, mock_service):
     data = resp.json()
     assert data["status"]["status_code"] == "S05"
     assert data["total_tree_count"] == 600
-    assert data["rows"][0]["growth_model"] == "weibull"
+    assert data["rows"][0]["growth_model"] == "anchored_weibull"
     assert data["carbon_stock_tCO2e_simulation"][0]["carbon_stock_tCO2e"] == 120.5
     # Optional fields are filled with their schema defaults before reaching the service
     mock_service.get_carbon_simulation.assert_awaited_once_with([{
@@ -78,7 +78,7 @@ async def test_sim_success(app, mock_service):
 
 @pytest.mark.asyncio
 async def test_sim_multiple_rows_sent_as_one_batch(app, mock_service):
-    payload = GOOD_PAYLOAD + [{**GOOD_ROW, "year_of_planting": 2020, "growth_model": "schumacher"}]
+    payload = GOOD_PAYLOAD + [{**GOOD_ROW, "year_of_planting": 2020, "growth_model": "anchored_schumacher"}]
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
         resp = await ac.post("/api/v1/carbon/sim", json=payload)
     assert resp.status_code == 200

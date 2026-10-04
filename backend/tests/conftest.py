@@ -134,8 +134,8 @@ class _FakePool:
 # about region-config lookup behavior itself don't need to know about it.
 _DEFAULT_REGION_CONFIG_ROW = {
     "default_clone": "RRIM 600",
-    "default_growth": "weibull",
-    "default_allometry": "hytonen_2018",
+    "default_growth": "anchored_weibull",
+    "default_allometry": "hytönen_2018",
     "default_spacing": "2.5x8",
     "biomass_profile_version": "v1",
     "utm_epsg": 32647,

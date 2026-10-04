@@ -16,8 +16,8 @@ CREATE TABLE IF NOT EXISTS tbl_biomass_profile (
   -- Lookup dimensions (mirror REGION_CONFIG.biomass_assessment_tables key)
   p_code             VARCHAR(10)   NOT NULL,  -- province code, e.g. 'RAY'
   clone              VARCHAR(50)   NOT NULL,  -- e.g. 'RRIM 600', 'RRIT 251'
-  growth_model       VARCHAR(50)   NOT NULL,  -- e.g. 'weibull', 'cubic_poly'
-  allometry          VARCHAR(50)   NOT NULL,  -- e.g. 'hytonen_2018', 'chiarawipa_2012'
+  growth_model       VARCHAR(50)   NOT NULL,  -- e.g. 'anchored_weibull'
+  allometry          VARCHAR(50)   NOT NULL,  -- e.g. 'hytönen_2018', 'chiarawipa_2012'
 
   -- Profile values (per source CSV row, whole-year ages only)
   age                INTEGER       NOT NULL,

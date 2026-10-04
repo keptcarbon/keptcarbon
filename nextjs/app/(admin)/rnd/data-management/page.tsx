@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import { fromArrayBuffer, GeoTIFFImage } from "geotiff";
 import initSqlJs from "sql.js";
 import { Alert, Card } from "@/app/components";
+import { ALLOMETRY_OPTIONS } from "@/lib/allometry";
+import { GROWTH_MODEL_OPTIONS } from "@/lib/growth-model";
 
 // Raster header metadata read client-side from the .tif itself (geotiff.js)
 // — only applies to the planting-year-map category.
@@ -116,17 +118,6 @@ const LULC_REQUIRED_FIELDS = ["LU_CODE", "LU_DES_TH", "LU_DES_EN", "LUL1_CODE", 
 // Required alongside the CSV for biomass_profile — identifies which
 // clone/model/equation the profile data was derived from.
 const RUBBER_CLONE_OPTIONS = ["RRIM 600", "RRIT 251"] as const;
-const GROWTH_MODEL_OPTIONS = [
-    { label: "Cubic Polynomial", value: "cubic_poly" },
-    { label: "Chapman-Richards", value: "chapman_richards" },
-    { label: "Gompertz", value: "gompertz" },
-    { label: "Schumacher", value: "schumacher" },
-    { label: "Weibull", value: "weibull" },
-] as const;
-const ALLOMETRY_OPTIONS = [
-    { label: "Hytönen et al. (2018)", value: "hytonen_2018" },
-    { label: "Chiarawipa et al. (2024)", value: "chiarawipa_2024" },
-] as const;
 
 // geo_planting_year's expected raster spec — a .tif must match all of
 // these to be importable.

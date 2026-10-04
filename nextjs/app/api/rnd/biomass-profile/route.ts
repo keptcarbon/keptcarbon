@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { pool } from "@/lib/db";
 import { isAdminOrRnd } from "@/lib/auth-server";
+import { ALLOMETRY_VALUES } from "@/lib/allometry";
+import { GROWTH_MODEL_VALUES } from "@/lib/growth-model";
 
 // Mirrors the dropdown options in app/(admin)/rnd/data-management/page.tsx —
 // duplicated here so the server enforces the same allowed values rather
 // than trusting whatever the client sends.
 const RUBBER_CLONE_OPTIONS = ["RRIM 600", "RRIT 251"];
-const GROWTH_MODEL_OPTIONS = ["cubic_poly", "chapman_richards", "gompertz", "schumacher", "weibull"];
-const ALLOMETRY_OPTIONS = ["hytonen_2018", "chiarawipa_2024"];
 
 const EXPECTED_ROW_COUNT = 36; // age 0-35
 
@@ -45,10 +45,10 @@ export async function POST(request: NextRequest) {
     if (typeof clone !== "string" || !RUBBER_CLONE_OPTIONS.includes(clone)) {
       return NextResponse.json({ error: "พันธุ์ยาง (clone) ไม่ถูกต้อง" }, { status: 400 });
     }
-    if (typeof growthModel !== "string" || !GROWTH_MODEL_OPTIONS.includes(growthModel)) {
+    if (typeof growthModel !== "string" || !GROWTH_MODEL_VALUES.includes(growthModel)) {
       return NextResponse.json({ error: "สมการ Growth Model ไม่ถูกต้อง" }, { status: 400 });
     }
-    if (typeof allometry !== "string" || !ALLOMETRY_OPTIONS.includes(allometry)) {
+    if (typeof allometry !== "string" || !ALLOMETRY_VALUES.includes(allometry)) {
       return NextResponse.json({ error: "สมการ Allometry ไม่ถูกต้อง" }, { status: 400 });
     }
     if (version !== undefined && version !== null && (typeof version !== "string" || version.length > 10)) {

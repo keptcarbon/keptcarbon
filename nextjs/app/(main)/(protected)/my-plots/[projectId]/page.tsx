@@ -273,7 +273,7 @@ export default function ProjectDetailPage() {
                 <ProjectCarbonSummary plots={plots} isMobile={isMobile} open={openSection === "summary"} onToggle={() => toggleSection("summary")} />
 
                 {/* Every assessed plot's cohorts in one /carbon/sim batch — the backend sums them */}
-                <CollapsibleSection icon="bi-sliders" title="กราฟจำลองคาร์บอนกักเก็บ" isMobile={isMobile} open={openSection === "simulation"} onToggle={() => toggleSection("simulation")} keepMounted>
+                <CollapsibleSection icon="bi-sliders" title="จำลองคาร์บอนกักเก็บ" isMobile={isMobile} open={openSection === "simulation"} onToggle={() => toggleSection("simulation")} keepMounted>
                   <div className={`${plotStyles.content} ${isMobile ? plotStyles.contentMobile : ""}`}>
                     {projectSim.rows.length === 0 ? (
                       <div className={plotStyles.emptyText} style={{ fontSize: 13 }}>กรุณาประเมินคาร์บอนของแปลงในโครงการก่อน จึงจะแสดงกราฟจำลองได้</div>

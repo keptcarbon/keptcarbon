@@ -21,7 +21,7 @@ from app.core.constants import CARBON_FRACTION, CARBON_EQUIVALENT_FACTOR
 # ── helpers ───────────────────────────────────────────────────────────────────
 
 def _poly(province_code="RAY", rubber_clone="RRIM 600", year_of_planting=2015, project_type="existing",
-          clone="RRIM 600", growth_model="weibull", allometry="hytonen_2018", biomass_profile_version="v1"):
+          clone="RRIM 600", growth_model="anchored_weibull", allometry="hytönen_2018", biomass_profile_version="v1"):
     return {
         "id": "p1",
         "province_code": province_code,
@@ -59,7 +59,7 @@ class TestRegionConfigResolution:
         # (a separate, display-only field).
         with patch_db_fetch(
             fetchrow_results=[{"default_clone": "RRIT 251", "default_spacing": "2.5x8",
-                                "default_growth": "weibull", "default_allometry": "hytonen_2018",
+                                "default_growth": "anchored_weibull", "default_allometry": "hytönen_2018",
                                 "biomass_profile_version": "v1", "utm_epsg": 32647}],
         ):
             resolved = await mock_carbon_service._resolve_region_config("RAY", {"rubber_clone": "RRIM 600"})
@@ -69,8 +69,8 @@ class TestRegionConfigResolution:
     async def test_growth_allometry_version_use_region_defaults_when_null(self, mock_carbon_service, patch_db_fetch):
         with patch_db_fetch():
             resolved = await mock_carbon_service._resolve_region_config("RAY", {})
-        assert resolved["growth_model"] == "weibull"
-        assert resolved["allometry"] == "hytonen_2018"
+        assert resolved["growth_model"] == "anchored_weibull"
+        assert resolved["allometry"] == "hytönen_2018"
         assert resolved["biomass_profile_version"] == "v1"
 
     @pytest.mark.asyncio
@@ -78,9 +78,9 @@ class TestRegionConfigResolution:
         with patch_db_fetch():
             resolved = await mock_carbon_service._resolve_region_config(
                 "RAY",
-                {"growth_model": "schumacher", "allometry": "chiarawipa_2012", "biomass_profile_version": "v2"},
+                {"growth_model": "anchored_schumacher", "allometry": "chiarawipa_2012", "biomass_profile_version": "v2"},
             )
-        assert resolved["growth_model"] == "schumacher"
+        assert resolved["growth_model"] == "anchored_schumacher"
         assert resolved["allometry"] == "chiarawipa_2012"
         assert resolved["biomass_profile_version"] == "v2"
 
@@ -257,7 +257,7 @@ class TestRasterMajorityTreeCount:
 
         svc.pro_svc.get_province = AsyncMock(return_value=located)
         svc._resolve_region_config = AsyncMock(return_value={
-            "default_spacing": "2.5x8", "growth_model": "weibull", "allometry": "hytonen_2018",
+            "default_spacing": "2.5x8", "growth_model": "anchored_weibull", "allometry": "hytönen_2018",
             "biomass_profile_version": "v1", "clone": "RRIM 600", "utm_epsg": 32647})
         svc.lu_svc.find_rubber_cultivation_area = AsyncMock(return_value=clipped)
         svc.age_map_svc.get_plantation_year_count = AsyncMock(return_value=clipped)

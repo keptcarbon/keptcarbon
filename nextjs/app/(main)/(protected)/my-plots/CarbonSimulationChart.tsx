@@ -22,6 +22,9 @@ const SERIES = [
 type SeriesKey = (typeof SERIES)[number]["key"];
 
 const fmt = (v: number) => Math.round(v).toLocaleString("th-TH");
+/** Axis labels only: province-scale totals ("30 ล้าน") would overflow the left margin as full digits. */
+const fmtTick = (v: number) =>
+  v >= 1_000_000 ? v.toLocaleString("th-TH", { notation: "compact", maximumFractionDigits: 1 }) : fmt(v);
 
 /** Round the axis max up to a 1/2/5 × 10^n step so gridlines land on clean numbers. */
 function niceTicks(max: number, count = 5) {
@@ -50,7 +53,7 @@ function SliderField({ label, value, min, max, step = 1, unit, onChange, ticks }
         onChange={(e) => onChange(Math.round(Number(e.target.value)))}
         style={{ width: "100%", accentColor: "#1e7a47", cursor: "pointer", margin: 0 }}
       />
-      <span style={{ position: "relative", height: 14, fontSize: 11, color: "#94a3b8", fontWeight: 600 }}>
+      <span style={{ position: "relative", height: 16, fontSize: 12, color: "#94a3b8", fontWeight: 600 }}>
         {ticks.map((t) => (
           <span key={t} style={{ position: "absolute", left: `calc(8px + ${(t - min) / (max - min)} * (100% - 16px))`, transform: "translateX(-50%)" }}>{t}</span>
         ))}
@@ -116,7 +119,7 @@ export function CarbonSimulationChart({ baseRows, isMobile, unitLabel = "แป�
       <div style={{ display: "flex", flexWrap: "wrap", gap: isMobile ? 14 : 32, marginBottom: 16 }}>
         <SliderField label="รอบการปลูกทดแทน (Rotation)" value={rotationYear} min={15} max={35} unit="ปี"
           onChange={setRotationYear} ticks={[15, 20, 25, 30, 35]} />
-        <SliderField label="อัตราการปลูกทดแทน (Replanting)" value={replantingPct} min={0} max={200} unit="%"
+        <SliderField label="อัตราการปลูกทดแทน (Replanting Rate)" value={replantingPct} min={0} max={200} unit="%"
           onChange={setReplantingPct} ticks={[0, 50, 100, 150, 200]} />
       </div>
 
@@ -149,7 +152,7 @@ export function CarbonSimulationChart({ baseRows, isMobile, unitLabel = "แป�
           </div>
         )}
         {loading && data && !error && (
-          <div style={{ position: "absolute", top: 0, right: 0, display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: "#5a7a65", fontWeight: 600 }}>
+          <div style={{ position: "absolute", top: 0, right: 0, display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#5a7a65", fontWeight: 600 }}>
             <Loader2 className="size-3 animate-spin" aria-hidden="true" /> กำลังคำนวณ...
           </div>
         )}
@@ -213,28 +216,28 @@ function SimulationPlot({ data, width, height: H, isMobile }: {
             {yTicks.map((t) => (
               <g key={t}>
                 <line x1={PL} x2={PL + iW} y1={yOf(t)} y2={yOf(t)} stroke="rgba(0,0,0,0.07)" strokeDasharray={t ? "3 4" : undefined} />
-                <text x={PL - 8} y={yOf(t) + 4} textAnchor="end" fontSize={11} fill="#64748b">{fmt(t)}</text>
+                <text x={PL - 8} y={yOf(t) + 4} textAnchor="end" fontSize={12} fill="#64748b">{fmtTick(t)}</text>
               </g>
             ))}
 
             {/* X ticks (BE years, every 10/20 years around the current year) */}
             {xTicks.map((d) => (
-              <text key={d.year_at} x={xOf(d.year_at)} y={PT + iH + 18} textAnchor="middle" fontSize={11}
+              <text key={d.year_at} x={xOf(d.year_at)} y={PT + iH + 18} textAnchor="middle" fontSize={12}
                 fill={d.year_at === 0 ? "#17603a" : "#64748b"} fontWeight={d.year_at === 0 ? 800 : 500}>
                 {d.year + BE_OFFSET}
               </text>
             ))}
-            <text x={PL + iW / 2} y={PT + iH + 36} textAnchor="middle" fontSize={11} fill="#94a3b8">พ.ศ.</text>
+            <text x={PL + iW / 2} y={PT + iH + 36} textAnchor="middle" fontSize={12} fill="#94a3b8">พ.ศ.</text>
 
             {/* Current-year marker */}
             <line x1={xOf(0)} x2={xOf(0)} y1={PT} y2={PT + iH} stroke="#475569" strokeWidth={1.5} />
-            <text x={xOf(0)} y={PT - 8} textAnchor="middle" fontSize={11} fontWeight={700} fill="#475569">ปัจจุบัน</text>
+            <text x={xOf(0)} y={PT - 8} textAnchor="middle" fontSize={12} fontWeight={700} fill="#475569">ปัจจุบัน</text>
 
             {/* Net-zero target marker */}
             {netZeroAt >= minAt && netZeroAt <= maxAt && (
               <g>
                 <line x1={xOf(netZeroAt)} x2={xOf(netZeroAt)} y1={PT} y2={PT + iH} stroke="#0f766e" strokeWidth={1.5} strokeDasharray="5 3" />
-                <text x={xOf(netZeroAt)} y={PT - 8} textAnchor="middle" fontSize={11} fontWeight={800} fill="#0f766e">
+                <text x={xOf(netZeroAt)} y={PT - 8} textAnchor="middle" fontSize={12} fontWeight={800} fill="#0f766e">
                   Net Zero {NET_ZERO_YEAR_CE + BE_OFFSET}
                 </text>
               </g>
@@ -248,7 +251,7 @@ function SimulationPlot({ data, width, height: H, isMobile }: {
 
             {/* Direct labels at line ends */}
             {endLabels.map((s) => (
-              <text key={s.key} x={PL + iW + 6} y={s.y + 4} fontSize={11} fontWeight={700} fill="#334155">
+              <text key={s.key} x={PL + iW + 6} y={s.y + 4} fontSize={12} fontWeight={700} fill="#334155">
                 <tspan fill={s.color}>●</tspan> {s.short}
               </text>
             ))}

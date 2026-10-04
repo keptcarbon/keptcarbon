@@ -539,7 +539,7 @@ export default function PlotDetailPage() {
             </div>
           </CollapsibleSection>
 
-          <CollapsibleSection icon="bi-sliders" title="กราฟจำลองคาร์บอนกักเก็บ" isMobile={isMobile} open={openSection === "simulation"} onToggle={() => toggleSection("simulation")} keepMounted>
+          <CollapsibleSection icon="bi-sliders" title="จำลองคาร์บอนกักเก็บ" isMobile={isMobile} open={openSection === "simulation"} onToggle={() => toggleSection("simulation")} keepMounted>
             <div className={`${plotStyles.content} ${isMobile ? plotStyles.contentMobile : ""}`}>
               {!ep ? (
                 <div className={plotStyles.emptyText} style={{ fontSize: 13 }}>กรุณาประเมินคาร์บอนของแปลงนี้ก่อน จึงจะแสดงกราฟจำลองได้</div>

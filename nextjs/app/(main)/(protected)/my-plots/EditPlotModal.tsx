@@ -5,18 +5,11 @@ import type { SavedPlot } from "./types";
 import styles from "./EditPlotModal.module.css";
 import { Sprout, TreeDeciduous } from "lucide-react";
 import { PLOT_INFO_MAX_LENGTH, VARIETY_OPTIONS } from "@/app/components/organisms/ParcelResultsPanel/utils";
+import { ALLOMETRY_OPTIONS } from "@/lib/allometry";
+import { GROWTH_MODEL_OPTIONS } from "@/lib/growth-model";
 
 const SPACING_OPTIONS = ["2.5x8", "3x7", "2.5x7", "2x6", "3x8"];
-export const GROWTH_MODEL_OPTIONS = [
-  { label: "Anchored Chapman-Richards", value: "chapman_richards" },
-  { label: "Anchored Weibull", value: "weibull" },
-  { label: "Anchored Gompertz", value: "gompertz" },
-  { label: "Anchored Schumacher", value: "schumacher" },
-];
-export const ALLOMETRY_OPTIONS = [
-  { label: "Hytonen et al. (2018)", value: "hytonen_2018" },
-  { label: "Chiarawipa et al. (2012)", value: "chiarawipa_2012" },
-];
+export { GROWTH_MODEL_OPTIONS, ALLOMETRY_OPTIONS };
 
 const CURRENT_BE_YEAR = new Date().getFullYear() + 543;
 const NEW_YEAR_OPTIONS = Array.from({ length: 4 }, (_, i) => String(CURRENT_BE_YEAR + i));

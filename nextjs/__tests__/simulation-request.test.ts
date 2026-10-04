@@ -8,9 +8,9 @@ function ep(overrides: Partial<AssessParameters> = {}): AssessParameters {
   return {
     p_code: "RAY",
     area_m2: 81363.1966,
-    allometry: simple("hytonen_2018"),
+    allometry: simple("hytönen_2018"),
     tree_count: simple(4313, "calculated from area and spacing system"),
-    growth_model: simple("weibull"),
+    growth_model: simple("anchored_weibull"),
     rubber_clone: simple("RRIM 600"),
     spacing_system: simple("2.5x8", "default value"),
     year_of_planting: {
@@ -29,7 +29,7 @@ describe("buildSimRows", () => {
     expect(res).toEqual({
       ok: true,
       rows: [{
-        p_code: "RAY", clone: "RRIM 600", growth_model: "weibull", allometry: "hytonen_2018",
+        p_code: "RAY", clone: "RRIM 600", growth_model: "anchored_weibull", allometry: "hytönen_2018",
         biomass_profile_version: "v1", spacing_system: "2.5x8",
         year_of_planting: 2005, area_m2: 81363.1966, tree_count: 4313,
       }],

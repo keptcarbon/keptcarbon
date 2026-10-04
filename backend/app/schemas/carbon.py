@@ -60,8 +60,8 @@ class CarbonAssessRequest(BasePlotsRequest):
     rubber_clone: Optional[str] = Field(None, description="Clone type for growth coefficients")
     tree_count: Optional[int] = Field(None, description="User-defined count. If None, calculate using area and spacing.")
     spacing_system: Optional[str] = Field(None, description="Standard spacing, e.g. '2.5x8' = 500 trees/ha")
-    growth_model: Optional[str] = Field(None, description="Growth model override, e.g. 'weibull'. If None, use the province's default from tbl_region_config.")
-    allometry: Optional[str] = Field(None, description="Allometry equation override, e.g. 'hytonen_2018'. If None, use the province's default from tbl_region_config.")
+    growth_model: Optional[str] = Field(None, description="Growth model override, e.g. 'anchored_weibull'. If None, use the province's default from tbl_region_config.")
+    allometry: Optional[str] = Field(None, description="Allometry equation override, e.g. 'hytönen_2018'. If None, use the province's default from tbl_region_config.")
     biomass_profile_version: Optional[str] = Field(None, description="Biomass profile dataset version override. If None, use the province's default from tbl_region_config.")
     selected_lu_classes: List[str] = Field(
         #default=["A302"],
@@ -85,7 +85,7 @@ class CarbonAssessResponse(BaseModel):
 class CarbonSimulationRequest(BaseModel):
     p_code: str = Field(..., description="Province code, e.g. 'RAY'")
     clone: str = Field(..., description="Rubber clone, e.g. 'RRIM 600'")
-    growth_model: str = Field(..., description="Growth model name, e.g. 'weibull', 'schumacher', 'chapman_richards','gompertz','cubic_poly'")
+    growth_model: str = Field(..., description="Growth model name, e.g. 'anchored_weibull', 'anchored_schumacher', 'anchored_chapman_richards', 'anchored_gompertz'")
     allometry: str = Field(..., description="Allometric equation name, e.g. 'chiarawipa', 'hytonen'")
     biomass_profile_version: str = Field(..., description="Version of the biomass profile to use")
     year_of_planting: int = Field(..., description="Year the stand was planted")
