@@ -70,6 +70,26 @@ type Props = {
 
 
 
+/** Carbon-affecting form fields of a plot, as a comparable string. A result
+ *  processed with one key is stale once the plot's form has another. "A" and
+ *  "A302" count as checked while unset (same default as the assess payload),
+ *  so the LU auto-check effect filling them in doesn't look like an edit. */
+function carbonFormKey(f?: Partial<PlotFormData>): string {
+    const lu = f?.luChecked || {};
+    const checked = new Set(Object.keys(lu).filter(k => lu[k]));
+    if (lu.A === undefined) checked.add("A");
+    if (lu.A302 === undefined) checked.add("A302");
+    return JSON.stringify([
+        f?.plantStatus || "",
+        String(f?.plantYear || ""),
+        String(f?.treeCount || ""),
+        f?.spacing || "",
+        f?.growthModel || "",
+        f?.allometry || "",
+        Array.from(checked).sort(),
+    ]);
+}
+
 // ── Accordion body: pure height slide, animates open AND close, keeps the
 //    content mounted until the collapse finishes so it doesn't snap shut. ──────
 /** ⓘ icon that opens an explanation of an area number on click/tap. Stops the
@@ -495,6 +515,25 @@ export function ParcelResultsPanel({
     // Kept in a ref so handleSave can read them, and in state so render can read them.
     const stablePlotIdsRef = useRef<string[]>([]);
     const [plotIds, setPlotIds] = useState<string[]>([]);
+
+    // Per-plot "ประมวลผลแล้ว" badge on the step-2 cards, keyed by stable plot id.
+    // Starts from the saved plot's `processed`; overridden when this session
+    // processes (→ true) or saves a carbon-affecting edit without re-processing
+    // (→ false) — the same thing the project page reads back after the save.
+    const [processedById, setProcessedById] = useState<Record<string, boolean>>({});
+    // carbonFormKey() each plot was processed with this session. carbonResults
+    // keeps the old numbers after the user goes back and edits, so a save
+    // compares against this to tell a fresh result from a stale one.
+    const processedFormKeysRef = useRef<Record<string, string>>({});
+    const plotIdAt = (i: number): string | undefined =>
+        plotIds.length === parcelFeatures.length
+            ? plotIds[i]
+            : ((parcelFeatures[i]?.properties as any)?.id as string | undefined);
+    const isPlotProcessed = (i: number): boolean => {
+        const id = plotIdAt(i);
+        if (id && id in processedById) return processedById[id];
+        return (parcelFeatures[i]?.properties as any)?.processed === true;
+    };
 
     // When plotForms grows (new parcel added), propagate initial luChecked to map
     const prevPlotFormsLen = useRef(0);
@@ -974,6 +1013,13 @@ export function ParcelResultsPanel({
             }
 
             setCarbonResults(results);
+            results.forEach(r => {
+                processedFormKeysRef.current[stablePlotIds[r.plotIdx]] = carbonFormKey(plotForms[r.plotIdx]);
+            });
+            setProcessedById(prev => ({
+                ...prev,
+                ...Object.fromEntries(results.map(r => [stablePlotIds[r.plotIdx], true])),
+            }));
             setExpandedResultIdx("total");
             if (onMapPlotSelected) onMapPlotSelected("total");
 
@@ -1148,7 +1194,12 @@ export function ParcelResultsPanel({
                 const backendResp = activeResponses.find((r: any) => r.polygon_id === stablePlotIds[i] || r.polygon_id === `plot-${i}`);
 
                 const p = computePlot(feat);
-                const cr = overrideResults ? overrideResults[i] : carbonResults[i];
+                const sessionCr = overrideResults ? overrideResults[i] : carbonResults[i];
+                // Processed this session, then edited in step 2 without re-processing:
+                // the held result no longer matches the form, so don't save it as current.
+                const resultOutdated = !!sessionCr && sessionCr.co2Now !== undefined &&
+                    processedFormKeysRef.current[stablePlotIds[i]] !== carbonFormKey(form);
+                const cr = resultOutdated ? undefined : sessionCr;
 
                 const hasNewResult = cr && cr.co2Now !== undefined;
                 // Preserve previously saved carbon data when plot wasn't re-processed this session
@@ -1198,6 +1249,7 @@ export function ParcelResultsPanel({
 
                 // Detect a carbon-affecting edit that wasn't re-processed this session
                 // (mirrors EditPlotModal's carbonFieldsChanged check in my-plots).
+                let stale = false;
                 if (!hasNewResult) {
                     const prevPlantYear = props.plantYearBE || 0;
                     const prevTrees = props.trees || 0;
@@ -1211,17 +1263,23 @@ export function ParcelResultsPanel({
                         spacing !== prevSpacing ||
                         newStatus !== prevStatus;
 
-                    if (carbonFieldsChanged) {
+                    // An outdated session result was already written as the current
+                    // assessment by the Process draft save, so it's stale even if the
+                    // form now matches the plot's pre-session values again.
+                    stale = carbonFieldsChanged || resultOutdated;
+                    if (stale) {
                         staleAssessmentPolygonIds.push(stablePlotIds[i]);
                     }
                 }
+                const prevProcessed = processedById[stablePlotIds[i]] ?? (props.processed === true);
+                const processed = hasNewResult ? true : (!stale && prevProcessed);
 
                 return {
                     id: stablePlotIds[i],
                     name: projectName || props.farm_name || "แปลงยางใหม่",
                     areaRai: p.areaRai,
                     selectedAreaRai: hasNewResult ? cr.selectedAreaRai : (props.selectedAreaRai || p.areaRai),
-                    carbonTotal: co2,
+                    carbonTotal: stale ? 0 : co2,
                     rubberAge: age,
                     plantYearBE: finalPlantYear || props.plantYearBE || 0,
                     trees,
@@ -1237,8 +1295,8 @@ export function ParcelResultsPanel({
                     date: new Date().toISOString(),
                     geojson: feat?.geometry || null,
                     boundaryGeojson: null,
-                    carbonProfile,
-                    processed: hasNewResult ? true : (props.processed || false),
+                    carbonProfile: stale ? [] : carbonProfile,
+                    processed,
                     backendData: {
                         lu_polygon: luPolygonToSave,
                         plantYearBE: epPlantYearBE || props.backendData?.plantYearBE || 0,
@@ -1246,7 +1304,7 @@ export function ParcelResultsPanel({
                         variety: epVariety || props.backendData?.variety || "",
                         spacing: epSpacing || props.backendData?.spacing || "",
                         trees: epTrees || props.backendData?.trees || 0,
-                        ep: ep || props.backendData?.ep || null,
+                        ep: stale ? null : (ep || props.backendData?.ep || null),
                         form: form || props.backendData?.form || null
                     }
                 };
@@ -1267,7 +1325,9 @@ export function ParcelResultsPanel({
             const saveBody: Record<string, unknown> = {
                 plantationInfo,
                 polygonsPayload,
-                backendResponses: activeResponses,
+                // A stale plot's response would be re-appended as its current
+                // assessment right after invalidateAssessments() retires it.
+                backendResponses: activeResponses.filter((r: any) => !staleAssessmentPolygonIds.includes(r?.polygon_id)),
                 frontendPlots: finalFrontendPlots,
             };
             if (staleAssessmentPolygonIds.length > 0) saveBody.staleAssessmentPolygonIds = staleAssessmentPolygonIds;
@@ -1306,6 +1366,10 @@ export function ParcelResultsPanel({
             if (res.ok) {
                 const data = await res.json();
                 const savedId: number | undefined = data.project?.id;
+                setProcessedById(prev => ({
+                    ...prev,
+                    ...Object.fromEntries(frontendPlots.map(fp => [fp.id, fp.processed])),
+                }));
                 if (savedId) {
                     setDbProjectId(savedId);
                     dbProjectIdRef.current = savedId;
@@ -1721,6 +1785,15 @@ export function ParcelResultsPanel({
                                     <div style={{ pointerEvents: 'none', flex: 1 }}>
                                         <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                                             <div style={{ fontWeight: 800, fontSize: 15, color: "#1a3d2b", letterSpacing: "-0.2px" }}>แปลงที่ {plotDisplayNum}</div>
+                                            {isPlotProcessed(i) ? (
+                                                <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 700, color: "#1e7a47", background: "#edfaf3", border: "1px solid #d7ede1", padding: "2px 8px", borderRadius: 20, whiteSpace: "nowrap" }}>
+                                                    <i className="bi bi-check-lg" style={{ fontSize: 11 }} /> ประมวลผลแล้ว
+                                                </span>
+                                            ) : (
+                                                <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 700, color: "#d97706", background: "rgba(245,158,11,0.10)", border: "1px solid rgba(245,158,11,0.25)", padding: "2px 8px", borderRadius: 20, whiteSpace: "nowrap" }}>
+                                                    <i className="bi bi-clock" style={{ fontSize: 11 }} /> ยังไม่ประมวลผล
+                                                </span>
+                                            )}
                                             {!form.plantStatus && (
                                                 <span style={{ fontSize: 12, fontWeight: 700, color: "#c2410c", display: "inline-flex", alignItems: "center", gap: 4 }}>
                                                     <i className="bi bi-exclamation-circle-fill" style={{ fontSize: 12 }} /> กรุณาเลือกสถานะแปลง
