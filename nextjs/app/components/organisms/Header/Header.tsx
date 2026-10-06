@@ -34,7 +34,7 @@ type NavItem = {
   href: string;
   icon: LucideIcon;
   /* Present = the item is a dropdown group; its href is just a key, and each
-     child is matched exactly (/dashboard is a prefix of /dashboard/simulation). */
+     child is matched exactly (/dashboard/carbon-stock vs /dashboard/simulation). */
   children?: { label: string; href: string; icon: LucideIcon }[];
 };
 
@@ -48,7 +48,7 @@ const navLinks: NavItem[] = [
     href: "/dashboard",
     icon: BarChart3,
     children: [
-      { label: "ศักยภาพคาร์บอนกักเก็บ", href: "/dashboard", icon: Leaf },
+      { label: "ศักยภาพคาร์บอนกักเก็บ", href: "/dashboard/carbon-stock", icon: Leaf },
       { label: "จำลองคาร์บอนกักเก็บ", href: "/dashboard/simulation", icon: TrendingUp },
     ],
   },

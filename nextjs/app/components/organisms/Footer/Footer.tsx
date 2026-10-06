@@ -32,7 +32,7 @@ const navLinks = [
   { label: "หน้าแรก", href: "/" },
   { label: "เกี่ยวกับโครงการ", href: "/about-project" },
   { label: "ประเมินคาร์บอน", href: "/map-draw" },
-  { label: "แดชบอร์ด", href: "/dashboard" },
+  { label: "แดชบอร์ด", href: "/dashboard/carbon-stock" },
 ] as const;
 
 const socialLinks = [

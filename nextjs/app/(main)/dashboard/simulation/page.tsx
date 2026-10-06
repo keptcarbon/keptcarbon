@@ -7,6 +7,7 @@ import { CarbonSimulationChart } from "@/app/(main)/(protected)/my-plots/CarbonS
 import type { SimBaseRow } from "@/app/(main)/(protected)/my-plots/simulationRequest";
 import { GROWTH_MODEL_OPTIONS } from "@/lib/growth-model";
 import { ALLOMETRY_OPTIONS } from "@/lib/allometry";
+import { useCounter } from "@/lib/use-counter";
 
 const M2_PER_RAI = 1600;
 const BE_OFFSET = 543;
@@ -43,8 +44,10 @@ async function fetchJson<T>(url: string, signal?: AbortSignal): Promise<T> {
 }
 
 function StatCard({ icon, label, value, unit, color }: {
-  icon: string; label: string; value: string; unit: string; color: string;
+  icon: string; label: string; value: number | string; unit: string; color: string;
 }) {
+  // Numbers run up/down to the new value; text (e.g. a year range) shows as-is.
+  const n = useCounter(typeof value === "number" ? value : 0);
   return (
     <div className="db2-stat-card" style={{ borderTop: `3px solid ${color}` }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
@@ -53,7 +56,7 @@ function StatCard({ icon, label, value, unit, color }: {
         </div>
         <span style={{ fontSize: 16, fontWeight: 700, color: "#64748b" }}>{label}</span>
       </div>
-      <div style={{ fontSize: 30, fontWeight: 900, color: "#0f172a", letterSpacing: -1, lineHeight: 1 }}>{value}</div>
+      <div style={{ fontSize: 30, fontWeight: 900, color: "#0f172a", letterSpacing: -1, lineHeight: 1 }}>{typeof value === "number" ? fmt(n) : value}</div>
       <div style={{ fontSize: 15, color: "#94a3b8", fontWeight: 600, marginTop: 5 }}>{unit}</div>
     </div>
   );
@@ -167,7 +170,7 @@ export default function ProvinceSimulationPage() {
             <div style={{ position: "relative" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
                 <span style={{ background: "rgba(5,150,105,0.1)", border: "1px solid rgba(5,150,105,0.2)", borderRadius: 8, padding: "5px 14px", fontSize: 15, fontWeight: 700, color: "#059669" }}>
-                  <i className="bi bi-graph-up-arrow" style={{ marginRight: 5 }} />จำลองระดับจังหวัด
+                  <i className="bi bi-graph-up-arrow" style={{ marginRight: 5 }} />จำลองคาร์บอนระดับพื้นที่
                 </span>
                 {data && (
                   <span style={{ background: "rgba(5,150,105,0.08)", border: "1px solid rgba(5,150,105,0.18)", borderRadius: 8, padding: "5px 14px", fontSize: 15, fontWeight: 700, color: "#047857" }}>
@@ -225,11 +228,11 @@ export default function ProvinceSimulationPage() {
             <div style={{ opacity: loading ? 0.6 : 1, transition: "opacity 0.2s" }}>
               {/* ── Stat cards ─────────────────────────────────────────── */}
               <div className="db2-stat-row" style={{ gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(3,1fr)" }}>
-                <StatCard icon="bi-map-fill" label="พื้นที่ปลูกยางพารา" value={fmt(areaM2 / M2_PER_RAI)} unit="ไร่ (ที่ระบุปีเริ่มปลูกได้)" color="#0d9488" />
+                <StatCard icon="bi-map-fill" label="พื้นที่ปลูกยางพารา" value={areaM2 / M2_PER_RAI} unit="ไร่ (ที่ระบุปีเริ่มปลูกได้)" color="#0d9488" />
                 <StatCard icon="bi-calendar3" label="ช่วงปีเริ่มปลูกที่ระบุได้"
                   value={years.length ? `${Math.min(...years) + BE_OFFSET}–${Math.max(...years) + BE_OFFSET}` : "–"}
                   unit={`พ.ศ. · ${years.length} รุ่นอายุ`} color="#065f46" />
-                <StatCard icon="bi-question-circle" label="พื้นที่ที่ไม่สามารถระบุปีปลูก" value={fmt(data.unclassifiedAreaM2 / M2_PER_RAI)}
+                <StatCard icon="bi-question-circle" label="พื้นที่ที่ไม่สามารถระบุปีปลูก" value={data.unclassifiedAreaM2 / M2_PER_RAI}
                   unit="ไร่ (ไม่รวมในการจำลอง)" color="#94a3b8" />
               </div>
 

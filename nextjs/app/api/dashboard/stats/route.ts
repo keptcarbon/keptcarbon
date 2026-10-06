@@ -57,9 +57,10 @@ export async function GET(request: NextRequest) {
               rubber_age,
               CASE
                 WHEN COALESCE(rubber_age, 0) BETWEEN 1 AND 5   THEN '1-5'
-                WHEN COALESCE(rubber_age, 0) BETWEEN 6 AND 12  THEN '6-12'
-                WHEN COALESCE(rubber_age, 0) BETWEEN 13 AND 18 THEN '13-18'
-                WHEN COALESCE(rubber_age, 0) >= 19             THEN '19+'
+                WHEN COALESCE(rubber_age, 0) BETWEEN 6 AND 15  THEN '6-15'
+                WHEN COALESCE(rubber_age, 0) BETWEEN 16 AND 25 THEN '16-25'
+                WHEN COALESCE(rubber_age, 0) BETWEEN 26 AND 30 THEN '26-30'
+                WHEN COALESCE(rubber_age, 0) >= 31             THEN '31+'
                 ELSE 'ไม่ระบุ'
               END AS bucket,
               (
@@ -119,9 +120,10 @@ export async function GET(request: NextRequest) {
               amphoe_t,
               CASE
                 WHEN COALESCE(rubber_age, 0) BETWEEN 1 AND 5   THEN '1-5'
-                WHEN COALESCE(rubber_age, 0) BETWEEN 6 AND 12  THEN '6-12'
-                WHEN COALESCE(rubber_age, 0) BETWEEN 13 AND 18 THEN '13-18'
-                WHEN COALESCE(rubber_age, 0) >= 19             THEN '19+'
+                WHEN COALESCE(rubber_age, 0) BETWEEN 6 AND 15  THEN '6-15'
+                WHEN COALESCE(rubber_age, 0) BETWEEN 16 AND 25 THEN '16-25'
+                WHEN COALESCE(rubber_age, 0) BETWEEN 26 AND 30 THEN '26-30'
+                WHEN COALESCE(rubber_age, 0) >= 31             THEN '31+'
                 ELSE 'ไม่ระบุ'
               END AS bucket,
               COUNT(*)::int AS plots,
@@ -193,8 +195,8 @@ export async function GET(request: NextRequest) {
       const cleanName = row.amphoe_t.replace(/^อ\./, "");
       const id = DISTRICT_ID_MAP[cleanName] || cleanName.toLowerCase().replace(/\s+/g, "-");
       
-      // Represent all 4 standard buckets
-      const buckets = ["1-5", "6-12", "13-18", "19+"];
+      // Represent all 5 standard buckets
+      const buckets = ["1-5", "6-15", "16-25", "26-30", "31+"];
       const dbAgeDist = row.age_dist || [];
       const ageDist = buckets.map(key => {
         const found = dbAgeDist.find((b: any) => b.key === key);
@@ -218,7 +220,7 @@ export async function GET(request: NextRequest) {
     });
 
     // Dynamic provinceTotal aggregated from live district data
-    const provinceAgeDist = ["1-5", "6-12", "13-18", "19+"].map(key => {
+    const provinceAgeDist = ["1-5", "6-15", "16-25", "26-30", "31+"].map(key => {
       let plotsSum = 0;
       let carbonSum = 0;
       districts.forEach((d: any) => {

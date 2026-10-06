@@ -109,7 +109,8 @@ export async function GET(
               'type', 'Feature',
               'geometry', ST_AsGeoJSON(geom)::json,
               'properties', json_build_object(
-                'amphoe_t', name_th, 'prov_nam_t', province_th
+                'amphoe_t', name_th, 'prov_nam_t', province_th,
+                'cen_lon', cen_lon, 'cen_lat', cen_lat
               )
             ))
           ) AS geojson
@@ -125,7 +126,8 @@ export async function GET(
               'type', 'Feature',
               'geometry', ST_AsGeoJSON(geom)::json,
               'properties', json_build_object(
-                'amphoe_t', name_th, 'prov_nam_t', province_th
+                'amphoe_t', name_th, 'prov_nam_t', province_th,
+                'cen_lon', cen_lon, 'cen_lat', cen_lat
               )
             ))
           ) AS geojson
@@ -156,7 +158,8 @@ export async function GET(
               'type', 'Feature',
               'geometry', ST_AsGeoJSON(geom)::json,
               'properties', json_build_object(
-                'amphoe_t', name_th, 'prov_nam_t', province_th
+                'amphoe_t', name_th, 'prov_nam_t', province_th,
+                'cen_lon', cen_lon, 'cen_lat', cen_lat
               )
             ))
           ) AS geojson
