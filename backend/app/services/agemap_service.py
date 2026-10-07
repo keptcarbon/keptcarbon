@@ -12,12 +12,13 @@ class AgeMapService:
     def __init__(self):
         self.tree_svc = TreeService()
 
-    # $1 = plantation geometry (GeoJSON, EPSG:32647 -- matches geo_planting_year's
-    # SRID, no reprojection needed, see landuse_service module docstring for why
-    # A302_geometry/merged_geometry stay in UTM). $2 = p_code, $3 = year.
+    # $1 = plantation geometry (GeoJSON in the province's UTM zone -- matches
+    # geo_planting_year's SRID, no reprojection needed, see landuse_service
+    # module docstring). $2 = p_code, $3 = year, $4 = that UTM EPSG
+    # (tbl_region_config.utm_epsg, carried on poly_data["utm_epsg"]).
     _VALUE_COUNT_QUERY = """
         WITH target AS (
-            SELECT ST_SetSRID(ST_GeomFromGeoJSON($1), 32647) AS geom
+            SELECT ST_SetSRID(ST_GeomFromGeoJSON($1), $4::integer) AS geom
         ),
         clipped AS (
             SELECT ST_Clip(ST_Union(g.rast, 1), (SELECT geom FROM target), true) AS band
@@ -70,6 +71,7 @@ class AgeMapService:
                     json.dumps(poly_data[key]),
                     p_code,
                     year,
+                    poly_data["utm_epsg"],
                 )
         except HTTPException:
             raise

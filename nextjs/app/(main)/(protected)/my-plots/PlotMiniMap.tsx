@@ -5,6 +5,7 @@ import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import type { SavedPlot } from "./types";
 import styles from "./PlotMiniMap.module.css";
+import { MAP_VIEW_ANIMATION_DURATION } from "@/lib/map-utils";
 
 function getLuColor(luClass: string): string {
   if (luClass.startsWith("A302")) return "#84cc16";
@@ -129,7 +130,7 @@ export function PlotMiniMap({ plot, isMobile, index }: { plot: SavedPlot; isMobi
           }
 
           if (!bounds.isEmpty()) {
-            this._map.fitBounds(bounds, { padding: isMobile ? 30 : 40, duration: 800 });
+            this._map.fitBounds(bounds, { padding: isMobile ? 30 : 40, duration: MAP_VIEW_ANIMATION_DURATION, essential: true });
           }
         };
         this._container.appendChild(btn);

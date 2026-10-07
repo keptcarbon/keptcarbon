@@ -222,3 +222,11 @@ body {
     border-color: var(--border);
   }
 }
+/* ── Bootstrap Icons: bi-superscript (สมการ Allometry) ──────────────────
+   The x² glyph is thin and small next to the other field icons, so scale it
+   up and thicken the stroke wherever it's used. */
+.bi-superscript::before {
+  font-size: 1.2em;
+  -webkit-text-stroke: 0.4px currentColor;
+  vertical-align: -0.15em;
+}

@@ -1,6 +1,8 @@
 "use client";
 import { useState, useMemo, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
+import { Sprout, TreeDeciduous, LayoutGrid, Map as MapIcon } from "lucide-react";
+import { ClickTooltip } from "@/components/ui/tooltip";
 import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { CarbonBarChart, profileToBarPoints, type BarPoint } from "./CarbonBarChart";
@@ -10,6 +12,7 @@ import { PlotDetailCard } from "./PlotDetailCard";
 import {
     type PlotFormData,
     type CarbonResult,
+    PLOT_INFO_MAX_LENGTH,
     VARIETY_OPTIONS,
     SPACING_OPTIONS,
     SUPPORTED_CLONES,
@@ -23,6 +26,7 @@ import {
     computePlot,
     aggregateProfiles,
 } from "./utils";
+import { formatArea, ciTonnes } from "@/lib/utils";
 
 
 // ── Types ─────────────────────────────────────────────────────────────────
@@ -34,7 +38,6 @@ type Props = {
     parcelFeatures: GeoJSON.Feature[];
     luFeatures?: GeoJSON.Feature[];
     rawPlantationInfo?: any[];
-    userDisplayName?: string;
     drawnGeometry?: GeoJSON.Geometry | null;
     onFlyTo: (feature: GeoJSON.Feature) => void;
     onReset?: () => void;
@@ -68,8 +71,57 @@ type Props = {
 
 
 
+/** Carbon-affecting form fields of a plot, as a comparable string. A result
+ *  processed with one key is stale once the plot's form has another. "A" and
+ *  "A302" count as checked while unset (same default as the assess payload),
+ *  so the LU auto-check effect filling them in doesn't look like an edit. */
+function carbonFormKey(f?: Partial<PlotFormData>): string {
+    const lu = f?.luChecked || {};
+    const checked = new Set(Object.keys(lu).filter(k => lu[k]));
+    if (lu.A === undefined) checked.add("A");
+    if (lu.A302 === undefined) checked.add("A302");
+    return JSON.stringify([
+        f?.plantStatus || "",
+        String(f?.plantYear || ""),
+        String(f?.treeCount || ""),
+        f?.spacing || "",
+        f?.growthModel || "",
+        f?.allometry || "",
+        Array.from(checked).sort(),
+    ]);
+}
+
 // ── Accordion body: pure height slide, animates open AND close, keeps the
 //    content mounted until the collapse finishes so it doesn't snap shut. ──────
+/** ⓘ icon that opens an explanation of an area number on click/tap. Stops the
+ *  click from reaching the clickable plot-card header it sits in, and re-enables
+ *  pointer events (some headers set pointerEvents: "none" on their text). */
+function AreaInfo({ title, text }: { title: string; text: string }) {
+    return (
+        <ClickTooltip
+            className="max-w-[280px] whitespace-normal py-2 font-medium leading-relaxed"
+            content={<><strong>{title}</strong><br />{text}</>}
+        >
+            <span
+                tabIndex={0}
+                aria-label={title}
+                onClick={(e) => e.stopPropagation()}
+                onKeyDown={(e) => e.stopPropagation()}
+                style={{ marginLeft: 5, color: "#1e7a47", cursor: "pointer", outline: "none", pointerEvents: "auto", fontSize: "0.95em" }}
+            >
+                <i className="bi bi-info-circle" aria-hidden="true" />
+            </span>
+        </ClickTooltip>
+    );
+}
+
+const AREA_INFO = {
+    drawnTotal: { title: "พื้นที่ที่วาดรวม:", text: "ผลรวมพื้นที่ของทุกแปลงที่วาด" },
+    plot: { title: "พื้นที่แปลง:", text: "พื้นที่ทั้งหมดของแปลงที่วาด" },
+    assessed: { title: "พื้นที่ที่ใช้ประเมิน:", text: "พื้นที่เฉพาะประเภทการใช้ที่ดินที่เลือก ซึ่งใช้คำนวณจำนวนต้นและคาร์บอน จึงอาจน้อยกว่าพื้นที่แปลง" },
+    assessedTotal: { title: "พื้นที่ที่ใช้ประเมินรวม:", text: "ผลรวมพื้นที่ที่ใช้ประเมินของทุกแปลง (เฉพาะประเภทการใช้ที่ดินที่เลือก)" },
+};
+
 function Accordion({ open, children }: { open: boolean; children: React.ReactNode }) {
     const [render, setRender] = useState(open);
     useEffect(() => {
@@ -99,7 +151,6 @@ export function ParcelResultsPanel({
     parcelFeatures,
     luFeatures = [],
     rawPlantationInfo,
-    userDisplayName = "",
     drawnGeometry = null,
     onFlyTo,
     onReset,
@@ -324,7 +375,6 @@ export function ParcelResultsPanel({
     const searchParams = useSearchParams();
     const initialProjectName = searchParams.get("project") || "";
 
-    const [ownerName, setOwnerName] = useState(userDisplayName);
     const [province, setProvince] = useState("");
     const [saveState, setSaveState] = useState<"idle" | "saving" | "done">("idle");
 
@@ -467,6 +517,25 @@ export function ParcelResultsPanel({
     const stablePlotIdsRef = useRef<string[]>([]);
     const [plotIds, setPlotIds] = useState<string[]>([]);
 
+    // Per-plot "ประมวลผลแล้ว" badge on the step-2 cards, keyed by stable plot id.
+    // Starts from the saved plot's `processed`; overridden when this session
+    // processes (→ true) or saves a carbon-affecting edit without re-processing
+    // (→ false) — the same thing the project page reads back after the save.
+    const [processedById, setProcessedById] = useState<Record<string, boolean>>({});
+    // carbonFormKey() each plot was processed with this session. carbonResults
+    // keeps the old numbers after the user goes back and edits, so a save
+    // compares against this to tell a fresh result from a stale one.
+    const processedFormKeysRef = useRef<Record<string, string>>({});
+    const plotIdAt = (i: number): string | undefined =>
+        plotIds.length === parcelFeatures.length
+            ? plotIds[i]
+            : ((parcelFeatures[i]?.properties as any)?.id as string | undefined);
+    const isPlotProcessed = (i: number): boolean => {
+        const id = plotIdAt(i);
+        if (id && id in processedById) return processedById[id];
+        return (parcelFeatures[i]?.properties as any)?.processed === true;
+    };
+
     // When plotForms grows (new parcel added), propagate initial luChecked to map
     const prevPlotFormsLen = useRef(0);
     useEffect(() => {
@@ -602,6 +671,9 @@ export function ParcelResultsPanel({
                         variety: bdForm.variety || "",
                         spacing: bdForm.spacing || "",
                         luChecked: { ...initialLU },
+                        plotNote: bdForm.plotNote ?? props.plotNote ?? "",
+                        growthModel: bdForm.growthModel || "",
+                        allometry: bdForm.allometry || "",
                     });
                 }
                 return next;
@@ -729,6 +801,12 @@ export function ParcelResultsPanel({
                 rubber_clone: (form.variety && SUPPORTED_CLONES.includes(form.variety)) ? form.variety : null,
                 tree_count: form.treeCount ? (parseInt(form.treeCount) || null) : null,
                 spacing_system: form.spacing || null,
+                // No map-draw input: send the saved plot's choice (from my-plots' edit modal),
+                // or null so the backend applies the province default. Also what gets
+                // saved to tbl_plots, so it must not be a blanket null.
+                growth_model: form.growthModel || null,
+                allometry: form.allometry || null,
+                biomass_profile_version: null, // map-draw has no input for this yet -- backend applies the province default
                 selected_lu_classes: (() => {
                     const luData = plotsLuRealData[idx] || {};
                     const hasRealData = Object.keys(luData).length > 0;
@@ -906,7 +984,9 @@ export function ParcelResultsPanel({
                 }
                 const userTrees = form.treeCount ? parseInt(form.treeCount) : 0;
                 const epTrees = typeof resp?.assess_parameters?.tree_count?.value === "number" ? resp.assess_parameters.tree_count.value : 0;
-                const finalTrees = userTrees > 0 ? userTrees : (epTrees > 0 ? epTrees : Math.round(totalAreaRai * 76));
+                // Backend count first: it keeps the user's count when it's within the
+                // validation threshold and replaces it otherwise.
+                const finalTrees = epTrees > 0 ? epTrees : (userTrees > 0 ? userTrees : Math.round(totalAreaRai * 76));
                 const co2Now = nowEntry?.stocks?.value ?? 0;
                 const co2NowCi = nowEntry?.stocks?.ci ?? 0;
 
@@ -924,12 +1004,23 @@ export function ParcelResultsPanel({
                     co2NowCi,
                     source: "backend" as const,
                     yearUsedDetails,
-                    selectedAreaRai: totalPlotSelectedRai,
+                    // Area the backend assessed (selected land-use classes, geodesic) --
+                    // same number the plot page shows; local LU sum only as a fallback.
+                    selectedAreaRai: typeof resp?.assess_parameters?.area_m2 === "number" && resp.assess_parameters.area_m2 > 0
+                        ? resp.assess_parameters.area_m2 / 1600
+                        : totalPlotSelectedRai,
                     luBreakdown: finalBreakdown
                 });
             }
 
             setCarbonResults(results);
+            results.forEach(r => {
+                processedFormKeysRef.current[stablePlotIds[r.plotIdx]] = carbonFormKey(plotForms[r.plotIdx]);
+            });
+            setProcessedById(prev => ({
+                ...prev,
+                ...Object.fromEntries(results.map(r => [stablePlotIds[r.plotIdx], true])),
+            }));
             setExpandedResultIdx("total");
             if (onMapPlotSelected) onMapPlotSelected("total");
 
@@ -1091,6 +1182,12 @@ export function ParcelResultsPanel({
             let res;
 
             const CURRENT_BE_NOW = new Date().getFullYear() + 543;
+            // Plots whose carbon-affecting fields changed this save but which did NOT
+            // get a fresh backend response (edited without re-running "ประมวลผล") —
+            // their current tbl_plot_assessments row would otherwise keep reporting
+            // "ประมวลผลแล้ว" with numbers that no longer match the saved inputs. See
+            // invalidateAssessments() in lib/normalized-plots.ts.
+            const staleAssessmentPolygonIds: string[] = [];
             const frontendPlots = parcelFeatures.map((feat, i) => {
                 const props = (feat?.properties || {}) as any;
                 const form = plotForms[i] || {};
@@ -1098,7 +1195,12 @@ export function ParcelResultsPanel({
                 const backendResp = activeResponses.find((r: any) => r.polygon_id === stablePlotIds[i] || r.polygon_id === `plot-${i}`);
 
                 const p = computePlot(feat);
-                const cr = overrideResults ? overrideResults[i] : carbonResults[i];
+                const sessionCr = overrideResults ? overrideResults[i] : carbonResults[i];
+                // Processed this session, then edited in step 2 without re-processing:
+                // the held result no longer matches the form, so don't save it as current.
+                const resultOutdated = !!sessionCr && sessionCr.co2Now !== undefined &&
+                    processedFormKeysRef.current[stablePlotIds[i]] !== carbonFormKey(form);
+                const cr = resultOutdated ? undefined : sessionCr;
 
                 const hasNewResult = cr && cr.co2Now !== undefined;
                 // Preserve previously saved carbon data when plot wasn't re-processed this session
@@ -1146,12 +1248,39 @@ export function ParcelResultsPanel({
                     }))
                     : (Array.isArray(savedLuPolygon) ? savedLuPolygon : []);
 
+                // Detect a carbon-affecting edit that wasn't re-processed this session
+                // (mirrors EditPlotModal's carbonFieldsChanged check in my-plots).
+                let stale = false;
+                if (!hasNewResult) {
+                    const prevPlantYear = props.plantYearBE || 0;
+                    const prevTrees = props.trees || 0;
+                    const prevSpacing = props.spacing || "";
+                    const prevStatus = props.plantStatus || "";
+                    const newStatus = form?.plantStatus || "";
+
+                    const carbonFieldsChanged =
+                        (finalPlantYear || 0) !== prevPlantYear ||
+                        trees !== prevTrees ||
+                        spacing !== prevSpacing ||
+                        newStatus !== prevStatus;
+
+                    // An outdated session result was already written as the current
+                    // assessment by the Process draft save, so it's stale even if the
+                    // form now matches the plot's pre-session values again.
+                    stale = carbonFieldsChanged || resultOutdated;
+                    if (stale) {
+                        staleAssessmentPolygonIds.push(stablePlotIds[i]);
+                    }
+                }
+                const prevProcessed = processedById[stablePlotIds[i]] ?? (props.processed === true);
+                const processed = hasNewResult ? true : (!stale && prevProcessed);
+
                 return {
                     id: stablePlotIds[i],
                     name: projectName || props.farm_name || "แปลงยางใหม่",
                     areaRai: p.areaRai,
                     selectedAreaRai: hasNewResult ? cr.selectedAreaRai : (props.selectedAreaRai || p.areaRai),
-                    carbonTotal: co2,
+                    carbonTotal: stale ? 0 : co2,
                     rubberAge: age,
                     plantYearBE: finalPlantYear || props.plantYearBE || 0,
                     trees,
@@ -1162,13 +1291,13 @@ export function ParcelResultsPanel({
                         : ((props.luChecked && Object.keys(props.luChecked).length > 0) ? props.luChecked : { A: true, A302: true }),
                     plantStatus: form?.plantStatus || props.plantStatus || "",
                     confidence: p.confidence,
-                    ownerName: ownerName || props.owner_name || props.ownerName || "",
+                    plotNote: form.plotNote ?? props.plotNote ?? "",
                     province: province || plots[i]?.province || props.province || "",
                     date: new Date().toISOString(),
                     geojson: feat?.geometry || null,
                     boundaryGeojson: null,
-                    carbonProfile,
-                    processed: hasNewResult ? true : (props.processed || false),
+                    carbonProfile: stale ? [] : carbonProfile,
+                    processed,
                     backendData: {
                         lu_polygon: luPolygonToSave,
                         plantYearBE: epPlantYearBE || props.backendData?.plantYearBE || 0,
@@ -1176,7 +1305,7 @@ export function ParcelResultsPanel({
                         variety: epVariety || props.backendData?.variety || "",
                         spacing: epSpacing || props.backendData?.spacing || "",
                         trees: epTrees || props.backendData?.trees || 0,
-                        ep: ep || props.backendData?.ep || null,
+                        ep: stale ? null : (ep || props.backendData?.ep || null),
                         form: form || props.backendData?.form || null
                     }
                 };
@@ -1197,9 +1326,12 @@ export function ParcelResultsPanel({
             const saveBody: Record<string, unknown> = {
                 plantationInfo,
                 polygonsPayload,
-                backendResponses: activeResponses,
+                // A stale plot's response would be re-appended as its current
+                // assessment right after invalidateAssessments() retires it.
+                backendResponses: activeResponses.filter((r: any) => !staleAssessmentPolygonIds.includes(r?.polygon_id)),
                 frontendPlots: finalFrontendPlots,
             };
+            if (staleAssessmentPolygonIds.length > 0) saveBody.staleAssessmentPolygonIds = staleAssessmentPolygonIds;
             if (userId) saveBody.userId = userId;
             // Draft (Process): force-save as guest_key even while logged in → doesn't show up in My Plots
             if (isDraft) saveBody.forceGuest = true;
@@ -1235,6 +1367,10 @@ export function ParcelResultsPanel({
             if (res.ok) {
                 const data = await res.json();
                 const savedId: number | undefined = data.project?.id;
+                setProcessedById(prev => ({
+                    ...prev,
+                    ...Object.fromEntries(frontendPlots.map(fp => [fp.id, fp.processed])),
+                }));
                 if (savedId) {
                     setDbProjectId(savedId);
                     dbProjectIdRef.current = savedId;
@@ -1609,8 +1745,9 @@ export function ParcelResultsPanel({
                     <div style={{ fontSize: 15, fontWeight: 700, color: "#475569" }}>
                         แปลงที่วาดแล้ว
                     </div>
-                    <div style={{ fontSize: 16, fontWeight: 800, color: "#1e7a47" }}>
-                        {totalArea.toFixed(2)} ไร่
+                    <div style={{ fontSize: 16, fontWeight: 800, color: "#1e7a47", display: "flex", alignItems: "center" }}>
+                        {formatArea(totalArea)} ไร่
+                        <AreaInfo {...AREA_INFO.drawnTotal} />
                     </div>
                 </div>
 
@@ -1649,6 +1786,15 @@ export function ParcelResultsPanel({
                                     <div style={{ pointerEvents: 'none', flex: 1 }}>
                                         <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                                             <div style={{ fontWeight: 800, fontSize: 15, color: "#1a3d2b", letterSpacing: "-0.2px" }}>แปลงที่ {plotDisplayNum}</div>
+                                            {isPlotProcessed(i) ? (
+                                                <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 700, color: "#1e7a47", background: "#edfaf3", border: "1px solid #d7ede1", padding: "2px 8px", borderRadius: 20, whiteSpace: "nowrap" }}>
+                                                    <i className="bi bi-check-lg" style={{ fontSize: 11 }} /> ประมวลผลแล้ว
+                                                </span>
+                                            ) : (
+                                                <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 700, color: "#d97706", background: "rgba(245,158,11,0.10)", border: "1px solid rgba(245,158,11,0.25)", padding: "2px 8px", borderRadius: 20, whiteSpace: "nowrap" }}>
+                                                    <i className="bi bi-clock" style={{ fontSize: 11 }} /> ยังไม่ประมวลผล
+                                                </span>
+                                            )}
                                             {!form.plantStatus && (
                                                 <span style={{ fontSize: 12, fontWeight: 700, color: "#c2410c", display: "inline-flex", alignItems: "center", gap: 4 }}>
                                                     <i className="bi bi-exclamation-circle-fill" style={{ fontSize: 12 }} /> กรุณาเลือกสถานะแปลง
@@ -1656,7 +1802,7 @@ export function ParcelResultsPanel({
                                             )}
                                         </div>
                                         {p.areaRai > 0 && (
-                                            <div style={{ fontSize: 12.5, color: "#5a7a65", fontWeight: 600, marginTop: 1 }}>{p.areaRai.toFixed(2)} ไร่</div>
+                                            <div style={{ fontSize: 12.5, color: "#5a7a65", fontWeight: 600, marginTop: 1 }}><LayoutGrid size={12} color="#1e7a47" aria-hidden="true" style={{ display: "inline-block", verticalAlign: "-1px", marginRight: 4 }} /><strong style={{ color: "#0f172a", fontWeight: 700 }}>{formatArea(p.areaRai)}</strong> ไร่<AreaInfo {...AREA_INFO.plot} /></div>
                                         )}
                                     </div>
                                     <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
@@ -1675,10 +1821,25 @@ export function ParcelResultsPanel({
                                     </div>
                                 </div>
                                 <Accordion open={expandedIdx === i}>
-                                    {/* Status Selection */}
+                                    {/* Plot info (owner name, land title no.) -- optional free text */}
                                     <div style={{ padding: isMobile ? "16px 16px 0" : "20px 24px 0", background: "#fff" }}>
                                         <div style={{ fontSize: 15, fontWeight: 700, color: "#1a3d2b", marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
-                                            <i className="bi bi-info-circle" style={{ color: "#1e7a47" }} /> สถานะแปลง <span style={{ color: "#ef4444" }}>*</span>
+                                            <i className="bi bi-card-text" style={{ color: "#1e7a47" }} /> ข้อมูลแปลง (เช่น ชื่อเจ้าของแปลง, เลขโฉนด)
+                                        </div>
+                                        <input
+                                            className="prp-input"
+                                            style={{ marginBottom: 0, height: 46, borderRadius: 10, border: "1.5px solid #e6f0ea", padding: "0 12px", width: "100%", boxSizing: "border-box" }}
+                                            type="text"
+                                            maxLength={PLOT_INFO_MAX_LENGTH}
+                                            placeholder="ไม่บังคับ"
+                                            value={form.plotNote ?? ""}
+                                            onChange={e => updateForm(i, "plotNote", e.target.value)}
+                                        />
+                                    </div>
+                                    {/* Status Selection -- label and radios on one line, wraps on narrow screens */}
+                                    <div style={{ padding: isMobile ? "16px 16px 0" : "20px 24px 0", background: "#fff", display: "flex", alignItems: "center", flexWrap: "wrap", columnGap: 24, rowGap: 8 }}>
+                                        <div style={{ fontSize: 15, fontWeight: 700, color: "#1a3d2b", display: "flex", alignItems: "center", gap: 6 }}>
+                                             สถานะแปลง <span style={{ color: "#ef4444" }}>*</span>
                                         </div>
                                         <div style={{ display: "flex", gap: 24 }}>
                                             <div onClick={() => {
@@ -1701,6 +1862,7 @@ export function ParcelResultsPanel({
                                                 <div style={{ width: 20, height: 20, borderRadius: "50%", border: "2px solid", borderColor: form.plantStatus === "replanting" ? "#1e7a47" : "#cbd5e1", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "all 0.2s" }}>
                                                     {form.plantStatus === "replanting" && <div style={{ width: 10, height: 10, borderRadius: "50%", background: "#1e7a47" }} />}
                                                 </div>
+                                                <Sprout size={18} color={form.plantStatus === "replanting" ? "#1e7a47" : "#94a3b8"} aria-hidden="true" style={{ flexShrink: 0, marginRight: -2 }} />
                                                 เริ่มปลูกใหม่
                                             </div>
                                             <div onClick={() => {
@@ -1724,6 +1886,7 @@ export function ParcelResultsPanel({
                                                 <div style={{ width: 20, height: 20, borderRadius: "50%", border: "2px solid", borderColor: form.plantStatus === "existing" ? "#1e7a47" : "#cbd5e1", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "all 0.2s" }}>
                                                     {form.plantStatus === "existing" && <div style={{ width: 10, height: 10, borderRadius: "50%", background: "#1e7a47" }} />}
                                                 </div>
+                                                <TreeDeciduous size={18} color={form.plantStatus === "existing" ? "#1e7a47" : "#94a3b8"} aria-hidden="true" style={{ flexShrink: 0, marginRight: -2 }} />
                                                 ปลูกมาแล้ว
                                             </div>
                                         </div>
@@ -1792,7 +1955,7 @@ export function ParcelResultsPanel({
                                             </div>
                                             <div className="prp-field-group">
                                                 <div style={{ fontSize: 15, fontWeight: 700, color: "#1a3d2b", marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
-                                                    <i className="bi bi-tree" style={{ color: "#1e7a47" }} /> จำนวนต้นยาง
+                                                    <i className="bi bi-tree" style={{ color: "#1e7a47" }} /> จำนวนต้น
                                                 </div>
                                                 <input
                                                     className="prp-input"
@@ -1931,7 +2094,7 @@ export function ParcelResultsPanel({
                                                                 <div style={{ width: 12, height: 12, borderRadius: 2, backgroundColor: lu.color, flexShrink: 0 }} />
                                                                 <span style={{ flex: 1, color: "#0f172a", fontWeight: isChecked ? 600 : 400 }}>{lu.label}</span>
                                                                 <span style={{ color: isChecked ? lu.color : "#64748b", fontSize: 14, fontWeight: 700 }}>
-                                                                    {hasArea ? `${realData.rai.toFixed(2)} ไร่` : "0.00 ไร่"}
+                                                                    {`${formatArea(hasArea ? realData.rai : 0)} ไร่`}
                                                                     {hasArea && (
                                                                         <span style={{ opacity: 0.7, fontSize: 13 }}> ({realData.pct}%)</span>
                                                                     )}
@@ -1987,7 +2150,7 @@ export function ParcelResultsPanel({
                                                             <i className="bi bi-check2-square me-1" /> พื้นที่ที่เลือก
                                                         </span>
                                                         <span style={{ fontSize: 15, color: "#c2410c", fontWeight: 700 }}>
-                                                            {selectedRai.toFixed(2)} ไร่
+                                                            {formatArea(selectedRai)} ไร่
                                                         </span>
                                                     </div>
                                                 ) : null;
@@ -2026,7 +2189,7 @@ export function ParcelResultsPanel({
                                 <div>
                                     <div style={{ fontSize: 15, fontWeight: 800, color: "#1a3d2b" }}>แปลงที่ {parseInt((parcelFeatures[deleteConfirmIdx]?.properties as any)?.plot_index) || (deleteConfirmIdx + 1)}</div>
                                     <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 1 }}>
-                                        {plots[deleteConfirmIdx]?.areaRai ? `${plots[deleteConfirmIdx].areaRai.toFixed(2)} ไร่` : ""}
+                                        {plots[deleteConfirmIdx]?.areaRai ? `${formatArea(plots[deleteConfirmIdx].areaRai)} ไร่` : ""}
                                     </div>
                                 </div>
                             </div>
@@ -2099,7 +2262,7 @@ export function ParcelResultsPanel({
             : carbonResults.reduce((sum, c) => sum + Math.floor(c.co2Now || 0), 0);
         const summaryTotalCo2Ci = aggregatePts.length > 0
             ? (aggregateNowPt?.ci ?? 0)
-            : Math.round(carbonResults.reduce((sum, c) => sum + Math.floor((c.co2NowCi || 0) * 10) / 10, 0) * 10) / 10;
+            : carbonResults.reduce((sum, c) => sum + ciTonnes(c.co2NowCi || 0), 0);
 
         const showAggregateAge = carbonResults.some((c, idx) => {
             const form = plotForms[idx];
@@ -2187,7 +2350,7 @@ export function ParcelResultsPanel({
                                 <div style={{ fontWeight: 700, fontSize: 14, color: "#1a3d2b", lineHeight: 1.25, marginBottom: 2 }}>โครงการ</div>
                             )}
                             <div style={{ fontSize: 12, color: "#5a7a65" }}>
-                                {carbonResults.length} แปลง · {totalArea.toFixed(2)} ไร่
+                                <MapIcon size={12} color="#1e7a47" aria-hidden="true" style={{ display: "inline-block", verticalAlign: "-1px", marginRight: 4 }} /><strong style={{ color: "#0f172a", fontWeight: 700 }}>{carbonResults.length}</strong> แปลง · <LayoutGrid size={12} color="#1e7a47" aria-hidden="true" style={{ display: "inline-block", verticalAlign: "-1px", marginRight: 4 }} /><strong style={{ color: "#0f172a", fontWeight: 700 }}>{formatArea(carbonResults.reduce((sum, r, ri) => sum + ((r?.selectedAreaRai ?? 0) > 0 ? (r.selectedAreaRai as number) : (plots[ri]?.areaRai || 0)), 0))}</strong> ไร่<AreaInfo {...AREA_INFO.assessedTotal} />
                             </div>
                         </div>
                         <i className={`bi bi-chevron-${expandedResultIdx === "total" ? 'up' : 'down'}`} style={{ color: "#5a7a65", fontSize: 14 }} />
@@ -2266,14 +2429,14 @@ export function ParcelResultsPanel({
                                         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                                             <div style={{ fontWeight: 700, fontSize: 14, color: "#1a3d2b" }}>แปลงที่ {plotDisplayNum}</div>
                                             {form?.plantStatus === "replanting" && (
-                                                <span style={{ fontSize: 10, background: "#edfaf3", color: "#1e7a47", padding: "2px 8px", borderRadius: 20, fontWeight: 600 }}>เริ่มปลูกใหม่</span>
+                                                <span style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 11, background: "#edfaf3", color: "#1e7a47", padding: "2px 8px", borderRadius: 20, fontWeight: 600 }}><Sprout size={13} aria-hidden="true" />เริ่มปลูกใหม่</span>
                                             )}
                                             {form?.plantStatus === "existing" && (
-                                                <span style={{ fontSize: 10, background: "#f1f5f9", color: "#5a7a65", padding: "2px 8px", borderRadius: 20, fontWeight: 600 }}>ปลูกมาแล้ว</span>
+                                                <span style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 11, background: "#f1f5f9", color: "#5a7a65", padding: "2px 8px", borderRadius: 20, fontWeight: 600 }}><TreeDeciduous size={13} aria-hidden="true" />ปลูกมาแล้ว</span>
                                             )}
                                         </div>
                                         <div style={{ fontSize: 12, color: "#5a7a65" }}>
-                                            {plot?.areaRai.toFixed(2)} ไร่
+                                            <LayoutGrid size={12} color="#1e7a47" aria-hidden="true" style={{ display: "inline-block", verticalAlign: "-1px", marginRight: 4 }} /><strong style={{ color: "#0f172a", fontWeight: 700 }}>{formatArea((cr.selectedAreaRai ?? 0) > 0 ? (cr.selectedAreaRai as number) : (plot?.areaRai ?? 0))}</strong> ไร่<AreaInfo {...AREA_INFO.assessed} />
                                         </div>
                                     </div>
                                     <i className={`bi bi-chevron-${expandedResultIdx === i ? 'up' : 'down'}`} style={{ color: "#5a7a65", fontSize: 14 }} />

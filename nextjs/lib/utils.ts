@@ -25,3 +25,21 @@ export function strengthFor(len: number): { width: string; color: string } {
   if (len < 10) return { width: "75%", color: "var(--kc-warning)" };
   return { width: "100%", color: "var(--kc-success)" };
 }
+
+/** Areas (ไร่, ตร.ม.) are always shown with 2 decimals and thousands separators, e.g. 1,234.56. */
+export function formatArea(value: number): string {
+  return value.toLocaleString("th-TH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+/**
+ * A carbon ± CI in whole tonnes, rounded UP: carbon values are rounded down
+ * (TGO), and rounding their uncertainty up keeps it from being understated.
+ * Project CIs sum each plot's rounded-up CI.
+ */
+export function ciTonnes(value: number): number {
+  return Math.max(0, Math.ceil(value - 1e-9));
+}
+
+export function formatCiTonnes(value: number): string {
+  return ciTonnes(value).toLocaleString("th-TH");
+}

@@ -26,6 +26,10 @@ export interface RawShadowPayload {
   polygonsPayload?: unknown;
   backendResponses?: unknown;
   frontendPlots?: unknown;
+  // polygon_ids whose current assessment should be retired (is_current =
+  // FALSE) because the save changed a carbon-affecting field but did NOT
+  // include a fresh backendResponses -- see invalidateAssessments().
+  staleAssessmentPolygonIds?: unknown;
 }
 
 type AnyRecord = Record<string, any>;
@@ -78,18 +82,33 @@ const UPSERT_PROJECT_SQL = `
     updated_at   = EXCLUDED.updated_at
 `;
 
+/** Plot info (owner name, land title no.) -- free text, max 100 chars, blank -> NULL. */
+function normalizePlotNote(raw: unknown): string | null {
+  if (typeof raw !== "string") return null;
+  const v = raw.trim().slice(0, 100);
+  return v || null;
+}
+
+/** True when a polygons_payload entry carries `key` (even as null). JSON drops undefined, so absent = not sent. */
+const has = (payload: AnyRecord | undefined, key: string): boolean =>
+  !!payload && Object.prototype.hasOwnProperty.call(payload, key);
+
 const UPSERT_PLOT_SQL = `
   INSERT INTO tbl_plots (
     project_id, polygon_id, geometry, area_m2, province_code,
     status, status_code, message,
     year_of_planting, rubber_clone, tree_count, spacing_system, project_type,
-    selected_lu_classes, owner_name, deleted_at
+    selected_lu_classes, plot_note, growth_model, allometry, deleted_at
   )
   VALUES (
     $1, $2,
     CASE WHEN $3::text IS NULL THEN NULL ELSE ST_SetSRID(ST_GeomFromGeoJSON($3::text), 4326) END,
-    $4, $5, $6, $7, $8, $9, $10, $11, $12, $13,
-    COALESCE($14::text[], '{}'), $15, NULL
+    -- area_m2 is always the geodesic area of the saved boundary (what the
+    -- browser now shows while drawing), not whatever area the client sent.
+    CASE WHEN $3::text IS NULL THEN $4::float8
+         ELSE ST_Area(ST_SetSRID(ST_GeomFromGeoJSON($3::text), 4326)::geography) END,
+    $5, $6, $7, $8, $9, $10, $11, $12, $13,
+    COALESCE($14::text[], '{}'), $15, $16, $17, NULL
   )
   ON CONFLICT (project_id, polygon_id) DO UPDATE SET
     geometry            = COALESCE(EXCLUDED.geometry, tbl_plots.geometry),
@@ -98,13 +117,22 @@ const UPSERT_PLOT_SQL = `
     status                = COALESCE(EXCLUDED.status, tbl_plots.status),
     status_code           = COALESCE(EXCLUDED.status_code, tbl_plots.status_code),
     message               = COALESCE(EXCLUDED.message, tbl_plots.message),
-    year_of_planting      = COALESCE(EXCLUDED.year_of_planting, tbl_plots.year_of_planting),
-    rubber_clone          = COALESCE(EXCLUDED.rubber_clone, tbl_plots.rubber_clone),
-    tree_count            = COALESCE(EXCLUDED.tree_count, tbl_plots.tree_count),
-    spacing_system        = COALESCE(EXCLUDED.spacing_system, tbl_plots.spacing_system),
-    project_type          = COALESCE(EXCLUDED.project_type, tbl_plots.project_type),
+    -- $19-$25: the plot's polygons_payload entry carries that key, so it's the
+    -- user's current form value and authoritative even when null (the user
+    -- cleared it -> e.g. year falls back to the raster). Key absent (no payload
+    -- entry for this plot, or a payload that doesn't track the field) -> keep.
+    -- Plain COALESCE here made a cleared field impossible to save.
+    year_of_planting      = CASE WHEN $19::boolean THEN EXCLUDED.year_of_planting ELSE tbl_plots.year_of_planting END,
+    rubber_clone          = CASE WHEN $20::boolean THEN EXCLUDED.rubber_clone ELSE tbl_plots.rubber_clone END,
+    tree_count            = CASE WHEN $21::boolean THEN EXCLUDED.tree_count ELSE tbl_plots.tree_count END,
+    spacing_system        = CASE WHEN $22::boolean THEN EXCLUDED.spacing_system ELSE tbl_plots.spacing_system END,
+    project_type          = CASE WHEN $23::boolean THEN EXCLUDED.project_type ELSE tbl_plots.project_type END,
     selected_lu_classes   = COALESCE($14::text[], tbl_plots.selected_lu_classes),
-    owner_name            = COALESCE(EXCLUDED.owner_name, tbl_plots.owner_name),
+    -- $18: the save sent a plotNote string, so it's authoritative even
+    -- when blank (the user cleared it); otherwise keep the stored value.
+    plot_note             = CASE WHEN $18::boolean THEN EXCLUDED.plot_note ELSE tbl_plots.plot_note END,
+    growth_model          = CASE WHEN $24::boolean THEN EXCLUDED.growth_model ELSE tbl_plots.growth_model END,
+    allometry             = CASE WHEN $25::boolean THEN EXCLUDED.allometry ELSE tbl_plots.allometry END,
     deleted_at            = NULL
 `;
 
@@ -133,10 +161,29 @@ async function upsertPlots(
     const payload = polygonsById.get(polygonId);
     const pinfo = plantationInfoMap.get(polygonId);
 
-    const geometryObj = pinfo?.geometry ?? payload?.geometry ?? fp?.geojson ?? null;
+    // Plot boundary: the drawn/saved shape (plantation info, else the plot's own
+    // geojson). The assess payload's geometry is the union of the *selected
+    // land-use classes* sent for assessment -- only a last resort, or the plot
+    // gets saved already clipped to those classes.
+    const geometryObj = pinfo?.geometry ?? fp?.geojson ?? payload?.geometry ?? null;
     const selectedLuClasses = Array.isArray(payload?.selected_lu_classes)
       ? payload.selected_lu_classes
       : null;
+
+    // No geometry → this entry can't be INSERTed (geometry is NOT NULL, and
+    // Postgres checks that before ON CONFLICT kicks in). It's a partial save of
+    // an existing plot (e.g. editing ข้อมูลแปลง from the list table), so only
+    // apply the plot note, if one was sent.
+    if (!geometryObj) {
+      if (typeof fp?.plotNote === "string") {
+        await client.query(
+          `UPDATE tbl_plots SET plot_note = $3, updated_at = NOW()
+           WHERE project_id = $1 AND polygon_id = $2`,
+          [projectId, polygonId, normalizePlotNote(fp.plotNote)]
+        );
+      }
+      continue;
+    }
 
     await client.query(UPSERT_PLOT_SQL, [
       projectId,
@@ -153,7 +200,17 @@ async function upsertPlots(
       payload?.spacing_system ?? null,
       payload?.project_type ?? null,
       selectedLuClasses,
-      fp?.ownerName || null,
+      normalizePlotNote(fp?.plotNote),
+      payload?.growth_model ?? null,
+      payload?.allometry ?? null,
+      typeof fp?.plotNote === "string",
+      has(payload, "year_of_planting"),
+      has(payload, "rubber_clone"),
+      has(payload, "tree_count"),
+      has(payload, "spacing_system"),
+      has(payload, "project_type"),
+      has(payload, "growth_model"),
+      has(payload, "allometry"),
     ]);
   }
 
@@ -195,20 +252,43 @@ async function recomputeLandUseOverlaps(
 
     for (const lu of entry.lu_polygon) {
       if (!lu?.geometry) continue;
+      // lu_polygon arrives flat ({lu_class, ...}) from ParcelResultsPanel's
+      // save, but as GeoJSON Features ({properties: {lu_class, ...}}) when
+      // my-plots re-saves what GET /api/plots returned -- read either.
+      const props = lu.properties ?? lu;
       await client.query(
         `INSERT INTO tbl_plot_landuse_overlaps (plot_id, lu_class, lu_class_desc_th, geometry, area_m2, area_percent)
          VALUES ($1, $2, $3, ST_SetSRID(ST_GeomFromGeoJSON($4::text), 4326), $5, $6)`,
         [
           plotId,
-          lu.lu_class ?? null,
-          lu.lu_class_desc_th ?? null,
+          props.lu_class ?? null,
+          props.lu_class_desc_th ?? null,
           JSON.stringify(lu.geometry),
-          lu.area_m2 ?? null,
-          lu.area_percent ?? null,
+          props.area_m2 ?? null,
+          props.area_percent ?? null,
         ]
       );
     }
   }
+}
+
+/**
+ * Retires the current assessment for the given plots (by polygon_id) WITHOUT
+ * inserting a replacement -- used when a plot edit changes a carbon-affecting
+ * field (plant year, spacing, tree count, growth model, allometry, ...) so
+ * the plot correctly reads back as "ยังไม่ประมวลผล" (and the stale graph/
+ * assess_parameters stop showing) until the user reruns the estimate. Safe
+ * to call even if the plot has no current assessment (affects 0 rows).
+ */
+async function invalidateAssessments(client: any, projectId: number, polygonIds: string[]): Promise<void> {
+  if (polygonIds.length === 0) return;
+  await client.query(
+    `UPDATE tbl_plot_assessments a
+     SET is_current = FALSE
+     FROM tbl_plots p
+     WHERE a.plot_id = p.id AND p.project_id = $1 AND p.polygon_id = ANY($2::text[]) AND a.is_current = TRUE`,
+    [projectId, polygonIds]
+  );
 }
 
 async function appendAssessments(client: any, projectId: number, backendResponses: AnyRecord[]): Promise<void> {
@@ -223,18 +303,31 @@ async function appendAssessments(client: any, projectId: number, backendResponse
     const plotId = plotRes.rows[0]?.id;
     if (!plotId) continue;
 
+    // Same result as the current assessment -> keep it, don't append a copy.
+    // map-draw's "ประมวลผล" draft save and the following "บันทึกข้อมูล" both send
+    // the same responses, and re-saving / re-assessing an unchanged plot does
+    // too. The backend is deterministic for identical assess_parameters (which
+    // include the data versions), so equal parameters + status = equal profile.
+    // jsonb '=' ignores key order. A real change still appends a new row.
+    const unchanged = await client.query(
+      `SELECT 1 FROM tbl_plot_assessments
+       WHERE plot_id = $1 AND is_current
+         AND status_code IS NOT DISTINCT FROM $2
+         AND assess_parameters = $3::jsonb`,
+      [plotId, br?.status?.status_code ?? null, JSON.stringify(br?.assess_parameters ?? {})]
+    );
+    if (unchanged.rowCount > 0) continue;
+
     await client.query(`UPDATE tbl_plot_assessments SET is_current = FALSE WHERE plot_id = $1 AND is_current`, [plotId]);
 
     const assessRes = await client.query(
-      `INSERT INTO tbl_plot_assessments (plot_id, status, status_code, message, message_th, ci, assess_parameters, model_version, is_current)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,NULL,TRUE) RETURNING id`,
+      `INSERT INTO tbl_plot_assessments (plot_id, status, status_code, message, assess_parameters, is_current)
+       VALUES ($1,$2,$3,$4,$5,TRUE) RETURNING id`,
       [
         plotId,
         br?.status?.status ?? null,
         br?.status?.status_code ?? null,
         br?.status?.message ?? null,
-        br?.status?.message_th ?? null,
-        br?.ci ?? null,
         JSON.stringify(br?.assess_parameters ?? {}),
       ]
     );
@@ -288,6 +381,13 @@ export async function upsertProjectAndPlots(client: any, header: ProjectHeader, 
 
   if (plantationInfoMap.size > 0) {
     await recomputeLandUseOverlaps(client, header.id, frontendPlots, plantationInfoMap);
+  }
+
+  const staleAssessmentPolygonIds = Array.isArray(raw.staleAssessmentPolygonIds)
+    ? (raw.staleAssessmentPolygonIds as unknown[]).filter((id): id is string => typeof id === "string")
+    : [];
+  if (staleAssessmentPolygonIds.length > 0) {
+    await invalidateAssessments(client, header.id, staleAssessmentPolygonIds);
   }
 
   if (backendResponses) {

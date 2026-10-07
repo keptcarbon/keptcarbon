@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import List, Dict
+from typing import List, Dict, Optional
 from fastapi import HTTPException
 from app.core.database import get_pool
 from app.services.province_service import ProvinceService
@@ -7,6 +7,7 @@ from app.services.landuse_service import LanduseService
 from app.services.tree_service import TreeService
 from app.services.agemap_service import AgeMapService
 from app.services.spatial_utils import SpatialUtils
+from app.services import economics
 
 from shapely.geometry import shape, mapping
 from shapely.ops import unary_union
@@ -30,48 +31,78 @@ class CarbonService:
         self.spatial_svc = SpatialUtils()
 
 
-    async def generate_carbon_profile(self, poly_data, cohorts) -> list:
+    async def _resolve_region_config(self, p_code: str, poly_data: dict) -> dict:
         """
-        Generates a fixed-length yearly carbon stock profile (tCO2e) with 95% CI,
-        spanning the full modeled lifecycle age 0 to GROWTH_MODEL_YEAR, by
-        aggregating multiple age cohorts.
+        Single tbl_region_config lookup per assessment: validates the province
+        is supported (raises 422 if not) and resolves clone/growth_model/
+        allometry/biomass_profile_version -- clone always comes from the
+        region's default (poly_data's own rubber_clone is a separate,
+        display-only field, never consulted here), while growth_model/
+        allometry/biomass_profile_version fall back to the region default only
+        when poly_data sent null (map-draw quick-assess flow); the my-plots
+        re-assess flow can override them explicitly. default_spacing is also
+        returned for the assess_parameters display fallback.
         """
-        p_code = poly_data.get("province_code")
-
         try:
             pool = get_pool()
             async with pool.acquire() as conn:
                 config_row = await conn.fetchrow(
                     """
-                    SELECT default_clone, default_growth, default_allometry
+                    SELECT default_clone, default_spacing, default_growth,
+                           default_allometry, biomass_profile_version, utm_epsg
                     FROM tbl_region_config
                     WHERE p_code = $1
                     """,
                     p_code,
                 )
-                if config_row is None:
-                    raise HTTPException(
-                        status_code=422,
-                        detail=f"Province code '{p_code}' is not supported. No region config found in tbl_region_config."
-                    )
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to load region config: {str(e)}")
 
-                # Use the province's default rubber clone/growth model/allometry
-                # from tbl_region_config (poly_data's own rubber_clone is not
-                # consulted here, matching prior behavior).
-                clone = config_row["default_clone"]
-                growth_model = config_row["default_growth"]
-                allometry = config_row["default_allometry"]
+        if config_row is None:
+            raise HTTPException(
+                status_code=422,
+                detail=f"Province code '{p_code}' is not supported. No region config found in tbl_region_config."
+            )
 
+        return {
+            "clone": config_row["default_clone"],
+            "default_spacing": config_row["default_spacing"],
+            "growth_model": poly_data.get("growth_model") or config_row["default_growth"],
+            "allometry": poly_data.get("allometry") or config_row["default_allometry"],
+            "biomass_profile_version": poly_data.get("biomass_profile_version") or config_row["biomass_profile_version"],
+            # UTM zone of this province's planting-year raster (32647 / 32648);
+            # A302_geometry is clipped in it so it lines up with the raster.
+            "utm_epsg": config_row["utm_epsg"],
+        }
+
+    async def generate_carbon_profile(self, poly_data, cohorts) -> list:
+        """
+        Generates a fixed-length yearly carbon stock profile (tCO2e) with 95% CI,
+        spanning the full modeled lifecycle age 0 to GROWTH_MODEL_YEAR, by
+        aggregating multiple age cohorts.
+
+        Expects poly_data['clone'], poly_data['growth_model'], poly_data['allometry']
+        and poly_data['biomass_profile_version'] to already be resolved by
+        get_carbon_profile() (via _resolve_region_config) -- this method only
+        queries tbl_biomass_profile, no tbl_region_config lookup here.
+        """
+        p_code = poly_data.get("province_code")
+        clone = poly_data.get("clone")
+        growth_model = poly_data.get("growth_model")
+        allometry = poly_data.get("allometry")
+        biomass_profile_version = poly_data.get("biomass_profile_version")
+
+        try:
+            pool = get_pool()
+            async with pool.acquire() as conn:
                 rows = await conn.fetch(
                     """
                     SELECT age, biomass_est, biomass_ci_lower, biomass_ci_upper
                     FROM tbl_biomass_profile
-                    WHERE p_code = $1 AND clone = $2 AND growth_model = $3 AND allometry = $4
+                    WHERE p_code = $1 AND clone = $2 AND growth_model = $3 AND allometry = $4 AND version = $5
                     """,
-                    p_code, clone, growth_model, allometry,
+                    p_code, clone, growth_model, allometry, biomass_profile_version,
                 )
-        except HTTPException:
-            raise
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Failed to load biomass profile: {str(e)}")
 
@@ -79,7 +110,7 @@ class CarbonService:
             raise HTTPException(
                 status_code=422,
                 detail=f"No biomass profile for p_code='{p_code}', clone='{clone}', model='{growth_model}', "
-                       f"allometry='{allometry}'."
+                       f"allometry='{allometry}', version='{biomass_profile_version}'."
             )
 
         lookup_by_age = {row["age"]: row for row in rows}
@@ -191,22 +222,6 @@ class CarbonService:
 
         return projections
 
-
-    async def _get_region_defaults(self, p_code: str) -> dict | None:
-        """Province defaults (default_clone, default_spacing) from
-        tbl_region_config, used to fill assess_parameters when the user
-        didn't supply a rubber_clone/spacing_system."""
-        try:
-            pool = get_pool()
-            async with pool.acquire() as conn:
-                row = await conn.fetchrow(
-                    "SELECT default_clone, default_spacing FROM tbl_region_config WHERE p_code = $1",
-                    p_code,
-                )
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Failed to load region defaults: {str(e)}")
-        return dict(row) if row else None
-
     async def get_carbon_profile(self, poly_data) -> dict:
         current_calendar_year = datetime.now().year
 
@@ -221,10 +236,30 @@ class CarbonService:
                 "assess_parameters": None
             }
 
-        region_defaults = await self._get_region_defaults(poly_data["province_code"])
-        default_clone = region_defaults.get("default_clone") if region_defaults else None
-        default_spacing = region_defaults.get("default_spacing") if region_defaults else None
+        # Resolve region config once here (validates the province, resolves
+        # clone/growth_model/allometry/biomass_profile_version): downstream
+        # generate_carbon_profile() and this method's assess_parameters both
+        # read the resolved values straight off poly_data, no repeat
+        # tbl_region_config lookups. Capture which fields were user-supplied
+        # before overwriting poly_data, so assess_parameters can still report
+        # the right "source" below.
+    
+        spacing_is_default = poly_data.get('spacing_system') is None
+        growth_model_is_default = poly_data.get('growth_model') is None
+        allometry_is_default = poly_data.get('allometry') is None
+        biomass_profile_version_is_default = poly_data.get('biomass_profile_version') is None
 
+        region_config = await self._resolve_region_config(poly_data["province_code"], poly_data)
+        
+        if spacing_is_default: poly_data['spacing_system'] = region_config['default_spacing']
+        if growth_model_is_default: poly_data['growth_model'] = region_config['growth_model']
+        if allometry_is_default: poly_data['allometry'] = region_config['allometry']
+        if biomass_profile_version_is_default: poly_data['biomass_profile_version'] = region_config['biomass_profile_version']
+        
+        default_spacing = region_config["default_spacing"]
+        poly_data['clone'] = region_config['clone']
+        poly_data['utm_epsg'] = region_config['utm_epsg']
+        
         # Step 2: Multi-Polygon Dissolve & Geometry Merge
         poly_data = await self.lu_svc.find_rubber_cultivation_area(poly_data)
         if poly_data["A302_geometry"] is None:
@@ -270,6 +305,7 @@ class CarbonService:
                 },
                 "carbon_profile": profile,
                 "assess_parameters": {
+                    "p_code": poly_data["province_code"],
                     "area_m2": poly_data["A302_area_m2"],
                     "year_of_planting": {
                         "value": poly_data.get("year_of_planting"),
@@ -277,21 +313,35 @@ class CarbonService:
                         "source": "user input" if poly_data.get('year_of_planting') else "calculated from raster"
                     },
                     "rubber_clone": {
-                        "value": poly_data.get('rubber_clone') if poly_data.get('rubber_clone') else default_clone,
-                        "note": "default",
-                        "source": "user input" if poly_data.get('rubber_clone') else "default value applied"
+                        # value = clone the biomass lookup actually used (always the
+                        # region default); a user-entered clone is kept in note only.
+                        "value": poly_data.get('clone'),
+                        "note": poly_data.get('rubber_clone') or None,
+                        "source": "default value applied"
                     },
                     "tree_count": {
                         "value": tree_info['tree_count'],
                         "source": "calculated from area and spacing system" if tree_info['is_calculated'] else "user input"
                     },
                     "spacing_system": {
-                        "value": poly_data.get('spacing_system') if poly_data.get('spacing_system') else default_spacing,
-                        "source": "user input" if poly_data.get('spacing_system') else "default value applied"
+                        "value": poly_data.get('spacing_system'),
+                        "source": "default value applied" if spacing_is_default else "user input"
+                    },
+                    "growth_model": {
+                        "value": poly_data.get('growth_model'),
+                        "source": "default value applied" if growth_model_is_default else "user input"
+                    },
+                    "allometry": {
+                        "value": poly_data.get('allometry'),
+                        "source": "default value applied" if allometry_is_default else "user input"
+                    },
+                    "biomass_profile_version": {
+                        "value": poly_data.get('biomass_profile_version'),
+                        "source": "default value applied" if biomass_profile_version_is_default else "user input"
                     }
                 }
             }
-            
+
 
         else:
             cohorts = await self.age_map_svc.get_plantation_age_cohorts(poly_data)
@@ -336,10 +386,15 @@ class CarbonService:
 
             # Found mojority age
             if highest_proportion > TREE_AGE_HOMOLOGOUS_THRESHOLD:
-                
-                total_tree_count = sum((cohort.get('tree_count') or 0) for cohort in cohorts)
 
-                cohorts = [{"age": highest_proportion_age, 
+                # The dominant cohort's tree_count already covers the WHOLE area
+                # (TreeService.get_tree_count_raster_pixel skips the pixel-ratio
+                # scaling above the homogeneity threshold). Summing every cohort
+                # double-counted the minor cohorts' share on top of it (e.g. 95.3%
+                # dominant -> 6,883 + ~321 = 7,204 instead of 6,883).
+                total_tree_count = dominant_cohort.get('tree_count') or 0
+
+                cohorts = [{"age": highest_proportion_age,
                             "pixel_count": None,
                             "proportion": 1, 
                             "tree_count": total_tree_count}
@@ -401,6 +456,7 @@ class CarbonService:
                 },
                 "carbon_profile": profile,
                 "assess_parameters": {
+                    "p_code": poly_data["province_code"],
                     "area_m2": poly_data["A302_area_m2"],
                     "year_of_planting": {
                         "value": formatted_years,
@@ -408,19 +464,435 @@ class CarbonService:
                         "source": "calculated from raster"
                     },
                     "rubber_clone": {
-                        "value": poly_data.get('rubber_clone') if poly_data.get('rubber_clone') else default_clone,
-                        "note": "default",
-                        "source": "user input" if poly_data.get('rubber_clone') else "default value applied"
+                        # value = clone the biomass lookup actually used (always the
+                        # region default); a user-entered clone is kept in note only.
+                        "value": poly_data.get('clone'),
+                        "note": poly_data.get('rubber_clone') or None,
+                        "source": "default value applied"
                     },
                     "tree_count": {
                         "value": total_tree_count,
                         "source": "calculated from area and spacing system"
                     },
                     "spacing_system": {
-                        "value": poly_data.get('spacing_system') if poly_data.get('spacing_system') else default_spacing,
-                        "source": "user input" if poly_data.get('spacing_system') else "default value"
+                        "value": poly_data.get('spacing_system'),
+                        "source": "default value applied" if spacing_is_default else "user input"
+                    },
+                    "growth_model": {
+                        "value": poly_data.get('growth_model'),
+                        "source": "default value applied" if growth_model_is_default else "user input"
+                    },
+                    "allometry": {
+                        "value": poly_data.get('allometry'),
+                        "source": "default value applied" if allometry_is_default else "user input"
+                    },
+                    "biomass_profile_version": {
+                        "value": poly_data.get('biomass_profile_version'),
+                        "source": "default value applied" if biomass_profile_version_is_default else "user input"
                     }
                 }
             }
 
-        
+    def _build_simulation_vectors(
+        self,
+        biomass_by_age: Dict[int, dict],
+        base_tree_count: int,
+        year_of_planting: int,
+        rotation_year: int,
+        replanting_rate: float,
+        current_calendar_year: int,
+    ) -> tuple:
+        """
+        Builds the fixed-length (2*GROWTH_MODEL_YEAR + 1 = 71) tree_count and
+        biomass_est vectors for one rotation/replanting scenario, spanning
+        calendar years [current_calendar_year - GROWTH_MODEL_YEAR,
+        current_calendar_year + GROWTH_MODEL_YEAR]. Index GROWTH_MODEL_YEAR
+        (0-indexed) is current_calendar_year. Age cycles every
+        (rotation_year + 1) years (ages 0..rotation_year inclusive), and
+        tree_count is scaled by replanting_rate**completed_cycles at each new
+        cycle. Years before year_of_planting hold 0 for both vectors.
+        """
+        vector_length = 2 * GROWTH_MODEL_YEAR + 1
+        cycle_length = rotation_year + 1
+
+        tree_vec = [0] * vector_length
+        biomass_vec = [0.0] * vector_length
+        age_vec: List[Optional[int]] = [None] * vector_length
+
+        for i in range(vector_length):
+            target_year = current_calendar_year - GROWTH_MODEL_YEAR + i
+            elapsed = target_year - year_of_planting
+            if elapsed < 0:
+                continue
+
+            cycle_number = elapsed // cycle_length
+            age_in_cycle = elapsed % cycle_length
+
+            data = biomass_by_age.get(age_in_cycle)
+            if data is None:
+                continue
+
+            tree_vec[i] = int(base_tree_count * (replanting_rate ** cycle_number))
+            biomass_vec[i] = data["biomass_est"]
+            age_vec[i] = age_in_cycle
+
+        return tree_vec, biomass_vec, age_vec
+
+    async def _load_biomass_and_trees(
+        self,
+        p_code: str,
+        clone: str,
+        growth_model: str,
+        allometry: str,
+        biomass_profile_version: str,
+        area_m2: float,
+        tree_count: Optional[int],
+        spacing_system: str,
+    ) -> tuple:
+        """
+        Loads one sim/economics row's per-age biomass profile and resolves its
+        tree count (from tbl_tree_density when tree_count is None). Returns
+        (biomass_by_age, tree_count); raises 422 for an unknown profile/spacing.
+        """
+        density_row = None
+        try:
+            pool = get_pool()
+            async with pool.acquire() as conn:
+                biomass_rows = await conn.fetch(
+                    """
+                    SELECT age, biomass_est, biomass_ci_lower, biomass_ci_upper
+                    FROM tbl_biomass_profile
+                    WHERE p_code = $1 AND clone = $2 AND growth_model = $3 AND allometry = $4 AND version = $5
+                    """,
+                    p_code, clone, growth_model, allometry, biomass_profile_version,
+                )
+
+                if tree_count is None:
+                    density_row = await conn.fetchrow(
+                        "SELECT tree_density_ha FROM tbl_tree_density WHERE tree_spacing = $1",
+                        spacing_system,
+                    )
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to load simulation config: {str(e)}")
+
+        if not biomass_rows:
+            raise HTTPException(
+                status_code=422,
+                detail=f"No biomass profile for p_code='{p_code}', clone='{clone}', model='{growth_model}', "
+                       f"allometry='{allometry}', version='{biomass_profile_version}'."
+            )
+
+        if tree_count is None:
+            if density_row is None:
+                raise HTTPException(
+                    status_code=422,
+                    detail=f"No tree density found for spacing_system='{spacing_system}'."
+                )
+            tree_count = int(area_m2 * density_row["tree_density_ha"] / 10000)
+
+        return {r["age"]: r for r in biomass_rows}, tree_count
+
+    async def get_carbon_simulation(self, sim_data: list) -> dict:
+        """
+        Computes a 71-year (current_year-35 .. current_year+35) simulated
+        carbon stock profile, using each row's own year_of_planting,
+        rotation_year and replanting_rate, alongside upper bound (same
+        rotation_year, 100% replanting) and lower bound (same rotation_year,
+        0% replanting) profiles. sim_data may contain multiple rows
+        (e.g. several cohorts/plantings for one plot) -- each row's central/
+        upper/lower vectors are computed independently, then summed by index
+        across all rows into one final set of 3 vectors for the batch.
+        """
+        current_calendar_year = datetime.now().year
+        vector_length = 2 * GROWTH_MODEL_YEAR + 1
+
+        sum_central_tree = [0] * vector_length
+        sum_central_carbon = [0.0] * vector_length
+        sum_upper_carbon = [0.0] * vector_length
+        sum_lower_carbon = [0.0] * vector_length
+        # Biomass CI bounds of the central scenario (same trees, same ages).
+        sum_ci_lower_carbon = [0.0] * vector_length
+        sum_ci_upper_carbon = [0.0] * vector_length
+
+        row_summaries = []
+        total_area_m2 = 0.0
+        total_tree_count = 0
+
+        for row in sim_data:
+            p_code = row.get("p_code")
+            clone = row.get("clone")
+            growth_model = row.get("growth_model")
+            allometry = row.get("allometry")
+            biomass_profile_version = row.get("biomass_profile_version")
+            year_of_planting = row.get("year_of_planting")
+            area_m2 = row.get("area_m2")
+            tree_count = row.get("tree_count")
+            spacing_system = row.get("spacing_system")
+            rotation_year = row.get("rotation_year", GROWTH_MODEL_YEAR)
+            replanting_rate = row.get("replanting_rate", 1.0)
+
+            if rotation_year > GROWTH_MODEL_YEAR:
+                raise HTTPException(
+                    status_code=422,
+                    detail=f"rotation_year ({rotation_year}) cannot exceed the biomass profile's "
+                           f"maximum modeled age ({GROWTH_MODEL_YEAR})."
+                )
+
+            biomass_by_age, tree_count = await self._load_biomass_and_trees(
+                p_code, clone, growth_model, allometry, biomass_profile_version,
+                area_m2, tree_count, spacing_system,
+            )
+
+            # Central profile: this row's own rotation_year / replanting_rate.
+            central_tree_vec, central_biomass_vec, central_age_vec = self._build_simulation_vectors(
+                biomass_by_age, tree_count, year_of_planting, rotation_year, replanting_rate, current_calendar_year,
+            )
+
+            # Upper bound: this row's rotation_year, 100% replanting.
+            upper_tree_vec, upper_biomass_vec, _ = self._build_simulation_vectors(
+                biomass_by_age, tree_count, year_of_planting, rotation_year, 1.0, current_calendar_year,
+            )
+
+            # Lower bound: this row's rotation_year, 0% replanting.
+            lower_tree_vec, lower_biomass_vec, _ = self._build_simulation_vectors(
+                biomass_by_age, tree_count, year_of_planting, rotation_year, 0.0, current_calendar_year,
+            )
+
+            # Accumulate this row's per-year carbon (and tree_count, for the
+            # central scenario) into the batch-wide sums, index by index.
+            for i in range(vector_length):
+                sum_central_tree[i] += central_tree_vec[i]
+                sum_central_carbon[i] += (
+                    central_biomass_vec[i] * central_tree_vec[i] * CARBON_FRACTION * CARBON_EQUIVALENT_FACTOR
+                ) / 1000.0
+                sum_upper_carbon[i] += (
+                    upper_biomass_vec[i] * upper_tree_vec[i] * CARBON_FRACTION * CARBON_EQUIVALENT_FACTOR
+                ) / 1000.0
+                sum_lower_carbon[i] += (
+                    lower_biomass_vec[i] * lower_tree_vec[i] * CARBON_FRACTION * CARBON_EQUIVALENT_FACTOR
+                ) / 1000.0
+                age_i = central_age_vec[i]
+                if age_i is not None:
+                    data = biomass_by_age[age_i]
+                    # A missing bound falls back to the central estimate.
+                    bounds = [
+                        data["biomass_est"] if data.get(k) is None else data[k]
+                        for k in ("biomass_ci_lower", "biomass_ci_upper")
+                    ]
+                    lo_b, hi_b = min(bounds), max(bounds)
+                    sum_ci_lower_carbon[i] += (lo_b * central_tree_vec[i] * CARBON_FRACTION * CARBON_EQUIVALENT_FACTOR) / 1000.0
+                    sum_ci_upper_carbon[i] += (hi_b * central_tree_vec[i] * CARBON_FRACTION * CARBON_EQUIVALENT_FACTOR) / 1000.0
+
+            total_area_m2 += area_m2
+            total_tree_count += tree_count
+
+            row_summaries.append({
+                "p_code": p_code,
+                "clone": clone,
+                "growth_model": growth_model,
+                "allometry": allometry,
+                "biomass_profile_version": biomass_profile_version,
+                "year_of_planting": year_of_planting,
+                "area_m2": area_m2,
+                "tree_count": tree_count,
+                "spacing_system": spacing_system,
+                "rotation_year": rotation_year,
+                "replanting_rate": replanting_rate,
+            })
+
+        carbon_profile = []
+        for i in range(vector_length):
+            target_year = current_calendar_year - GROWTH_MODEL_YEAR + i
+            carbon_profile.append({
+                "year": target_year,
+                "year_at": target_year - current_calendar_year,
+                "tree_count": sum_central_tree[i],
+                "carbon_stock_tCO2e": round(sum_central_carbon[i], 4),
+                "carbon_stock_upper_tCO2e": round(sum_upper_carbon[i], 4),
+                "carbon_stock_lower_tCO2e": round(sum_lower_carbon[i], 4),
+                "carbon_stock_ci_lower_tCO2e": round(sum_ci_lower_carbon[i], 4),
+                "carbon_stock_ci_upper_tCO2e": round(sum_ci_upper_carbon[i], 4),
+            })
+
+        return {
+            "status": {
+                "status": "success",
+                "status_code": "S05",
+                "message": "CARBON SIMULATION PROFILE GENERATED."
+            },
+            "rows": row_summaries,
+            "total_area_m2": total_area_m2,
+            "total_tree_count": total_tree_count,
+            "carbon_stock_tCO2e_simulation": carbon_profile,
+        }
+
+    async def get_carbon_economics(self, req: dict) -> dict:
+        """
+        T-VER feasibility for a plot or project: sums each cohort's stock path
+        over one 7-year crediting period starting this year (no cutting or
+        replanting inside it), then prices it with economics.evaluate --
+        once for the requested verification frequency and once per
+        compare_frequencies entry for the min/max break-even price.
+        """
+        current_calendar_year = datetime.now().year
+        years = economics.T_VER_CREDITING_YEARS
+        tco2e_per_kg = CARBON_FRACTION * CARBON_EQUIVALENT_FACTOR / 1000.0
+
+        # Central estimate plus the biomass CI bounds, each run end to end so
+        # the results carry a low-high range (the main figures stay central).
+        cases = ("est", "lower", "upper")
+        case_column = {"est": "biomass_est", "lower": "biomass_ci_lower", "upper": "biomass_ci_upper"}
+        total_stock = {c: [0.0] * (years + 1) for c in cases}
+        # Per plot, so credits can be rounded down plot by plot (TGO).
+        plot_credit_paths: Dict[str, Dict[str, List[float]]] = {c: {} for c in cases}
+        total_area_m2 = 0.0
+        total_trees = 0
+        plots: Dict[str, dict] = {}
+        first_profile: Optional[Dict[int, float]] = None
+
+        for i, row in enumerate(req["rows"]):
+            biomass_by_age, tree_count = await self._load_biomass_and_trees(
+                row["p_code"], row["clone"], row["growth_model"], row["allometry"],
+                row["biomass_profile_version"], row["area_m2"], row.get("tree_count"), row["spacing_system"],
+            )
+            # A missing CI bound falls back to the central estimate.
+            profiles = {
+                c: {age: (r[case_column[c]] if r.get(case_column[c]) is not None else r["biomass_est"])
+                    for age, r in biomass_by_age.items()}
+                for c in cases
+            }
+            if first_profile is None:
+                first_profile = profiles["est"]
+
+            age = current_calendar_year - row["year_of_planting"]
+            pid = row.get("plot_id") or f"row_{i}"
+            for c in cases:
+                case_path = economics.stock_path(profiles[c], tree_count, age, GROWTH_MODEL_YEAR, tco2e_per_kg, years)
+                case_credited = economics.credit_path(case_path, age)
+                plot_path = plot_credit_paths[c].setdefault(pid, [0.0] * (years + 1))
+                for t in range(years + 1):
+                    total_stock[c][t] += case_path[t]
+                    plot_path[t] += case_credited[t]
+                if c == "est":
+                    path = case_path
+            total_area_m2 += row["area_m2"]
+            total_trees += tree_count
+
+            p = plots.setdefault(pid, {
+                "plot_id": pid, "label": row.get("label"), "area_m2": 0.0, "tree_count": 0,
+                "age_area": 0.0, "cohort_ages": [], "start": 0.0, "end": 0.0, "beyond": False,
+            })
+            p["area_m2"] += row["area_m2"]
+            p["tree_count"] += tree_count
+            p["age_area"] += age * row["area_m2"]
+            p["cohort_ages"].append(age)
+            p["start"] += path[0]
+            p["end"] += path[-1]
+            p["beyond"] = p["beyond"] or age + years > GROWTH_MODEL_YEAR
+
+        plot_ids = list(plot_credit_paths["est"])
+        costs = req["costs"]
+        price = req["price_thb_per_tCO2e"]
+        rate = req["discount_rate"]
+        every = req["verify_every_years"]
+
+        # rounds (when sent, even empty) picks the verification years itself;
+        # otherwise the regular every-k-years pattern with default prices/fees.
+        if req.get("rounds") is not None:
+            overrides = {r["year_at"]: r for r in req["rounds"]}
+            round_years = sorted(overrides)
+        else:
+            overrides = {}
+            round_years = economics.verification_years(every, years)
+        all_freqs = sorted(set(req["compare_frequencies"]) | {every})
+        # The frequency this pattern matches, or None for a custom pattern.
+        matched = next((k for k in all_freqs if economics.verification_years(k, years) == round_years), None)
+
+        def run(scenario_costs: dict, scenario_price: float, scenario_years: List[int], scenario_overrides: dict) -> dict:
+            """The central result with its low/high CI cases attached (see economics.attach_bounds)."""
+            by_case = {
+                c: economics.evaluate(
+                    total_stock[c], total_area_m2, scenario_costs, scenario_price, scenario_years, rate,
+                    scenario_overrides, credit_paths=[plot_credit_paths[c][pid] for pid in plot_ids],
+                )
+                for c in cases
+            }
+            return economics.attach_bounds(by_case["est"], by_case["lower"], by_case["upper"])
+
+        result = run(costs, price, round_years, overrides)
+        plot_credits = dict(zip(plot_ids, result.pop("plot_credits_tCO2e")))
+        plot_revenue = dict(zip(plot_ids, result.pop("plot_revenue_thb")))
+        plot_bounds = dict(zip(plot_ids, result.pop("plot_bounds")))
+        result["verify_every_years"] = matched
+        for s in result["schedule"]:
+            s["year"] = current_calendar_year + s["year_at"]
+
+        # Other frequencies have different round years, so per-round inputs
+        # can't carry over: compare at this scenario's credit-weighted price
+        # and its average per-round fees (defaults when there are no rounds).
+        avg_price = result["price_thb_per_tCO2e"] or price
+
+        def avg_fee(key: str, default_key: str) -> float:
+            if not round_years:
+                return costs[default_key]
+            fees = [overrides.get(t, {}).get(key) for t in round_years]
+            return sum(costs[default_key] if f is None else f for f in fees) / len(round_years)
+
+        avg_costs = {
+            **costs,
+            "monitoring_per_round": avg_fee("monitoring_cost", "monitoring_per_round"),
+            "verification_per_round": avg_fee("verification_cost", "verification_per_round"),
+        }
+        comparison = []
+        for k in sorted(set(req["compare_frequencies"])):
+            if k == matched:
+                scenario = {key: v for key, v in result.items() if key != "schedule"}
+            else:
+                scenario = run(avg_costs, avg_price, economics.verification_years(k, years), {})
+                for key in ("schedule", "plot_credits_tCO2e", "plot_revenue_thb", "plot_bounds"):
+                    scenario.pop(key)
+                scenario["verify_every_years"] = k
+            comparison.append(scenario)
+        be_prices = [c["break_even_price_thb"] for c in comparison if c["break_even_price_thb"] is not None]
+
+        total_rai = total_area_m2 / economics.RAI_M2
+        plot_list = []
+        for p in plots.values():
+            rai = p["area_m2"] / economics.RAI_M2
+            credits = plot_credits[p["plot_id"]]
+            plot_list.append({
+                "plot_id": p["plot_id"],
+                "label": p["label"],
+                "area_rai": round(rai, 4),
+                "tree_count": p["tree_count"],
+                "age_at_start": round(p["age_area"] / p["area_m2"], 2),
+                "cohort_ages": p["cohort_ages"],
+                "carbon_stock_start_tCO2e": round(p["start"], 4),
+                "carbon_stock_end_tCO2e": round(p["end"], 4),
+                "credits_tCO2e": credits,
+                "revenue_thb": round(plot_revenue[p["plot_id"]], 2),
+                **plot_bounds[p["plot_id"]],
+                "credits_per_rai_tCO2e": round(credits / rai, 4) if rai > 0 else 0.0,
+                "beyond_model_age": p["beyond"],
+            })
+
+        return {
+            "status": {
+                "status": "success",
+                "status_code": "S06",
+                "message": "CARBON ECONOMICS SCENARIO GENERATED."
+            },
+            "start_year": current_calendar_year,
+            "crediting_years": years,
+            "discount_rate": rate,
+            "total_area_rai": round(total_rai, 4),
+            "result": result,
+            "plots": plot_list,
+            "frequency_comparison": comparison,
+            "min_break_even_price_thb": min(be_prices) if be_prices else None,
+            "max_break_even_price_thb": max(be_prices) if be_prices else None,
+            "age_matrix": economics.age_matrix(
+                first_profile or {}, total_trees / total_rai if total_rai > 0 else 0.0,
+                GROWTH_MODEL_YEAR, tco2e_per_kg, result["total_cost_thb"], avg_price, years,
+            ),
+        }

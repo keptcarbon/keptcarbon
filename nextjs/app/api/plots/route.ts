@@ -117,9 +117,13 @@ export async function GET(request: NextRequest) {
 
     const projectResult = await pool.query(query, params);
 
-    // Filter by project name if ?name= is provided
+    // Filter by project name if ?name= is provided, or by db id if ?id= is provided
     const projName = searchParams.get("name");
-    const projectRows = projName
+    const projIdParam = searchParams.get("id");
+    const projId = projIdParam ? Number(projIdParam) : null;
+    const projectRows = projId
+      ? projectResult.rows.filter(row => row.id === projId)
+      : projName
       ? projectResult.rows.filter(row => row.project_name === projName)
       : projectResult.rows;
 
@@ -135,14 +139,28 @@ export async function GET(request: NextRequest) {
     // joins below so opening the list doesn't pull every plot's full payload.
     if (searchParams.get("summary") === "true") {
       const summaryResult = await pool.query(
-        `SELECT project_id, COUNT(*) AS plot_count, SUM(area_m2) AS total_area_m2,
-                MAX(owner_name) AS owner_name, MAX(province_code) AS province_code
-         FROM tbl_plots
-         WHERE project_id = ANY($1) AND deleted_at IS NULL
-         GROUP BY project_id`,
+        // Area per plot = the assessed area (the selected land-use classes the
+        // carbon/tree count was calculated on) once assessed, else the plot's
+        // own area -- same rule as plotDisplayArea() on the plot pages.
+        `SELECT p.project_id, COUNT(*) AS plot_count,
+                SUM(COALESCE((a.assess_parameters->>'area_m2')::float8, p.area_m2)) AS total_area_m2,
+                MAX(p.province_code) AS province_code,
+                COUNT(a.id) AS processed_count
+         FROM tbl_plots p
+         LEFT JOIN tbl_plot_assessments a ON a.plot_id = p.id AND a.is_current = TRUE
+         WHERE p.project_id = ANY($1) AND p.deleted_at IS NULL
+         GROUP BY p.project_id`,
         [projectIds]
       );
       const summaryByProjectId = new Map(summaryResult.rows.map(row => [row.project_id, row]));
+
+      // Project owner = the account (tbl_plots.plot_note is per-plot free-text
+      // plot info, not the account holder).
+      const ownerUuids = [...new Set(projectRows.map(row => row.user_uuid).filter(Boolean))];
+      const ownersResult = ownerUuids.length
+        ? await pool.query(`SELECT uuid, display_name FROM tbl_users WHERE uuid = ANY($1)`, [ownerUuids])
+        : { rows: [] as any[] };
+      const displayNameByUuid = new Map(ownersResult.rows.map(row => [row.uuid, row.display_name]));
 
       const projects = projectRows
         .map(row => {
@@ -154,8 +172,9 @@ export async function GET(request: NextRequest) {
             plotCount: Number(s.plot_count),
             totalArea: s.total_area_m2 != null ? Number(s.total_area_m2) / 1600 : 0,
             updatedAt: row.updated_at,
-            ownerName: s.owner_name ?? "",
+            ownerName: (row.user_uuid && displayNameByUuid.get(row.user_uuid)) || "",
             province: s.province_code ?? "",
+            processed: Number(s.processed_count) === Number(s.plot_count),
           };
         })
         .filter((p): p is NonNullable<typeof p> => p !== null);
@@ -166,7 +185,9 @@ export async function GET(request: NextRequest) {
     const plotsResult = await pool.query(
       `SELECT id, project_id, polygon_id, ST_AsGeoJSON(geometry)::json AS geometry,
               area_m2, province_code, year_of_planting, rubber_clone, tree_count,
-              spacing_system, project_type, selected_lu_classes, owner_name, updated_at
+              spacing_system, project_type, selected_lu_classes, plot_note,
+              growth_model, allometry, province_th, district_th, subdistrict_th,
+              updated_at
        FROM tbl_plots
        WHERE project_id = ANY($1) AND deleted_at IS NULL`,
       [projectIds]
@@ -219,6 +240,8 @@ export async function GET(request: NextRequest) {
     const plots = plotRows.map((pl) => {
       const project = projectById.get(pl.project_id);
       const assessment = assessmentByPlotId.get(pl.id);
+      const assessedAreaM2 = typeof assessment?.assess_parameters?.area_m2 === "number"
+        ? assessment.assess_parameters.area_m2 : null;
       const yearly = assessment ? (yearlyByAssessmentId.get(assessment.id) ?? []) : [];
 
       const plantYearBE = pl.year_of_planting ? pl.year_of_planting + 543 : 0;
@@ -242,6 +265,9 @@ export async function GET(request: NextRequest) {
         dbProjectId: pl.project_id,
         name: project?.project_name ?? "",
         areaRai: pl.area_m2 != null ? pl.area_m2 / 1600 : 0,
+        // Area the current assessment was calculated on (selected land-use
+        // classes, geodesic). Pages show this instead of areaRai once assessed.
+        selectedAreaRai: assessedAreaM2 != null ? assessedAreaM2 / 1600 : undefined,
         carbonTotal: currentYearly?.stock_value ?? 0,
         rubberAge,
         plantYearBE,
@@ -250,8 +276,11 @@ export async function GET(request: NextRequest) {
         spacing: pl.spacing_system ?? "",
         luChecked,
         plantStatus: pl.project_type ?? "",
-        ownerName: pl.owner_name ?? "",
+        plotNote: pl.plot_note ?? "",
         province: pl.province_code ?? "",
+        provinceName: pl.province_th ?? "",
+        district: pl.district_th ?? "",
+        subdistrict: pl.subdistrict_th ?? "",
         date: (assessment?.created_at ?? pl.updated_at) as unknown as string,
         geojson: pl.geometry,
         boundaryGeojson: null,
@@ -271,6 +300,9 @@ export async function GET(request: NextRequest) {
             treeCount: pl.tree_count != null ? String(pl.tree_count) : "",
             variety: pl.rubber_clone ?? "",
             spacing: pl.spacing_system ?? "",
+            plotNote: pl.plot_note ?? "",
+            growthModel: pl.growth_model ?? "",
+            allometry: pl.allometry ?? "",
             luChecked,
           },
         },
@@ -400,6 +432,7 @@ export async function POST(request: NextRequest) {
           polygonsPayload: body.polygonsPayload,
           backendResponses: body.backendResponses,
           frontendPlots: body.frontendPlots,
+          staleAssessmentPolygonIds: body.staleAssessmentPolygonIds,
         }
       );
 

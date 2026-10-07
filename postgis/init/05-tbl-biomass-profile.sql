@@ -16,8 +16,8 @@ CREATE TABLE IF NOT EXISTS tbl_biomass_profile (
   -- Lookup dimensions (mirror REGION_CONFIG.biomass_assessment_tables key)
   p_code             VARCHAR(10)   NOT NULL,  -- province code, e.g. 'RAY'
   clone              VARCHAR(50)   NOT NULL,  -- e.g. 'RRIM 600', 'RRIT 251'
-  growth_model       VARCHAR(50)   NOT NULL,  -- e.g. 'weibull', 'cubic_poly'
-  allometry          VARCHAR(50)   NOT NULL,  -- e.g. 'hytonen_2018', 'chiarawipa_2012'
+  growth_model       VARCHAR(50)   NOT NULL,  -- e.g. 'anchored_weibull'
+  allometry          VARCHAR(50)   NOT NULL,  -- e.g. 'hytönen_2018', 'chiarawipa_2012'
 
   -- Profile values (per source CSV row, whole-year ages only)
   age                INTEGER       NOT NULL,
@@ -30,11 +30,8 @@ CREATE TABLE IF NOT EXISTS tbl_biomass_profile (
   biomass_ci_upper   FLOAT,
 
   -- Import batch/vintage of the lookup CSV a row's data came from.
-  version            VARCHAR(10),
+  version            VARCHAR(10)   NOT NULL,
 
-  CONSTRAINT uq_biomass_profile_key UNIQUE (p_code, clone, growth_model, allometry, age)
+  -- Its index also serves lookups by (p_code, clone, growth_model, allometry, version).
+  CONSTRAINT uq_biomass_profile_key UNIQUE (p_code, clone, growth_model, allometry, version, age)
 );
-
--- Index for lookup by region/clone/model/allometry (age range scans)
-CREATE INDEX IF NOT EXISTS idx_biomass_profile_lookup
-  ON tbl_biomass_profile (p_code, clone, growth_model, allometry);
