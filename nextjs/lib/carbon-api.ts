@@ -100,6 +100,9 @@ export interface SimulationYearlyPoint {
     carbon_stock_upper_tCO2e: number;
     /** same rotation_year, 0% replanting */
     carbon_stock_lower_tCO2e: number;
+    /** central scenario at the biomass CI lower / upper bound */
+    carbon_stock_ci_lower_tCO2e: number;
+    carbon_stock_ci_upper_tCO2e: number;
 }
 
 export interface CarbonSimulationResponse {
@@ -147,6 +150,20 @@ export interface CarbonEconomicsRequest {
     compare_frequencies?: number[];
 }
 
+/** One CI case (biomass lower or upper bound) of a scenario's headline figures. */
+export interface EconomicsBound {
+    total_credits_tCO2e: number;
+    total_revenue_thb: number;
+    net_profit_thb: number;
+    npv_thb: number;
+    irr: number | null;
+    break_even_price_thb: number | null;
+    discounted_break_even_price_thb: number | null;
+    min_viable_area_rai: number | null;
+    is_viable: boolean;
+    payback_year_at: number | null;
+}
+
 export interface EconomicsScheduleYear {
     year: number;
     /** 0..7, years since the project start */
@@ -161,6 +178,11 @@ export interface EconomicsScheduleYear {
     net_thb: number;
     cumulative_net_thb: number;
     discounted_net_thb: number;
+    /** CI range of credits_issued_tCO2e / net_thb */
+    credits_issued_low_tCO2e: number;
+    credits_issued_high_tCO2e: number;
+    net_low_thb: number;
+    net_high_thb: number;
 }
 
 export interface EconomicsScenario {
@@ -185,6 +207,9 @@ export interface EconomicsScenario {
     break_even_price_thb: number | null;
     discounted_break_even_price_thb: number | null;
     min_viable_area_rai: number | null;
+    /** the same scenario with the biomass CI case giving fewer / more credits */
+    low: EconomicsBound;
+    high: EconomicsBound;
 }
 
 export interface EconomicsPlot {
@@ -200,6 +225,11 @@ export interface EconomicsPlot {
     credits_tCO2e: number;
     /** credits x each round's price; plots sum to the project revenue */
     revenue_thb: number;
+    /** CI range of credits_tCO2e / revenue_thb */
+    credits_low_tCO2e: number;
+    credits_high_tCO2e: number;
+    revenue_low_thb: number;
+    revenue_high_thb: number;
     credits_per_rai_tCO2e: number;
     /** a cohort passes the last modeled age (35) during the period; growth held flat */
     beyond_model_age: boolean;

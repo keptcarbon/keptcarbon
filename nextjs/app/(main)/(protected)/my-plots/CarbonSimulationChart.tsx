@@ -20,6 +20,8 @@ const SERIES = [
   { key: "carbon_stock_lower_tCO2e", label: "ไม่ปลูกทดแทน (0%)", short: "0%", color: "#eb6834", dash: "2 4" },
 ] as const;
 type SeriesKey = (typeof SERIES)[number]["key"];
+/** Biomass CI band around the "ตามค่าที่ตั้ง" line, in that series' color. */
+const CI_BAND_FILL = "rgba(30,122,71,0.16)";
 
 // Net annual change = simulated stock(year) − stock(year − 1). Polarity pair:
 // gain (sequestration) vs loss (harvest/replant emission); sign is also
@@ -169,12 +171,17 @@ export function CarbonSimulationChart({ baseRows, isMobile, unitLabel = "แป�
 
       {/* Legend */}
       <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", gap: isMobile ? "4px 14px" : "4px 22px", margin: "6px 0 4px", fontSize: 12, color: "#475569", fontWeight: 600 }}>
-        {view === "stock" ? SERIES.map((s) => (
+        {view === "stock" ? [...SERIES.map((s) => (
           <span key={s.key} style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
             <svg width="26" height="8" aria-hidden="true"><line x1="1" y1="4" x2="25" y2="4" stroke={s.color} strokeWidth={s.dash ? 2 : 3} strokeDasharray={s.dash} strokeLinecap="round" /></svg>
             {s.label}
           </span>
-        )) : ([[NET_GAIN_COLOR, "กักเก็บเพิ่ม (+)"], [NET_LOSS_COLOR, "ปล่อยออก (−)"]] as const).map(([c, l]) => (
+        )), (
+          <span key="ci" style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+            <span aria-hidden="true" style={{ width: 22, height: 10, borderRadius: 2, background: CI_BAND_FILL }} />
+            ช่วง CI ({SERIES[1].label})
+          </span>
+        )] : ([[NET_GAIN_COLOR, "กักเก็บเพิ่ม (+)"], [NET_LOSS_COLOR, "ปล่อยออก (−)"]] as const).map(([c, l]) => (
           <span key={l} style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
             <span aria-hidden="true" style={{ width: 10, height: 10, borderRadius: 2, background: c }} />
             {l}
@@ -226,7 +233,7 @@ function SimulationPlot({ data, width, height: H, isMobile }: {
 
   const minAt = data[0].year_at;
   const maxAt = data[data.length - 1].year_at;
-  const yMax = Math.max(1, ...data.flatMap((d) => SERIES.map((s) => d[s.key])));
+  const yMax = Math.max(1, ...data.flatMap((d) => [...SERIES.map((s) => d[s.key]), d.carbon_stock_ci_upper_tCO2e]));
   const yTicks = niceTicks(yMax, isMobile ? 4 : 5);
   const yTop = yTicks[yTicks.length - 1];
 
@@ -234,6 +241,12 @@ function SimulationPlot({ data, width, height: H, isMobile }: {
   const yOf = (v: number) => PT + iH - (v / yTop) * iH;
   const pathFor = (key: SeriesKey) =>
     data.map((d, i) => `${i ? "L" : "M"}${xOf(d.year_at).toFixed(1)},${yOf(d[key]).toFixed(1)}`).join(" ");
+
+  const bandPath = [
+    ...data.map((d, i) => `${i ? "L" : "M"}${xOf(d.year_at).toFixed(1)},${yOf(d.carbon_stock_ci_upper_tCO2e).toFixed(1)}`),
+    ...[...data].reverse().map((d) => `L${xOf(d.year_at).toFixed(1)},${yOf(d.carbon_stock_ci_lower_tCO2e).toFixed(1)}`),
+    "Z",
+  ].join(" ");
 
   const currentYear = data.find((d) => d.year_at === 0)!.year;
   const netZeroAt = NET_ZERO_YEAR_CE - currentYear;
@@ -256,7 +269,7 @@ function SimulationPlot({ data, width, height: H, isMobile }: {
 
   return (
     <>
-          <svg width={width} height={H} role="img" aria-label="กราฟจำลองปริมาณคาร์บอนกักเก็บ 3 สถานการณ์ ตั้งแต่ 35 ปีก่อนถึง 35 ปีข้างหน้า" style={{ display: "block", overflow: "visible" }}>
+          <svg width={width} height={H} role="img" aria-label="กราฟจำลองปริมาณคาร์บอนกักเก็บ 3 สถานการณ์ พร้อมช่วง CI ของค่าที่ตั้ง ตั้งแต่ 35 ปีก่อนถึง 35 ปีข้างหน้า" style={{ display: "block", overflow: "visible" }}>
             {/* Past region */}
             <rect x={PL} y={PT} width={xOf(0) - PL} height={iH} fill="rgba(100,116,139,0.06)" />
 
@@ -291,6 +304,9 @@ function SimulationPlot({ data, width, height: H, isMobile }: {
               </g>
             )}
 
+            {/* CI band of the central scenario, under all lines */}
+            <path d={bandPath} fill={CI_BAND_FILL} stroke="none" />
+
             {/* Lines — central drawn last so it sits on top where scenarios overlap */}
             {[SERIES[2], SERIES[0], SERIES[1]].map((s) => (
               <path key={s.key} d={pathFor(s.key)} fill="none" stroke={s.color} strokeWidth={s.dash ? 2 : 2.5}
@@ -321,7 +337,7 @@ function SimulationPlot({ data, width, height: H, isMobile }: {
         {/* Tooltip */}
         {hovered && (() => {
           const x = xOf(hovered.year_at);
-          const tipW = 190;
+          const tipW = 220;
           const left = Math.min(Math.max(x + (x > width / 2 ? -tipW - 12 : 12), 0), width - tipW);
           return (
             <div style={{ position: "absolute", left, top: PT, width: tipW, pointerEvents: "none", background: "#082f20", color: "#fff", borderRadius: 8, padding: "8px 12px", boxShadow: "0 4px 16px rgba(0,0,0,0.35)", fontSize: 12 }}>
@@ -337,6 +353,12 @@ function SimulationPlot({ data, width, height: H, isMobile }: {
                   <strong>{fmt(hovered[s.key])}</strong>
                 </div>
               ))}
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 8, lineHeight: 1.6 }}>
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 6, opacity: 0.85 }}>
+                  <span style={{ width: 8, height: 8, borderRadius: 2, background: "rgba(110,231,183,0.6)" }} />ช่วง CI จำลอง
+                </span>
+                <span>{fmt(hovered.carbon_stock_ci_lower_tCO2e)} – {fmt(hovered.carbon_stock_ci_upper_tCO2e)}</span>
+              </div>
               <div style={{ marginTop: 4, paddingTop: 4, borderTop: "1px solid rgba(255,255,255,0.15)", opacity: 0.75 }}>
                 จำนวนต้น: {hovered.tree_count.toLocaleString("th-TH")} ต้น
               </div>

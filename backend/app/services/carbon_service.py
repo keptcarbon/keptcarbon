@@ -560,7 +560,7 @@ class CarbonService:
             async with pool.acquire() as conn:
                 biomass_rows = await conn.fetch(
                     """
-                    SELECT age, biomass_est
+                    SELECT age, biomass_est, biomass_ci_lower, biomass_ci_upper
                     FROM tbl_biomass_profile
                     WHERE p_code = $1 AND clone = $2 AND growth_model = $3 AND allometry = $4 AND version = $5
                     """,
@@ -610,6 +610,9 @@ class CarbonService:
         sum_central_carbon = [0.0] * vector_length
         sum_upper_carbon = [0.0] * vector_length
         sum_lower_carbon = [0.0] * vector_length
+        # Biomass CI bounds of the central scenario (same trees, same ages).
+        sum_ci_lower_carbon = [0.0] * vector_length
+        sum_ci_upper_carbon = [0.0] * vector_length
 
         row_summaries = []
         total_area_m2 = 0.0
@@ -641,7 +644,7 @@ class CarbonService:
             )
 
             # Central profile: this row's own rotation_year / replanting_rate.
-            central_tree_vec, central_biomass_vec, _ = self._build_simulation_vectors(
+            central_tree_vec, central_biomass_vec, central_age_vec = self._build_simulation_vectors(
                 biomass_by_age, tree_count, year_of_planting, rotation_year, replanting_rate, current_calendar_year,
             )
 
@@ -668,6 +671,17 @@ class CarbonService:
                 sum_lower_carbon[i] += (
                     lower_biomass_vec[i] * lower_tree_vec[i] * CARBON_FRACTION * CARBON_EQUIVALENT_FACTOR
                 ) / 1000.0
+                age_i = central_age_vec[i]
+                if age_i is not None:
+                    data = biomass_by_age[age_i]
+                    # A missing bound falls back to the central estimate.
+                    bounds = [
+                        data["biomass_est"] if data.get(k) is None else data[k]
+                        for k in ("biomass_ci_lower", "biomass_ci_upper")
+                    ]
+                    lo_b, hi_b = min(bounds), max(bounds)
+                    sum_ci_lower_carbon[i] += (lo_b * central_tree_vec[i] * CARBON_FRACTION * CARBON_EQUIVALENT_FACTOR) / 1000.0
+                    sum_ci_upper_carbon[i] += (hi_b * central_tree_vec[i] * CARBON_FRACTION * CARBON_EQUIVALENT_FACTOR) / 1000.0
 
             total_area_m2 += area_m2
             total_tree_count += tree_count
@@ -696,6 +710,8 @@ class CarbonService:
                 "carbon_stock_tCO2e": round(sum_central_carbon[i], 4),
                 "carbon_stock_upper_tCO2e": round(sum_upper_carbon[i], 4),
                 "carbon_stock_lower_tCO2e": round(sum_lower_carbon[i], 4),
+                "carbon_stock_ci_lower_tCO2e": round(sum_ci_lower_carbon[i], 4),
+                "carbon_stock_ci_upper_tCO2e": round(sum_ci_upper_carbon[i], 4),
             })
 
         return {
@@ -722,9 +738,13 @@ class CarbonService:
         years = economics.T_VER_CREDITING_YEARS
         tco2e_per_kg = CARBON_FRACTION * CARBON_EQUIVALENT_FACTOR / 1000.0
 
-        total_stock = [0.0] * (years + 1)
+        # Central estimate plus the biomass CI bounds, each run end to end so
+        # the results carry a low-high range (the main figures stay central).
+        cases = ("est", "lower", "upper")
+        case_column = {"est": "biomass_est", "lower": "biomass_ci_lower", "upper": "biomass_ci_upper"}
+        total_stock = {c: [0.0] * (years + 1) for c in cases}
         # Per plot, so credits can be rounded down plot by plot (TGO).
-        plot_credit_paths: Dict[str, List[float]] = {}
+        plot_credit_paths: Dict[str, Dict[str, List[float]]] = {c: {} for c in cases}
         total_area_m2 = 0.0
         total_trees = 0
         plots: Dict[str, dict] = {}
@@ -735,19 +755,29 @@ class CarbonService:
                 row["p_code"], row["clone"], row["growth_model"], row["allometry"],
                 row["biomass_profile_version"], row["area_m2"], row.get("tree_count"), row["spacing_system"],
             )
-            profile = {age: r["biomass_est"] for age, r in biomass_by_age.items()}
+            # A missing CI bound falls back to the central estimate.
+            profiles = {
+                c: {age: (r[case_column[c]] if r.get(case_column[c]) is not None else r["biomass_est"])
+                    for age, r in biomass_by_age.items()}
+                for c in cases
+            }
             if first_profile is None:
-                first_profile = profile
+                first_profile = profiles["est"]
 
             age = current_calendar_year - row["year_of_planting"]
-            path = economics.stock_path(profile, tree_count, age, GROWTH_MODEL_YEAR, tco2e_per_kg, years)
-            credited = economics.credit_path(path, age)
-            for t in range(years + 1):
-                total_stock[t] += path[t]
+            pid = row.get("plot_id") or f"row_{i}"
+            for c in cases:
+                case_path = economics.stock_path(profiles[c], tree_count, age, GROWTH_MODEL_YEAR, tco2e_per_kg, years)
+                case_credited = economics.credit_path(case_path, age)
+                plot_path = plot_credit_paths[c].setdefault(pid, [0.0] * (years + 1))
+                for t in range(years + 1):
+                    total_stock[c][t] += case_path[t]
+                    plot_path[t] += case_credited[t]
+                if c == "est":
+                    path = case_path
             total_area_m2 += row["area_m2"]
             total_trees += tree_count
 
-            pid = row.get("plot_id") or f"row_{i}"
             p = plots.setdefault(pid, {
                 "plot_id": pid, "label": row.get("label"), "area_m2": 0.0, "tree_count": 0,
                 "age_area": 0.0, "cohort_ages": [], "start": 0.0, "end": 0.0, "beyond": False,
@@ -758,12 +788,9 @@ class CarbonService:
             p["cohort_ages"].append(age)
             p["start"] += path[0]
             p["end"] += path[-1]
-            plot_path = plot_credit_paths.setdefault(pid, [0.0] * (years + 1))
-            for t in range(years + 1):
-                plot_path[t] += credited[t]
             p["beyond"] = p["beyond"] or age + years > GROWTH_MODEL_YEAR
 
-        credit_paths = list(plot_credit_paths.values())
+        plot_ids = list(plot_credit_paths["est"])
         costs = req["costs"]
         price = req["price_thb_per_tCO2e"]
         rate = req["discount_rate"]
@@ -781,11 +808,21 @@ class CarbonService:
         # The frequency this pattern matches, or None for a custom pattern.
         matched = next((k for k in all_freqs if economics.verification_years(k, years) == round_years), None)
 
-        result = economics.evaluate(
-            total_stock, total_area_m2, costs, price, round_years, rate, overrides, credit_paths=credit_paths,
-        )
-        plot_credits = dict(zip(plot_credit_paths, result.pop("plot_credits_tCO2e")))
-        plot_revenue = dict(zip(plot_credit_paths, result.pop("plot_revenue_thb")))
+        def run(scenario_costs: dict, scenario_price: float, scenario_years: List[int], scenario_overrides: dict) -> dict:
+            """The central result with its low/high CI cases attached (see economics.attach_bounds)."""
+            by_case = {
+                c: economics.evaluate(
+                    total_stock[c], total_area_m2, scenario_costs, scenario_price, scenario_years, rate,
+                    scenario_overrides, credit_paths=[plot_credit_paths[c][pid] for pid in plot_ids],
+                )
+                for c in cases
+            }
+            return economics.attach_bounds(by_case["est"], by_case["lower"], by_case["upper"])
+
+        result = run(costs, price, round_years, overrides)
+        plot_credits = dict(zip(plot_ids, result.pop("plot_credits_tCO2e")))
+        plot_revenue = dict(zip(plot_ids, result.pop("plot_revenue_thb")))
+        plot_bounds = dict(zip(plot_ids, result.pop("plot_bounds")))
         result["verify_every_years"] = matched
         for s in result["schedule"]:
             s["year"] = current_calendar_year + s["year_at"]
@@ -811,13 +848,9 @@ class CarbonService:
             if k == matched:
                 scenario = {key: v for key, v in result.items() if key != "schedule"}
             else:
-                scenario = economics.evaluate(
-                    total_stock, total_area_m2, avg_costs, avg_price, economics.verification_years(k, years), rate,
-                    credit_paths=credit_paths,
-                )
-                scenario.pop("schedule")
-                scenario.pop("plot_credits_tCO2e")
-                scenario.pop("plot_revenue_thb")
+                scenario = run(avg_costs, avg_price, economics.verification_years(k, years), {})
+                for key in ("schedule", "plot_credits_tCO2e", "plot_revenue_thb", "plot_bounds"):
+                    scenario.pop(key)
                 scenario["verify_every_years"] = k
             comparison.append(scenario)
         be_prices = [c["break_even_price_thb"] for c in comparison if c["break_even_price_thb"] is not None]
@@ -838,6 +871,7 @@ class CarbonService:
                 "carbon_stock_end_tCO2e": round(p["end"], 4),
                 "credits_tCO2e": credits,
                 "revenue_thb": round(plot_revenue[p["plot_id"]], 2),
+                **plot_bounds[p["plot_id"]],
                 "credits_per_rai_tCO2e": round(credits / rai, 4) if rai > 0 else 0.0,
                 "beyond_model_age": p["beyond"],
             })

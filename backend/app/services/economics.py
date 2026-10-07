@@ -232,6 +232,39 @@ def evaluate(
     }
 
 
+# Scenario figures repeated for the low/high CI cases.
+BOUND_KEYS = (
+    "total_credits_tCO2e", "total_revenue_thb", "net_profit_thb", "npv_thb", "irr",
+    "break_even_price_thb", "discounted_break_even_price_thb", "min_viable_area_rai",
+    "is_viable", "payback_year_at",
+)
+
+
+def attach_bounds(central: dict, lower: dict, upper: dict) -> dict:
+    """
+    Adds `low` / `high` (the CI cases' BOUND_KEYS figures) to the central
+    result, plus per-year credits/net ranges on its schedule and per-plot
+    ranges in `plot_bounds`. The biomass CI bounds aren't guaranteed to keep
+    their order once differenced, so the case with fewer credits is `low`
+    and every per-year / per-plot pair is ordered min..max.
+    """
+    low, high = sorted((lower, upper), key=lambda r: r["total_credits_tCO2e"])
+    central["low"] = {k: low[k] for k in BOUND_KEYS}
+    central["high"] = {k: high[k] for k in BOUND_KEYS}
+    for s, a, b in zip(central["schedule"], lower["schedule"], upper["schedule"]):
+        s["credits_issued_low_tCO2e"], s["credits_issued_high_tCO2e"] = sorted((a["credits_issued_tCO2e"], b["credits_issued_tCO2e"]))
+        s["net_low_thb"], s["net_high_thb"] = sorted((a["net_thb"], b["net_thb"]))
+    central["plot_bounds"] = []
+    for i in range(len(central["plot_credits_tCO2e"])):
+        c_lo, c_hi = sorted((lower["plot_credits_tCO2e"][i], upper["plot_credits_tCO2e"][i]))
+        r_lo, r_hi = sorted((lower["plot_revenue_thb"][i], upper["plot_revenue_thb"][i]))
+        central["plot_bounds"].append({
+            "credits_low_tCO2e": c_lo, "credits_high_tCO2e": c_hi,
+            "revenue_low_thb": round(r_lo, 2), "revenue_high_thb": round(r_hi, 2),
+        })
+    return central
+
+
 def age_matrix(
     biomass_by_age: Dict[int, float],
     trees_per_rai: float,

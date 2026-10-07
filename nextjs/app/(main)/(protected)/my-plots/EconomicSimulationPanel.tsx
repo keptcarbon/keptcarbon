@@ -71,6 +71,12 @@ const fmt = (v: number, digits = 0) => v.toLocaleString("th-TH", { maximumFracti
 const fmtTonnes = (v: number) => fmt(Math.floor(v + 1e-9));
 const fmtBaht = (v: number) => (Math.abs(v) >= 1_000_000 ? `${fmt(v / 1_000_000, 2)} ล้าน` : fmt(v));
 const signed = (v: number, f: (n: number) => string = fmtBaht) => `${v > 0 ? "+" : v < 0 ? "−" : ""}${f(Math.abs(v))}`;
+/** "a – b" in ascending order, or one value when both ends match; null ends show "–". */
+const rangeText = (a: number | null, b: number | null, f: (v: number) => string) => {
+  if (a == null || b == null) return `${a == null ? "–" : f(a)} – ${b == null ? "–" : f(b)}`;
+  const [lo, hi] = a <= b ? [a, b] : [b, a];
+  return f(lo) === f(hi) ? f(lo) : `${f(lo)} – ${f(hi)}`;
+};
 const pct = (v: number) => `${fmt(v * 100, 1)}%`;
 
 const label: React.CSSProperties = { fontSize: 13, fontWeight: 700, color: INK };
@@ -251,7 +257,7 @@ export function EconomicSimulationPanel({ baseRows, isMobile, showPlots = false,
 
           <SummaryTiles data={data} isMobile={isMobile} />
 
-          <Card title="กระแสเงินสดรายปี (บาท)" subtitle="แท่ง = เงินสดสุทธิในปีนั้น, เส้น = เงินสดสะสม">
+          <Card title="กระแสเงินสดรายปี (บาท)" subtitle="กราฟแท่ง = เงินสดสุทธิในปีนั้น (เส้นขีด = ช่วง CI), กราฟเส้น = เงินสดสะสม">
             <CashFlowChart schedule={r.schedule} isMobile={isMobile} />
           </Card>
 
@@ -261,7 +267,7 @@ export function EconomicSimulationPanel({ baseRows, isMobile, showPlots = false,
           </Card>
 
           {showPlots && data.plots.length > 0 && (
-            <Card title="คาร์บอนเครดิตรายแปลง" subtitle="เรียงตามเครดิต — สัดส่วนของแต่ละแปลงในเครดิตและรายได้ของโครงการ">
+            <Card title="คาร์บอนเครดิตรายแปลง" subtitle="เรียงตามเครดิต — สัดส่วนของแต่ละแปลงในเครดิตและรายได้ของโครงการ (ตัวเลขใต้เครดิต = ช่วง CI)">
               <PlotTable data={data} isMobile={isMobile} plantStatusById={plantStatusById} />
             </Card>
           )}
@@ -288,15 +294,39 @@ function Card({ title, subtitle, children }: { title: string; subtitle?: string;
   );
 }
 
+type Tone = "good" | "warn" | "bad";
+const TONE_ICON: Record<Tone, { icon: string; color: string }> = {
+  good: { icon: "bi-check-circle-fill", color: GAIN },
+  warn: { icon: "bi-exclamation-circle-fill", color: "#d97706" },
+  bad: { icon: "bi-x-circle-fill", color: LOSS },
+};
+
+/**
+ * Headline figures at the central estimate, each with its CI range (the
+ * biomass lower/upper bounds run through the same calculation) beside it.
+ */
 function SummaryTiles({ data, isMobile }: { data: CarbonEconomicsResponse; isMobile?: boolean }) {
   const r = data.result;
+  const { low, high } = r;
   const payback = r.payback_year_at;
-  const tiles: { label: string; value: string; sub?: string | (string | null)[]; tone?: "good" | "bad" }[] = [
+  const yearLabel = (y: number | null) => (y != null ? `ปีที่ ${y}` : "ไม่คุ้มทุน");
+  // Viable even in the low-carbon case → robust; only at the central estimate → caution.
+  const verdict: { tone: Tone; note: string } = low.is_viable
+    ? { tone: "good", note: "คุ้มทุนแม้กรณีต่ำสุดของช่วง CI" }
+    : r.is_viable
+      ? { tone: "warn", note: "ไม่คุ้มทุนในกรณีต่ำสุดของช่วง CI" }
+      : high.is_viable
+        ? { tone: "bad", note: "คุ้มทุนได้เฉพาะกรณีสูงสุดของช่วง CI" }
+        : { tone: "bad", note: "ไม่คุ้มทุนทั้งช่วง CI" };
+  // lead: shown between the value and its CI range; sub: notes after the range.
+  const tiles: { label: string; value: string; lead?: string; sub?: (string | null)[]; range?: string; tone?: Tone }[] = [
     {
       label: "ความคุ้มค่าของโครงการ",
       value: r.is_viable ? "คุ้มทุน" : "ไม่คุ้มทุน",
-      sub: `กำไรสุทธิ ${signed(r.net_profit_thb)} บาท`,
-      tone: r.is_viable ? "good" : "bad",
+      lead: `กำไรสุทธิ ${signed(r.net_profit_thb)} บาท`,
+      sub: [verdict.note],
+      range: `${rangeText(low.net_profit_thb, high.net_profit_thb, (v) => signed(v))} บาท`,
+      tone: verdict.tone,
     },
     {
       label: "ราคาขายคุ้มทุน",
@@ -310,48 +340,63 @@ function SummaryTiles({ data, isMobile }: { data: CarbonEconomicsResponse; isMob
           ? `Min–Max ${fmt(data.min_break_even_price_thb, 0)}–${fmt(data.max_break_even_price_thb, 0)} บาท ตามความถี่การทวนสอบ`
           : null,
       ],
+      range: `${rangeText(low.break_even_price_thb, high.break_even_price_thb, (v) => fmt(v, 2))} บาท`,
     },
     {
       label: "พื้นที่ขั้นต่ำที่คุ้มทุน",
       value: r.min_viable_area_rai != null ? `${formatArea(r.min_viable_area_rai)} ไร่` : "–",
-      sub: `พื้นที่ปัจจุบัน ${formatArea(data.total_area_rai)} ไร่`,
+      sub: [`พื้นที่ปัจจุบัน ${formatArea(data.total_area_rai)} ไร่`],
+      range: `${rangeText(low.min_viable_area_rai, high.min_viable_area_rai, formatArea)} ไร่`,
       tone: r.min_viable_area_rai != null ? (data.total_area_rai >= r.min_viable_area_rai ? "good" : "bad") : undefined,
     },
     {
       label: "คาร์บอนเครดิตรวม",
       value: `${fmtTonnes(r.total_credits_tCO2e)} tCO₂eq`,
-      sub: `${fmt(r.credits_per_rai_tCO2e, 2)} tCO₂eq/ไร่, ราคาขายเฉลี่ย ${fmt(r.price_thb_per_tCO2e, 2)} บาท`,
+      sub: [`${fmt(r.credits_per_rai_tCO2e, 2)} tCO₂eq/ไร่, ราคาขายเฉลี่ย ${fmt(r.price_thb_per_tCO2e, 2)} บาท`],
+      range: `${rangeText(low.total_credits_tCO2e, high.total_credits_tCO2e, fmtTonnes)} tCO₂eq`,
     },
     {
       label: "ปีคุ้มทุน",
       value: payback != null ? `พ.ศ. ${data.start_year + payback + BE_OFFSET}` : "ไม่คุ้มทุน",
-      sub: payback != null ? `ปีที่ ${payback} ของโครงการ` : `ภายใน ${CREDITING_YEARS} ปี`,
+      sub: [payback != null ? `ปีที่ ${payback} ของโครงการ` : `ภายใน ${CREDITING_YEARS} ปี`],
+      range: low.payback_year_at === high.payback_year_at
+        ? yearLabel(low.payback_year_at)
+        : `กรณีต่ำ ${yearLabel(low.payback_year_at)}, กรณีสูง ${yearLabel(high.payback_year_at)}`,
       tone: payback != null ? "good" : "bad",
     },
     {
       label: `NPV (คิดลด ${pct(data.discount_rate)})`,
       value: `${signed(r.npv_thb)} บาท`,
-      sub: r.irr != null ? `IRR ${pct(r.irr)}` : "IRR คำนวณไม่ได้ (ไม่มีกระแสเงินสดบวก)",
+      sub: [r.irr != null ? `IRR ${pct(r.irr)} (ช่วง ${rangeText(low.irr, high.irr, pct)})` : "IRR คำนวณไม่ได้ (ไม่มีกระแสเงินสดบวก)"],
+      range: `${rangeText(low.npv_thb, high.npv_thb, (v) => signed(v))} บาท`,
       tone: r.npv_thb >= 0 ? "good" : "bad",
     },
   ];
   return (
-    <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(3, 1fr)", gap: 10 }}>
-      {tiles.map((t) => (
-        <div key={t.label} style={{ background: "#fff", borderRadius: 12, border: "1px solid rgba(30,122,71,0.12)", padding: "10px 12px", minWidth: 0 }}>
-          <div style={{ fontSize: 12, fontWeight: 600, color: "#64748b" }}>{t.label}</div>
-          <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: isMobile ? 16 : 19, fontWeight: 800, color: "#1e293b", marginTop: 2, overflowWrap: "anywhere" }}>
-            {t.tone && (
-              <i className={`bi ${t.tone === "good" ? "bi-check-circle-fill" : "bi-x-circle-fill"}`} aria-hidden="true"
-                style={{ fontSize: 15, color: t.tone === "good" ? GAIN : LOSS }} />
+    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(3, 1fr)", gap: 10 }}>
+        {tiles.map((t) => (
+          <div key={t.label} style={{ background: "#fff", borderRadius: 12, border: "1px solid rgba(30,122,71,0.12)", padding: "10px 12px", minWidth: 0 }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: "#64748b" }}>{t.label}</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: isMobile ? 16 : 19, fontWeight: 800, color: "#1e293b", marginTop: 2, overflowWrap: "anywhere" }}>
+              {t.tone && (
+                <i className={`bi ${TONE_ICON[t.tone].icon}`} aria-hidden="true" style={{ fontSize: 15, color: TONE_ICON[t.tone].color }} />
+              )}
+              {t.value}
+            </div>
+            {t.lead && <div style={{ fontSize: 12, color: "#64748b", marginTop: 2 }}>{t.lead}</div>}
+            {t.range && (
+              <div style={{ fontSize: 12, color: "#0f766e", fontWeight: 600, marginTop: 2 }}>ช่วง CI: {t.range}</div>
             )}
-            {t.value}
+            {(t.sub ?? []).filter(Boolean).map((line) => (
+              <div key={line} style={{ fontSize: 12, color: "#64748b", marginTop: 2 }}>{line}</div>
+            ))}
           </div>
-          {(Array.isArray(t.sub) ? t.sub : [t.sub]).filter(Boolean).map((line) => (
-            <div key={line} style={{ fontSize: 12, color: "#64748b", marginTop: 2 }}>{line}</div>
-          ))}
-        </div>
-      ))}
+        ))}
+      </div>
+      <div style={{ fontSize: 12, color: "#64748b" }}>
+        ค่าหลักคำนวณจากค่าประมาณกลาง — <span style={{ color: "#0f766e", fontWeight: 600 }}>ช่วง CI</span> คำนวณซ้ำด้วยขอบล่างและขอบบนของช่วงความเชื่อมั่นของมวลชีวภาพ
+      </div>
     </div>
   );
 }
@@ -377,7 +422,7 @@ function CashFlowChart({ schedule, isMobile }: { schedule: EconomicsScheduleYear
   const PL = isMobile ? 50 : 64, PR = 12, PT = 12, PB = 40;
   const iW = Math.max(0, width - PL - PR), iH = H - PT - PB;
 
-  const values = schedule.flatMap((s) => [s.net_thb, s.cumulative_net_thb]);
+  const values = schedule.flatMap((s) => [s.net_thb, s.cumulative_net_thb, s.net_low_thb, s.net_high_thb]);
   const ticks = niceSignedTicks(Math.min(0, ...values), Math.max(0, ...values), isMobile ? 4 : 5);
   const lo = ticks[0], hi = ticks[ticks.length - 1];
   const slot = iW / schedule.length;
@@ -404,12 +449,20 @@ function CashFlowChart({ schedule, isMobile }: { schedule: EconomicsScheduleYear
             return (
               <g key={s.year_at} opacity={hover == null || hover === i ? 1 : 0.45}>
                 {hgt > 0.5 && <rect x={xOf(i) - barW / 2} y={top} width={barW} height={hgt} rx={3} fill={s.net_thb >= 0 ? GAIN : LOSS} />}
+                {/* CI whisker: the round's net under the biomass lower/upper bounds */}
+                {s.is_verification && Math.abs(yOf(s.net_high_thb) - yOf(s.net_low_thb)) > 1 && (
+                  <g stroke="#334155" strokeWidth={1.5} strokeLinecap="round">
+                    <line x1={xOf(i)} x2={xOf(i)} y1={yOf(s.net_low_thb)} y2={yOf(s.net_high_thb)} />
+                    <line x1={xOf(i) - 4} x2={xOf(i) + 4} y1={yOf(s.net_low_thb)} y2={yOf(s.net_low_thb)} />
+                    <line x1={xOf(i) - 4} x2={xOf(i) + 4} y1={yOf(s.net_high_thb)} y2={yOf(s.net_high_thb)} />
+                  </g>
+                )}
                 <text x={xOf(i)} y={PT + iH + 16} textAnchor="middle" fontSize={12} fill={s.is_verification ? INK : "#64748b"} fontWeight={s.is_verification ? 800 : 500}>
                   {s.year + BE_OFFSET}
                 </text>
                 {s.year_at === 0
-                  ? <text x={xOf(i)} y={PT + iH + 30} textAnchor="middle" fontSize={10} fill="#334155" fontWeight={700}>ขึ้นทะเบียน</text>
-                  : s.is_verification && <text x={xOf(i)} y={PT + iH + 30} textAnchor="middle" fontSize={10} fill="#0f766e" fontWeight={700}>ทวนสอบ</text>}
+                  ? <text x={xOf(i)} y={PT + iH + 30} textAnchor="middle" fontSize={11} fill="#334155" fontWeight={700}>ขึ้นทะเบียน</text>
+                  : s.is_verification && <text x={xOf(i)} y={PT + iH + 30} textAnchor="middle" fontSize={11} fill="#0f766e" fontWeight={700}>ทวนสอบ</text>}
               </g>
             );
           })}
@@ -426,7 +479,7 @@ function CashFlowChart({ schedule, isMobile }: { schedule: EconomicsScheduleYear
       )}
       {h && hover != null && (() => {
         const x = xOf(hover);
-        const tipW = 210;
+        const tipW = 240;
         const left = Math.min(Math.max(x + (x > width / 2 ? -tipW - 12 : 12), 0), width - tipW);
         const row = (k: string, v: string, bold = false) => (
           <div style={{ display: "flex", justifyContent: "space-between", gap: 8, lineHeight: 1.6 }}>
@@ -438,13 +491,15 @@ function CashFlowChart({ schedule, isMobile }: { schedule: EconomicsScheduleYear
             <div style={{ fontWeight: 800, marginBottom: 4 }}>
               พ.ศ. {h.year + BE_OFFSET} <span style={{ fontWeight: 500, opacity: 0.7 }}>(ปีที่ {h.year_at}{h.is_verification ? ", ทวนสอบ" : ""})</span>
             </div>
-            {row("คาร์บอนสะสม", `${fmtTonnes(h.carbon_stock_tCO2e)} tCO₂eq`)}
-            {h.is_verification && row("เครดิตที่ขาย", `${fmtTonnes(h.credits_issued_tCO2e)} tCO₂eq`)}
-            {h.price_thb_per_tCO2e != null && row("ราคาขาย", `${fmt(h.price_thb_per_tCO2e, 2)} บาท/tCO₂eq`)}
-            {row("รายได้", fmtBaht(h.revenue_thb))}
-            {row("ต้นทุน", fmtBaht(h.cost_thb))}
-            {row("สุทธิ", signed(h.net_thb), true)}
-            {row("สะสม", signed(h.cumulative_net_thb), true)}
+            {row("คาร์บอนสะสม (tCO₂eq)", fmtTonnes(h.carbon_stock_tCO2e))}
+            {h.is_verification && row("เครดิตที่ขาย (tCO₂eq)", fmtTonnes(h.credits_issued_tCO2e))}
+            {h.is_verification && row("ช่วง CI (tCO₂eq)", rangeText(h.credits_issued_low_tCO2e, h.credits_issued_high_tCO2e, fmtTonnes))}
+            {h.price_thb_per_tCO2e != null && row("ราคาขาย (บาท/tCO₂eq)", fmt(h.price_thb_per_tCO2e, 2))}
+            {row("รายได้ (บาท)", fmtBaht(h.revenue_thb))}
+            {row("ต้นทุน (บาท)", fmtBaht(h.cost_thb))}
+            {row("สุทธิ (บาท)", signed(h.net_thb), true)}
+            {h.is_verification && row("ช่วง CI สุทธิ (บาท)", rangeText(h.net_low_thb, h.net_high_thb, (v) => signed(v)))}
+            {row("สะสม (บาท)", signed(h.cumulative_net_thb), true)}
           </div>
         );
       })()}
@@ -484,6 +539,7 @@ function FrequencyTable({ data, selected, onSelect }: { data: CarbonEconomicsRes
                 <td style={{ ...td, fontWeight: 700 }}>
                   <i className={`bi ${c.is_viable ? "bi-check-circle-fill" : "bi-x-circle-fill"}`} aria-hidden="true" style={{ color: c.is_viable ? GAIN : LOSS, marginRight: 4, fontSize: 12 }} />
                   {signed(c.net_profit_thb)}
+                  <div style={{ fontSize: 12, fontWeight: 500, color: "#0f766e" }}>{rangeText(c.low.net_profit_thb, c.high.net_profit_thb, (v) => signed(v))}</div>
                 </td>
                 <td style={td}>{signed(c.npv_thb)}</td>
                 <td style={td}>{c.irr != null ? pct(c.irr) : "–"}</td>
@@ -492,7 +548,7 @@ function FrequencyTable({ data, selected, onSelect }: { data: CarbonEconomicsRes
           })}
         </tbody>
       </table>
-      <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 6 }}>หน่วย: บาท, ราคาคุ้มทุนเป็นบาท/tCO₂eq</div>
+      <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 6 }}>หน่วย: บาท, ราคาคุ้มทุนเป็นบาท/tCO₂eq — ตัวเลขใต้กำไรสุทธิ = ช่วง CI</div>
     </div>
   );
 }
@@ -560,7 +616,10 @@ function PlotTable({ data, isMobile, plantStatusById }: {
                 </td>
                 <td style={td}>{formatArea(p.area_rai)}</td>
                 <td style={td}>{formatCohortAges(p.cohort_ages, data.start_year)}</td>
-                <td style={{ ...td, fontWeight: 700 }}>{fmtTonnes(p.credits_tCO2e)}</td>
+                <td style={{ ...td, fontWeight: 700 }}>
+                  {fmtTonnes(p.credits_tCO2e)}
+                  <div style={{ fontSize: 12, fontWeight: 500, color: "#0f766e" }}>{rangeText(p.credits_low_tCO2e, p.credits_high_tCO2e, fmtTonnes)}</div>
+                </td>
                 <td style={td}>{fmt(p.credits_per_rai_tCO2e, 2)}</td>
                 <td style={{ ...td, textAlign: "left" }}>
                   {isMobile ? label : (

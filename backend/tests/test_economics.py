@@ -326,3 +326,58 @@ async def test_service_plot_revenue_sums_to_project(svc):
     a, b = res["plots"]
     assert a["revenue_thb"] + b["revenue_thb"] == pytest.approx(res["result"]["total_revenue_thb"])
     assert sched[3]["credits_issued_tCO2e"] * 200 + sched[7]["credits_issued_tCO2e"] * 500 == pytest.approx(res["result"]["total_revenue_thb"])
+
+
+# ── CI range (biomass lower / upper bounds) ──────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_service_ci_bounds_bracket_central(svc):
+    # Lower bound grows 20% slower, upper 20% faster than the central estimate.
+    profile = {a: {"age": a, "biomass_est": a * 10.0, "biomass_ci_lower": a * 8.0, "biomass_ci_upper": a * 12.0} for a in range(36)}
+    svc._load_biomass_and_trees = AsyncMock(return_value=(profile, 800))
+    res = await svc.get_carbon_economics(_req([{**ROW, "year_of_planting": 2015, "plot_id": "a"}], rounds=[
+        {"year_at": 3, "price_thb_per_tCO2e": 300, "monitoring_cost": 400_000, "verification_cost": 200_000},
+        {"year_at": 7, "price_thb_per_tCO2e": 300, "monitoring_cost": 400_000, "verification_cost": 200_000},
+    ]))
+    r = res["result"]
+    k = 800 * 0.47 * 3.667 / 1000  # tCO2e per kg of per-tree biomass growth, x trees
+    assert r["low"]["total_credits_tCO2e"] == math.floor(k * 8 * 3) + math.floor(k * 8 * 4)
+    assert r["high"]["total_credits_tCO2e"] == math.floor(k * 12 * 3) + math.floor(k * 12 * 4)
+    assert r["low"]["total_credits_tCO2e"] < r["total_credits_tCO2e"] < r["high"]["total_credits_tCO2e"]
+    assert r["low"]["net_profit_thb"] < r["net_profit_thb"] < r["high"]["net_profit_thb"]
+    assert r["low"]["break_even_price_thb"] > r["break_even_price_thb"] > r["high"]["break_even_price_thb"]
+    s7 = r["schedule"][7]
+    assert s7["credits_issued_low_tCO2e"] <= s7["credits_issued_tCO2e"] <= s7["credits_issued_high_tCO2e"]
+    plot = res["plots"][0]
+    assert plot["credits_low_tCO2e"] == r["low"]["total_credits_tCO2e"]
+    assert plot["revenue_high_thb"] == pytest.approx(r["high"]["total_revenue_thb"])
+    assert all("low" in c and "high" in c for c in res["frequency_comparison"])
+
+
+def test_attach_bounds_orders_inverted_cases():
+    stock = linear_stock(12.71, 100)
+    small = ev(stock, 100 * economics.RAI_M2, SLIDE_COSTS, 100, 7, 0.05)
+    big = ev([v * 2 for v in stock], 100 * economics.RAI_M2, SLIDE_COSTS, 100, 7, 0.05)
+    central = ev(stock, 100 * economics.RAI_M2, SLIDE_COSTS, 100, 7, 0.05)
+    # Pass the bigger case as "lower": the low/high labels still follow credits.
+    out = economics.attach_bounds(central, big, small)
+    assert out["low"]["total_credits_tCO2e"] < out["high"]["total_credits_tCO2e"]
+    assert out["plot_bounds"][0]["credits_low_tCO2e"] <= out["plot_bounds"][0]["credits_high_tCO2e"]
+
+
+# ── /carbon/sim CI band ──────────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_simulation_ci_band_brackets_central(svc):
+    from datetime import datetime
+    year = datetime.now().year
+    profile = {a: {"age": a, "biomass_est": a * 10.0, "biomass_ci_lower": a * 8.0, "biomass_ci_upper": a * 12.0} for a in range(36)}
+    svc._load_biomass_and_trees = AsyncMock(return_value=(profile, 800))
+    res = await svc.get_carbon_simulation([{**ROW, "year_of_planting": year - 10, "rotation_year": 35, "replanting_rate": 1.0}])
+    now = next(p for p in res["carbon_stock_tCO2e_simulation"] if p["year_at"] == 0)
+    k = 800 * 0.47 * 3.667 / 1000
+    assert now["carbon_stock_tCO2e"] == pytest.approx(k * 100, abs=1e-3)
+    assert now["carbon_stock_ci_lower_tCO2e"] == pytest.approx(k * 80, abs=1e-3)
+    assert now["carbon_stock_ci_upper_tCO2e"] == pytest.approx(k * 120, abs=1e-3)
+    before = next(p for p in res["carbon_stock_tCO2e_simulation"] if p["year_at"] == -11)  # not planted yet
+    assert before["carbon_stock_ci_lower_tCO2e"] == before["carbon_stock_ci_upper_tCO2e"] == 0

@@ -103,6 +103,8 @@ class SimulationYearlyPoint(BaseModel):
     carbon_stock_tCO2e: float
     carbon_stock_upper_tCO2e: float = Field(..., description="Upper-bound scenario: each row's rotation_year with 100% replanting, summed across all input rows")
     carbon_stock_lower_tCO2e: float = Field(..., description="Lower-bound scenario: each row's rotation_year with 0% replanting, summed across all input rows")
+    carbon_stock_ci_lower_tCO2e: float = Field(..., description="Central scenario at the biomass CI lower bound (same trees and ages), summed across rows")
+    carbon_stock_ci_upper_tCO2e: float = Field(..., description="Central scenario at the biomass CI upper bound, summed across rows")
 
 
 class CarbonSimulationRowSummary(BaseModel):
@@ -175,6 +177,20 @@ class CarbonEconomicsRequest(BaseModel):
     compare_frequencies: List[int] = Field(default_factory=lambda: [1, 2, 3, 7], description="Verification intervals (years) for the comparison table and min/max break-even price")
 
 
+class EconomicsBound(BaseModel):
+    """One CI case (biomass lower or upper bound) of a scenario's headline figures."""
+    total_credits_tCO2e: int
+    total_revenue_thb: float
+    net_profit_thb: float
+    npv_thb: float
+    irr: Optional[float] = None
+    break_even_price_thb: Optional[float] = None
+    discounted_break_even_price_thb: Optional[float] = None
+    min_viable_area_rai: Optional[float] = None
+    is_viable: bool
+    payback_year_at: Optional[int] = None
+
+
 class EconomicsScheduleYear(BaseModel):
     year: int
     year_at: int
@@ -187,6 +203,10 @@ class EconomicsScheduleYear(BaseModel):
     net_thb: float
     cumulative_net_thb: float
     discounted_net_thb: float
+    credits_issued_low_tCO2e: int = Field(..., description="CI range of credits_issued_tCO2e")
+    credits_issued_high_tCO2e: int
+    net_low_thb: float = Field(..., description="CI range of net_thb")
+    net_high_thb: float
 
 
 class EconomicsScenario(BaseModel):
@@ -207,6 +227,8 @@ class EconomicsScenario(BaseModel):
     break_even_price_thb: Optional[float]
     discounted_break_even_price_thb: Optional[float] = Field(None, description="Price where NPV = 0 at discount_rate")
     min_viable_area_rai: Optional[float] = Field(None, description="Area at this project's average credits/rai that covers total cost at this price")
+    low: EconomicsBound = Field(..., description="Same scenario with the biomass CI case giving fewer credits")
+    high: EconomicsBound = Field(..., description="Same scenario with the biomass CI case giving more credits")
 
 
 class EconomicsResult(EconomicsScenario):
@@ -224,6 +246,10 @@ class EconomicsPlot(BaseModel):
     carbon_stock_end_tCO2e: float
     credits_tCO2e: int = Field(..., description="This plot's credits over the requested rounds, rounded down per round")
     revenue_thb: float = Field(..., description="This plot's credits x each round's price; plots sum to the project revenue")
+    credits_low_tCO2e: int = Field(..., description="CI range of credits_tCO2e")
+    credits_high_tCO2e: int
+    revenue_low_thb: float = Field(..., description="CI range of revenue_thb")
+    revenue_high_thb: float
     credits_per_rai_tCO2e: float
     beyond_model_age: bool = Field(..., description="A cohort passes the last modeled age during the period (growth held flat)")
 

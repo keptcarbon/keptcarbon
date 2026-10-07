@@ -38,6 +38,8 @@ SIM_RESPONSE = {
         "carbon_stock_tCO2e": 120.5,
         "carbon_stock_upper_tCO2e": 120.5,
         "carbon_stock_lower_tCO2e": 120.5,
+        "carbon_stock_ci_lower_tCO2e": 110.0,
+        "carbon_stock_ci_upper_tCO2e": 131.0,
     }],
 }
 

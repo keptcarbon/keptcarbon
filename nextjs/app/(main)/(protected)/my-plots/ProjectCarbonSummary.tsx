@@ -220,7 +220,7 @@ export function ProjectCarbonSummary({ plots, isMobile, open, onToggle }: {
                         label={`ปีที่ ${pt.year_at} (พ.ศ. ${pt.yearBE})`}
                         value={
                           <div className={styles.cycleValueBlock}>
-                            <div className={styles.cycleValueLabel}>คาร์บอนสะสม</div>
+                            <div className={styles.cycleValueLabel}>คาร์บอนกักเก็บ</div>
                             <div className={styles.cycleValueRow}>
                               <span className={`${styles.cycleValueMain} ${isMobile ? styles.cycleValueMainMobile : ""}`} style={{ color: col.bot }}>
                                 {Math.floor(pt.gainValue).toLocaleString("th-TH")}
