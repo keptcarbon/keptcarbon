@@ -34,8 +34,8 @@ function LineIcon({ className }: IconProps) {
 const navLinks = [
   { label: "หน้าแรก", href: "/" },
   { label: "เกี่ยวกับโครงการ", href: "/about-project" },
-  { label: "ประเมินคาร์บอน", href: "/map-draw" },
   { label: "แดชบอร์ด", href: "/dashboard/carbon-stock" },
+  { label: "ประเมินคาร์บอน", href: "/map-draw" },
 ] as const;
 
 const socialLinks = [
