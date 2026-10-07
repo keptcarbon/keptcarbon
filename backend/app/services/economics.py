@@ -147,6 +147,7 @@ def evaluate(
     overrides = round_overrides or {}
     paths = [total_stock] if credit_paths is None else credit_paths
     plot_credits = [0] * len(paths)
+    plot_revenue = [0.0] * len(paths)
 
     def round_terms(t: int) -> tuple:
         o = overrides.get(t) or {}
@@ -171,6 +172,7 @@ def evaluate(
             for i, path in enumerate(paths):
                 issued = floor_tonnes(path[t] - path[last_verified])
                 plot_credits[i] += issued
+                plot_revenue[i] += issued * round_price
                 credits += issued
         cost = (upfront if t == 0 else 0.0) + round_cost
         revenue = credits * round_price if is_round else 0.0
@@ -215,6 +217,7 @@ def evaluate(
         "total_cost_thb": round(total_cost, 2),
         "total_credits_tCO2e": total_credits,
         "plot_credits_tCO2e": plot_credits,
+        "plot_revenue_thb": plot_revenue,
         "credits_per_rai_tCO2e": round(credits_per_rai, 4),
         "total_revenue_thb": round(total_revenue, 2),
         "net_profit_thb": round(total_revenue - total_cost, 2),

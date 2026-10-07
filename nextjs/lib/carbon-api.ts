@@ -196,7 +196,10 @@ export interface EconomicsPlot {
     cohort_ages: number[];
     carbon_stock_start_tCO2e: number;
     carbon_stock_end_tCO2e: number;
+    /** whole tonnes, rounded down per round (TGO) */
     credits_tCO2e: number;
+    /** credits x each round's price; plots sum to the project revenue */
+    revenue_thb: number;
     credits_per_rai_tCO2e: number;
     /** a cohort passes the last modeled age (35) during the period; growth held flat */
     beyond_model_age: boolean;

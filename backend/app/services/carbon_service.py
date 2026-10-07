@@ -785,6 +785,7 @@ class CarbonService:
             total_stock, total_area_m2, costs, price, round_years, rate, overrides, credit_paths=credit_paths,
         )
         plot_credits = dict(zip(plot_credit_paths, result.pop("plot_credits_tCO2e")))
+        plot_revenue = dict(zip(plot_credit_paths, result.pop("plot_revenue_thb")))
         result["verify_every_years"] = matched
         for s in result["schedule"]:
             s["year"] = current_calendar_year + s["year_at"]
@@ -816,6 +817,7 @@ class CarbonService:
                 )
                 scenario.pop("schedule")
                 scenario.pop("plot_credits_tCO2e")
+                scenario.pop("plot_revenue_thb")
                 scenario["verify_every_years"] = k
             comparison.append(scenario)
         be_prices = [c["break_even_price_thb"] for c in comparison if c["break_even_price_thb"] is not None]
@@ -834,7 +836,8 @@ class CarbonService:
                 "cohort_ages": p["cohort_ages"],
                 "carbon_stock_start_tCO2e": round(p["start"], 4),
                 "carbon_stock_end_tCO2e": round(p["end"], 4),
-                "credits_tCO2e": round(credits, 4),
+                "credits_tCO2e": credits,
+                "revenue_thb": round(plot_revenue[p["plot_id"]], 2),
                 "credits_per_rai_tCO2e": round(credits / rai, 4) if rai > 0 else 0.0,
                 "beyond_model_age": p["beyond"],
             })

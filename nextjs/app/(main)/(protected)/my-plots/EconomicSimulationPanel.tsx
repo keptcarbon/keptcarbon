@@ -14,7 +14,8 @@ import { PlantStatusIcon } from "./PlantStatusIcon";
 
 const BE_OFFSET = 543;
 const INPUT_DEBOUNCE_MS = 500;
-const GROWTH_MODEL_YEAR = 35;
+/** A plot below this fraction of the project's credits/rai is flagged as low-yield. */
+const LOW_YIELD_RATIO = 0.5;
 const CREDITING_YEARS = 7;
 
 const DEFAULT_PRICE = 300; // บาท/tCO₂eq
@@ -173,7 +174,7 @@ export function EconomicSimulationPanel({ baseRows, isMobile, showPlots = false,
   return (
     <div style={{ background: "#edfaf3", borderRadius: 16, border: "1px solid rgba(30,122,71,0.15)", padding: isMobile ? "14px 12px" : "18px 20px", boxShadow: "0 10px 30px -5px rgba(30,122,71,0.12)", display: "flex", flexDirection: "column", gap: 16 }}>
       <div style={{ fontSize: 12, color: "#5a7a65", fontWeight: 600 }}>
-        จำลองโครงการ T-VER ระยะเวลา {CREDITING_YEARS} ปี : เริ่มปีนี้ — ไม่ตัดหรือปลูกทดแทนระหว่างโครงการ
+        จำลองโครงการ T-VER ระยะเวลา {CREDITING_YEARS} ปี : เริ่มโ่ครงการปีนี้และไม่ตัดหรือปลูกทดแทนระหว่างโครงการ
       </div>
 
       {/* ── Scenario: preset pattern + discount rate ── */}
@@ -259,7 +260,7 @@ export function EconomicSimulationPanel({ baseRows, isMobile, showPlots = false,
           </Card>
 
           {showPlots && data.plots.length > 0 && (
-            <Card title="คาร์บอนเครดิตรายแปลง" subtitle={`ช่วงอายุยางในโครงการ (${CREDITING_YEARS} ปี)`}>
+            <Card title="คาร์บอนเครดิตรายแปลง" subtitle="เรียงตามเครดิต — สัดส่วนของแต่ละแปลงในเครดิตและรายได้ของโครงการ">
               <PlotTable data={data} isMobile={isMobile} plantStatusById={plantStatusById} />
             </Card>
           )}
@@ -291,7 +292,7 @@ function SummaryTiles({ data, isMobile }: { data: CarbonEconomicsResponse; isMob
   const payback = r.payback_year_at;
   const tiles: { label: string; value: string; sub?: string | (string | null)[]; tone?: "good" | "bad" }[] = [
     {
-      label: "ความคุ้มค่า",
+      label: "ความคุ้มค่าของโครงการ",
       value: r.is_viable ? "คุ้มทุน" : "ไม่คุ้มทุน",
       sub: `กำไรสุทธิ ${signed(r.net_profit_thb)} บาท`,
       tone: r.is_viable ? "good" : "bad",
@@ -305,7 +306,7 @@ function SummaryTiles({ data, isMobile }: { data: CarbonEconomicsResponse; isMob
           ? `คิดลด ${pct(data.discount_rate)} (NPV = 0): ${fmt(r.discounted_break_even_price_thb, 2)} บาท`
           : null,
         data.min_break_even_price_thb != null && data.max_break_even_price_thb != null
-          ? `Min–Max ${fmt(data.min_break_even_price_thb, 0)}–${fmt(data.max_break_even_price_thb, 0)} บาท ตามความถี่ทวนสอบ`
+          ? `Min–Max ${fmt(data.min_break_even_price_thb, 0)}–${fmt(data.max_break_even_price_thb, 0)} บาท ตามความถี่การทวนสอบ`
           : null,
       ],
     },
@@ -493,7 +494,6 @@ function FrequencyTable({ data, selected, onSelect }: { data: CarbonEconomicsRes
   );
 }
 
-/** Per plot: credits over the period plus an age strip (0–35) marking the crediting window. */
 /**
  * Rubber age this year per cohort. A negative age is a planting after the
  * project starts, shown as its planting year instead.
@@ -504,6 +504,11 @@ function formatCohortAges(ages: number[], startYear: number) {
   return sorted.map((a) => (a < 0 ? `ปลูก พ.ศ. ${startYear - a + BE_OFFSET}` : String(a))).join(", ");
 }
 
+/**
+ * Per plot, largest first: its credits, credits/rai and share of the project's
+ * credits + revenue, so the plots carrying the project (and the dead weight)
+ * stand out. Plots under LOW_YIELD_RATIO of the project's credits/rai are flagged.
+ */
 function PlotTable({ data, isMobile, plantStatusById }: {
   data: CarbonEconomicsResponse;
   isMobile?: boolean;
@@ -511,7 +516,9 @@ function PlotTable({ data, isMobile, plantStatusById }: {
 }) {
   const th: React.CSSProperties = { padding: "6px 8px", fontSize: 12, fontWeight: 700, color: "#475569", textAlign: "right", whiteSpace: "nowrap", borderBottom: "1px solid #e2e8f0" };
   const td: React.CSSProperties = { padding: "7px 8px", fontSize: 13, textAlign: "right", whiteSpace: "nowrap", borderBottom: "1px solid #f1f5f9" };
-  const ages = Array.from({ length: GROWTH_MODEL_YEAR + 1 }, (_, i) => i);
+  const totalCredits = data.result.total_credits_tCO2e;
+  const avgPerRai = data.result.credits_per_rai_tCO2e;
+  const plots = [...data.plots].sort((a, b) => b.credits_tCO2e - a.credits_tCO2e);
   return (
     <div style={{ overflowX: "auto" }}>
       <table style={{ width: "100%", borderCollapse: "collapse", fontVariantNumeric: "tabular-nums" }}>
@@ -522,38 +529,49 @@ function PlotTable({ data, isMobile, plantStatusById }: {
             <th style={th}>อายุยาง (ปี)</th>
             <th style={th}>เครดิต (tCO₂eq)</th>
             <th style={th}>ต่อไร่</th>
-            {!isMobile && <th style={{ ...th, textAlign: "left" }}>ช่วงอายุ 0–35 ปี</th>}
+            <th style={{ ...th, textAlign: "left", width: isMobile ? undefined : "34%" }}>สัดส่วนเครดิต · รายได้ (บาท)</th>
           </tr>
         </thead>
         <tbody>
-          {data.plots.map((p) => (
-            <tr key={p.plot_id}>
-              <td style={{ ...td, textAlign: "left", fontWeight: 700, color: INK }}>
-                <span style={{ display: "inline-flex", alignItems: "center", gap: 6, verticalAlign: "middle" }}>
-                  {p.label ?? p.plot_id}
-                  <PlantStatusIcon status={plantStatusById?.[p.plot_id]} size="sm" />
-                </span>
-                {p.beyond_model_age && (
-                  <i className="bi bi-exclamation-triangle-fill" title="อายุยางเกิน 35 ปีระหว่างโครงการ — ถือว่าไม่เติบโตเพิ่มหลังอายุ 35 ปี"
-                    aria-label="อายุเกินช่วงแบบจำลอง" style={{ color: "#d97706", marginLeft: 6, fontSize: 12 }} />
-                )}
-              </td>
-              <td style={td}>{fmt(p.area_rai, 2)}</td>
-              <td style={td}>{formatCohortAges(p.cohort_ages, data.start_year)}</td>
-              <td style={{ ...td, fontWeight: 700 }}>{fmtTonnes(p.credits_tCO2e)}</td>
-              <td style={td}>{fmt(p.credits_per_rai_tCO2e, 2)}</td>
-              {!isMobile && (
-                <td style={{ ...td, textAlign: "left" }}>
-                  <div style={{ display: "flex", gap: 1 }} aria-hidden="true">
-                    {ages.map((a) => {
-                      const inWindow = p.cohort_ages.some((c) => a >= c && a <= c + CREDITING_YEARS);
-                      return <span key={a} style={{ width: 6, height: 12, borderRadius: 1, background: inWindow ? LOSS : "#fde68a" }} />;
-                    })}
-                  </div>
+          {plots.map((p) => {
+            const share = totalCredits > 0 ? p.credits_tCO2e / totalCredits : 0;
+            const lowYield = avgPerRai > 0 && p.credits_per_rai_tCO2e < avgPerRai * LOW_YIELD_RATIO;
+            const label = `${fmt(share * 100, share > 0 && share < 0.01 ? 1 : 0)}% · ${fmtBaht(p.revenue_thb)}`;
+            return (
+              <tr key={p.plot_id}>
+                <td style={{ ...td, textAlign: "left", fontWeight: 700, color: INK }}>
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 6, verticalAlign: "middle" }}>
+                    {p.label ?? p.plot_id}
+                    <PlantStatusIcon status={plantStatusById?.[p.plot_id]} size="sm" />
+                    {lowYield && (
+                      <span title={`เครดิตต่อไร่ต่ำกว่าครึ่งของค่าเฉลี่ยโครงการ (${fmt(avgPerRai, 2)} tCO₂eq/ไร่)`}
+                        style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 12, fontWeight: 700, color: "#b45309", background: "#fef3c7", borderRadius: 6, padding: "1px 6px" }}>
+                        <i className="bi bi-exclamation-triangle-fill" aria-hidden="true" />ผลผลิตต่ำ
+                      </span>
+                    )}
+                  </span>
+                  {p.beyond_model_age && (
+                    <i className="bi bi-exclamation-triangle-fill" title="อายุยางเกิน 35 ปีระหว่างโครงการ — ถือว่าไม่เติบโตเพิ่มหลังอายุ 35 ปี"
+                      aria-label="อายุเกินช่วงแบบจำลอง" style={{ color: "#d97706", marginLeft: 6, fontSize: 12 }} />
+                  )}
                 </td>
-              )}
-            </tr>
-          ))}
+                <td style={td}>{fmt(p.area_rai, 2)}</td>
+                <td style={td}>{formatCohortAges(p.cohort_ages, data.start_year)}</td>
+                <td style={{ ...td, fontWeight: 700 }}>{fmtTonnes(p.credits_tCO2e)}</td>
+                <td style={td}>{fmt(p.credits_per_rai_tCO2e, 2)}</td>
+                <td style={{ ...td, textAlign: "left" }}>
+                  {isMobile ? label : (
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <div aria-hidden="true" style={{ flex: 1, minWidth: 80, height: 10, borderRadius: 5, background: "#eef2f0" }}>
+                        <div style={{ width: `${share * 100}%`, minWidth: share > 0 ? 2 : 0, height: "100%", borderRadius: 5, background: GAIN }} />
+                      </div>
+                      <span style={{ minWidth: 120, color: "#334155" }}>{label}</span>
+                    </div>
+                  )}
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>

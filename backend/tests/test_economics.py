@@ -310,3 +310,19 @@ async def test_service_future_plot_excludes_planting_stock(svc):
     assert res["result"]["total_credits_tCO2e"] == expected
     assert res["plots"][0]["carbon_stock_start_tCO2e"] == 0
     assert res["plots"][0]["carbon_stock_end_tCO2e"] == pytest.approx(800 * 65 * 0.47 * 3.667 / 1000, rel=1e-4)
+
+
+@pytest.mark.asyncio
+async def test_service_plot_revenue_sums_to_project(svc):
+    req = _req([
+        {**ROW, "year_of_planting": 2015, "plot_id": "a"},
+        {**ROW, "year_of_planting": 2020, "plot_id": "b"},
+    ], rounds=[
+        {"year_at": 3, "price_thb_per_tCO2e": 200, "monitoring_cost": 0, "verification_cost": 0},
+        {"year_at": 7, "price_thb_per_tCO2e": 500, "monitoring_cost": 0, "verification_cost": 0},
+    ])
+    res = await svc.get_carbon_economics(req)
+    sched = {s["year_at"]: s for s in res["result"]["schedule"]}
+    a, b = res["plots"]
+    assert a["revenue_thb"] + b["revenue_thb"] == pytest.approx(res["result"]["total_revenue_thb"])
+    assert sched[3]["credits_issued_tCO2e"] * 200 + sched[7]["credits_issued_tCO2e"] * 500 == pytest.approx(res["result"]["total_revenue_thb"])

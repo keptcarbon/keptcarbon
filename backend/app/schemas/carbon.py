@@ -223,6 +223,7 @@ class EconomicsPlot(BaseModel):
     carbon_stock_start_tCO2e: float
     carbon_stock_end_tCO2e: float
     credits_tCO2e: int = Field(..., description="This plot's credits over the requested rounds, rounded down per round")
+    revenue_thb: float = Field(..., description="This plot's credits x each round's price; plots sum to the project revenue")
     credits_per_rai_tCO2e: float
     beyond_model_age: bool = Field(..., description="A cohort passes the last modeled age during the period (growth held flat)")
 
