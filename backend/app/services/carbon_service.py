@@ -7,6 +7,7 @@ from app.services.landuse_service import LanduseService
 from app.services.tree_service import TreeService
 from app.services.agemap_service import AgeMapService
 from app.services.spatial_utils import SpatialUtils
+from app.services import economics
 
 from shapely.geometry import shape, mapping
 from shapely.ops import unary_union
@@ -537,6 +538,60 @@ class CarbonService:
 
         return tree_vec, biomass_vec, age_vec
 
+    async def _load_biomass_and_trees(
+        self,
+        p_code: str,
+        clone: str,
+        growth_model: str,
+        allometry: str,
+        biomass_profile_version: str,
+        area_m2: float,
+        tree_count: Optional[int],
+        spacing_system: str,
+    ) -> tuple:
+        """
+        Loads one sim/economics row's per-age biomass profile and resolves its
+        tree count (from tbl_tree_density when tree_count is None). Returns
+        (biomass_by_age, tree_count); raises 422 for an unknown profile/spacing.
+        """
+        density_row = None
+        try:
+            pool = get_pool()
+            async with pool.acquire() as conn:
+                biomass_rows = await conn.fetch(
+                    """
+                    SELECT age, biomass_est
+                    FROM tbl_biomass_profile
+                    WHERE p_code = $1 AND clone = $2 AND growth_model = $3 AND allometry = $4 AND version = $5
+                    """,
+                    p_code, clone, growth_model, allometry, biomass_profile_version,
+                )
+
+                if tree_count is None:
+                    density_row = await conn.fetchrow(
+                        "SELECT tree_density_ha FROM tbl_tree_density WHERE tree_spacing = $1",
+                        spacing_system,
+                    )
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to load simulation config: {str(e)}")
+
+        if not biomass_rows:
+            raise HTTPException(
+                status_code=422,
+                detail=f"No biomass profile for p_code='{p_code}', clone='{clone}', model='{growth_model}', "
+                       f"allometry='{allometry}', version='{biomass_profile_version}'."
+            )
+
+        if tree_count is None:
+            if density_row is None:
+                raise HTTPException(
+                    status_code=422,
+                    detail=f"No tree density found for spacing_system='{spacing_system}'."
+                )
+            tree_count = int(area_m2 * density_row["tree_density_ha"] / 10000)
+
+        return {r["age"]: r for r in biomass_rows}, tree_count
+
     async def get_carbon_simulation(self, sim_data: list) -> dict:
         """
         Computes a 71-year (current_year-35 .. current_year+35) simulated
@@ -580,42 +635,10 @@ class CarbonService:
                            f"maximum modeled age ({GROWTH_MODEL_YEAR})."
                 )
 
-            try:
-                pool = get_pool()
-                async with pool.acquire() as conn:
-                    biomass_rows = await conn.fetch(
-                        """
-                        SELECT age, biomass_est
-                        FROM tbl_biomass_profile
-                        WHERE p_code = $1 AND clone = $2 AND growth_model = $3 AND allometry = $4 AND version = $5
-                        """,
-                        p_code, clone, growth_model, allometry, biomass_profile_version,
-                    )
-
-                    if tree_count is None:
-                        density_row = await conn.fetchrow(
-                            "SELECT tree_density_ha FROM tbl_tree_density WHERE tree_spacing = $1",
-                            spacing_system,
-                        )
-            except Exception as e:
-                raise HTTPException(status_code=500, detail=f"Failed to load simulation config: {str(e)}")
-
-            if not biomass_rows:
-                raise HTTPException(
-                    status_code=422,
-                    detail=f"No biomass profile for p_code='{p_code}', clone='{clone}', model='{growth_model}', "
-                           f"allometry='{allometry}', version='{biomass_profile_version}'."
-                )
-
-            if tree_count is None:
-                if density_row is None:
-                    raise HTTPException(
-                        status_code=422,
-                        detail=f"No tree density found for spacing_system='{spacing_system}'."
-                    )
-                tree_count = int(area_m2 * density_row["tree_density_ha"] / 10000)
-
-            biomass_by_age = {r["age"]: r for r in biomass_rows}
+            biomass_by_age, tree_count = await self._load_biomass_and_trees(
+                p_code, clone, growth_model, allometry, biomass_profile_version,
+                area_m2, tree_count, spacing_system,
+            )
 
             # Central profile: this row's own rotation_year / replanting_rate.
             central_tree_vec, central_biomass_vec, _ = self._build_simulation_vectors(
@@ -685,4 +708,154 @@ class CarbonService:
             "total_area_m2": total_area_m2,
             "total_tree_count": total_tree_count,
             "carbon_stock_tCO2e_simulation": carbon_profile,
+        }
+
+    async def get_carbon_economics(self, req: dict) -> dict:
+        """
+        T-VER feasibility for a plot or project: sums each cohort's stock path
+        over one 7-year crediting period starting this year (no cutting or
+        replanting inside it), then prices it with economics.evaluate --
+        once for the requested verification frequency and once per
+        compare_frequencies entry for the min/max break-even price.
+        """
+        current_calendar_year = datetime.now().year
+        years = economics.T_VER_CREDITING_YEARS
+        tco2e_per_kg = CARBON_FRACTION * CARBON_EQUIVALENT_FACTOR / 1000.0
+
+        total_stock = [0.0] * (years + 1)
+        # Per plot, so credits can be rounded down plot by plot (TGO).
+        plot_credit_paths: Dict[str, List[float]] = {}
+        total_area_m2 = 0.0
+        total_trees = 0
+        plots: Dict[str, dict] = {}
+        first_profile: Optional[Dict[int, float]] = None
+
+        for i, row in enumerate(req["rows"]):
+            biomass_by_age, tree_count = await self._load_biomass_and_trees(
+                row["p_code"], row["clone"], row["growth_model"], row["allometry"],
+                row["biomass_profile_version"], row["area_m2"], row.get("tree_count"), row["spacing_system"],
+            )
+            profile = {age: r["biomass_est"] for age, r in biomass_by_age.items()}
+            if first_profile is None:
+                first_profile = profile
+
+            age = current_calendar_year - row["year_of_planting"]
+            path = economics.stock_path(profile, tree_count, age, GROWTH_MODEL_YEAR, tco2e_per_kg, years)
+            credited = economics.credit_path(path, age)
+            for t in range(years + 1):
+                total_stock[t] += path[t]
+            total_area_m2 += row["area_m2"]
+            total_trees += tree_count
+
+            pid = row.get("plot_id") or f"row_{i}"
+            p = plots.setdefault(pid, {
+                "plot_id": pid, "label": row.get("label"), "area_m2": 0.0, "tree_count": 0,
+                "age_area": 0.0, "cohort_ages": [], "start": 0.0, "end": 0.0, "beyond": False,
+            })
+            p["area_m2"] += row["area_m2"]
+            p["tree_count"] += tree_count
+            p["age_area"] += age * row["area_m2"]
+            p["cohort_ages"].append(age)
+            p["start"] += path[0]
+            p["end"] += path[-1]
+            plot_path = plot_credit_paths.setdefault(pid, [0.0] * (years + 1))
+            for t in range(years + 1):
+                plot_path[t] += credited[t]
+            p["beyond"] = p["beyond"] or age + years > GROWTH_MODEL_YEAR
+
+        credit_paths = list(plot_credit_paths.values())
+        costs = req["costs"]
+        price = req["price_thb_per_tCO2e"]
+        rate = req["discount_rate"]
+        every = req["verify_every_years"]
+
+        # rounds (when sent, even empty) picks the verification years itself;
+        # otherwise the regular every-k-years pattern with default prices/fees.
+        if req.get("rounds") is not None:
+            overrides = {r["year_at"]: r for r in req["rounds"]}
+            round_years = sorted(overrides)
+        else:
+            overrides = {}
+            round_years = economics.verification_years(every, years)
+        all_freqs = sorted(set(req["compare_frequencies"]) | {every})
+        # The frequency this pattern matches, or None for a custom pattern.
+        matched = next((k for k in all_freqs if economics.verification_years(k, years) == round_years), None)
+
+        result = economics.evaluate(
+            total_stock, total_area_m2, costs, price, round_years, rate, overrides, credit_paths=credit_paths,
+        )
+        plot_credits = dict(zip(plot_credit_paths, result.pop("plot_credits_tCO2e")))
+        result["verify_every_years"] = matched
+        for s in result["schedule"]:
+            s["year"] = current_calendar_year + s["year_at"]
+
+        # Other frequencies have different round years, so per-round inputs
+        # can't carry over: compare at this scenario's credit-weighted price
+        # and its average per-round fees (defaults when there are no rounds).
+        avg_price = result["price_thb_per_tCO2e"] or price
+
+        def avg_fee(key: str, default_key: str) -> float:
+            if not round_years:
+                return costs[default_key]
+            fees = [overrides.get(t, {}).get(key) for t in round_years]
+            return sum(costs[default_key] if f is None else f for f in fees) / len(round_years)
+
+        avg_costs = {
+            **costs,
+            "monitoring_per_round": avg_fee("monitoring_cost", "monitoring_per_round"),
+            "verification_per_round": avg_fee("verification_cost", "verification_per_round"),
+        }
+        comparison = []
+        for k in sorted(set(req["compare_frequencies"])):
+            if k == matched:
+                scenario = {key: v for key, v in result.items() if key != "schedule"}
+            else:
+                scenario = economics.evaluate(
+                    total_stock, total_area_m2, avg_costs, avg_price, economics.verification_years(k, years), rate,
+                    credit_paths=credit_paths,
+                )
+                scenario.pop("schedule")
+                scenario.pop("plot_credits_tCO2e")
+                scenario["verify_every_years"] = k
+            comparison.append(scenario)
+        be_prices = [c["break_even_price_thb"] for c in comparison if c["break_even_price_thb"] is not None]
+
+        total_rai = total_area_m2 / economics.RAI_M2
+        plot_list = []
+        for p in plots.values():
+            rai = p["area_m2"] / economics.RAI_M2
+            credits = plot_credits[p["plot_id"]]
+            plot_list.append({
+                "plot_id": p["plot_id"],
+                "label": p["label"],
+                "area_rai": round(rai, 4),
+                "tree_count": p["tree_count"],
+                "age_at_start": round(p["age_area"] / p["area_m2"], 2),
+                "cohort_ages": p["cohort_ages"],
+                "carbon_stock_start_tCO2e": round(p["start"], 4),
+                "carbon_stock_end_tCO2e": round(p["end"], 4),
+                "credits_tCO2e": round(credits, 4),
+                "credits_per_rai_tCO2e": round(credits / rai, 4) if rai > 0 else 0.0,
+                "beyond_model_age": p["beyond"],
+            })
+
+        return {
+            "status": {
+                "status": "success",
+                "status_code": "S06",
+                "message": "CARBON ECONOMICS SCENARIO GENERATED."
+            },
+            "start_year": current_calendar_year,
+            "crediting_years": years,
+            "discount_rate": rate,
+            "total_area_rai": round(total_rai, 4),
+            "result": result,
+            "plots": plot_list,
+            "frequency_comparison": comparison,
+            "min_break_even_price_thb": min(be_prices) if be_prices else None,
+            "max_break_even_price_thb": max(be_prices) if be_prices else None,
+            "age_matrix": economics.age_matrix(
+                first_profile or {}, total_trees / total_rai if total_rai > 0 else 0.0,
+                GROWTH_MODEL_YEAR, tco2e_per_kg, result["total_cost_thb"], avg_price, years,
+            ),
         }

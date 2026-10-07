@@ -240,7 +240,7 @@ export default function ProvinceSimulationPage() {
               <div className="db2-card" style={{ overflow: "hidden" }}>
                 <div className="db2-card-header">
                   <i className="bi bi-graph-up-arrow" style={{ color: "#059669" }} />
-                  <span>ปริมาณคาร์บอนกักเก็บจำลอง</span>
+                  <span>ปริมาณคาร์บอนกักเก็บ</span>
                   <span style={{ marginLeft: 6, fontWeight: 500, color: "#94a3b8", fontSize: 15 }}>{scopeName}</span>
                 </div>
                 <div style={{ padding: isMobile ? 12 : 20 }}>

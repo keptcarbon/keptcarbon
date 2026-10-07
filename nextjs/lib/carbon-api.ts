@@ -110,6 +110,118 @@ export interface CarbonSimulationResponse {
     carbon_stock_tCO2e_simulation: SimulationYearlyPoint[] | null;
 }
 
+// ── Economic scenario (/carbon/economics) ────────────────────────────────────
+// One 7-year T-VER crediting period starting this year; no rotation/replanting.
+
+export type EconomicsRow = Omit<CarbonSimulationRow, "rotation_year" | "replanting_rate"> & {
+    /** groups cohort rows into one plot in the per-plot breakdown */
+    plot_id?: string;
+    label?: string;
+};
+
+export interface EconomicsCosts {
+    pdd: number;
+    validation: number;
+    monitoring_per_round: number;
+    verification_per_round: number;
+}
+
+/** Per-round override; null fields fall back to price_thb_per_tCO2e / costs. */
+export interface EconomicsRoundInput {
+    /** must be one of this frequency's verification years (1..7) */
+    year_at: number;
+    price_thb_per_tCO2e?: number | null;
+    monitoring_cost?: number | null;
+    verification_cost?: number | null;
+}
+
+export interface CarbonEconomicsRequest {
+    rows: EconomicsRow[];
+    costs: EconomicsCosts;
+    /** default price for rounds without their own */
+    price_thb_per_tCO2e: number;
+    verify_every_years: number;
+    rounds?: EconomicsRoundInput[];
+    /** 0.05 = 5% */
+    discount_rate: number;
+    compare_frequencies?: number[];
+}
+
+export interface EconomicsScheduleYear {
+    year: number;
+    /** 0..7, years since the project start */
+    year_at: number;
+    is_verification: boolean;
+    /** sale price at this round; null in non-verification years */
+    price_thb_per_tCO2e: number | null;
+    carbon_stock_tCO2e: number;
+    credits_issued_tCO2e: number;
+    cost_thb: number;
+    revenue_thb: number;
+    net_thb: number;
+    cumulative_net_thb: number;
+    discounted_net_thb: number;
+}
+
+export interface EconomicsScenario {
+    verify_every_years: number;
+    verification_rounds: number;
+    verification_years: number[];
+    /** credit-weighted average sale price across rounds */
+    price_thb_per_tCO2e: number;
+    /** monitoring + verification cost per round, in verification_years order */
+    round_cost_thb: number[];
+    total_cost_thb: number;
+    total_credits_tCO2e: number;
+    credits_per_rai_tCO2e: number;
+    total_revenue_thb: number;
+    net_profit_thb: number;
+    is_viable: boolean;
+    /** null = cumulative net never reaches 0 within the period */
+    payback_year_at: number | null;
+    npv_thb: number;
+    /** fraction; null when the cash flows never change sign */
+    irr: number | null;
+    break_even_price_thb: number | null;
+    discounted_break_even_price_thb: number | null;
+    min_viable_area_rai: number | null;
+}
+
+export interface EconomicsPlot {
+    plot_id: string;
+    label: string | null;
+    area_rai: number;
+    tree_count: number;
+    age_at_start: number;
+    cohort_ages: number[];
+    carbon_stock_start_tCO2e: number;
+    carbon_stock_end_tCO2e: number;
+    credits_tCO2e: number;
+    credits_per_rai_tCO2e: number;
+    /** a cohort passes the last modeled age (35) during the period; growth held flat */
+    beyond_model_age: boolean;
+}
+
+export interface EconomicsAgeRow {
+    start_age: number;
+    credits_per_rai_tCO2e: number;
+    min_viable_area_rai: number | null;
+}
+
+export interface CarbonEconomicsResponse {
+    status: StatusMessage;
+    start_year: number;
+    crediting_years: number;
+    discount_rate: number;
+    total_area_rai: number;
+    result: EconomicsScenario & { schedule: EconomicsScheduleYear[] };
+    plots: EconomicsPlot[];
+    frequency_comparison: EconomicsScenario[];
+    min_break_even_price_thb: number | null;
+    max_break_even_price_thb: number | null;
+    age_matrix: EconomicsAgeRow[];
+}
+
 export interface LUPolygon {
     lu_class: string;
     lu_class_desc_th: string | null;
@@ -140,6 +252,26 @@ export async function simulateCarbon(
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(rows),
+        signal,
+    });
+    if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(
+            typeof errorData?.detail === "string" ? errorData.detail : `Backend API error: ${response.status}`
+        );
+    }
+    return response.json();
+}
+
+/** T-VER cost/revenue scenario for a plot's or project's cohort rows. Throws with the backend's `detail`. */
+export async function simulateEconomics(
+    req: CarbonEconomicsRequest,
+    signal?: AbortSignal
+): Promise<CarbonEconomicsResponse> {
+    const response = await fetch(`${API_BASE_URL}/carbon/economics`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(req),
         signal,
     });
     if (!response.ok) {

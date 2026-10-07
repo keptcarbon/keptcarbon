@@ -378,41 +378,40 @@
   max-width: 680px;
 }
 
+/* Compact notice (icon beside text) shown in place of the chart before processing */
 .emptyGraph {
-  text-align: center;
-  padding: 32px 20px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
   background: #fffbeb;
   border-radius: 14px;
   border: 1.5px dashed rgba(245, 158, 11, 0.3);
   color: #92400e;
   font-size: 14px;
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  min-height: 280px;
+  text-align: left;
 }
 
 .emptyGraphIconBox {
-  width: 48px;
-  height: 48px;
-  border-radius: 12px;
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
   background: rgba(245, 158, 11, 0.15);
   display: flex;
   align-items: center;
   justify-content: center;
-  margin: 0 auto 12px;
 }
 
 .emptyGraphIcon {
-  font-size: 22px;
+  font-size: 19px;
   color: #f59e0b;
 }
 
 .emptyGraphTitle {
   font-weight: 700;
   font-size: 15px;
-  margin-bottom: 4px;
+  margin-bottom: 2px;
 }
 
 .emptyGraphSubtitle {

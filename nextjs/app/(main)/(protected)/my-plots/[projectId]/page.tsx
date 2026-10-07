@@ -5,26 +5,26 @@ import { useParams } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import Link from "next/link";
 import {
-  Plus, ChevronLeft, ChevronRight, Map as MapIcon, LayoutGrid, Sparkles, Loader2, Check, Clock, Eye, Search, X, Pencil, Sprout, TreeDeciduous,
+  Plus, ChevronLeft, ChevronRight, Map as MapIcon, LayoutGrid, Sparkles, Loader2, Check, Clock, Eye, Search, X, Pencil,
 } from "lucide-react";
 import { assessCarbon } from "@/lib/carbon-api";
 import type { SavedPlot } from "../types";
 import { ProjectCarbonSummary } from "../ProjectCarbonSummary";
 import { CollapsibleSection } from "../CollapsibleSection";
 import { CarbonSimulationChart } from "../CarbonSimulationChart";
+import { EconomicSimulationPanel } from "../EconomicSimulationPanel";
+import { PendingNotice } from "../PendingNotice";
 import { buildProjectSimRows } from "../simulationRequest";
 import plotStyles from "../PlotCard.module.css";
 import { buildAssessRequest, applyAssessResponse } from "../assessPlot";
 import { formatPlotLocation } from "../plotLocation";
+import { PlantStatusIcon, plantStatusLabel } from "../PlantStatusIcon";
 import { EditFieldModal } from "../EditFieldModal";
 import { Tooltip, ClickTooltip } from "@/components/ui/tooltip";
 import { plotDisplayArea, AREA_RULE_NOTE } from "../plotArea";
 import { PLOT_INFO_MAX_LENGTH } from "@/app/components/organisms/ParcelResultsPanel/utils";
 
 const PAGE_SIZE = 10;
-
-const plantStatusLabel = (status?: string) =>
-  status === "replanting" ? "เริ่มปลูกใหม่" : status === "existing" ? "ปลูกมาแล้ว" : "—";
 
 const isPlotProcessed = (plot: SavedPlot) =>
   plot.processed === true || (plot.carbonProfile && plot.carbonProfile.length > 0) || plot.carbonTotal > 0;
@@ -99,12 +99,18 @@ export default function ProjectDetailPage() {
     );
   }, [plots, searchTerm]);
 
-  // Accordion: both sections start closed; opening one closes the other.
-  const [openSection, setOpenSection] = useState<"summary" | "simulation" | null>(null);
-  const toggleSection = (key: "summary" | "simulation") =>
+  // Accordion: all sections start closed; opening one closes the others.
+  const [openSection, setOpenSection] = useState<"summary" | "simulation" | "economics" | null>(null);
+  const toggleSection = (key: "summary" | "simulation" | "economics") =>
     setOpenSection((cur) => (cur === key ? null : key));
 
   const projectSim = useMemo(() => buildProjectSimRows(plots), [plots]);
+  const unprocessedCount = useMemo(() => plots.filter((p) => !isPlotProcessed(p)).length, [plots]);
+  // Keyed by plot.id, which buildProjectSimRows sends as each row's plot_id.
+  const plantStatusById = useMemo(
+    () => Object.fromEntries(plots.map((p) => [p.id, p.plantStatus])) as Record<string, string | undefined>,
+    [plots],
+  );
 
   const totalPages = Math.max(1, Math.ceil(filteredPlots.length / PAGE_SIZE));
   useEffect(() => {
@@ -210,6 +216,22 @@ export default function ProjectDetailPage() {
       </div>
     );
 
+  // Simulations run only once every plot is processed, so the totals always
+  // cover the whole project; until then both sections show just this notice.
+  const pendingSimNotice = projectSim.rows.length === 0 || unprocessedCount > 0 ? (
+    <PendingNotice
+      title={unprocessedCount > 0 && unprocessedCount < plots.length
+        ? `มี ${unprocessedCount.toLocaleString("th-TH")} จาก ${plots.length.toLocaleString("th-TH")} แปลงที่ยังไม่ประมวลผล`
+        : "ยังไม่ได้ประมวลผลคาร์บอน"}
+      subtitle={<>กรุณากด &quot;ประเมินคาร์บอนกักเก็บ&quot; เพื่อประมวลผลข้อมูล</>} />
+  ) : null;
+  // Every plot is processed but some assessments lack simulation inputs.
+  const incompleteSimNote = projectSim.skipped > 0 ? (
+    <div className={plotStyles.emptyText} style={{ fontSize: 13, marginBottom: 12 }}>
+      รวม {projectSim.included.toLocaleString("th-TH")} จาก {plots.length.toLocaleString("th-TH")} แปลง ({projectSim.skipped.toLocaleString("th-TH")} แปลงข้อมูลการประเมินไม่ครบ)
+    </div>
+  ) : null;
+
   return (
     <div className="kc-tw min-h-screen bg-muted/30 pt-[108px] pb-16">
       <div className="mx-auto w-full max-w-6xl px-4 sm:px-6 lg:px-8">
@@ -275,16 +297,25 @@ export default function ProjectDetailPage() {
                 {/* Every assessed plot's cohorts in one /carbon/sim batch — the backend sums them */}
                 <CollapsibleSection icon="bi-sliders" title="จำลองคาร์บอนกักเก็บ" isMobile={isMobile} open={openSection === "simulation"} onToggle={() => toggleSection("simulation")} keepMounted>
                   <div className={`${plotStyles.content} ${isMobile ? plotStyles.contentMobile : ""}`}>
-                    {projectSim.rows.length === 0 ? (
-                      <div className={plotStyles.emptyText} style={{ fontSize: 13 }}>กรุณาประเมินคาร์บอนของแปลงในโครงการก่อน จึงจะแสดงกราฟจำลองได้</div>
+                    {pendingSimNotice ? (
+                      pendingSimNotice
                     ) : (
                       <>
-                        {projectSim.skipped > 0 && (
-                          <div className={plotStyles.emptyText} style={{ fontSize: 13, marginBottom: 12 }}>
-                            รวม {projectSim.included.toLocaleString("th-TH")} จาก {plots.length.toLocaleString("th-TH")} แปลง ({projectSim.skipped.toLocaleString("th-TH")} แปลงยังไม่ได้ประเมินหรือข้อมูลไม่ครบ)
-                          </div>
-                        )}
+                        {incompleteSimNote}
                         <CarbonSimulationChart baseRows={projectSim.rows} isMobile={isMobile} unitLabel="โครงการ" />
+                      </>
+                    )}
+                  </div>
+                </CollapsibleSection>
+
+                <CollapsibleSection icon="bi-cash-coin" title="จำลองความคุ้มค่าโครงการคาร์บอนเครดิต (T-VER)" isMobile={isMobile} open={openSection === "economics"} onToggle={() => toggleSection("economics")} keepMounted>
+                  <div className={`${plotStyles.content} ${isMobile ? plotStyles.contentMobile : ""}`}>
+                    {pendingSimNotice ? (
+                      pendingSimNotice
+                    ) : (
+                      <>
+                        {incompleteSimNote}
+                        <EconomicSimulationPanel baseRows={projectSim.rows} isMobile={isMobile} showPlots plantStatusById={plantStatusById} />
                       </>
                     )}
                   </div>
@@ -355,22 +386,9 @@ export default function ProjectDetailPage() {
                             <td className="px-4 py-3 text-foreground">{formatPlotLocation(plot) || <span className="text-muted-foreground">—</span>}</td>
                             <td className="px-4 py-3 text-center text-muted-foreground">{plotDisplayArea(plot).rai.toFixed(2)}</td>
                             <td className="px-4 py-3 text-center text-muted-foreground">
-                              {plot.plantStatus === "replanting" || plot.plantStatus === "existing" ? (
-                                // Icon only, boxed like the action buttons — the label lives in the
-                                // tooltip / screen-reader name. Focusable so keyboard users get it too.
-                                <Tooltip content={plantStatusLabel(plot.plantStatus)}>
-                                  <span
-                                    role="img"
-                                    tabIndex={0}
-                                    aria-label={plantStatusLabel(plot.plantStatus)}
-                                    className="inline-flex size-9 cursor-help items-center justify-center rounded-lg border border-border bg-card text-primary outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
-                                  >
-                                    {plot.plantStatus === "replanting"
-                                      ? <Sprout className="size-4" aria-hidden="true" />
-                                      : <TreeDeciduous className="size-4" aria-hidden="true" />}
-                                  </span>
-                                </Tooltip>
-                              ) : "—"}
+                              {plot.plantStatus === "replanting" || plot.plantStatus === "existing"
+                                ? <PlantStatusIcon status={plot.plantStatus} />
+                                : "—"}
                             </td>
                             <td className="px-4 py-3 text-center">
                               {isPlotProcessed(plot) ? (

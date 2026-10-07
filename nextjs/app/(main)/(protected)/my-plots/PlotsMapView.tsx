@@ -106,7 +106,7 @@ export function PlotsMapView({ plots, isMobile }: { plots: SavedPlot[], isMobile
             id: p.id,
             projectName: name,
             area: plotDisplayArea(p).rai.toFixed(2),
-            carbon: p.carbonTotal.toFixed(2),
+            carbon: Math.floor(p.carbonTotal).toLocaleString("th-TH"), // whole tonnes, rounded down (TGO)
             carbonPerTree: carbonPerTree ?? "—",
             province: p.province || "—",
           };
@@ -265,7 +265,7 @@ export function PlotsMapView({ plots, isMobile }: { plots: SavedPlot[], isMobile
         id: p.id,
         projectName: name,
         area: plotDisplayArea(p).rai.toFixed(2),
-        carbon: p.carbonTotal.toFixed(2),
+        carbon: Math.floor(p.carbonTotal).toLocaleString("th-TH"), // whole tonnes, rounded down (TGO)
         carbonPerTree: carbonPerTree ?? "—",
         province: p.province || "—",
       };

@@ -14,6 +14,8 @@ import { PlotMiniMap } from "../../PlotMiniMap";
 import { EditPlotModal, GROWTH_MODEL_OPTIONS, ALLOMETRY_OPTIONS } from "../../EditPlotModal";
 import { CollapsibleSection } from "../../CollapsibleSection";
 import { CarbonSimulationChart } from "../../CarbonSimulationChart";
+import { EconomicSimulationPanel } from "../../EconomicSimulationPanel";
+import { PendingNotice } from "../../PendingNotice";
 import { buildSimRows } from "../../simulationRequest";
 import { formatPlotLocation } from "../../plotLocation";
 import { buildAssessRequest, applyAssessResponse } from "../../assessPlot";
@@ -38,8 +40,8 @@ export default function PlotDetailPage() {
   const [estimating, setEstimating] = useState(false);
   const [errorModalMsg, setErrorModalMsg] = useState<string | null>(null);
   // Accordion: only one dashboard section open at a time; clicking the open one closes it.
-  const [openSection, setOpenSection] = useState<"graph" | "simulation" | "map" | null>("graph");
-  const toggleSection = (key: "graph" | "simulation" | "map") =>
+  const [openSection, setOpenSection] = useState<"graph" | "simulation" | "economics" | "map" | null>("graph");
+  const toggleSection = (key: "graph" | "simulation" | "economics" | "map") =>
     setOpenSection((cur) => (cur === key ? null : key));
 
   const isAdmin = user?.role === "admin";
@@ -403,13 +405,7 @@ export default function PlotDetailPage() {
                       </div>
                     </div>
                   ) : (
-                    <div className={plotStyles.emptyGraph}>
-                      <div className={plotStyles.emptyGraphIconBox}>
-                        <i className={`bi bi-clock-history ${plotStyles.emptyGraphIcon}`} />
-                      </div>
-                      <div className={plotStyles.emptyGraphTitle}>ยังไม่ได้ประมวลผลคาร์บอน</div>
-                      <div className={plotStyles.emptyGraphSubtitle}>กรุณากด &quot;ประเมินคาร์บอนกักเก็บ&quot; ที่หน้ารายการแปลงเพื่อประมวลผลข้อมูล</div>
-                    </div>
+                    <PendingNotice title="ยังไม่ได้ประมวลผลคาร์บอน" subtitle={<>กรุณากด &quot;ประเมินคาร์บอนกักเก็บ&quot; ที่หน้ารายการแปลงเพื่อประมวลผลข้อมูล</>} />
                   )}
                 </div>
 
@@ -542,13 +538,25 @@ export default function PlotDetailPage() {
           <CollapsibleSection icon="bi-sliders" title="จำลองคาร์บอนกักเก็บ" isMobile={isMobile} open={openSection === "simulation"} onToggle={() => toggleSection("simulation")} keepMounted>
             <div className={`${plotStyles.content} ${isMobile ? plotStyles.contentMobile : ""}`}>
               {!ep ? (
-                <div className={plotStyles.emptyText} style={{ fontSize: 13 }}>กรุณาประเมินคาร์บอนของแปลงนี้ก่อน จึงจะแสดงกราฟจำลองได้</div>
+                <PendingNotice title="ยังไม่ได้ประมวลผลคาร์บอน" subtitle={<>กรุณากด &quot;ประเมินคาร์บอนกักเก็บ&quot; ที่หน้ารายการแปลงเพื่อประมวลผลข้อมูล</>} />
               ) : simRows.ok ? (
                 <CarbonSimulationChart baseRows={simRows.rows} isMobile={isMobile} />
               ) : (
-                <div className={plotStyles.emptyText} style={{ fontSize: 13 }}>
-                  ข้อมูลการประเมินไม่ครบ ({simRows.missing.join(", ")}) กรุณาประเมินคาร์บอนใหม่อีกครั้ง
-                </div>
+                <PendingNotice icon="bi-exclamation-triangle" title="ข้อมูลการประเมินไม่ครบ"
+                  subtitle={`ขาด ${simRows.missing.join(", ")} — กรุณาประเมินคาร์บอนใหม่อีกครั้ง`} />
+              )}
+            </div>
+          </CollapsibleSection>
+
+          <CollapsibleSection icon="bi-cash-coin" title="จำลองความคุ้มค่าโครงการคาร์บอนเครดิต (T-VER)" isMobile={isMobile} open={openSection === "economics"} onToggle={() => toggleSection("economics")} keepMounted>
+            <div className={`${plotStyles.content} ${isMobile ? plotStyles.contentMobile : ""}`}>
+              {!ep ? (
+                <PendingNotice title="ยังไม่ได้ประมวลผลคาร์บอน" subtitle={<>กรุณากด &quot;ประเมินคาร์บอนกักเก็บ&quot; ที่หน้ารายการแปลงเพื่อประมวลผลข้อมูล</>} />
+              ) : simRows.ok ? (
+                <EconomicSimulationPanel baseRows={simRows.rows} isMobile={isMobile} />
+              ) : (
+                <PendingNotice icon="bi-exclamation-triangle" title="ข้อมูลการประเมินไม่ครบ"
+                  subtitle={`ขาด ${simRows.missing.join(", ")} — กรุณาประเมินคาร์บอนใหม่อีกครั้ง`} />
               )}
             </div>
           </CollapsibleSection>

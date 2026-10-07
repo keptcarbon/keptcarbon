@@ -129,3 +129,119 @@ class CarbonSimulationResponse(BaseModel):
         None,
         description="71-year (current_year-35 .. current_year+35) carbon stock profile, summed by year across all rows in sim_data."
     )
+
+
+# ── Economic scenario endpoint (/api/v1/carbon/economics) ────────────────────
+# T-VER feasibility: one 7-year crediting period starting this year, no cutting
+# or replanting inside it, credits = raw stock gain (no deductions yet).
+
+class EconomicsRow(BaseModel):
+    """One cohort of a plot -- same shape as a /carbon/sim row, minus rotation/replanting."""
+    p_code: str
+    clone: str
+    growth_model: str
+    allometry: str
+    biomass_profile_version: str
+    year_of_planting: int
+    area_m2: float = Field(..., gt=0)
+    tree_count: Optional[int] = Field(None, description="If None, derived from area_m2 and spacing_system.")
+    spacing_system: str
+    plot_id: Optional[str] = Field(None, description="Groups cohort rows into one plot in the per-plot breakdown")
+    label: Optional[str] = Field(None, description="Display name for the plot")
+
+
+class EconomicsCosts(BaseModel):
+    pdd: float = Field(400_000, ge=0, description="Project design document (once)")
+    validation: float = Field(200_000, ge=0, description="Validation/registration (once)")
+    monitoring_per_round: float = Field(400_000, ge=0, description="Monitoring report, per verification round")
+    verification_per_round: float = Field(200_000, ge=0, description="Verification, per round")
+
+
+class EconomicsRoundInput(BaseModel):
+    """Per-round override; None fields fall back to price_thb_per_tCO2e / costs."""
+    year_at: int = Field(..., ge=1, le=7, description="Verification year (1..7) this round falls on")
+    price_thb_per_tCO2e: Optional[float] = Field(None, ge=0)
+    monitoring_cost: Optional[float] = Field(None, ge=0)
+    verification_cost: Optional[float] = Field(None, ge=0)
+
+
+class CarbonEconomicsRequest(BaseModel):
+    rows: List[EconomicsRow] = Field(..., min_length=1)
+    costs: EconomicsCosts = Field(default_factory=EconomicsCosts)
+    price_thb_per_tCO2e: float = Field(100, gt=0)
+    verify_every_years: int = Field(7, ge=1, le=7)
+    rounds: Optional[List[EconomicsRoundInput]] = Field(None, description="When sent (even empty), these year_at values ARE the verification years (any subset of 1..7) and verify_every_years is ignored for the result; None = every verify_every_years with default price/fees")
+    discount_rate: float = Field(0.05, ge=0, le=1, description="Annual rate for NPV, e.g. 0.05 = 5%")
+    compare_frequencies: List[int] = Field(default_factory=lambda: [1, 2, 3, 7], description="Verification intervals (years) for the comparison table and min/max break-even price")
+
+
+class EconomicsScheduleYear(BaseModel):
+    year: int
+    year_at: int
+    is_verification: bool
+    price_thb_per_tCO2e: Optional[float] = Field(None, description="Sale price used at this round; None in non-verification years")
+    carbon_stock_tCO2e: float
+    credits_issued_tCO2e: int = Field(..., description="Sum of each plot's credits for this round, each rounded down to whole tonnes (TGO)")
+    cost_thb: float
+    revenue_thb: float
+    net_thb: float
+    cumulative_net_thb: float
+    discounted_net_thb: float
+
+
+class EconomicsScenario(BaseModel):
+    verify_every_years: Optional[int] = Field(None, description="None when the verification years don't follow a regular every-k pattern")
+    verification_rounds: int
+    verification_years: List[int]
+    price_thb_per_tCO2e: float = Field(..., description="Credit-weighted average sale price across rounds")
+    round_cost_thb: List[float] = Field(..., description="Monitoring + verification cost of each round, in verification_years order")
+    total_cost_thb: float
+    total_credits_tCO2e: int = Field(..., description="Whole tonnes: each plot rounded down per round, then summed")
+    credits_per_rai_tCO2e: float
+    total_revenue_thb: float
+    net_profit_thb: float
+    is_viable: bool
+    payback_year_at: Optional[int] = Field(None, description="First year_at where cumulative net >= 0; None if never within the period")
+    npv_thb: float
+    irr: Optional[float] = Field(None, description="Annual IRR as a fraction; None when cash flows never change sign")
+    break_even_price_thb: Optional[float]
+    discounted_break_even_price_thb: Optional[float] = Field(None, description="Price where NPV = 0 at discount_rate")
+    min_viable_area_rai: Optional[float] = Field(None, description="Area at this project's average credits/rai that covers total cost at this price")
+
+
+class EconomicsResult(EconomicsScenario):
+    schedule: List[EconomicsScheduleYear]
+
+
+class EconomicsPlot(BaseModel):
+    plot_id: str
+    label: Optional[str]
+    area_rai: float
+    tree_count: int
+    age_at_start: float = Field(..., description="Area-weighted cohort age this year")
+    cohort_ages: List[int]
+    carbon_stock_start_tCO2e: float
+    carbon_stock_end_tCO2e: float
+    credits_tCO2e: int = Field(..., description="This plot's credits over the requested rounds, rounded down per round")
+    credits_per_rai_tCO2e: float
+    beyond_model_age: bool = Field(..., description="A cohort passes the last modeled age during the period (growth held flat)")
+
+
+class EconomicsAgeRow(BaseModel):
+    start_age: int
+    credits_per_rai_tCO2e: float
+    min_viable_area_rai: Optional[float]
+
+
+class CarbonEconomicsResponse(BaseModel):
+    status: StatusMessage
+    start_year: int
+    crediting_years: int
+    discount_rate: float
+    total_area_rai: float
+    result: EconomicsResult = Field(..., description="The requested price + verification frequency")
+    plots: List[EconomicsPlot]
+    frequency_comparison: List[EconomicsScenario] = Field(..., description="Each of compare_frequencies; the one matching the requested years is the exact result, the others use its average price and average per-round fees")
+    min_break_even_price_thb: Optional[float] = Field(None, description="Lowest break-even price across compare_frequencies")
+    max_break_even_price_thb: Optional[float] = Field(None, description="Highest break-even price across compare_frequencies")
+    age_matrix: List[EconomicsAgeRow] = Field(..., description="Credits/rai and min viable area by starting age, using the first row's growth profile and the project's trees/rai, at the requested price + frequency")

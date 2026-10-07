@@ -21,9 +21,22 @@ const SERIES = [
 ] as const;
 type SeriesKey = (typeof SERIES)[number]["key"];
 
-const fmt = (v: number) => Math.round(v).toLocaleString("th-TH");
+// Net annual change = simulated stock(year) − stock(year − 1). Polarity pair:
+// gain (sequestration) vs loss (harvest/replant emission); sign is also
+// carried by bar direction from the zero baseline.
+const NET_GAIN_COLOR = "#1e7a47";
+const NET_LOSS_COLOR = "#eb6834";
+
+type ChartView = "stock" | "net";
+const VIEWS: { key: ChartView; label: string }[] = [
+  { key: "stock", label: "คาร์บอนสะสม" },
+  { key: "net", label: "คาร์บอนกักเก็บ" },
+];
+
+// Tonnes are rounded down (TGO convention), like every other carbon figure.
+const fmt = (v: number) => Math.floor(v).toLocaleString("th-TH");
 /** Axis labels only: province-scale totals ("30 ล้าน") would overflow the left margin as full digits. */
-const fmtTick = (v: number) =>
+export const fmtTick = (v: number) =>
   v >= 1_000_000 ? v.toLocaleString("th-TH", { notation: "compact", maximumFractionDigits: 1 }) : fmt(v);
 
 /** Round the axis max up to a 1/2/5 × 10^n step so gridlines land on clean numbers. */
@@ -34,6 +47,17 @@ function niceTicks(max: number, count = 5) {
   const step = [1, 2, 5, 10].map((m) => m * mag).find((s) => s >= raw)!;
   const top = Math.ceil(max / step) * step;
   return Array.from({ length: Math.round(top / step) + 1 }, (_, i) => i * step);
+}
+
+/** Like niceTicks but spanning a signed range; always includes 0. */
+export function niceSignedTicks(min: number, max: number, count = 5) {
+  const span = Math.max(1, max - min);
+  const raw = span / count;
+  const mag = Math.pow(10, Math.floor(Math.log10(raw)));
+  const step = [1, 2, 5, 10].map((m) => m * mag).find((s) => s >= raw)!;
+  const lo = Math.floor(min / step);
+  const hi = Math.ceil(max / step);
+  return Array.from({ length: hi - lo + 1 }, (_, i) => (lo + i) * step);
 }
 
 function SliderField({ label, value, min, max, step = 1, unit, onChange, ticks }: {
@@ -71,6 +95,7 @@ export function CarbonSimulationChart({ baseRows, isMobile, unitLabel = "แป�
 }) {
   const [rotationYear, setRotationYear] = useState(35);
   const [replantingPct, setReplantingPct] = useState(100);
+  const [view, setView] = useState<ChartView>("stock");
   const wrapRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(0);
 
@@ -123,22 +148,45 @@ export function CarbonSimulationChart({ baseRows, isMobile, unitLabel = "แป�
           onChange={setReplantingPct} ticks={[0, 50, 100, 150, 200]} />
       </div>
 
+      {/* Chart switcher */}
+      <div role="tablist" aria-label="เลือกกราฟ" style={{ display: "flex", gap: 4, padding: 4, marginBottom: 14, background: "#fff", border: "1px solid rgba(30,122,71,0.2)", borderRadius: 10, width: isMobile ? "100%" : "fit-content" }}>
+        {VIEWS.map((v) => {
+          const active = view === v.key;
+          return (
+            <button key={v.key} type="button" role="tab" aria-selected={active} onClick={() => setView(v.key)}
+              style={{ flex: isMobile ? 1 : undefined, padding: "6px 14px", borderRadius: 7, border: "none", cursor: "pointer", fontSize: 13, fontWeight: 700, background: active ? "#1e7a47" : "transparent", color: active ? "#fff" : "#17603a", transition: "background 0.15s" }}>
+              {v.label}
+            </button>
+          );
+        })}
+      </div>
+
       <div style={{ textAlign: "center", fontSize: isMobile ? 14 : 16, fontWeight: 800, color: "#17603a" }}>
-        ปริมาณคาร์บอนกักเก็บจำลอง (tCO₂eq/{unitLabel})
+        {view === "stock"
+          ? <>ปริมาณคาร์บอนกักเก็บ (tCO₂eq/{unitLabel})</>
+          : <>คาร์บอนกักเก็บสุทธิรายปี (tCO₂eq/{unitLabel}/ปี)</>}
       </div>
 
       {/* Legend */}
       <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", gap: isMobile ? "4px 14px" : "4px 22px", margin: "6px 0 4px", fontSize: 12, color: "#475569", fontWeight: 600 }}>
-        {SERIES.map((s) => (
+        {view === "stock" ? SERIES.map((s) => (
           <span key={s.key} style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
             <svg width="26" height="8" aria-hidden="true"><line x1="1" y1="4" x2="25" y2="4" stroke={s.color} strokeWidth={s.dash ? 2 : 3} strokeDasharray={s.dash} strokeLinecap="round" /></svg>
             {s.label}
           </span>
+        )) : ([[NET_GAIN_COLOR, "กักเก็บเพิ่ม (+)"], [NET_LOSS_COLOR, "ปล่อยออก (−)"]] as const).map(([c, l]) => (
+          <span key={l} style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+            <span aria-hidden="true" style={{ width: 10, height: 10, borderRadius: 2, background: c }} />
+            {l}
+          </span>
         ))}
+        {view === "net" && <span style={{ color: "#94a3b8", fontWeight: 500 }}>คาร์บอนกักเก็บสุทธิรายปี = คาร์บอนสะสมปี t − คาร์บอนสะสมปี t-1</span>}
       </div>
 
       <div ref={wrapRef} style={{ position: "relative", width: "100%", height: H }}>
-        {width > 0 && data && data.length > 0 && <SimulationPlot data={data} width={width} height={H} isMobile={isMobile} />}
+        {width > 0 && data && data.length > 1 && (view === "stock"
+          ? <SimulationPlot data={data} width={width} height={H} isMobile={isMobile} />
+          : <NetAnnualPlot data={data} width={width} height={H} isMobile={isMobile} />)}
         {!data && !error && (
           <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, color: "#5a7a65", fontSize: 13, fontWeight: 600 }}>
             <Loader2 className="size-4 animate-spin" aria-hidden="true" /> กำลังคำนวณ...
@@ -290,11 +338,144 @@ function SimulationPlot({ data, width, height: H, isMobile }: {
                 </div>
               ))}
               <div style={{ marginTop: 4, paddingTop: 4, borderTop: "1px solid rgba(255,255,255,0.15)", opacity: 0.75 }}>
-                จำนวนต้น (จำลอง): {hovered.tree_count.toLocaleString("th-TH")} ต้น
+                จำนวนต้น: {hovered.tree_count.toLocaleString("th-TH")} ต้น
               </div>
             </div>
           );
         })()}
+    </>
+  );
+}
+
+/** Bar chart of year-over-year change in the simulated (central) stock. */
+function NetAnnualPlot({ data, width, height: H, isMobile }: {
+  data: SimulationYearlyPoint[];
+  width: number;
+  height: number;
+  isMobile?: boolean;
+}) {
+  const [hoverIdx, setHoverIdx] = useState<number | null>(null);
+  const PL = isMobile ? 44 : 60;
+  const PR = isMobile ? 12 : 20;
+  const PT = 34;
+  const PB = 40;
+  const iW = Math.max(0, width - PL - PR);
+  const iH = H - PT - PB;
+
+  // First year has no predecessor, so the series starts one year in.
+  const bars = data.slice(1).map((d, i) => ({ ...d, net: d.carbon_stock_tCO2e - data[i].carbon_stock_tCO2e }));
+  const minAt = bars[0].year_at;
+  const maxAt = bars[bars.length - 1].year_at;
+  const nets = bars.map((b) => b.net);
+  const yTicks = niceSignedTicks(Math.min(0, ...nets), Math.max(0, ...nets), isMobile ? 4 : 6);
+  const yLo = yTicks[0];
+  const yHi = yTicks[yTicks.length - 1];
+
+  const slot = iW / (maxAt - minAt + 1);
+  const barW = Math.max(1, Math.min(14, slot * 0.6));
+  const xOf = (yearAt: number) => PL + (yearAt - minAt + 0.5) * slot;
+  const yOf = (v: number) => PT + ((yHi - v) / (yHi - yLo)) * iH;
+  const y0 = yOf(0);
+
+  /** Bar anchored square on the zero baseline with a rounded data end. */
+  const barPath = (cx: number, v: number) => {
+    const y = yOf(v);
+    const h = Math.abs(y - y0);
+    const r = Math.min(barW / 2, 4, h);
+    const x0 = cx - barW / 2, x1 = cx + barW / 2;
+    if (h < 0.5) return "";
+    return v >= 0
+      ? `M${x0},${y0} V${y + r} Q${x0},${y} ${x0 + r},${y} H${x1 - r} Q${x1},${y} ${x1},${y + r} V${y0} Z`
+      : `M${x0},${y0} V${y - r} Q${x0},${y} ${x0 + r},${y} H${x1 - r} Q${x1},${y} ${x1},${y - r} V${y0} Z`;
+  };
+
+  const currentYear = data.find((d) => d.year_at === 0)!.year;
+  const netZeroAt = NET_ZERO_YEAR_CE - currentYear;
+  const xTickStep = iW < 420 ? 20 : 10;
+  const xTicks = bars.filter((d) => d.year_at % xTickStep === 0);
+
+  const handlePointer = (e: React.PointerEvent<SVGRectElement>) => {
+    const box = e.currentTarget.getBoundingClientRect();
+    const idx = Math.floor(((e.clientX - box.left) / box.width) * bars.length);
+    setHoverIdx(Math.max(0, Math.min(bars.length - 1, idx)));
+  };
+  const hovered = hoverIdx !== null ? bars[hoverIdx] : null;
+
+  return (
+    <>
+      <svg width={width} height={H} role="img" aria-label="กราฟคาร์บอนสุทธิรายปีจำลอง (ปริมาณคาร์บอนปีนั้นลบปีก่อนหน้า)" style={{ display: "block", overflow: "visible" }}>
+        {/* Past region */}
+        <rect x={PL} y={PT} width={Math.max(0, xOf(0) - slot / 2 - PL)} height={iH} fill="rgba(100,116,139,0.06)" />
+
+        {/* Y grid + labels */}
+        {yTicks.map((t) => (
+          <g key={t}>
+            <line x1={PL} x2={PL + iW} y1={yOf(t)} y2={yOf(t)} stroke={t ? "rgba(0,0,0,0.07)" : "rgba(0,0,0,0.3)"} strokeDasharray={t ? "3 4" : undefined} />
+            <text x={PL - 8} y={yOf(t) + 4} textAnchor="end" fontSize={12} fill="#64748b">
+              {t < 0 ? "−" : ""}{fmtTick(Math.abs(t))}
+            </text>
+          </g>
+        ))}
+
+        {/* X ticks */}
+        {xTicks.map((d) => (
+          <text key={d.year_at} x={xOf(d.year_at)} y={PT + iH + 18} textAnchor="middle" fontSize={12}
+            fill={d.year_at === 0 ? "#17603a" : "#64748b"} fontWeight={d.year_at === 0 ? 800 : 500}>
+            {d.year + BE_OFFSET}
+          </text>
+        ))}
+        <text x={PL + iW / 2} y={PT + iH + 36} textAnchor="middle" fontSize={12} fill="#94a3b8">พ.ศ.</text>
+
+        {/* Current-year marker */}
+        <line x1={xOf(0)} x2={xOf(0)} y1={PT} y2={PT + iH} stroke="#475569" strokeWidth={1.5} opacity={0.6} />
+        <text x={xOf(0)} y={PT - 8} textAnchor="middle" fontSize={12} fontWeight={700} fill="#475569">ปัจจุบัน</text>
+
+        {/* Net-zero target marker */}
+        {netZeroAt >= minAt && netZeroAt <= maxAt && (
+          <g>
+            <rect x={xOf(netZeroAt) - slot / 2} y={PT} width={slot} height={iH} fill="rgba(15,118,110,0.10)" />
+            <text x={xOf(netZeroAt)} y={PT - 8} textAnchor="middle" fontSize={12} fontWeight={800} fill="#0f766e">
+              Net Zero {NET_ZERO_YEAR_CE + BE_OFFSET}
+            </text>
+          </g>
+        )}
+
+        {/* Bars */}
+        {bars.map((b, i) => (
+          <path key={b.year_at} d={barPath(xOf(b.year_at), b.net)}
+            fill={b.net >= 0 ? NET_GAIN_COLOR : NET_LOSS_COLOR}
+            opacity={hoverIdx === null || hoverIdx === i ? 1 : 0.45}
+            stroke={b.year_at === netZeroAt ? "#0f766e" : undefined} strokeWidth={b.year_at === netZeroAt ? 1.5 : undefined} />
+        ))}
+
+        <rect x={PL} y={PT} width={iW} height={iH} fill="transparent" style={{ cursor: "crosshair", touchAction: "pan-y" }}
+          onPointerMove={handlePointer} onPointerDown={handlePointer} onPointerLeave={() => setHoverIdx(null)} />
+      </svg>
+
+      {/* Tooltip */}
+      {hovered && (() => {
+        const x = xOf(hovered.year_at);
+        const tipW = 210;
+        const left = Math.min(Math.max(x + (x > width / 2 ? -tipW - 12 : 12), 0), width - tipW);
+        return (
+          <div style={{ position: "absolute", left, top: PT, width: tipW, pointerEvents: "none", background: "#082f20", color: "#fff", borderRadius: 8, padding: "8px 12px", boxShadow: "0 4px 16px rgba(0,0,0,0.35)", fontSize: 12 }}>
+            <div style={{ fontWeight: 800, marginBottom: 4 }}>
+              พ.ศ. {hovered.year + BE_OFFSET}
+              <span style={{ fontWeight: 500, opacity: 0.7 }}> ({hovered.year_at > 0 ? "+" : ""}{hovered.year_at} ปี)</span>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 8, lineHeight: 1.6 }}>
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 6, opacity: 0.85 }}>
+                <span style={{ width: 8, height: 8, borderRadius: 2, background: hovered.net >= 0 ? NET_GAIN_COLOR : NET_LOSS_COLOR }} />สุทธิรายปี
+              </span>
+              <strong>{hovered.net > 0 ? "+" : hovered.net < 0 ? "−" : ""}{fmt(Math.abs(hovered.net))}</strong>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 8, lineHeight: 1.6, opacity: 0.85 }}>
+              <span>คาร์บอนสะสม</span>
+              <span>{fmt(hovered.carbon_stock_tCO2e)}</span>
+            </div>
+          </div>
+        );
+      })()}
     </>
   );
 }

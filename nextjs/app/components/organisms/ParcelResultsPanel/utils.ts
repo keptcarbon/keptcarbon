@@ -243,21 +243,13 @@ export function aggregateProfiles(responses: CarbonAssessResponse[], fallbackBas
 
     if (profiles.length === 0) return [];
 
-    // Align by year_at (years relative to each plot's own baseline) rather than
-    // absolute calendar year, and trim to the range every plot has in common —
-    // the intersection of year_at values, not the union.
-    const minYearAt = Math.max(...profiles.map(p => Math.min(...p.map(item => item.year_at))));
-    const maxYearAt = Math.min(...profiles.map(p => Math.max(...p.map(item => item.year_at))));
+    // Sum by calendar year over the union of every plot's years: a plot adds to
+    // the years its own profile covers (planting .. age 35) and nothing before
+    // it was planted. year_at is re-derived from the current year since each
+    // profile's own year_at is relative to when that plot was assessed.
+    const minYear = Math.min(...profiles.map(p => Math.min(...p.map(item => item.year))));
+    const maxYear = Math.max(...profiles.map(p => Math.max(...p.map(item => item.year))));
 
-    if (minYearAt > maxYearAt) return [];
-
-    const validYearAts: number[] = [];
-    for (let y = minYearAt; y <= maxYearAt; y++) {
-        validYearAts.push(y);
-    }
-    const validYearAtSet = new Set(validYearAts);
-
-    // Initialise the accumulator only for valid year_at values
     const yearMap = new Map<number, {
         totalCo2: number;
         sumLinearCI: number;
@@ -265,18 +257,15 @@ export function aggregateProfiles(responses: CarbonAssessResponse[], fallbackBas
         validAgeCount: number;
         totalGain: number;
         sumLinearGainCI: number;
-        totalYear: number;
-        yearCount: number;
     }>();
-    for (const yearAt of validYearAts) {
-        yearMap.set(yearAt, { totalCo2: 0, sumLinearCI: 0, totalAge: 0, validAgeCount: 0, totalGain: 0, sumLinearGainCI: 0, totalYear: 0, yearCount: 0 });
+    for (let y = minYear; y <= maxYear; y++) {
+        yearMap.set(y, { totalCo2: 0, sumLinearCI: 0, totalAge: 0, validAgeCount: 0, totalGain: 0, sumLinearGainCI: 0 });
     }
 
-    // Sum each plot's contribution, skipping year_at values outside the common overlap
     for (const profile of profiles) {
         for (const item of profile) {
-            if (!item || !validYearAtSet.has(item.year_at)) continue;
-            const data = yearMap.get(item.year_at)!;
+            const data = item && yearMap.get(item.year);
+            if (!data) continue;
             data.totalCo2 += Math.floor(item.stocks.value || 0);
             data.sumLinearCI = Math.round((data.sumLinearCI + Math.floor((item.stocks.ci || 0) * 10) / 10) * 10) / 10;
             if (item.age != null && !isNaN(item.age)) {
@@ -285,18 +274,15 @@ export function aggregateProfiles(responses: CarbonAssessResponse[], fallbackBas
             }
             data.totalGain += Math.floor(item.gain.value || 0);
             data.sumLinearGainCI = Math.round((data.sumLinearGainCI + Math.floor((item.gain.ci || 0) * 10) / 10) * 10) / 10;
-            data.totalYear += item.year;
-            data.yearCount++;
         }
     }
 
-    return validYearAts.map((yearAt) => {
-        const data = yearMap.get(yearAt)!;
+    return [...yearMap.entries()].map(([year, data]) => {
+        const yearAt = year - CURRENT_CE;
         const avgAge = data.validAgeCount > 0 ? Math.round(data.totalAge / data.validAgeCount) : fallbackBaseAge + yearAt;
-        const avgYear = data.yearCount > 0 ? Math.round(data.totalYear / data.yearCount) : CURRENT_CE + yearAt;
         return {
             age: avgAge,
-            yearBE: avgYear + 543,
+            yearBE: year + 543,
             year_at: yearAt,
             co2: data.totalCo2,
             ci: data.sumLinearCI,

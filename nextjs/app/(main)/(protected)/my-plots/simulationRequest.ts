@@ -1,8 +1,12 @@
 import type { AssessParameters, CarbonSimulationRow } from "@/lib/carbon-api";
 import type { SavedPlot } from "./types";
 
-/** A /carbon/sim row before the UI's rotation/replanting sliders are applied. */
-export type SimBaseRow = Omit<CarbonSimulationRow, "rotation_year" | "replanting_rate">;
+/** A /carbon/sim row before the UI's rotation/replanting sliders are applied.
+ *  plot_id/label are only read by /carbon/economics (per-plot breakdown). */
+export type SimBaseRow = Omit<CarbonSimulationRow, "rotation_year" | "replanting_rate"> & {
+  plot_id?: string;
+  label?: string;
+};
 
 export type SimRowsResult =
   | { ok: true; rows: SimBaseRow[] }
@@ -100,14 +104,15 @@ export function buildProjectSimRows(plots: SavedPlot[]): ProjectSimRows {
   let included = 0;
   let skipped = 0;
   const rows: SimBaseRow[] = [];
-  for (const plot of plots) {
+  plots.forEach((plot, idx) => {
     const res = buildSimRows(plot.backendData?.ep, plot.province);
     if (res.ok) {
-      rows.push(...res.rows);
+      // Numbered by position, matching the project table's # column.
+      rows.push(...res.rows.map((r) => ({ ...r, plot_id: plot.id, label: `แปลงที่ ${idx + 1}` })));
       included += 1;
     } else {
       skipped += 1;
     }
-  }
+  });
   return { rows, included, skipped };
 }

@@ -120,3 +120,32 @@ async def test_sim_wrong_type_returns_422(app):
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
         resp = await ac.post("/api/v1/carbon/sim", json=bad_payload)
     assert resp.status_code == 422
+
+
+# ── /carbon/economics ────────────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_economics_route_applies_defaults(app, mock_service):
+    mock_service.get_carbon_economics = AsyncMock(side_effect=HTTPException(status_code=422, detail="No biomass profile"))
+    row = {k: v for k, v in GOOD_ROW.items()}
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+        resp = await ac.post("/api/v1/carbon/economics", json={"rows": [row]})
+    assert resp.status_code == 422
+    sent = mock_service.get_carbon_economics.await_args.args[0]
+    assert sent["costs"] == {"pdd": 400000, "validation": 200000, "monitoring_per_round": 400000, "verification_per_round": 200000}
+    assert sent["price_thb_per_tCO2e"] == 100
+    assert sent["verify_every_years"] == 7
+    assert sent["discount_rate"] == 0.05
+    assert sent["rows"][0]["plot_id"] is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("body", [
+    {"rows": []},
+    {"rows": [GOOD_ROW], "verify_every_years": 8},
+    {"rows": [GOOD_ROW], "price_thb_per_tCO2e": 0},
+])
+async def test_economics_route_validation(app, body):
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+        resp = await ac.post("/api/v1/carbon/economics", json=body)
+    assert resp.status_code == 422

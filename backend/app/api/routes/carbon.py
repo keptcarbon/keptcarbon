@@ -5,6 +5,8 @@ from app.schemas.carbon import (
     CarbonAssessResponse,
     CarbonSimulationRequest,
     CarbonSimulationResponse,
+    CarbonEconomicsRequest,
+    CarbonEconomicsResponse,
 )
 from app.schemas.plots import StatusMessage
 from app.services.carbon_service import CarbonService
@@ -61,5 +63,15 @@ async def simulation_carbon(sim_data: List[CarbonSimulationRequest]):
     return result
 
 
-
-
+@router.post("/carbon/economics", response_model=CarbonEconomicsResponse)
+async def economics_carbon(req: CarbonEconomicsRequest):
+    try:
+        return await service.get_carbon_economics(req.model_dump())
+    except HTTPException:
+        # 422 for unknown biomass profile / spacing, as in /carbon/sim.
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error processing economics payload: {str(e)}"
+        )
