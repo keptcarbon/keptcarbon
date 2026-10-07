@@ -1,5 +1,6 @@
 import type { CarbonAssessResponse, YearlyAssess } from "@/lib/carbon-api";
 import type { BarPoint } from "./CarbonBarChart";
+import { ciTonnes } from "@/lib/utils";
 
 export interface PlotFormData {
     plantStatus: "replanting" | "existing" | "";
@@ -267,13 +268,13 @@ export function aggregateProfiles(responses: CarbonAssessResponse[], fallbackBas
             const data = item && yearMap.get(item.year);
             if (!data) continue;
             data.totalCo2 += Math.floor(item.stocks.value || 0);
-            data.sumLinearCI = Math.round((data.sumLinearCI + Math.floor((item.stocks.ci || 0) * 10) / 10) * 10) / 10;
+            data.sumLinearCI += ciTonnes(item.stocks.ci || 0);
             if (item.age != null && !isNaN(item.age)) {
                 data.totalAge += item.age;
                 data.validAgeCount++;
             }
             data.totalGain += Math.floor(item.gain.value || 0);
-            data.sumLinearGainCI = Math.round((data.sumLinearGainCI + Math.floor((item.gain.ci || 0) * 10) / 10) * 10) / 10;
+            data.sumLinearGainCI += ciTonnes(item.gain.ci || 0);
         }
     }
 

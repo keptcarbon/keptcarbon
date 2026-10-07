@@ -7,6 +7,7 @@ import type { SavedPlot } from "./types";
 import styles from "./PlotsMapView.module.css";
 import { MAP_VIEW_ANIMATION_DURATION } from "@/lib/map-utils";
 import { plotDisplayArea } from "./plotArea";
+import { formatArea } from "@/lib/utils";
 
 const PROJECT_COLORS = [
   "#f97316",
@@ -105,7 +106,7 @@ export function PlotsMapView({ plots, isMobile }: { plots: SavedPlot[], isMobile
           const props = {
             id: p.id,
             projectName: name,
-            area: plotDisplayArea(p).rai.toFixed(2),
+            area: formatArea(plotDisplayArea(p).rai),
             carbon: Math.floor(p.carbonTotal).toLocaleString("th-TH"), // whole tonnes, rounded down (TGO)
             carbonPerTree: carbonPerTree ?? "—",
             province: p.province || "—",
@@ -264,7 +265,7 @@ export function PlotsMapView({ plots, isMobile }: { plots: SavedPlot[], isMobile
       const props = {
         id: p.id,
         projectName: name,
-        area: plotDisplayArea(p).rai.toFixed(2),
+        area: formatArea(plotDisplayArea(p).rai),
         carbon: Math.floor(p.carbonTotal).toLocaleString("th-TH"), // whole tonnes, rounded down (TGO)
         carbonPerTree: carbonPerTree ?? "—",
         province: p.province || "—",

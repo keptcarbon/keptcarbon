@@ -7,6 +7,7 @@ import styles from "./ProjectCarbonSummary.module.css";
 import { Accordion } from "./Accordion";
 import { plotDisplayArea } from "./plotArea";
 import { PendingNotice } from "./PendingNotice";
+import { formatArea, ciTonnes, formatCiTonnes } from "@/lib/utils";
 
 export function ProjectCarbonSummary({ plots, isMobile, open, onToggle }: {
   plots: SavedPlot[];
@@ -38,7 +39,7 @@ export function ProjectCarbonSummary({ plots, isMobile, open, onToggle }: {
       } else {
         if (plot.carbonTotal > 0) fallbackTotal += Math.floor(plot.carbonTotal);
         const approxCi = (plot.carbonTotal || 0) * 0.05;
-        fallbackLinearCi += Math.floor(approxCi * 10) / 10;
+        fallbackLinearCi += ciTonnes(approxCi);
       }
     }
 
@@ -71,9 +72,9 @@ export function ProjectCarbonSummary({ plots, isMobile, open, onToggle }: {
         const e = sumMap.get(p.yearBE);
         if (!e) continue;
         e.co2 += Math.floor(p.co2 || 0);
-        e.sumLinearCi = Math.round((e.sumLinearCi + Math.floor((p.ci || 0) * 10) / 10) * 10) / 10;
+        e.sumLinearCi += ciTonnes(p.ci || 0);
         e.gainValue += Math.floor(p.gainValue || 0);
-        e.gainCi = Math.round((e.gainCi + Math.floor((p.gainCi || 0) * 10) / 10) * 10) / 10;
+        e.gainCi += ciTonnes(p.gainCi || 0);
         if (p.isAgeValid) { e.totalValidAge += p.age; e.validAgeCount += 1; }
         else { e.fallbackAgeAccum += p.age; e.fallbackCount += 1; }
       }
@@ -191,7 +192,7 @@ export function ProjectCarbonSummary({ plots, isMobile, open, onToggle }: {
               {/* Top 3 Stats grid */}
               <div className={`${styles.statsGrid} ${isMobile ? styles.statsGridMobile : ""}`}>
                 <StatCard icon="bi-check-circle-fill" iconColor="#1e7a47" label="ประมวลผลแล้ว" value={`${processedCount}/${plots.length}`} unit="แปลง" valueColor="#17603a" />
-                <StatCard icon="bi-grid-fill" iconColor="#1e7a47" label="พื้นที่รวม" value={totalAreaRai.toFixed(1)} unit="ไร่" valueColor="#1e7a47" />
+                <StatCard icon="bi-grid-fill" iconColor="#1e7a47" label="พื้นที่รวม" value={formatArea(totalAreaRai)} unit="ไร่" valueColor="#1e7a47" />
                 {totalTrees > 0 && (
                   <StatCard icon="bi-tree-fill" iconColor="#1e7a47" label="จำนวนต้นรวม" value={totalTrees.toLocaleString("th-TH")} unit="ต้น" valueColor="#064e3b" fullSpan={isMobile} />
                 )}
@@ -225,7 +226,7 @@ export function ProjectCarbonSummary({ plots, isMobile, open, onToggle }: {
                                 {Math.floor(pt.gainValue).toLocaleString("th-TH")}
                               </span>
                               <span className={styles.cycleValueCi} style={{ color: col.bot }}>
-                                ± {(Math.floor(pt.gainCi * 10) / 10).toLocaleString("th-TH", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+                                ± {formatCiTonnes(pt.gainCi)}
                               </span>
                               <span className={styles.cycleValueUnit}>tCO₂eq</span>
                             </div>

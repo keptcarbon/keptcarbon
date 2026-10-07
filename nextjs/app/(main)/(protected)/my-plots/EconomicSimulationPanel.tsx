@@ -11,6 +11,7 @@ import {
 import type { SimBaseRow } from "./simulationRequest";
 import { fmtTick, niceSignedTicks } from "./CarbonSimulationChart";
 import { PlantStatusIcon } from "./PlantStatusIcon";
+import { formatArea } from "@/lib/utils";
 
 const BE_OFFSET = 543;
 const INPUT_DEBOUNCE_MS = 500;
@@ -267,7 +268,7 @@ export function EconomicSimulationPanel({ baseRows, isMobile, showPlots = false,
 
           {showAgeMatrix && (
             <Card title="พื้นที่ขั้นต่ำตามอายุยางเมื่อเริ่มโครงการ (ไร่)"
-              subtitle={`ต้นทุนรวม ${fmtBaht(r.total_cost_thb)} บาท, ราคาเฉลี่ย ${fmt(r.price_thb_per_tCO2e, 2)} บาท/tCO₂eq — เส้นประ = พื้นที่ปัจจุบัน ${fmt(data.total_area_rai, 2)} ไร่`}>
+              subtitle={`ต้นทุนรวม ${fmtBaht(r.total_cost_thb)} บาท, ราคาเฉลี่ย ${fmt(r.price_thb_per_tCO2e, 2)} บาท/tCO₂eq — เส้นประ = พื้นที่ปัจจุบัน ${formatArea(data.total_area_rai)} ไร่`}>
               <AgeMatrixChart data={data} isMobile={isMobile} />
             </Card>
           )}
@@ -312,8 +313,8 @@ function SummaryTiles({ data, isMobile }: { data: CarbonEconomicsResponse; isMob
     },
     {
       label: "พื้นที่ขั้นต่ำที่คุ้มทุน",
-      value: r.min_viable_area_rai != null ? `${fmt(r.min_viable_area_rai, 2)} ไร่` : "–",
-      sub: `พื้นที่ปัจจุบัน ${fmt(data.total_area_rai, 2)} ไร่`,
+      value: r.min_viable_area_rai != null ? `${formatArea(r.min_viable_area_rai)} ไร่` : "–",
+      sub: `พื้นที่ปัจจุบัน ${formatArea(data.total_area_rai)} ไร่`,
       tone: r.min_viable_area_rai != null ? (data.total_area_rai >= r.min_viable_area_rai ? "good" : "bad") : undefined,
     },
     {
@@ -406,7 +407,9 @@ function CashFlowChart({ schedule, isMobile }: { schedule: EconomicsScheduleYear
                 <text x={xOf(i)} y={PT + iH + 16} textAnchor="middle" fontSize={12} fill={s.is_verification ? INK : "#64748b"} fontWeight={s.is_verification ? 800 : 500}>
                   {s.year + BE_OFFSET}
                 </text>
-                {s.is_verification && <text x={xOf(i)} y={PT + iH + 30} textAnchor="middle" fontSize={10} fill="#0f766e" fontWeight={700}>ทวนสอบ</text>}
+                {s.year_at === 0
+                  ? <text x={xOf(i)} y={PT + iH + 30} textAnchor="middle" fontSize={10} fill="#334155" fontWeight={700}>ขึ้นทะเบียน</text>
+                  : s.is_verification && <text x={xOf(i)} y={PT + iH + 30} textAnchor="middle" fontSize={10} fill="#0f766e" fontWeight={700}>ทวนสอบ</text>}
               </g>
             );
           })}
@@ -555,7 +558,7 @@ function PlotTable({ data, isMobile, plantStatusById }: {
                       aria-label="อายุเกินช่วงแบบจำลอง" style={{ color: "#d97706", marginLeft: 6, fontSize: 12 }} />
                   )}
                 </td>
-                <td style={td}>{fmt(p.area_rai, 2)}</td>
+                <td style={td}>{formatArea(p.area_rai)}</td>
                 <td style={td}>{formatCohortAges(p.cohort_ages, data.start_year)}</td>
                 <td style={{ ...td, fontWeight: 700 }}>{fmtTonnes(p.credits_tCO2e)}</td>
                 <td style={td}>{fmt(p.credits_per_rai_tCO2e, 2)}</td>
@@ -574,6 +577,14 @@ function PlotTable({ data, isMobile, plantStatusById }: {
           })}
         </tbody>
       </table>
+      {/* What the flag means: relative productivity, not a verdict to drop the plot. */}
+      <div style={{ display: "flex", gap: 6, marginTop: 8, fontSize: 12, color: "#64748b", lineHeight: 1.6, whiteSpace: "normal" }}>
+        <i className="bi bi-exclamation-triangle-fill" aria-hidden="true" style={{ color: "#b45309", marginTop: 2 }} />
+        <span>
+          <strong style={{ color: "#b45309" }}>ผลผลิตต่ำ</strong> = เครดิตต่อไร่ต่ำกว่าครึ่งหนึ่งของค่าเฉลี่ยโครงการ
+          ซึ่งแสดงว่าแปลงนั้นกักเก็บคาร์บอนได้น้อยเมื่อเทียบกับแปลงอื่น 
+        </span>
+      </div>
     </div>
   );
 }
@@ -638,7 +649,7 @@ function AgeMatrixChart({ data, isMobile }: { data: CarbonEconomicsResponse; isM
           <div style={{ position: "absolute", left, top: PT, width: tipW, pointerEvents: "none", background: "#082f20", color: "#fff", borderRadius: 8, padding: "8px 12px", boxShadow: "0 4px 16px rgba(0,0,0,0.35)", fontSize: 12, lineHeight: 1.6 }}>
             <div style={{ fontWeight: 800 }}>เริ่มที่อายุ {h.start_age} ปี</div>
             <div>เครดิต {fmt(h.credits_per_rai_tCO2e, 2)} tCO₂eq/ไร่</div>
-            <div>พื้นที่ขั้นต่ำ <strong>{h.min_viable_area_rai != null ? `${fmt(h.min_viable_area_rai, 2)} ไร่` : "–"}</strong></div>
+            <div>พื้นที่ขั้นต่ำ <strong>{h.min_viable_area_rai != null ? `${formatArea(h.min_viable_area_rai)} ไร่` : "–"}</strong></div>
           </div>
         );
       })()}

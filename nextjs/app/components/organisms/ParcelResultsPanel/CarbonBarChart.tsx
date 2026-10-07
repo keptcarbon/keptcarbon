@@ -2,6 +2,7 @@
 import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import type { YearlyAssess } from "@/lib/carbon-api";
+import { formatCiTonnes } from "@/lib/utils";
 
 // All-green theme: lime → mint → emerald → forest → teal
 const GREEN_THEME_COLORS = [
@@ -151,7 +152,7 @@ export function CarbonBarChart({
       )}
       {baseline && (
         <div style={{ textAlign: "center", fontSize: isMobile ? 12 : 14, fontWeight: 600, color: "#5a7a65", marginBottom: isMobile ? 6 : 10 }}>
-          Baseline: <span style={{ fontSize: isMobile ? 16 : 18, color: "#17603a", fontWeight: 800 }}>{Math.floor(baseline.value).toLocaleString()}</span> ± {(Math.floor(baseline.ci * 10) / 10).toLocaleString("th-TH", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+          Baseline: <span style={{ fontSize: isMobile ? 16 : 18, color: "#17603a", fontWeight: 800 }}>{Math.floor(baseline.value).toLocaleString()}</span> ± {formatCiTonnes(baseline.ci)}
         </div>
       )}
 
@@ -295,9 +296,9 @@ export function CarbonBarChart({
           const translateX = xPct > 70 ? "-90%" : xPct < 30 ? "-10%" : "-50%";
 
           const co2Val = Math.floor(p.co2 || 0);
-          const co2Ci = (Math.floor((p.ci || 0) * 10) / 10).toLocaleString("th-TH", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+          const co2Ci = formatCiTonnes(p.ci || 0);
           const gainVal = Math.floor(p.gainValue || 0).toLocaleString("th-TH");
-          const gainCiVal = (Math.floor((p.gainCi || 0) * 10) / 10).toLocaleString("th-TH", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+          const gainCiVal = formatCiTonnes(p.gainCi || 0);
 
           const tooltipBottomY = yFixed - 10;
 

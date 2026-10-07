@@ -5,6 +5,7 @@ import DashboardMap, { type MapPlot } from "./DashboardMap";
 import { simulateCarbon } from "@/lib/carbon-api";
 import { Footer } from "@/app/components/organisms";
 import { useCounter } from "@/lib/use-counter";
+import { formatArea } from "@/lib/utils";
 
 // Rubber age groups (years) shared by every chart on this page. "31+" has no
 // upper bound; the 0–35 per-year chart caps it at 35.
@@ -37,9 +38,10 @@ type District = {
   lat: number | null; lng: number | null;
 };
 
-const fmt = (n: number) => n.toLocaleString("th-TH");
 const M2_PER_RAI = 1600;
 const BE_OFFSET = 543;
+/** Keeps 2 decimals of an area for display (carbon stays whole). */
+const round2 = (n: number) => Math.round(n * 100) / 100;
 const fmtC = (n: number) => n.toLocaleString("th-TH", { maximumFractionDigits: 0 });
 
 
@@ -402,7 +404,7 @@ function AgeDistributionChart({ isMobile, perYearRai, perYearCarbon, scopeLabel,
                 {hoveredAge} ปี 
               </text>
               <text x={ttX + ttW / 2} y={ttY + (isMobile ? 40 : 44)} textAnchor="middle" fontSize={isMobile ? 13 : 16} fill="#fff" fontWeight={900}>
-                {val.toLocaleString("th-TH")} ไร่
+                {formatArea(val)} ไร่
               </text>
               <text x={ttX + ttW / 2} y={ttY + (isMobile ? 60 : 68)} textAnchor="middle" fontSize={isMobile ? 13 : 16} fill={CARBON_ON_DARK} fontWeight={800}>
                 {carbon.toLocaleString("th-TH")} tCO₂eq
@@ -451,7 +453,7 @@ function InsightCards({ d }: { d: District }) {
     {
       icon: "bi-speedometer2", color: "#0d9488", label: "ความหนาแน่นคาร์บอนเฉลี่ย",
       value: d.areaRai > 0 ? d.carbon / d.areaRai : 0, digits: 1, unit: "tCO₂eq/ไร่",
-      note: `คาร์บอนสะสมเฉลี่ยต่อพื้นที่ยาง ${fmt(d.areaRai)} ไร่`,
+      note: `คาร์บอนสะสมเฉลี่ยต่อพื้นที่ยาง ${formatArea(d.areaRai)} ไร่`,
     },
     {
       icon: "bi-graph-up-arrow", color: "#16a34a", label: "อัตราการกักเก็บคาร์บอนต่อปี",
@@ -460,13 +462,13 @@ function InsightCards({ d }: { d: District }) {
     },
     {
       icon: "bi-arrow-repeat", color: "#b45309", label: "พื้นที่ใกล้ครบรอบโค่น (> 26 ปี)",
-      value: d.matureRai, digits: 0, unit: "ไร่",
+      value: d.matureRai, digits: 2, unit: "ไร่",
       note: `กักเก็บคาร์บอน ${fmtC(d.matureCarbon)} tCO₂eq (${pct(d.matureCarbon, d.carbon).toFixed(1)}% ของทั้งหมด) ที่จะลดลงเมื่อโค่นและปลูกทดแทน`,
     },
     {
       icon: "bi-check2-circle", color: "#475569", label: "ความครอบคลุมของข้อมูลปีปลูก",
       value: pct(d.areaRai, totalRubberRai), digits: 1, unit: "%",
-      note: `พื้นที่ยางที่ไม่สามารถระบุปีปลูกจำนวน ${fmt(d.unclassifiedRai)} ไร่ ซึ่งไม่ได้รวมในการคำนวณคาร์บอน`,
+      note: `พื้นที่ยางที่ไม่สามารถระบุปีปลูกจำนวน ${formatArea(d.unclassifiedRai)} ไร่ ซึ่งไม่ได้รวมในการคำนวณคาร์บอน`,
     },
   ];
   return (
@@ -596,15 +598,15 @@ function summarize(
   }
   return {
     id, name, lat, lng,
-    areaRai: Math.round(areaRai),
+    areaRai: round2(areaRai),
     carbon: Math.round(carbon),
-    ageDist: groups.map(g => ({ key: g.key, areaRai: Math.round(g.areaRai), carbon: Math.round(g.carbon) })),
-    perYearRai: perYear.map(Math.round),
+    ageDist: groups.map(g => ({ key: g.key, areaRai: round2(g.areaRai), carbon: Math.round(g.carbon) })),
+    perYearRai: perYear.map(round2),
     perYearCarbon: perYearCo2.map(Math.round),
     annualGain: Math.round(annualGain),
-    matureRai: Math.round(matureRai),
+    matureRai: round2(matureRai),
     matureCarbon: Math.round(matureCarbon),
-    unclassifiedRai: Math.round(unclassifiedM2 / M2_PER_RAI),
+    unclassifiedRai: round2(unclassifiedM2 / M2_PER_RAI),
   };
 }
 
@@ -745,10 +747,10 @@ export default function DashboardPage() {
             </Select>
             <Select label="เลือกอำเภอ" icon="bi-geo-alt-fill" value={selectedId} onChange={setSelectedId}>
               <option value="all">
-                {provinceTotal.name}{stock ? ` — ${fmt(provinceTotal.areaRai)} ไร่` : ""}
+                {provinceTotal.name}{stock ? ` — ${formatArea(provinceTotal.areaRai)} ไร่` : ""}
               </option>
               {districts.map(d => (
-                <option key={d.id} value={d.id}>{d.name} — {fmt(d.areaRai)} ไร่</option>
+                <option key={d.id} value={d.id}>{d.name} — {formatArea(d.areaRai)} ไร่</option>
               ))}
             </Select>
           </div>
@@ -769,7 +771,7 @@ export default function DashboardPage() {
               <i className="bi bi-map-fill" style={{ color: "#059669" }} />
               <span>แผนที่ปริมาณคาร์บอนสะสมรายอำเภอ {provinceLabel}</span>
               <span style={{ marginLeft: "auto", fontSize: 13, fontWeight: 700, color: "#059669", background: "rgba(5,150,105,0.1)", padding: "3px 10px", borderRadius: 50, border: "1px solid rgba(5,150,105,0.18)" }}>
-                {fmt(provinceTotal.areaRai)} ไร่
+                {formatArea(provinceTotal.areaRai)} ไร่
               </span>
             </div>
             <div className="db2-map-body">
@@ -800,12 +802,12 @@ export default function DashboardPage() {
 
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
                 {[
-                  { label: "พื้นที่ปลูกยางพารา", value: selected.areaRai, unit: "ไร่", color: "#052e16" },
-                  { label: "คาร์บอนสะสมรวม", value: selected.carbon, unit: "tCO₂eq", color: "#065f46" },
+                  { label: "พื้นที่ปลูกยางพารา", value: selected.areaRai, unit: "ไร่", color: "#052e16", digits: 2 },
+                  { label: "คาร์บอนสะสมรวม", value: selected.carbon, unit: "tCO₂eq", color: "#065f46", digits: 0 },
                 ].map(m => (
                   <div key={m.label} style={{ background: "#fff", borderRadius: 11, padding: "12px 14px", border: "1px solid rgba(16,185,129,0.12)" }}>
                     <div style={{ fontSize: 14, color: "#64748b", fontWeight: 600, marginBottom: 4 }}>{m.label} <span>({m.unit})</span></div>
-                    <div style={{ fontSize: 26, fontWeight: 900, color: m.color, letterSpacing: -0.8, lineHeight: 1 }}><AnimatedNumber value={m.value} /></div>
+                    <div style={{ fontSize: 26, fontWeight: 900, color: m.color, letterSpacing: -0.8, lineHeight: 1 }}><AnimatedNumber value={m.value} digits={m.digits} /></div>
                   </div>
                 ))}
               </div>
@@ -843,7 +845,7 @@ export default function DashboardPage() {
                       {/* Indented past the colour swatch (11px + 7px gap) to line up with the age label. */}
                       <div style={{ display: "flex", alignItems: "center", gap: 6, paddingLeft: 18, fontSize: 14, color: "#94a3b8", fontWeight: 700 }}>
                         <span title="สัดส่วนพื้นที่" style={{ ...badge, background: "#f1f5f9", color: "#64748b" }}>{areaPct}%</span>
-                        {fmt(a.areaRai)} ไร่
+                        {formatArea(a.areaRai)} ไร่
                       </div>
                     </div>
                   );

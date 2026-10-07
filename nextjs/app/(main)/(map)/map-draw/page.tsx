@@ -40,6 +40,7 @@ import { StepWarningPopup } from "./components/StepWarningPopup";
 import { GuestLimitPopup } from "./components/GuestLimitPopup";
 import { ClaimSuccessPopup } from "./components/ClaimSuccessPopup";
 import { setPostAuthRedirect } from "@/lib/post-auth-redirect";
+import { formatArea } from "@/lib/utils";
 
 /** Guests (not logged in) may draw at most this many plots. */
 const GUEST_PLOT_LIMIT = 5;
@@ -1723,7 +1724,7 @@ function MapDrawContent() {
     });
     needsPlantationSearchRef.current = true;
 
-    setDrawPreview(`${rai.toFixed(2)} ไร่ · ${verts.length} จุด`);
+    setDrawPreview(`${formatArea(rai)} ไร่ · ${verts.length} จุด`);
     setDrawDone(true);
     setHasGeom(true);
     setStatus(`✓ วาดแปลงเสร็จ — กำลังเข้าสู่ขั้นตอนกรอกข้อมูล`);

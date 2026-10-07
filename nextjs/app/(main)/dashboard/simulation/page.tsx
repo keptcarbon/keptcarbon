@@ -8,6 +8,7 @@ import type { SimBaseRow } from "@/app/(main)/(protected)/my-plots/simulationReq
 import { GROWTH_MODEL_OPTIONS } from "@/lib/growth-model";
 import { ALLOMETRY_OPTIONS } from "@/lib/allometry";
 import { useCounter } from "@/lib/use-counter";
+import { formatArea } from "@/lib/utils";
 
 const M2_PER_RAI = 1600;
 const BE_OFFSET = 543;
@@ -32,6 +33,7 @@ type ProvinceSimData = {
 };
 
 const fmt = (v: number) => Math.round(v).toLocaleString("th-TH");
+
 /** Display name for a stored code, same labels as the plot-edit dropdowns; unknown codes show as-is. */
 const optionLabel = (options: { label: string; value: string }[], value: string) =>
   options.find((o) => o.value === value)?.label || value;
@@ -43,8 +45,10 @@ async function fetchJson<T>(url: string, signal?: AbortSignal): Promise<T> {
   return body as T;
 }
 
-function StatCard({ icon, label, value, unit, color }: {
+function StatCard({ icon, label, value, unit, color, area = false }: {
   icon: string; label: string; value: number | string; unit: string; color: string;
+  /** Format as an area (2 decimals). */
+  area?: boolean;
 }) {
   // Numbers run up/down to the new value; text (e.g. a year range) shows as-is.
   const n = useCounter(typeof value === "number" ? value : 0);
@@ -56,7 +60,7 @@ function StatCard({ icon, label, value, unit, color }: {
         </div>
         <span style={{ fontSize: 16, fontWeight: 700, color: "#64748b" }}>{label}</span>
       </div>
-      <div style={{ fontSize: 30, fontWeight: 900, color: "#0f172a", letterSpacing: -1, lineHeight: 1 }}>{typeof value === "number" ? fmt(n) : value}</div>
+      <div style={{ fontSize: 30, fontWeight: 900, color: "#0f172a", letterSpacing: -1, lineHeight: 1 }}>{typeof value === "number" ? (area ? formatArea(n) : fmt(n)) : value}</div>
       <div style={{ fontSize: 15, color: "#94a3b8", fontWeight: 600, marginTop: 5 }}>{unit}</div>
     </div>
   );
@@ -200,7 +204,7 @@ export default function ProvinceSimulationPage() {
                 onChange={setDistrictId}>
                 <option value="all">ทั้งจังหวัด</option>
                 {data?.districts.map((d) => (
-                  <option key={d.id} value={d.id}>{d.nameTh} — {fmt(d.areaM2 / M2_PER_RAI)} ไร่</option>
+                  <option key={d.id} value={d.id}>{d.nameTh} — {formatArea(d.areaM2 / M2_PER_RAI)} ไร่</option>
                 ))}
               </Select>
             </div>
@@ -228,11 +232,11 @@ export default function ProvinceSimulationPage() {
             <div style={{ opacity: loading ? 0.6 : 1, transition: "opacity 0.2s" }}>
               {/* ── Stat cards ─────────────────────────────────────────── */}
               <div className="db2-stat-row" style={{ gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(3,1fr)" }}>
-                <StatCard icon="bi-map-fill" label="พื้นที่ปลูกยางพารา" value={areaM2 / M2_PER_RAI} unit="ไร่ (ที่ระบุปีเริ่มปลูกได้)" color="#0d9488" />
+                <StatCard icon="bi-map-fill" label="พื้นที่ปลูกยางพารา" value={areaM2 / M2_PER_RAI} area unit="ไร่ (ที่ระบุปีเริ่มปลูกได้)" color="#0d9488" />
                 <StatCard icon="bi-calendar3" label="ช่วงปีเริ่มปลูกที่ระบุได้"
                   value={years.length ? `${Math.min(...years) + BE_OFFSET}–${Math.max(...years) + BE_OFFSET}` : "–"}
                   unit={`พ.ศ. · ${years.length} รุ่นอายุ`} color="#065f46" />
-                <StatCard icon="bi-question-circle" label="พื้นที่ที่ไม่สามารถระบุปีปลูก" value={data.unclassifiedAreaM2 / M2_PER_RAI}
+                <StatCard icon="bi-question-circle" label="พื้นที่ที่ไม่สามารถระบุปีปลูก" value={data.unclassifiedAreaM2 / M2_PER_RAI} area
                   unit="ไร่ (ไม่รวมในการจำลอง)" color="#94a3b8" />
               </div>
 

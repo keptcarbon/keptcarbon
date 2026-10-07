@@ -12,6 +12,7 @@ import type { ProjectSummary } from "./types";
 import { EditFieldModal } from "./EditFieldModal";
 import { Tooltip, ClickTooltip } from "@/components/ui/tooltip";
 import { AREA_RULE_NOTE } from "./plotArea";
+import { formatArea } from "@/lib/utils";
 
 const PAGE_SIZE = 10;
 
@@ -249,7 +250,7 @@ export default function MyPlotsPage() {
                   {([
                     { label: "โครงการ", val: projectSummaries.length.toLocaleString("th-TH") },
                     { label: "แปลง", val: totalPlots.toLocaleString("th-TH") },
-                    { label: "ไร่", val: totalArea.toFixed(2) },
+                    { label: "ไร่", val: formatArea(totalArea) },
                   ]).map(({ label, val }) => (
                     <div key={label} className="flex items-baseline gap-1.5 px-4">
                       <span className="text-lg font-bold text-primary">{val}</span>
@@ -266,7 +267,7 @@ export default function MyPlotsPage() {
                 {([
                   { label: "โครงการ", val: projectSummaries.length.toLocaleString("th-TH") },
                   { label: "แปลง", val: totalPlots.toLocaleString("th-TH") },
-                  { label: "ไร่", val: totalArea.toFixed(2) },
+                  { label: "ไร่", val: formatArea(totalArea) },
                 ]).map(({ label, val }) => (
                   <div key={label} className="rounded-xl border border-border bg-card p-2.5 text-center">
                     <div className="text-lg font-bold leading-tight text-primary">{val}</div>
@@ -411,7 +412,7 @@ export default function MyPlotsPage() {
                               )}
                             </td>
                             <td className="px-4 py-3 text-center text-muted-foreground">{s.plotCount.toLocaleString("th-TH")}</td>
-                            <td className="px-4 py-3 text-center text-muted-foreground">{s.totalArea.toFixed(2)}</td>
+                            <td className="px-4 py-3 text-center text-muted-foreground">{formatArea(s.totalArea)}</td>
                             <td className="px-4 py-3 text-center">
                               {s.processed ? (
                                 <span className="inline-flex items-center gap-1 whitespace-nowrap rounded-full border border-[#d7ede1] bg-[#edfaf3] px-2 py-0.5 text-[11px] font-bold text-[#1e7a47]">

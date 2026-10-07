@@ -26,6 +26,7 @@ import {
     computePlot,
     aggregateProfiles,
 } from "./utils";
+import { formatArea, ciTonnes } from "@/lib/utils";
 
 
 // ── Types ─────────────────────────────────────────────────────────────────
@@ -1745,7 +1746,7 @@ export function ParcelResultsPanel({
                         แปลงที่วาดแล้ว
                     </div>
                     <div style={{ fontSize: 16, fontWeight: 800, color: "#1e7a47", display: "flex", alignItems: "center" }}>
-                        {totalArea.toFixed(2)} ไร่
+                        {formatArea(totalArea)} ไร่
                         <AreaInfo {...AREA_INFO.drawnTotal} />
                     </div>
                 </div>
@@ -1801,7 +1802,7 @@ export function ParcelResultsPanel({
                                             )}
                                         </div>
                                         {p.areaRai > 0 && (
-                                            <div style={{ fontSize: 12.5, color: "#5a7a65", fontWeight: 600, marginTop: 1 }}><LayoutGrid size={12} color="#1e7a47" aria-hidden="true" style={{ display: "inline-block", verticalAlign: "-1px", marginRight: 4 }} /><strong style={{ color: "#0f172a", fontWeight: 700 }}>{p.areaRai.toFixed(2)}</strong> ไร่<AreaInfo {...AREA_INFO.plot} /></div>
+                                            <div style={{ fontSize: 12.5, color: "#5a7a65", fontWeight: 600, marginTop: 1 }}><LayoutGrid size={12} color="#1e7a47" aria-hidden="true" style={{ display: "inline-block", verticalAlign: "-1px", marginRight: 4 }} /><strong style={{ color: "#0f172a", fontWeight: 700 }}>{formatArea(p.areaRai)}</strong> ไร่<AreaInfo {...AREA_INFO.plot} /></div>
                                         )}
                                     </div>
                                     <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
@@ -2093,7 +2094,7 @@ export function ParcelResultsPanel({
                                                                 <div style={{ width: 12, height: 12, borderRadius: 2, backgroundColor: lu.color, flexShrink: 0 }} />
                                                                 <span style={{ flex: 1, color: "#0f172a", fontWeight: isChecked ? 600 : 400 }}>{lu.label}</span>
                                                                 <span style={{ color: isChecked ? lu.color : "#64748b", fontSize: 14, fontWeight: 700 }}>
-                                                                    {hasArea ? `${realData.rai.toFixed(2)} ไร่` : "0.00 ไร่"}
+                                                                    {`${formatArea(hasArea ? realData.rai : 0)} ไร่`}
                                                                     {hasArea && (
                                                                         <span style={{ opacity: 0.7, fontSize: 13 }}> ({realData.pct}%)</span>
                                                                     )}
@@ -2149,7 +2150,7 @@ export function ParcelResultsPanel({
                                                             <i className="bi bi-check2-square me-1" /> พื้นที่ที่เลือก
                                                         </span>
                                                         <span style={{ fontSize: 15, color: "#c2410c", fontWeight: 700 }}>
-                                                            {selectedRai.toFixed(2)} ไร่
+                                                            {formatArea(selectedRai)} ไร่
                                                         </span>
                                                     </div>
                                                 ) : null;
@@ -2188,7 +2189,7 @@ export function ParcelResultsPanel({
                                 <div>
                                     <div style={{ fontSize: 15, fontWeight: 800, color: "#1a3d2b" }}>แปลงที่ {parseInt((parcelFeatures[deleteConfirmIdx]?.properties as any)?.plot_index) || (deleteConfirmIdx + 1)}</div>
                                     <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 1 }}>
-                                        {plots[deleteConfirmIdx]?.areaRai ? `${plots[deleteConfirmIdx].areaRai.toFixed(2)} ไร่` : ""}
+                                        {plots[deleteConfirmIdx]?.areaRai ? `${formatArea(plots[deleteConfirmIdx].areaRai)} ไร่` : ""}
                                     </div>
                                 </div>
                             </div>
@@ -2261,7 +2262,7 @@ export function ParcelResultsPanel({
             : carbonResults.reduce((sum, c) => sum + Math.floor(c.co2Now || 0), 0);
         const summaryTotalCo2Ci = aggregatePts.length > 0
             ? (aggregateNowPt?.ci ?? 0)
-            : Math.round(carbonResults.reduce((sum, c) => sum + Math.floor((c.co2NowCi || 0) * 10) / 10, 0) * 10) / 10;
+            : carbonResults.reduce((sum, c) => sum + ciTonnes(c.co2NowCi || 0), 0);
 
         const showAggregateAge = carbonResults.some((c, idx) => {
             const form = plotForms[idx];
@@ -2349,7 +2350,7 @@ export function ParcelResultsPanel({
                                 <div style={{ fontWeight: 700, fontSize: 14, color: "#1a3d2b", lineHeight: 1.25, marginBottom: 2 }}>โครงการ</div>
                             )}
                             <div style={{ fontSize: 12, color: "#5a7a65" }}>
-                                <MapIcon size={12} color="#1e7a47" aria-hidden="true" style={{ display: "inline-block", verticalAlign: "-1px", marginRight: 4 }} /><strong style={{ color: "#0f172a", fontWeight: 700 }}>{carbonResults.length}</strong> แปลง · <LayoutGrid size={12} color="#1e7a47" aria-hidden="true" style={{ display: "inline-block", verticalAlign: "-1px", marginRight: 4 }} /><strong style={{ color: "#0f172a", fontWeight: 700 }}>{carbonResults.reduce((sum, r, ri) => sum + ((r?.selectedAreaRai ?? 0) > 0 ? (r.selectedAreaRai as number) : (plots[ri]?.areaRai || 0)), 0).toFixed(2)}</strong> ไร่<AreaInfo {...AREA_INFO.assessedTotal} />
+                                <MapIcon size={12} color="#1e7a47" aria-hidden="true" style={{ display: "inline-block", verticalAlign: "-1px", marginRight: 4 }} /><strong style={{ color: "#0f172a", fontWeight: 700 }}>{carbonResults.length}</strong> แปลง · <LayoutGrid size={12} color="#1e7a47" aria-hidden="true" style={{ display: "inline-block", verticalAlign: "-1px", marginRight: 4 }} /><strong style={{ color: "#0f172a", fontWeight: 700 }}>{formatArea(carbonResults.reduce((sum, r, ri) => sum + ((r?.selectedAreaRai ?? 0) > 0 ? (r.selectedAreaRai as number) : (plots[ri]?.areaRai || 0)), 0))}</strong> ไร่<AreaInfo {...AREA_INFO.assessedTotal} />
                             </div>
                         </div>
                         <i className={`bi bi-chevron-${expandedResultIdx === "total" ? 'up' : 'down'}`} style={{ color: "#5a7a65", fontSize: 14 }} />
@@ -2435,7 +2436,7 @@ export function ParcelResultsPanel({
                                             )}
                                         </div>
                                         <div style={{ fontSize: 12, color: "#5a7a65" }}>
-                                            <LayoutGrid size={12} color="#1e7a47" aria-hidden="true" style={{ display: "inline-block", verticalAlign: "-1px", marginRight: 4 }} /><strong style={{ color: "#0f172a", fontWeight: 700 }}>{((cr.selectedAreaRai ?? 0) > 0 ? (cr.selectedAreaRai as number) : (plot?.areaRai ?? 0)).toFixed(2)}</strong> ไร่<AreaInfo {...AREA_INFO.assessed} />
+                                            <LayoutGrid size={12} color="#1e7a47" aria-hidden="true" style={{ display: "inline-block", verticalAlign: "-1px", marginRight: 4 }} /><strong style={{ color: "#0f172a", fontWeight: 700 }}>{formatArea((cr.selectedAreaRai ?? 0) > 0 ? (cr.selectedAreaRai as number) : (plot?.areaRai ?? 0))}</strong> ไร่<AreaInfo {...AREA_INFO.assessed} />
                                         </div>
                                     </div>
                                     <i className={`bi bi-chevron-${expandedResultIdx === i ? 'up' : 'down'}`} style={{ color: "#5a7a65", fontSize: 14 }} />

@@ -23,6 +23,7 @@ import { EditFieldModal } from "../EditFieldModal";
 import { Tooltip, ClickTooltip } from "@/components/ui/tooltip";
 import { plotDisplayArea, AREA_RULE_NOTE } from "../plotArea";
 import { PLOT_INFO_MAX_LENGTH } from "@/app/components/organisms/ParcelResultsPanel/utils";
+import { formatArea } from "@/lib/utils";
 
 const PAGE_SIZE = 10;
 
@@ -260,7 +261,7 @@ export default function ProjectDetailPage() {
               </h2>
               <div className="flex flex-wrap gap-4 text-sm font-medium text-muted-foreground">
                 <span className="inline-flex items-center gap-1.5"><MapIcon className="size-3.5 text-primary" aria-hidden="true" /> <strong className={plotStyles.strongDark}>{plots.length}</strong> แปลง</span>
-                <span className="inline-flex items-center gap-1.5"><LayoutGrid className="size-3.5 text-primary" aria-hidden="true" /> <strong className={plotStyles.strongDark}>{totalAreaRai.toFixed(2)}</strong> ไร่</span>
+                <span className="inline-flex items-center gap-1.5"><LayoutGrid className="size-3.5 text-primary" aria-hidden="true" /> <strong className={plotStyles.strongDark}>{formatArea(totalAreaRai)}</strong> ไร่</span>
               </div>
             </div>
             <div className="flex w-full flex-wrap items-center gap-2 md:w-auto">
@@ -384,7 +385,7 @@ export default function ProjectDetailPage() {
                             <td className="px-4 py-3 text-muted-foreground">{no}</td>
                             <td className="max-w-[220px] truncate px-4 py-3 text-foreground" title={plot.plotNote || undefined}>{plot.plotNote || <span className="text-muted-foreground">—</span>}</td>
                             <td className="px-4 py-3 text-foreground">{formatPlotLocation(plot) || <span className="text-muted-foreground">—</span>}</td>
-                            <td className="px-4 py-3 text-center text-muted-foreground">{plotDisplayArea(plot).rai.toFixed(2)}</td>
+                            <td className="px-4 py-3 text-center text-muted-foreground">{formatArea(plotDisplayArea(plot).rai)}</td>
                             <td className="px-4 py-3 text-center text-muted-foreground">
                               {plot.plantStatus === "replanting" || plot.plantStatus === "existing"
                                 ? <PlantStatusIcon status={plot.plantStatus} />

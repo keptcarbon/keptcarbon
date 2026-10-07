@@ -20,6 +20,7 @@ import { buildSimRows } from "../../simulationRequest";
 import { formatPlotLocation } from "../../plotLocation";
 import { buildAssessRequest, applyAssessResponse } from "../../assessPlot";
 import plotStyles from "../../PlotCard.module.css";
+import { formatArea } from "@/lib/utils";
 
 const plantStatusLabel = (status?: string) =>
   status === "replanting" ? "เริ่มปลูกใหม่" : status === "existing" ? "ปลูกมาแล้ว" : "—";
@@ -354,7 +355,7 @@ export default function PlotDetailPage() {
             <div className="flex flex-wrap gap-4 text-sm font-medium text-muted-foreground">
               <span><strong className={plotStyles.strongDark}>{new Date(plot.date).toLocaleDateString("th-TH", { year: "numeric", month: "short", day: "numeric" })}</strong></span>
               <Tooltip content={displayArea.assessed ? AREA_LABEL_ASSESSED : AREA_LABEL_PLOT}>
-                <span tabIndex={0} aria-label={`${displayArea.assessed ? AREA_LABEL_ASSESSED : AREA_LABEL_PLOT} ${displayArea.rai.toFixed(2)} ไร่`} className="inline-flex cursor-help items-center gap-1.5 outline-none"><LayoutGrid className="size-3.5 text-primary" aria-hidden="true" /><strong className={plotStyles.strongDark}>{displayArea.rai.toFixed(2)}</strong> ไร่</span>
+                <span tabIndex={0} aria-label={`${displayArea.assessed ? AREA_LABEL_ASSESSED : AREA_LABEL_PLOT} ${formatArea(displayArea.rai)} ไร่`} className="inline-flex cursor-help items-center gap-1.5 outline-none"><LayoutGrid className="size-3.5 text-primary" aria-hidden="true" /><strong className={plotStyles.strongDark}>{formatArea(displayArea.rai)}</strong> ไร่</span>
               </Tooltip>
               <span className="inline-flex items-center gap-1">
                 {plot.plantStatus === "replanting" && <Sprout className="ml-0.5 size-4 text-primary" aria-hidden="true" />}
@@ -421,7 +422,7 @@ export default function PlotDetailPage() {
                         {displayArea.rai > 0 && (
                           <div className={plotStyles.detailsAreaText}>
                             <LayoutGrid size={14} color="#1e7a47" aria-hidden="true" style={{ display: "inline-block", verticalAlign: "-2px", marginRight: 6 }} />
-                            {displayArea.assessed ? AREA_LABEL_ASSESSED : AREA_LABEL_PLOT}: <strong className={plotStyles.strongDark}>{displayArea.rai.toFixed(2)}</strong> ไร่
+                            {displayArea.assessed ? AREA_LABEL_ASSESSED : AREA_LABEL_PLOT}: <strong className={plotStyles.strongDark}>{formatArea(displayArea.rai)}</strong> ไร่
                           </div>
                         )}
                       </div>

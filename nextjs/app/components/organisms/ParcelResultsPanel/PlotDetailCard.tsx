@@ -6,6 +6,7 @@ import { type PlotFormData, type CarbonResult, convertYearNoteToBE } from "./uti
 import styles from "./PlotDetailCard.module.css";
 import { LayoutGrid } from "lucide-react";
 import { ClickTooltip } from "@/components/ui/tooltip";
+import { formatArea } from "@/lib/utils";
 
 export function PlotDetailCard({
     form,
@@ -92,7 +93,7 @@ export function PlotDetailCard({
                     {areaRai !== undefined && (
                         <div className={styles.areaText}>
                             <LayoutGrid size={14} color="#1e7a47" aria-hidden="true" style={{ display: "inline-block", verticalAlign: "-2px", marginRight: 6 }} />
-                            พื้นที่ที่ใช้ประเมิน: <strong className={styles.strongDark}>{areaRai.toFixed(2)}</strong> ไร่
+                            พื้นที่ที่ใช้ประเมิน: <strong className={styles.strongDark}>{formatArea(areaRai)}</strong> ไร่
                         </div>
                     )}
                 </div>
