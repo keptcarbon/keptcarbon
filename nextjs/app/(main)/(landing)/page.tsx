@@ -169,11 +169,11 @@ export default function Home() {
           <p className="mx-auto mb-8 max-w-2xl text-sm text-muted-foreground md:text-base">
             เริ่มต้นใช้งาน KeptCarbon Platform วันนี้ เพื่อเตรียมความพร้อมสู่ตลาดคาร์บอนเครดิตในอนาคต
           </p>
-          <div className="flex flex-col items-center justify-center gap-3 sm:flex-row">
+          <div className="mx-auto grid w-full max-w-2xl grid-cols-1 gap-3 sm:grid-cols-2">
             <Button
               nativeButton={false}
               render={<Link href="/map-draw" />}
-              className="h-12 rounded-xl px-8 text-base font-semibold no-underline shadow-sm"
+              className="h-12 w-full rounded-xl px-8 text-base font-semibold no-underline shadow-sm"
             >
               เริ่มประเมินคาร์บอนฟรี
               <ArrowRight className="ml-2 size-4" aria-hidden="true" />
@@ -182,7 +182,7 @@ export default function Home() {
               nativeButton={false}
               render={<Link href="/about-project" />}
               variant="outline"
-              className="h-12 rounded-xl px-8 text-base font-medium no-underline"
+              className="h-12 w-full rounded-xl border-[1px] border-primary px-8 text-base font-medium no-underline"
             >
               อ่านรายละเอียดเพิ่มเติม
             </Button>

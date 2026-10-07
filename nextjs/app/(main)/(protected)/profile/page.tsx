@@ -212,19 +212,19 @@ export default function ProfilePage() {
                         <form onSubmit={handleSubmit}>
                             <div className="row g-4 mb-4">
                                 <div className="col-md-4">
-                                    <label className="fw-medium mb-2 d-block" style={{ fontSize: 14, color: "#1a3d2b" }}>
+                                    <label className="fw-medium mb-2 d-block" style={{ fontSize: 14, color: "#1a3d2b", minHeight: 42 }}>
                                         ชื่อ <span style={{ color: "#ef4444" }}>*</span>
                                     </label>
                                     <input type="text" style={INPUT_STYLE} value={firstname} onChange={(e) => setFirstname(e.target.value)} placeholder="กรอกชื่อ" required />
                                 </div>
                                 <div className="col-md-4">
-                                    <label className="fw-medium mb-2 d-block" style={{ fontSize: 14, color: "#1a3d2b" }}>
+                                    <label className="fw-medium mb-2 d-block" style={{ fontSize: 14, color: "#1a3d2b", minHeight: 42 }}>
                                         นามสกุล
                                     </label>
                                     <input type="text" style={INPUT_STYLE} value={lastname} onChange={(e) => setLastname(e.target.value)} placeholder="กรอกนามสกุล" />
                                 </div>
                                 <div className="col-md-4">
-                                    <label className="fw-medium mb-2 d-block" style={{ fontSize: 14, color: "#1a3d2b" }}>เบอร์โทรศัพท์</label>
+                                    <label className="fw-medium mb-2 d-block" style={{ fontSize: 14, color: "#1a3d2b", minHeight: 42 }}>เบอร์โทรศัพท์</label>
                                     <input type="tel" inputMode="numeric" maxLength={12} style={INPUT_STYLE} value={phone} onChange={(e) => setPhone(formatThaiPhone(e.target.value))} placeholder="090-xxxx-xxxx" />
                                 </div>
                             </div>
@@ -275,7 +275,7 @@ export default function ProfilePage() {
                                 <form onSubmit={handlePasswordSubmit}>
                                     <div className="row g-4 mb-4">
                                         <div className="col-md-4">
-                                            <label className="fw-medium mb-2 d-block" style={{ fontSize: 14, color: "#1a3d2b" }}>
+                                            <label className="fw-medium mb-2 d-block" style={{ fontSize: 14, color: "#1a3d2b", minHeight: 42 }}>
                                                 รหัสผ่านปัจจุบัน <span style={{ color: "#ef4444" }}>*</span>
                                             </label>
                                             <div style={{ position: "relative" }}>
@@ -298,7 +298,7 @@ export default function ProfilePage() {
                                             {pwdErrors.currentPassword && <div className="mt-1" style={{ fontSize: 12, color: "#ef4444" }}>{pwdErrors.currentPassword}</div>}
                                         </div>
                                         <div className="col-md-4">
-                                            <label className="fw-medium mb-2 d-block" style={{ fontSize: 14, color: "#1a3d2b" }}>
+                                            <label className="fw-medium mb-2 d-block" style={{ fontSize: 14, color: "#1a3d2b", minHeight: 42 }}>
                                                 รหัสผ่านใหม่ <span style={{ color: "#ef4444" }}>*</span>
                                             </label>
                                             <div style={{ position: "relative" }}>
@@ -325,7 +325,7 @@ export default function ProfilePage() {
                                             {pwdErrors.password && <div className="mt-1" style={{ fontSize: 12, color: "#ef4444" }}>{pwdErrors.password}</div>}
                                         </div>
                                         <div className="col-md-4">
-                                            <label className="fw-medium mb-2 d-block" style={{ fontSize: 14, color: "#1a3d2b" }}>
+                                            <label className="fw-medium mb-2 d-block" style={{ fontSize: 14, color: "#1a3d2b", minHeight: 42 }}>
                                                 ยืนยันรหัสผ่านใหม่ <span style={{ color: "#ef4444" }}>*</span>
                                             </label>
                                             <div style={{ position: "relative" }}>

@@ -562,18 +562,29 @@ export default function RndConfigurationPage() {
                             กำลังโหลด…
                         </div>
                     ) : (
-                        <div className="table-responsive">
-                            <table className="table align-middle mb-0" style={{ fontSize: 13 }}>
-                                <thead style={{ background: "#f8fbf9" }}>
-                                    <tr>
-                                        <th className="px-4 py-2" style={{ fontWeight: 700, fontSize: 12, color: "#5a7a65", textTransform: "uppercase" }}>ระบบระยะปลูก</th>
-                                        <th className="py-2" style={{ fontWeight: 700, fontSize: 12, color: "#5a7a65", textTransform: "uppercase" }}>ความหนาแน่น (ต้น/เฮกตาร์)</th>
-                                        <th className="py-2" style={{ fontWeight: 700, fontSize: 12, color: "#5a7a65", textTransform: "uppercase" }}>ความหนาแน่น (ต้น/ไร่)</th>
-                                        <th className="py-2" style={{ fontWeight: 700, fontSize: 12, color: "#5a7a65", textTransform: "uppercase" }}>คำอธิบาย</th>
-                                        <th className="py-2 pe-4 text-end" style={{ fontWeight: 700, fontSize: 12, color: "#5a7a65", textTransform: "uppercase" }}>จัดการ</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
+                        <>
+                            <div className="d-md-none px-4 py-2 d-flex justify-content-center align-items-center gap-1" style={{ background: "#f4f9f6", color: "#1e7a47", fontSize: 12.5, fontWeight: 600, borderBottom: "1px solid #e6f0ea" }}>
+                                <span style={{ color: "#dc2626" }}>*</span>
+                                <i className="bi bi-arrows-move" /> เลื่อนตาราง ซ้าย-ขวา / ขึ้น-ลง ได้
+                            </div>
+                            <div 
+                                className="table-responsive" 
+                                style={{ 
+                                    maxHeight: "450px", 
+                                    overflow: "auto"
+                                }}
+                            >
+                                <table className="table align-middle mb-0" style={{ fontSize: 13, minWidth: 700 }}>
+                                    <thead style={{ position: "sticky", top: 0, zIndex: 10, background: "#f8fbf9", boxShadow: "0 2px 4px rgba(0,0,0,0.04)" }}>
+                                        <tr>
+                                            <th className="px-4 py-2" style={{ fontWeight: 700, fontSize: 12, color: "#5a7a65", textTransform: "uppercase", borderBottom: "none" }}>ระบบระยะปลูก</th>
+                                            <th className="py-2" style={{ fontWeight: 700, fontSize: 12, color: "#5a7a65", textTransform: "uppercase", borderBottom: "none" }}>ความหนาแน่น (ต้น/เฮกตาร์)</th>
+                                            <th className="py-2" style={{ fontWeight: 700, fontSize: 12, color: "#5a7a65", textTransform: "uppercase", borderBottom: "none" }}>ความหนาแน่น (ต้น/ไร่)</th>
+                                            <th className="py-2" style={{ fontWeight: 700, fontSize: 12, color: "#5a7a65", textTransform: "uppercase", borderBottom: "none" }}>คำอธิบาย</th>
+                                            <th className="py-2 pe-4 text-end" style={{ fontWeight: 700, fontSize: 12, color: "#5a7a65", textTransform: "uppercase", borderBottom: "none" }}>จัดการ</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
                                     {treeDensities.map((row) => (
                                         <tr key={row.id}>
                                             <td className="px-4 py-2" style={{ width: "18%" }}>
@@ -683,6 +694,7 @@ export default function RndConfigurationPage() {
                                 </div>
                             )}
                         </div>
+                        </>
                     )}
                 </div>
             )}
@@ -765,22 +777,33 @@ export default function RndConfigurationPage() {
                                         </span>
                                         <span style={{ fontWeight: 600, color: "#1a3d2b", fontSize: 14 }}>{region.provinceName}</span>
                                     </div>
-                                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-                                        <Field required label="Planting Year Map Version" value={region.plantingYearMapVersion} onChange={(v) => updateRegion(region.code, "plantingYearMapVersion", v)} options={toOptions(regionOptions?.plantingYearVersionOptions ?? [])} />
-                                        <Field required label="LU Map Version" value={region.luMapVersion} onChange={(v) => updateRegion(region.code, "luMapVersion", v)} options={toOptions(regionOptions?.luVersionOptions ?? [])} />
-                                        <Field required label="Default Spacing System" value={region.defaultSpacingSystem} onChange={(v) => updateRegion(region.code, "defaultSpacingSystem", v)} options={toOptions(regionOptions?.spacingOptions ?? [])} />
-                                        <Field required label="Default Rubber Clone" value={region.defaultRubberClone} onChange={(v) => updateRegion(region.code, "defaultRubberClone", v)} options={toOptions(regionOptions?.cloneOptions ?? [])} />
-                                        <Field required label="Default Growth Model" value={region.defaultModel} onChange={(v) => updateRegion(region.code, "defaultModel", v)} options={toOptions(regionOptions?.growthOptions ?? [])} />
-                                        <Field required label="Default Biomass Assessment Method" value={region.defaultBiomassAssessmentMethod} onChange={(v) => updateRegion(region.code, "defaultBiomassAssessmentMethod", v)} options={toOptions(regionOptions?.allometryOptions ?? [])} />
-                                        <Field required label="Biomass Profile Version" value={region.biomassProfileVersion} onChange={(v) => updateRegion(region.code, "biomassProfileVersion", v)} options={toOptions(regionOptions?.biomassProfileVersionOptions ?? [])} />
+                                    <div className="row g-3">
+                                        <div className="col-12 col-lg-6">
+                                            <Field required label="Planting Year Map Version" value={region.plantingYearMapVersion} onChange={(v) => updateRegion(region.code, "plantingYearMapVersion", v)} options={toOptions(regionOptions?.plantingYearVersionOptions ?? [])} />
+                                        </div>
+                                        <div className="col-12 col-lg-6">
+                                            <Field required label="LU Map Version" value={region.luMapVersion} onChange={(v) => updateRegion(region.code, "luMapVersion", v)} options={toOptions(regionOptions?.luVersionOptions ?? [])} />
+                                        </div>
+                                        <div className="col-12 col-lg-6">
+                                            <Field required label="Default Spacing System" value={region.defaultSpacingSystem} onChange={(v) => updateRegion(region.code, "defaultSpacingSystem", v)} options={toOptions(regionOptions?.spacingOptions ?? [])} />
+                                        </div>
+                                        <div className="col-12 col-lg-6">
+                                            <Field required label="Default Rubber Clone" value={region.defaultRubberClone} onChange={(v) => updateRegion(region.code, "defaultRubberClone", v)} options={toOptions(regionOptions?.cloneOptions ?? [])} />
+                                        </div>
+                                        <div className="col-12 col-lg-6">
+                                            <Field required label="Default Growth Model" value={region.defaultModel} onChange={(v) => updateRegion(region.code, "defaultModel", v)} options={toOptions(regionOptions?.growthOptions ?? [])} />
+                                        </div>
+                                        <div className="col-12 col-lg-6">
+                                            <Field required label="Biomass Profile Version" value={region.biomassProfileVersion} onChange={(v) => updateRegion(region.code, "biomassProfileVersion", v)} options={toOptions(regionOptions?.biomassProfileVersionOptions ?? [])} />
+                                        </div>
 
-                                        {/* ── Validate button — confirms the clone/growth/allometry
-                                             combination actually has rows in tbl_biomass_profile
-                                             before saving, mirroring CarbonService's real lookup.
-                                             Placed as the next grid item so it auto-flows into the
-                                             right column, directly under "Default Biomass Assessment
-                                             Method". ── */}
-                                        <div style={{ alignSelf: "start" }}>
+                                        {/* ── ย้ายฟิลด์ที่มีข้อความยาวมากมาไว้ด้านล่างสุด และให้กางเต็ม 100% (col-12) ── */}
+                                        <div className="col-12">
+                                            <Field required label="Default Biomass Assessment Method" value={region.defaultBiomassAssessmentMethod} onChange={(v) => updateRegion(region.code, "defaultBiomassAssessmentMethod", v)} options={toOptions(regionOptions?.allometryOptions ?? [])} />
+                                        </div>
+
+                                        {/* ── Validate button ── */}
+                                        <div className="col-12">
                                             <div style={FIELD_LABEL_STYLE}>
                                                 ตรวจสอบพารามิเตอร์ <span style={{ color: "#dc2626" }}>*</span>
                                             </div>

@@ -64,6 +64,23 @@
   box-sizing: border-box;
 }
 
+/* KEEP THIS — do not discard on revert. Verified fix for the mobile
+   right-side gap.
+   Several `position: fixed` / negative-offset elements sit just past the
+   right edge — the nav drawer parked at `translate-x-full`, the condolence
+   lightbox's `-right-3` close button, Bootstrap's `.scroll-top`. A fixed
+   element off-screen still widens the page, so on a phone it leaves a grey
+   strip on the right that grows as the screen narrows (~57px at 320px).
+   Must be set on BOTH `html` and `body`: the mobile layout viewport takes
+   its width from whichever of the two still has `overflow-x: visible`, so
+   clipping only one leaves the other to expand the viewport. `clip` (not
+   `hidden`) keeps `overflow-y` at `visible` — no nested scroll container —
+   and normal vertical page scrolling is unaffected. */
+html,
+body {
+  overflow-x: clip;
+}
+
 body {
   font-family: var(--font-noto-sans-thai), 'Noto Sans Thai', 'Noto Sans', system-ui, -apple-system, sans-serif;
   font-size: var(--kc-font-size-base);
