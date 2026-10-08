@@ -24,6 +24,9 @@ export type SavedPlot = {
   date: string;
   geojson?: unknown;
   boundaryGeojson?: unknown;
+  /** The plot's assessment area: the LU parts selected when it was drawn,
+   *  merged (tbl_plots.assessment_geometry). Re-assessments send it as-is. */
+  assessmentGeojson?: unknown;
 
   carbonProfile?: BarPoint[];
   plantStatus?: string;

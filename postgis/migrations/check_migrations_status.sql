@@ -141,4 +141,11 @@ BEGIN
              WHERE table_schema='public' AND table_name='tbl_region_config' AND column_name='utm_epsg')
   THEN RAISE NOTICE '034_drop_tbl_region_config_utm_epsg ... RUN (after deploying code without utm_epsg)';
   ELSE RAISE NOTICE '034_drop_tbl_region_config_utm_epsg ... DONE';  END IF;
+
+  IF to_regclass('public.tbl_plots') IS NULL
+  THEN RAISE NOTICE '035_tbl_plots_assessment_geometry ..... SKIP (run 009 first)';
+  ELSIF EXISTS (SELECT 1 FROM information_schema.columns
+                WHERE table_schema='public' AND table_name='tbl_plots' AND column_name='assessment_geometry')
+  THEN RAISE NOTICE '035_tbl_plots_assessment_geometry ..... DONE';
+  ELSE RAISE NOTICE '035_tbl_plots_assessment_geometry ..... RUN (after 009, 010)';  END IF;
 END $$;

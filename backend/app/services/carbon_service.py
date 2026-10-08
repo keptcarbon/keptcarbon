@@ -1,3 +1,4 @@
+import json
 from datetime import datetime
 from typing import List, Dict, Optional
 from fastapi import HTTPException
@@ -29,6 +30,41 @@ class CarbonService:
         self.age_map_svc = AgeMapService()
         self.tree_svc = TreeService()
         self.spatial_svc = SpatialUtils()
+
+    # $1 = the plot's assessment area (GeoJSON, WGS84): the drawn parcel, or
+    # the LU parts the user selected inside it, merged in map-draw. Repaired,
+    # dissolved and kept to polygons; area is geodesic.
+    _ASSESSMENT_AREA_QUERY = """
+        SELECT ST_AsGeoJSON(g) AS geometry_json, ST_Area(g::geography) AS area_m2
+        FROM (
+            SELECT ST_CollectionExtract(
+                     ST_UnaryUnion(ST_MakeValid(ST_SetSRID(ST_GeomFromGeoJSON($1), 4326))), 3
+                   ) AS g
+        ) s
+    """
+
+    async def measure_assessment_area(self, poly_data: dict) -> dict:
+        """Treats the submitted geometry as the rubber area to assess (LU is
+        only used while drawing, to help the user choose it): sets
+        A302_geometry (WGS84) for the raster clip and A302_area_m2 (geodesic)
+        for the tree count and reported area."""
+        try:
+            pool = get_pool()
+            async with pool.acquire() as conn:
+                row = await conn.fetchrow(self._ASSESSMENT_AREA_QUERY, json.dumps(poly_data["geometry"]))
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Assessment area measurement failed: {str(e)}")
+
+        if row["geometry_json"] is None or not row["area_m2"]:
+            # Empty / degenerate geometry -- the same shape downstream raster
+            # code already handles for "nothing selected".
+            poly_data["A302_geometry"] = {"type": "GeometryCollection", "geometries": []}
+            poly_data["A302_area_m2"] = 0.0
+            return poly_data
+
+        poly_data["A302_geometry"] = json.loads(row["geometry_json"])
+        poly_data["A302_area_m2"] = round(row["area_m2"], 4)
+        return poly_data
 
 
     async def _resolve_region_config(self, p_code: str, poly_data: dict) -> dict:
@@ -256,15 +292,8 @@ class CarbonService:
         default_spacing = region_config["default_spacing"]
         poly_data['clone'] = region_config['clone']
         
-        # Step 2: Multi-Polygon Dissolve & Geometry Merge
-        poly_data = await self.lu_svc.find_rubber_cultivation_area(poly_data)
-        if poly_data["A302_geometry"] is None:
-            return {
-                "polygon_id": poly_data.get("id"),
-                "status": poly_data.get("status"),
-                "carbon_profile": None,
-                "assess_parameters": None
-            }
+        # Step 2: Assessment area = the submitted geometry (no LU lookup)
+        poly_data = await self.measure_assessment_area(poly_data)
 
         # Step 3: Check user input year of planting and tree count for reliability
         # Cache the counts for later use in age cohort extraction to avoid duplicate raster I/O

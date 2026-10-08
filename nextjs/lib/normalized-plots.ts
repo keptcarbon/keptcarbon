@@ -98,7 +98,8 @@ const UPSERT_PLOT_SQL = `
     project_id, polygon_id, geometry, area_m2, province_code,
     status, status_code, message,
     year_of_planting, rubber_clone, tree_count, spacing_system, project_type,
-    selected_lu_classes, plot_note, growth_model, allometry, deleted_at
+    selected_lu_classes, plot_note, growth_model, allometry, deleted_at,
+    assessment_geometry, assessment_lu_version
   )
   VALUES (
     $1, $2,
@@ -108,7 +109,10 @@ const UPSERT_PLOT_SQL = `
     CASE WHEN $3::text IS NULL THEN $4::float8
          ELSE ST_Area(ST_SetSRID(ST_GeomFromGeoJSON($3::text), 4326)::geography) END,
     $5, $6, $7, $8, $9, $10, $11, $12, $13,
-    COALESCE($14::text[], '{}'), $15, $16, $17, NULL
+    COALESCE($14::text[], '{}'), $15, $16, $17, NULL,
+    CASE WHEN $26::text IS NULL THEN NULL ELSE ST_SetSRID(ST_GeomFromGeoJSON($26::text), 4326) END,
+    CASE WHEN $26::text IS NULL THEN NULL
+         ELSE (SELECT lu_version FROM tbl_region_config WHERE p_code = $5) END
   )
   ON CONFLICT (project_id, polygon_id) DO UPDATE SET
     geometry            = COALESCE(EXCLUDED.geometry, tbl_plots.geometry),
@@ -133,6 +137,18 @@ const UPSERT_PLOT_SQL = `
     plot_note             = CASE WHEN $18::boolean THEN EXCLUDED.plot_note ELSE tbl_plots.plot_note END,
     growth_model          = CASE WHEN $24::boolean THEN EXCLUDED.growth_model ELSE tbl_plots.growth_model END,
     allometry             = CASE WHEN $25::boolean THEN EXCLUDED.allometry ELSE tbl_plots.allometry END,
+    -- $26: a freshly processed plot's merged selected area (map-draw) -> store
+    -- it with the LU version it was picked on. Otherwise keep it -- unless the
+    -- boundary itself changed, which makes the old selection meaningless
+    -- (NULL -> the app rebuilds it from the saved overlaps until re-processed).
+    assessment_geometry   = CASE
+      WHEN $26::text IS NOT NULL THEN EXCLUDED.assessment_geometry
+      WHEN EXCLUDED.geometry IS NOT NULL AND NOT ST_Equals(EXCLUDED.geometry, tbl_plots.geometry) THEN NULL
+      ELSE tbl_plots.assessment_geometry END,
+    assessment_lu_version = CASE
+      WHEN $26::text IS NOT NULL THEN EXCLUDED.assessment_lu_version
+      WHEN EXCLUDED.geometry IS NOT NULL AND NOT ST_Equals(EXCLUDED.geometry, tbl_plots.geometry) THEN NULL
+      ELSE tbl_plots.assessment_lu_version END,
     deleted_at            = NULL
 `;
 
@@ -211,6 +227,7 @@ async function upsertPlots(
       has(payload, "project_type"),
       has(payload, "growth_model"),
       has(payload, "allometry"),
+      payload?.assessment_geometry ? JSON.stringify(payload.assessment_geometry) : null,
     ]);
   }
 

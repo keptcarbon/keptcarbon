@@ -187,6 +187,7 @@ export async function GET(request: NextRequest) {
               area_m2, province_code, year_of_planting, rubber_clone, tree_count,
               spacing_system, project_type, selected_lu_classes, plot_note,
               growth_model, allometry, province_th, district_th, subdistrict_th,
+              ST_AsGeoJSON(assessment_geometry)::json AS assessment_geometry,
               updated_at
        FROM tbl_plots
        WHERE project_id = ANY($1) AND deleted_at IS NULL`,
@@ -284,6 +285,7 @@ export async function GET(request: NextRequest) {
         date: (assessment?.created_at ?? pl.updated_at) as unknown as string,
         geojson: pl.geometry,
         boundaryGeojson: null,
+        assessmentGeojson: pl.assessment_geometry ?? null,
         carbonProfile: yearlyRowsToBarPoints(yearly, rubberAge),
         processed: !!assessment,
         backendData: {

@@ -1123,9 +1123,12 @@ export function ParcelResultsPanel({
                     };
                 });
 
-            // Build polygons_payload: the data sent to the backend for assessCarbon
+            // Build polygons_payload: the data sent to the backend for assessCarbon.
+            // A processed plot's geometry is the LU parts the user selected, merged --
+            // saved as tbl_plots.assessment_geometry, the plot's assessment area from
+            // now on (re-assessments use it as-is, whatever LU version is active later).
             const polygonsPayload = activePolygons.length > 0
-                ? activePolygons
+                ? activePolygons.map((p) => ({ ...p, assessment_geometry: p.geometry }))
                 : parcelFeatures.map((feat, i) => {
                     const form = plotForms[i] || {};
                     const userYearBE = form.plantYear ? parseInt(form.plantYear) : 0;

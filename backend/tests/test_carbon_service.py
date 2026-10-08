@@ -249,7 +249,7 @@ class TestRasterMajorityTreeCount:
         svc._resolve_region_config = AsyncMock(return_value={
             "default_spacing": "2.5x8", "growth_model": "anchored_weibull", "allometry": "hytönen_2018",
             "biomass_profile_version": "v1", "clone": "RRIM 600"})
-        svc.lu_svc.find_rubber_cultivation_area = AsyncMock(return_value=clipped)
+        svc.measure_assessment_area = AsyncMock(return_value=clipped)
         svc.age_map_svc.get_plantation_year_count = AsyncMock(return_value=clipped)
         svc.age_map_svc.get_plantation_age_cohorts = AsyncMock(return_value=[
             {"age": year - 2012, "pixel_count": 953, "proportion": 0.953, "tree_count": 6883},  # full area
