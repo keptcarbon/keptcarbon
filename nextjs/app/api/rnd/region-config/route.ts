@@ -6,8 +6,6 @@ import { activateVersion, getRequesterId, syncPlantingYearDist, withTransaction 
 const MAX_P_NAME_LENGTH = 100;
 const MAX_SPACING_LENGTH = 20;
 const MAX_CLONE_GROWTH_ALLOMETRY_LENGTH = 50;
-// Mirrors chk_region_config_utm_epsg: 32647 = UTM 47N, 32648 = UTM 48N.
-const UTM_EPSG_VALUES = [32647, 32648];
 
 type RegionConfigInput = {
   pCode?: unknown;
@@ -19,7 +17,6 @@ type RegionConfigInput = {
   defaultClone?: unknown;
   defaultGrowth?: unknown;
   defaultAllometry?: unknown;
-  utmEpsg?: unknown;
 };
 
 /**
@@ -36,7 +33,7 @@ export async function GET(request: NextRequest) {
     const { rows } = await pool.query(
       `SELECT rc.p_code, rc.p_name, g.prov_name_th, g.region, rc.lu_version, rc.planting_year_version,
               rc.default_spacing, rc.default_clone, rc.default_growth, rc.default_allometry,
-              rc.biomass_profile_version, rc.utm_epsg
+              rc.biomass_profile_version
        FROM tbl_region_config rc
        LEFT JOIN geo_thailand g ON g.p_code = rc.p_code
        ORDER BY g.region, g.prov_name_th`
@@ -54,7 +51,6 @@ export async function GET(request: NextRequest) {
         defaultGrowth: r.default_growth,
         defaultAllometry: r.default_allometry,
         biomassProfileVersion: r.biomass_profile_version,
-        utmEpsg: r.utm_epsg,
       })),
     });
   } catch (err) {
@@ -86,7 +82,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = (await request.json()) as RegionConfigInput;
-    const { pCode, pName, luVersion, plantingYearVersion, biomassProfileVersion, defaultSpacing, defaultClone, defaultGrowth, defaultAllometry, utmEpsg } = body;
+    const { pCode, pName, luVersion, plantingYearVersion, biomassProfileVersion, defaultSpacing, defaultClone, defaultGrowth, defaultAllometry } = body;
 
     if (typeof pCode !== "string" || !pCode.trim()) {
       return NextResponse.json({ error: "ต้องระบุ p_code" }, { status: 400 });
@@ -99,9 +95,6 @@ export async function POST(request: NextRequest) {
     }
     if (typeof plantingYearVersion !== "number" || !Number.isInteger(plantingYearVersion)) {
       return NextResponse.json({ error: "Planting Year Map Version ต้องเป็นตัวเลขปี" }, { status: 400 });
-    }
-    if (typeof utmEpsg !== "number" || !UTM_EPSG_VALUES.includes(utmEpsg)) {
-      return NextResponse.json({ error: "ต้องเลือกโซน UTM (47N หรือ 48N)" }, { status: 400 });
     }
     if (typeof defaultSpacing !== "string" || !defaultSpacing.trim() || defaultSpacing.length > MAX_SPACING_LENGTH) {
       return NextResponse.json({ error: "ต้องระบุ Default Spacing System" }, { status: 400 });
@@ -186,8 +179,8 @@ export async function POST(request: NextRequest) {
     const { row, distributionFound } = await withTransaction(async (client) => {
       const result = await client.query(
         `INSERT INTO tbl_region_config
-           (p_code, p_name, lu_version, planting_year_version, default_spacing, default_clone, default_growth, default_allometry, biomass_profile_version, utm_epsg)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+           (p_code, p_name, lu_version, planting_year_version, default_spacing, default_clone, default_growth, default_allometry, biomass_profile_version)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
          ON CONFLICT (p_code) DO UPDATE SET
            p_name = EXCLUDED.p_name,
            lu_version = EXCLUDED.lu_version,
@@ -196,10 +189,9 @@ export async function POST(request: NextRequest) {
            default_clone = EXCLUDED.default_clone,
            default_growth = EXCLUDED.default_growth,
            default_allometry = EXCLUDED.default_allometry,
-           biomass_profile_version = EXCLUDED.biomass_profile_version,
-           utm_epsg = EXCLUDED.utm_epsg
-         RETURNING p_code, p_name, lu_version, planting_year_version, default_spacing, default_clone, default_growth, default_allometry, biomass_profile_version, utm_epsg`,
-        [pCode, pName, luVersion, plantingYearVersion, defaultSpacing, defaultClone, defaultGrowth, defaultAllometry, biomassProfileVersion, utmEpsg]
+           biomass_profile_version = EXCLUDED.biomass_profile_version
+         RETURNING p_code, p_name, lu_version, planting_year_version, default_spacing, default_clone, default_growth, default_allometry, biomass_profile_version`,
+        [pCode, pName, luVersion, plantingYearVersion, defaultSpacing, defaultClone, defaultGrowth, defaultAllometry, biomassProfileVersion]
       );
 
       await activateVersion(client, "planting_year_map", pCode, String(plantingYearVersion), userId);
@@ -221,7 +213,6 @@ export async function POST(request: NextRequest) {
         defaultGrowth: row.default_growth,
         defaultAllometry: row.default_allometry,
         biomassProfileVersion: row.biomass_profile_version,
-        utmEpsg: row.utm_epsg,
       },
       // false = no Planting Year Distribution imported for the chosen
       // LU + Planting Year pair yet.

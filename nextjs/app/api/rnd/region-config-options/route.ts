@@ -32,7 +32,7 @@ export async function GET(request: NextRequest) {
     const [configResult, versionResult, spacingResult, cloneResult, growthResult, allometryResult] =
       await Promise.all([
         pool.query(
-          `SELECT p_code, p_name, lu_version, planting_year_version, default_spacing, default_clone, default_growth, default_allometry, biomass_profile_version, utm_epsg
+          `SELECT p_code, p_name, lu_version, planting_year_version, default_spacing, default_clone, default_growth, default_allometry, biomass_profile_version
            FROM tbl_region_config WHERE p_code = $1`,
           [pCode]
         ),
@@ -67,7 +67,6 @@ export async function GET(request: NextRequest) {
             defaultGrowth: row.default_growth,
             defaultAllometry: row.default_allometry,
             biomassProfileVersion: row.biomass_profile_version,
-            utmEpsg: row.utm_epsg,
           }
         : null,
       plantingYearVersionOptions: versionsOf("planting_year_map"),

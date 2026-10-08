@@ -60,7 +60,7 @@ class TestRegionConfigResolution:
         with patch_db_fetch(
             fetchrow_results=[{"default_clone": "RRIT 251", "default_spacing": "2.5x8",
                                 "default_growth": "anchored_weibull", "default_allometry": "hytönen_2018",
-                                "biomass_profile_version": "v1", "utm_epsg": 32647}],
+                                "biomass_profile_version": "v1"}],
         ):
             resolved = await mock_carbon_service._resolve_region_config("RAY", {"rubber_clone": "RRIM 600"})
         assert resolved["clone"] == "RRIT 251"
@@ -226,16 +226,6 @@ class TestMultipleCohorts:
             assert abs(d["stocks"]["value"] - 2 * s["stocks"]["value"]) < 0.001
 
 
-class TestRegionConfigUtmEpsg:
-
-    @pytest.mark.asyncio
-    async def test_utm_epsg_comes_from_region_config(self, mock_carbon_service, patch_db_fetch):
-        from tests.conftest import _DEFAULT_REGION_CONFIG_ROW
-        with patch_db_fetch(fetchrow_results=[{**_DEFAULT_REGION_CONFIG_ROW, "utm_epsg": 32648}]):
-            resolved = await mock_carbon_service._resolve_region_config("RAY", {})
-        assert resolved["utm_epsg"] == 32648
-
-
 # ── raster majority path: tree count (get_carbon_profile) ─────────────────────
 
 class TestRasterMajorityTreeCount:
@@ -258,7 +248,7 @@ class TestRasterMajorityTreeCount:
         svc.pro_svc.get_province = AsyncMock(return_value=located)
         svc._resolve_region_config = AsyncMock(return_value={
             "default_spacing": "2.5x8", "growth_model": "anchored_weibull", "allometry": "hytönen_2018",
-            "biomass_profile_version": "v1", "clone": "RRIM 600", "utm_epsg": 32647})
+            "biomass_profile_version": "v1", "clone": "RRIM 600"})
         svc.lu_svc.find_rubber_cultivation_area = AsyncMock(return_value=clipped)
         svc.age_map_svc.get_plantation_year_count = AsyncMock(return_value=clipped)
         svc.age_map_svc.get_plantation_age_cohorts = AsyncMock(return_value=[

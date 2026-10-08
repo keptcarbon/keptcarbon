@@ -125,7 +125,10 @@ const RUBBER_CLONE_OPTIONS = ["RRIM 600", "RRIT 251"] as const;
 
 // geo_planting_year's expected raster spec — a .tif must match all of
 // these to be importable.
-const TIFF_EXPECTED_CRS = "EPSG:32647";
+// Either UTM zone: the raster is stored in the CRS it arrives in, and the
+// backend reprojects plot geometry into it (ST_SRID(rast)) when clipping. A
+// province spanning both zones is exported in one zone for its whole area.
+const TIFF_ALLOWED_CRS = ["EPSG:32647", "EPSG:32648"];
 const TIFF_EXPECTED_NODATA = -9999;
 const TIFF_EXPECTED_PIXEL_SIZE = 10;
 // Pixel size is a floating-point affine-transform value — allow a tiny
@@ -575,7 +578,7 @@ export default function RndDataManagementPage() {
 
             // Must match geo_planting_year's expected raster spec
             // exactly — otherwise upload stays blocked at the confirm step.
-            const crsValid = crs === TIFF_EXPECTED_CRS;
+            const crsValid = TIFF_ALLOWED_CRS.includes(crs);
             const noDataValid = noData === TIFF_EXPECTED_NODATA;
             const pixelSizeValid =
                 pixelSizeX !== null && pixelSizeY !== null &&
@@ -1319,9 +1322,9 @@ export default function RndDataManagementPage() {
                     <table className="table table-hover align-middle mb-0" style={{ fontSize: 13 }}>
                         <thead style={{ background: "#f8fbf9" }}>
                             <tr>
-                                <th className="px-4 py-3" style={TH_STYLE}>ชุดข้อมูล</th>
+                                <th className="px-4 py-3" style={TH_STYLE}>จังหวัด</th>
+                                <th className="py-3" style={TH_STYLE}>ชุดข้อมูล</th>
                                 <th className="py-3" style={TH_STYLE}>ประเภท</th>
-                                <th className="py-3" style={TH_STYLE}>จังหวัด</th>
                                 <th className="py-3" style={TH_STYLE}>เวอร์ชัน</th>
                                 <th className="py-3" style={TH_STYLE}>สถานะ</th>
                                 <th className="py-3" style={TH_STYLE}>นำเข้าล่าสุด</th>
@@ -1336,7 +1339,10 @@ export default function RndDataManagementPage() {
                                 const totalRows = d.imports.reduce((sum, i) => sum + i.rowCount, 0);
                                 return (
                                     <tr key={d.id}>
-                                        <td className="px-4 py-3" style={{ maxWidth: 320 }}>
+                                        <td className="px-4 py-3" style={{ color: "#5a7a65", whiteSpace: "nowrap" }}>
+                                            {d.provinceName} <span style={{ color: "#94a3b8" }}>({d.pCode})</span>
+                                        </td>
+                                        <td className="py-3" style={{ maxWidth: 320 }}>
                                             <div className="fw-semibold text-truncate" style={{ color: "#1a3d2b" }} title={latest?.fileName}>
                                                 {latest?.fileName ?? "-"}
                                             </div>
@@ -1352,9 +1358,6 @@ export default function RndDataManagementPage() {
                                             <span className="badge rounded-pill" style={{ background: cat.bg, color: cat.color, fontWeight: 600, fontSize: 12, padding: "4px 10px" }}>
                                                 {cat.label}
                                             </span>
-                                        </td>
-                                        <td className="py-3" style={{ color: "#5a7a65" }}>
-                                            {d.provinceName} <span style={{ color: "#94a3b8" }}>({d.pCode})</span>
                                         </td>
                                         <td className="py-3" style={{ color: "#5a7a65", whiteSpace: "nowrap" }}>{formatDatasetVersion(d)}</td>
                                         <td className="py-3">
@@ -1877,7 +1880,7 @@ export default function RndDataManagementPage() {
                                     {[
                                         {
                                             ok: fileMeta?.kind === "tiff" && fileMeta.crsValid,
-                                            label: `CRS = ${TIFF_EXPECTED_CRS}${fileMeta?.kind === "tiff" ? ` (พบ ${fileMeta.crs})` : ""}`,
+                                            label: `CRS = ${TIFF_ALLOWED_CRS.join(" หรือ ")} (UTM 47N / 48N)${fileMeta?.kind === "tiff" ? ` (พบ ${fileMeta.crs})` : ""}`,
                                         },
                                         {
                                             ok: fileMeta?.kind === "tiff" && fileMeta.noDataValid,

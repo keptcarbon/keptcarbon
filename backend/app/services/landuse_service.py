@@ -12,10 +12,9 @@ the finer LU_CODE for agriculture ("A"), else "OTHER".
 Geometry CRS differs between the two methods; AREA does not:
   - find_lu_class_area's returned geometries are reprojected to the
     caller's output_crs (default WGS84) for API/display consumption.
-  - find_rubber_cultivation_area's A302_geometry is returned in the
-    province's UTM zone (tbl_region_config.utm_epsg: 32647 = 47N, 32648 =
-    48N): AgeMapService clips the planting-year raster with it, and those
-    rasters are stored in that zone, with no reprojection of their own.
+  - find_rubber_cultivation_area's A302_geometry stays in WGS84
+    (EPSG:4326); AgeMapService reprojects it into the planting-year
+    raster's own SRID when clipping.
   - Both compute area on the geography type (geodesic, CRS-independent), so
     the selected-classes area shown from find_lu_class_area and
     A302_area_m2 (used for the tree count and reported as the assessed
@@ -86,11 +85,10 @@ class LanduseService:
         FROM dissolved
     """
 
-    # $4 = selected_lu_classes (text[]), $5 = the province's UTM EPSG
-    # (tbl_region_config.utm_epsg). Geometry is returned in that UTM zone (see
-    # module docstring); area is GEODESIC, measured on the WGS84 per-group
-    # unions before reprojecting, summed per group (not the area of the final
-    # cross-group union), matching the original dissolve-then-sum behaviour.
+    # $4 = selected_lu_classes (text[]). Geometry is returned in WGS84 (see
+    # module docstring); area is GEODESIC, summed per group (not the area of
+    # the final cross-group union), matching the original dissolve-then-sum
+    # behaviour.
     _RUBBER_AREA_QUERY = f"""
         WITH target AS (
             SELECT ST_SetSRID(ST_GeomFromGeoJSON($1), 4326) AS geom
@@ -116,7 +114,7 @@ class LanduseService:
             GROUP BY group_key
         )
         SELECT
-            ST_AsGeoJSON(ST_Transform(ST_Union(geom), $5::integer)) AS geometry_json,
+            ST_AsGeoJSON(ST_Union(geom)) AS geometry_json,
             SUM(ST_Area(geom::geography)) AS area_m2
         FROM per_group
     """
@@ -160,7 +158,6 @@ class LanduseService:
                     p_code,
                     lu_year,
                     poly_data["selected_lu_classes"],
-                    poly_data["utm_epsg"],
                 )
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Landuse filtering failed: {str(e)}")

@@ -138,7 +138,6 @@ _DEFAULT_REGION_CONFIG_ROW = {
     "default_allometry": "hytönen_2018",
     "default_spacing": "2.5x8",
     "biomass_profile_version": "v1",
-    "utm_epsg": 32647,
 }
 
 

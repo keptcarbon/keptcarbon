@@ -120,10 +120,11 @@ BEGIN
   THEN RAISE NOTICE '030_drop_unused_plot_assessment_columns RUN (after 009)';
   ELSE RAISE NOTICE '030_drop_unused_plot_assessment_columns DONE';  END IF;
 
+  -- 031 added utm_epsg, 034 drops it again: column present = 034 pending.
   IF EXISTS (SELECT 1 FROM information_schema.columns
              WHERE table_schema='public' AND table_name='tbl_region_config' AND column_name='utm_epsg')
-  THEN RAISE NOTICE '031_tbl_region_config_utm_epsg ........ DONE';
-  ELSE RAISE NOTICE '031_tbl_region_config_utm_epsg ........ RUN (after 016)';  END IF;
+  THEN RAISE NOTICE '031_tbl_region_config_utm_epsg ........ DONE (superseded by 034)';
+  ELSE RAISE NOTICE '031_tbl_region_config_utm_epsg ........ SKIP (superseded by 034)';  END IF;
 
   IF to_regclass('public.tbl_biomass_profile') IS NULL
   THEN RAISE NOTICE '032_growth_model_allometry_codes SKIP (run 008/014 first)';
@@ -135,4 +136,9 @@ BEGIN
   IF to_regclass('public.tbl_dataset_version') IS NOT NULL
   THEN RAISE NOTICE '033_tbl_dataset_version ............... DONE';
   ELSE RAISE NOTICE '033_tbl_dataset_version ............... RUN (after 016, 019, 029)';  END IF;
+
+  IF EXISTS (SELECT 1 FROM information_schema.columns
+             WHERE table_schema='public' AND table_name='tbl_region_config' AND column_name='utm_epsg')
+  THEN RAISE NOTICE '034_drop_tbl_region_config_utm_epsg ... RUN (after deploying code without utm_epsg)';
+  ELSE RAISE NOTICE '034_drop_tbl_region_config_utm_epsg ... DONE';  END IF;
 END $$;

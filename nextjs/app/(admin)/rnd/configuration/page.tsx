@@ -36,7 +36,6 @@ type SavedRegionConfig = {
     defaultGrowth: string;
     defaultAllometry: string;
     biomassProfileVersion: string;
-    utmEpsg: number;
 };
 
 const TH_STYLE: React.CSSProperties = {
@@ -62,14 +61,8 @@ type RegionConfigRow = {
     defaultModel: string;
     defaultBiomassAssessmentMethod: string;
     biomassProfileVersion: string;
-    utmEpsg: string; // "32647" | "32648"
 };
 
-// UTM zone of the province's planting-year raster (tbl_region_config.utm_epsg).
-const UTM_EPSG_OPTIONS = [
-    { label: "UTM 47N (EPSG:32647)", value: "32647" },
-    { label: "UTM 48N (EPSG:32648)", value: "32648" },
-] as const;
 
 // GET /api/rnd/region-config-options response shape — the saved
 // tbl_region_config row (if any) for a province, plus each dropdown's real
@@ -85,7 +78,6 @@ type RegionConfigOptions = {
         defaultGrowth: string;
         defaultAllometry: string;
         biomassProfileVersion: string;
-        utmEpsg: number;
     } | null;
     plantingYearVersionOptions: VersionOption[];
     luVersionOptions: VersionOption[];
@@ -308,7 +300,6 @@ export default function RndConfigurationPage() {
                             defaultModel: cfg.defaultGrowth,
                             defaultBiomassAssessmentMethod: cfg.defaultAllometry,
                             biomassProfileVersion: cfg.biomassProfileVersion,
-                            utmEpsg: String(cfg.utmEpsg),
                         };
                         return prev.some((r) => r.code === cfg.pCode)
                             ? prev.map((r) => (r.code === cfg.pCode ? entry : r))
@@ -342,7 +333,6 @@ export default function RndConfigurationPage() {
                 defaultModel: "",
                 defaultBiomassAssessmentMethod: "",
                 biomassProfileVersion: "",
-                utmEpsg: "",
             },
         ]);
     }
@@ -413,7 +403,7 @@ export default function RndConfigurationPage() {
         visibleRegions.some((r) =>
             !r.plantingYearMapVersion || !r.luMapVersion || !r.defaultSpacingSystem ||
             !r.defaultRubberClone || !r.defaultModel || !r.defaultBiomassAssessmentMethod ||
-            !r.biomassProfileVersion || !r.utmEpsg
+            !r.biomassProfileVersion
         );
 
     // Save also requires a passing "ตรวจสอบพารามิเตอร์" check for the province
@@ -458,7 +448,6 @@ export default function RndConfigurationPage() {
                     defaultClone: region.defaultRubberClone,
                     defaultGrowth: region.defaultModel,
                     defaultAllometry: region.defaultBiomassAssessmentMethod,
-                    utmEpsg: Number(region.utmEpsg),
                 }),
             });
             const data = await res.json().catch(() => ({}));
@@ -549,7 +538,7 @@ export default function RndConfigurationPage() {
                             <table className="table table-hover align-middle mb-0" style={{ fontSize: 13, minWidth: 900 }}>
                                 <thead style={{ background: "#f8fbf9" }}>
                                     <tr>
-                                        {["จังหวัด", "ภาค", "Planting Year", "LU Map", "Biomass Profile", "ระยะปลูก", "พันธุ์ยาง", "Growth Model / Allometry", "UTM"].map((h, idx) => (
+                                        {["จังหวัด", "ภาค", "Planting Year", "LU Map", "Biomass Profile", "ระยะปลูก", "พันธุ์ยาง", "Growth Model / Allometry"].map((h, idx) => (
                                             <th key={h} className={idx === 0 ? "px-4 py-3" : "py-3"} style={TH_STYLE}>{h}</th>
                                         ))}
                                         <th className="px-4 py-3 text-end" style={TH_STYLE}>จัดการ</th>
@@ -572,9 +561,6 @@ export default function RndConfigurationPage() {
                                                 <div>{optionLabel(GROWTH_MODEL_OPTIONS, c.defaultGrowth)}</div>
                                                 <div style={{ fontSize: 12, color: "#94a3b8" }}>{optionLabel(ALLOMETRY_OPTIONS, c.defaultAllometry)}</div>
                                             </td>
-                                            <td className="py-3" style={{ color: "#5a7a65", whiteSpace: "nowrap" }}>
-                                                {c.utmEpsg === 32648 ? "48N" : c.utmEpsg === 32647 ? "47N" : c.utmEpsg}
-                                            </td>
                                             <td className="px-4 py-3 text-end">
                                                 <button
                                                     className="btn btn-sm"
@@ -588,19 +574,19 @@ export default function RndConfigurationPage() {
                                     ))}
                                     {savedConfigsLoading && (
                                         <tr>
-                                            <td colSpan={10} className="text-center py-5" style={{ color: "#5a7a65" }}>กำลังโหลด…</td>
+                                            <td colSpan={9} className="text-center py-5" style={{ color: "#5a7a65" }}>กำลังโหลด…</td>
                                         </tr>
                                     )}
                                     {!savedConfigsLoading && savedConfigsError && (
                                         <tr>
-                                            <td colSpan={10} className="text-center py-5" style={{ color: "#c53030" }}>
+                                            <td colSpan={9} className="text-center py-5" style={{ color: "#c53030" }}>
                                                 โหลดรายการค่าตั้งต้นไม่สำเร็จ กรุณาลองใหม่อีกครั้ง
                                             </td>
                                         </tr>
                                     )}
                                     {!savedConfigsLoading && !savedConfigsError && savedConfigs.length === 0 && (
                                         <tr>
-                                            <td colSpan={10} className="text-center py-5" style={{ color: "#5a7a65" }}>
+                                            <td colSpan={9} className="text-center py-5" style={{ color: "#5a7a65" }}>
                                                 ยังไม่มีค่าตั้งต้นของจังหวัดใด
                                             </td>
                                         </tr>
@@ -712,9 +698,6 @@ export default function RndConfigurationPage() {
                                         </div>
                                         <div className="col-12 col-lg-6">
                                             <Field required label="Biomass Profile Version" value={region.biomassProfileVersion} onChange={(v) => updateRegion(region.code, "biomassProfileVersion", v)} options={toVersionOptions(regionOptions?.biomassProfileVersionOptions ?? [])} />
-                                        </div>
-                                        <div className="col-12 col-lg-6">
-                                            <Field required label="UTM Zone" hint="โซน UTM ของแผนที่ปีปลูก (Planting Year Map) ของจังหวัดนี้" value={region.utmEpsg} onChange={(v) => updateRegion(region.code, "utmEpsg", v)} options={UTM_EPSG_OPTIONS} />
                                         </div>
 
                                         {/* ── ย้ายฟิลด์ที่มีข้อความยาวมากมาไว้ด้านล่างสุด และให้กางเต็ม 100% (col-12) ── */}
