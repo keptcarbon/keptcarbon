@@ -8,13 +8,14 @@ import { isAdminOrRnd } from "@/lib/auth-server";
  * tbl_region_config row for a province (if any), plus the real option lists
  * for each of its dropdowns — sourced from whichever table actually owns
  * that data, not hardcoded:
- *   - Planting Year Version     -> distinct geo_planting_year.year
- *   - LU Map Version                 -> distinct geo_landuse.lu_year
+ *   - Planting Year / LU Map / Biomass Profile Version
+ *                                    -> imported versions in tbl_dataset_version,
+ *                                       each with its status (draft/active/archived);
+ *                                       saving the config activates the chosen ones
  *   - Default Spacing System         -> tbl_tree_density.tree_spacing (global, no p_code)
  *   - Default Rubber Clone           -> distinct tbl_biomass_profile.clone
  *   - Default Growth Model           -> distinct tbl_biomass_profile.growth_model
  *   - Default Biomass Assessment Method -> distinct tbl_biomass_profile.allometry
- *   - Biomass Profile Version         -> distinct tbl_biomass_profile.version
  */
 export async function GET(request: NextRequest) {
   if (!(await isAdminOrRnd(request))) {
@@ -28,21 +29,29 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const [configResult, plantingYearResult, luVersionResult, spacingResult, cloneResult, growthResult, allometryResult, biomassProfileVersionResult] =
+    const [configResult, versionResult, spacingResult, cloneResult, growthResult, allometryResult] =
       await Promise.all([
         pool.query(
-          `SELECT p_code, p_name, lu_version, planting_year_version, default_spacing, default_clone, default_growth, default_allometry, biomass_profile_version
+          `SELECT p_code, p_name, lu_version, planting_year_version, default_spacing, default_clone, default_growth, default_allometry, biomass_profile_version, utm_epsg
            FROM tbl_region_config WHERE p_code = $1`,
           [pCode]
         ),
-        pool.query(`SELECT DISTINCT year FROM geo_planting_year WHERE p_code = $1 ORDER BY year`, [pCode]),
-        pool.query(`SELECT DISTINCT lu_year FROM geo_landuse WHERE p_code = $1 ORDER BY lu_year`, [pCode]),
+        pool.query(
+          `SELECT category, version, status FROM tbl_dataset_version
+           WHERE p_code = $1 AND category IN ('planting_year_map', 'lulc_map', 'biomass_profile')
+           ORDER BY created_at DESC`,
+          [pCode]
+        ),
         pool.query(`SELECT tree_spacing FROM tbl_tree_density ORDER BY tree_spacing`),
         pool.query(`SELECT DISTINCT clone FROM tbl_biomass_profile WHERE p_code = $1 ORDER BY clone`, [pCode]),
         pool.query(`SELECT DISTINCT growth_model FROM tbl_biomass_profile WHERE p_code = $1 ORDER BY growth_model`, [pCode]),
         pool.query(`SELECT DISTINCT allometry FROM tbl_biomass_profile WHERE p_code = $1 ORDER BY allometry`, [pCode]),
-        pool.query(`SELECT DISTINCT version FROM tbl_biomass_profile WHERE p_code = $1 AND version IS NOT NULL ORDER BY version`, [pCode]),
       ]);
+
+    const versionsOf = (category: string) =>
+      versionResult.rows
+        .filter((r) => r.category === category)
+        .map((r) => ({ value: String(r.version), status: r.status as string }));
 
     const row = configResult.rows[0];
 
@@ -58,15 +67,16 @@ export async function GET(request: NextRequest) {
             defaultGrowth: row.default_growth,
             defaultAllometry: row.default_allometry,
             biomassProfileVersion: row.biomass_profile_version,
+            utmEpsg: row.utm_epsg,
           }
         : null,
-      plantingYearVersionOptions: plantingYearResult.rows.map((r) => String(r.year)),
-      luVersionOptions: luVersionResult.rows.map((r) => String(r.lu_year)),
+      plantingYearVersionOptions: versionsOf("planting_year_map"),
+      luVersionOptions: versionsOf("lulc_map"),
       spacingOptions: spacingResult.rows.map((r) => String(r.tree_spacing)),
       cloneOptions: cloneResult.rows.map((r) => String(r.clone)),
       growthOptions: growthResult.rows.map((r) => String(r.growth_model)),
       allometryOptions: allometryResult.rows.map((r) => String(r.allometry)),
-      biomassProfileVersionOptions: biomassProfileVersionResult.rows.map((r) => String(r.version)),
+      biomassProfileVersionOptions: versionsOf("biomass_profile"),
     });
   } catch (err) {
     console.error("region-config-options error:", err);

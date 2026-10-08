@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { pool } from "@/lib/db";
 import { isAdminOrRnd } from "@/lib/auth-server";
+import { getRequesterId, recordImport, withTransaction } from "@/lib/dataset-version";
 
 // The .gpkg is required (client-side, before upload) to be surveyed in
 // EPSG:32647 (UTM 47N) — matches gen_geo_landuse_sql.py's source projection.
@@ -52,6 +53,7 @@ export async function GET(request: NextRequest) {
  * by "pCode" (province) and "year" (lu_year). Each row supplies the 6
  * lu_* text fields plus a hex-encoded WKB geometry; the geometry is
  * reprojected 32647 -> 4326 in a single batched INSERT via unnest().
+ * The import is logged as a 'draft' version in tbl_dataset_version.
  */
 export async function POST(request: NextRequest) {
   if (!(await isAdminOrRnd(request))) {
@@ -60,7 +62,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { pCode, year, rows } = body as { pCode?: unknown; year?: unknown; rows?: unknown };
+    const { pCode, year, rows, fileName } = body as { pCode?: unknown; year?: unknown; rows?: unknown; fileName?: unknown };
 
     if (typeof pCode !== "string" || !pCode.trim()) {
       return NextResponse.json({ error: "ต้องระบุ p_code" }, { status: 400 });
@@ -106,17 +108,27 @@ export async function POST(request: NextRequest) {
       geomHex.push(row.geomWkbHex);
     }
 
-    const result = await pool.query(
-      `INSERT INTO geo_landuse (p_code, lu_year, lu_code, lu_des_th, lu_des_en, lul1_code, lul2_code, lu_des, geom)
-       SELECT $1, $2, u.lu_code, u.lu_des_th, u.lu_des_en, u.lul1_code, u.lul2_code, u.lu_des,
-              ST_Multi(ST_Transform(ST_SetSRID(ST_GeomFromWKB(decode(u.geom_hex, 'hex')), $3::integer), $4::integer))
-       FROM unnest($5::text[], $6::text[], $7::text[], $8::text[], $9::text[], $10::text[], $11::text[])
-         AS u(lu_code, lu_des_th, lu_des_en, lul1_code, lul2_code, lu_des, geom_hex)
-       RETURNING id`,
-      [pCode, year, SOURCE_SRID, TARGET_SRID, luCode, luDesTh, luDesEn, lul1Code, lul2Code, luDes, geomHex]
-    );
+    const userId = getRequesterId(request);
 
-    return NextResponse.json({ featureCount: result.rowCount, pCode, year });
+    const featureCount = await withTransaction(async (client) => {
+      const result = await client.query(
+        `INSERT INTO geo_landuse (p_code, lu_year, lu_code, lu_des_th, lu_des_en, lul1_code, lul2_code, lu_des, geom)
+         SELECT $1, $2, u.lu_code, u.lu_des_th, u.lu_des_en, u.lul1_code, u.lul2_code, u.lu_des,
+                ST_Multi(ST_Transform(ST_SetSRID(ST_GeomFromWKB(decode(u.geom_hex, 'hex')), $3::integer), $4::integer))
+         FROM unnest($5::text[], $6::text[], $7::text[], $8::text[], $9::text[], $10::text[], $11::text[])
+           AS u(lu_code, lu_des_th, lu_des_en, lul1_code, lul2_code, lu_des, geom_hex)
+         RETURNING id`,
+        [pCode, year, SOURCE_SRID, TARGET_SRID, luCode, luDesTh, luDesEn, lul1Code, lul2Code, luDes, geomHex]
+      );
+      await recordImport(client, {
+        category: "lulc_map", pCode, version: String(year),
+        fileName: typeof fileName === "string" && fileName ? fileName : `lulc_${pCode}_${year}.gpkg`,
+        rowCount: result.rowCount ?? 0, userId,
+      });
+      return result.rowCount;
+    });
+
+    return NextResponse.json({ featureCount, pCode, year, status: "draft" });
   } catch (err) {
     console.error("geo-landuse import error:", err);
     const message = err instanceof Error ? err.message : "Internal Server Error";

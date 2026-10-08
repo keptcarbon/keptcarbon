@@ -131,4 +131,8 @@ BEGIN
                 WHERE growth_model NOT LIKE 'anchored\_%' OR allometry = 'hytonen_2018')
   THEN RAISE NOTICE '032_growth_model_allometry_codes ...... RUN (after 016)';
   ELSE RAISE NOTICE '032_growth_model_allometry_codes ...... DONE';  END IF;
+
+  IF to_regclass('public.tbl_dataset_version') IS NOT NULL
+  THEN RAISE NOTICE '033_tbl_dataset_version ............... DONE';
+  ELSE RAISE NOTICE '033_tbl_dataset_version ............... RUN (after 016, 019, 029)';  END IF;
 END $$;

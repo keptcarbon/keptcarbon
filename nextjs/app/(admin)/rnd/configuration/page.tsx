@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Alert, Card } from "@/app/components";
+import { ALLOMETRY_OPTIONS } from "@/lib/allometry";
+import { GROWTH_MODEL_OPTIONS } from "@/lib/growth-model";
 
 // A region config row's p_code ties it to a province in geo_thailand.
 type GeoProvince = {
@@ -21,15 +23,30 @@ const REGION_LABELS: Record<string, string> = {
     S: "ภาคใต้",
 };
 
-// Populated from /api/rnd/tree-density (tbl_tree_density) -- the DB-backed
-// replacement for TreeService's old TREE_DENSITIES dict.
-type TreeDensityRow = {
-    id: number;
-    treeSpacing: string;
-    treeDensityHa: number;
-    treeDensityRai: number;
-    desc: string | null;
+// GET /api/rnd/region-config row — one saved tbl_region_config per province,
+// shown in the "รายการค่าตั้งต้น" tab.
+type SavedRegionConfig = {
+    pCode: string;
+    provinceName: string;
+    region: string | null;
+    luVersion: number;
+    plantingYearVersion: number;
+    defaultSpacing: string;
+    defaultClone: string;
+    defaultGrowth: string;
+    defaultAllometry: string;
+    biomassProfileVersion: string;
+    utmEpsg: number;
 };
+
+const TH_STYLE: React.CSSProperties = {
+    fontWeight: 700, fontSize: 12,
+    textTransform: "uppercase", letterSpacing: "0.6px", color: "#5a7a65",
+};
+
+function optionLabel(options: readonly { label: string; value: string }[], value: string): string {
+    return options.find((o) => o.value === value)?.label ?? value;
+}
 
 // Populated from /api/rnd/region-config-options (tbl_region_config) once a
 // province is selected -- no hardcoded seed row, so a province without a
@@ -45,7 +62,14 @@ type RegionConfigRow = {
     defaultModel: string;
     defaultBiomassAssessmentMethod: string;
     biomassProfileVersion: string;
+    utmEpsg: string; // "32647" | "32648"
 };
+
+// UTM zone of the province's planting-year raster (tbl_region_config.utm_epsg).
+const UTM_EPSG_OPTIONS = [
+    { label: "UTM 47N (EPSG:32647)", value: "32647" },
+    { label: "UTM 48N (EPSG:32648)", value: "32648" },
+] as const;
 
 // GET /api/rnd/region-config-options response shape — the saved
 // tbl_region_config row (if any) for a province, plus each dropdown's real
@@ -61,15 +85,38 @@ type RegionConfigOptions = {
         defaultGrowth: string;
         defaultAllometry: string;
         biomassProfileVersion: string;
+        utmEpsg: number;
     } | null;
-    plantingYearVersionOptions: string[];
-    luVersionOptions: string[];
+    plantingYearVersionOptions: VersionOption[];
+    luVersionOptions: VersionOption[];
     spacingOptions: string[];
     cloneOptions: string[];
     growthOptions: string[];
     allometryOptions: string[];
-    biomassProfileVersionOptions: string[];
+    biomassProfileVersionOptions: VersionOption[];
 };
+
+// An imported dataset version (tbl_dataset_version) and its status.
+type VersionOption = { value: string; status: "draft" | "active" | "archived" };
+
+const VERSION_STATUS_LABEL: Record<VersionOption["status"], string> = {
+    active: "ใช้งานอยู่",
+    draft: "ฉบับร่าง",
+    archived: "เก็บถาวร",
+};
+
+// After a save: the chosen version is active, the previously active one archived.
+function restatus(versions: VersionOption[], chosen: string): VersionOption[] {
+    return versions.map((v) =>
+        v.value === chosen ? { ...v, status: "active" }
+            : v.status === "active" ? { ...v, status: "archived" }
+            : v
+    );
+}
+
+function toVersionOptions(versions: VersionOption[]) {
+    return versions.map((v) => ({ label: `${v.value} (${VERSION_STATUS_LABEL[v.status]})`, value: v.value }));
+}
 
 function toOptions(values: string[]) {
     return values.map((v) => ({ label: v, value: v }));
@@ -149,51 +196,42 @@ function Field({
     );
 }
 
-type ConfigTabKey = "density" | "region";
+type ConfigTabKey = "list" | "region";
 
 const CONFIG_TABS: { key: ConfigTabKey; label: string }[] = [
-    { key: "density", label: "ความหนาแน่นต้นไม้ตามระยะปลูก" },
+    { key: "list", label: "รายการค่าตั้งต้น" },
     { key: "region", label: "ค่าตั้งต้นรายภูมิภาค (Region Config)" },
 ];
 
 export default function RndConfigurationPage() {
-    const [activeTab, setActiveTab] = useState<ConfigTabKey>("density");
+    const [activeTab, setActiveTab] = useState<ConfigTabKey>("list");
     const [regions, setRegions] = useState<RegionConfigRow[]>([]);
 
     const [saving, setSaving] = useState(false);
     const [success, setSuccess] = useState<string | null>(null);
     const [saveError, setSaveError] = useState<string | null>(null);
 
-    // ── ความหนาแน่นต้นไม้ตามระยะปลูก tab — tbl_tree_density, via
-    // /api/rnd/tree-density. Every row edits/saves/deletes independently
-    // (no batch "บันทึกการตั้งค่า" step, unlike the region-config tab). ──
-    const [treeDensities, setTreeDensities] = useState<TreeDensityRow[]>([]);
-    const [densityLoading, setDensityLoading] = useState(true);
-    const [densityError, setDensityError] = useState(false);
-    const [densityBusyId, setDensityBusyId] = useState<number | null>(null);
-    const [densityRowError, setDensityRowError] = useState<Record<number, string>>({});
-    const [pendingDeleteDensityId, setPendingDeleteDensityId] = useState<number | null>(null);
+    // ── รายการค่าตั้งต้น tab — every saved tbl_region_config row. ──
+    const [savedConfigs, setSavedConfigs] = useState<SavedRegionConfig[]>([]);
+    const [savedConfigsLoading, setSavedConfigsLoading] = useState(true);
+    const [savedConfigsError, setSavedConfigsError] = useState(false);
 
-    const [newSpacing, setNewSpacing] = useState("");
-    const [newDensity, setNewDensity] = useState("");
-    const [newDesc, setNewDesc] = useState("");
-    const [addingDensity, setAddingDensity] = useState(false);
-    const [addDensityError, setAddDensityError] = useState<string | null>(null);
+    async function loadSavedConfigs() {
+        setSavedConfigsError(false);
+        try {
+            const res = await fetch("/api/rnd/region-config/");
+            if (!res.ok) throw new Error();
+            const data = await res.json();
+            setSavedConfigs(data.configs ?? []);
+        } catch {
+            setSavedConfigsError(true);
+        } finally {
+            setSavedConfigsLoading(false);
+        }
+    }
 
     useEffect(() => {
-        let cancelled = false;
-        fetch("/api/rnd/tree-density")
-            .then((res) => (res.ok ? res.json() : Promise.reject(res)))
-            .then((data) => {
-                if (!cancelled) setTreeDensities(data.rows ?? []);
-            })
-            .catch(() => {
-                if (!cancelled) setDensityError(true);
-            })
-            .finally(() => {
-                if (!cancelled) setDensityLoading(false);
-            });
-        return () => { cancelled = true; };
+        void loadSavedConfigs();
     }, []);
 
     // ── geo_thailand reference (region → province → p_code) — picks which
@@ -270,6 +308,7 @@ export default function RndConfigurationPage() {
                             defaultModel: cfg.defaultGrowth,
                             defaultBiomassAssessmentMethod: cfg.defaultAllometry,
                             biomassProfileVersion: cfg.biomassProfileVersion,
+                            utmEpsg: String(cfg.utmEpsg),
                         };
                         return prev.some((r) => r.code === cfg.pCode)
                             ? prev.map((r) => (r.code === cfg.pCode ? entry : r))
@@ -303,91 +342,9 @@ export default function RndConfigurationPage() {
                 defaultModel: "",
                 defaultBiomassAssessmentMethod: "",
                 biomassProfileVersion: "",
+                utmEpsg: "",
             },
         ]);
-    }
-
-    function updateDensityField(id: number, field: "treeSpacing" | "treeDensityHa" | "desc", value: string) {
-        setTreeDensities((prev) =>
-            prev.map((row) =>
-                row.id === id ? { ...row, [field]: field === "treeDensityHa" ? Number(value) : value } : row
-            )
-        );
-    }
-
-    async function saveDensityRow(id: number) {
-        const row = treeDensities.find((r) => r.id === id);
-        if (!row) return;
-        setDensityBusyId(id);
-        setDensityRowError((prev) => ({ ...prev, [id]: "" }));
-        try {
-            const res = await fetch(`/api/rnd/tree-density/${id}`, {
-                method: "PUT",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    treeSpacing: row.treeSpacing,
-                    treeDensityHa: row.treeDensityHa,
-                    desc: row.desc,
-                }),
-            });
-            const data = await res.json().catch(() => ({}));
-            if (!res.ok) throw new Error(data.error || "บันทึกไม่สำเร็จ");
-            setTreeDensities((prev) => prev.map((r) => (r.id === id ? data.row : r)));
-        } catch (err) {
-            setDensityRowError((prev) => ({ ...prev, [id]: err instanceof Error ? err.message : "บันทึกไม่สำเร็จ" }));
-        } finally {
-            setDensityBusyId(null);
-        }
-    }
-
-    async function confirmDeleteDensityRow() {
-        if (!pendingDeleteDensityId) return;
-        const id = pendingDeleteDensityId;
-        setDensityBusyId(id);
-        setDensityRowError((prev) => ({ ...prev, [id]: "" }));
-        try {
-            const res = await fetch(`/api/rnd/tree-density/${id}`, { method: "DELETE" });
-            const data = await res.json().catch(() => ({}));
-            if (!res.ok) throw new Error(data.error || "ลบไม่สำเร็จ");
-            setTreeDensities((prev) => prev.filter((r) => r.id !== id));
-            setPendingDeleteDensityId(null);
-        } catch (err) {
-            setDensityRowError((prev) => ({ ...prev, [id]: err instanceof Error ? err.message : "ลบไม่สำเร็จ" }));
-            setPendingDeleteDensityId(null);
-        } finally {
-            setDensityBusyId(null);
-        }
-    }
-
-    async function addDensityRow() {
-        setAddDensityError(null);
-        const density = Number(newDensity);
-        if (!newSpacing.trim() || !newDensity.trim() || !Number.isInteger(density) || density <= 0) {
-            setAddDensityError("กรุณากรอกระบบระยะปลูก และความหนาแน่นเป็นจำนวนเต็มมากกว่า 0");
-            return;
-        }
-        setAddingDensity(true);
-        try {
-            const res = await fetch("/api/rnd/tree-density", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    treeSpacing: newSpacing.trim(),
-                    treeDensityHa: density,
-                    desc: newDesc.trim() || null,
-                }),
-            });
-            const data = await res.json().catch(() => ({}));
-            if (!res.ok) throw new Error(data.error || "เพิ่มไม่สำเร็จ");
-            setTreeDensities((prev) => [...prev, data.row].sort((a, b) => a.treeSpacing.localeCompare(b.treeSpacing)));
-            setNewSpacing("");
-            setNewDensity("");
-            setNewDesc("");
-        } catch (err) {
-            setAddDensityError(err instanceof Error ? err.message : "เพิ่มไม่สำเร็จ");
-        } finally {
-            setAddingDensity(false);
-        }
     }
 
     function updateRegion(code: string, field: keyof RegionConfigRow, value: string) {
@@ -456,7 +413,7 @@ export default function RndConfigurationPage() {
         visibleRegions.some((r) =>
             !r.plantingYearMapVersion || !r.luMapVersion || !r.defaultSpacingSystem ||
             !r.defaultRubberClone || !r.defaultModel || !r.defaultBiomassAssessmentMethod ||
-            !r.biomassProfileVersion
+            !r.biomassProfileVersion || !r.utmEpsg
         );
 
     // Save also requires a passing "ตรวจสอบพารามิเตอร์" check for the province
@@ -470,10 +427,16 @@ export default function RndConfigurationPage() {
         !regionFieldsIncomplete &&
         (!currentValidation || "error" in currentValidation || !currentValidation.valid);
 
-    // Region config batch-saves via the bottom "บันทึกการตั้งค่า" bar; the
-    // tree-density tab saves/deletes each row immediately instead (see
-    // saveDensityRow/confirmDeleteDensityRow/addDensityRow above), so this handler
-    // only has a region-tab case.
+    // Opens a province's config in the edit tab (from the list's "แก้ไข").
+    function editConfig(pCode: string) {
+        const province = provinces.find((p) => p.pCode === pCode);
+        if (province) setFilterRegion(province.region);
+        setFilterPCode(pCode);
+        setSaveError(null);
+        setActiveTab("region");
+    }
+
+    // Region config saves via the bottom "บันทึกการตั้งค่า" bar.
     async function handleSave() {
         setSaveError(null);
         if (activeTab !== "region" || !filterPCode) return;
@@ -490,19 +453,33 @@ export default function RndConfigurationPage() {
                     pName: region.provinceName,
                     luVersion: Number(region.luMapVersion),
                     plantingYearVersion: Number(region.plantingYearMapVersion),
+                    biomassProfileVersion: region.biomassProfileVersion,
                     defaultSpacing: region.defaultSpacingSystem,
                     defaultClone: region.defaultRubberClone,
                     defaultGrowth: region.defaultModel,
                     defaultAllometry: region.defaultBiomassAssessmentMethod,
-                    biomassProfileVersion: region.biomassProfileVersion,
+                    utmEpsg: Number(region.utmEpsg),
                 }),
             });
             const data = await res.json().catch(() => ({}));
             if (!res.ok) {
                 throw new Error(data.error || "บันทึกไม่สำเร็จ");
             }
-            setSuccess(`บันทึกค่าตั้งต้นสำหรับ ${region.provinceName} (${region.code}) สำเร็จ`);
-            setTimeout(() => setSuccess(null), 3000);
+            setSuccess(
+                `บันทึกค่าตั้งต้นสำหรับ ${region.provinceName} (${region.code}) สำเร็จ — เวอร์ชันที่เลือกถูกตั้งเป็นใช้งานอยู่แล้ว` +
+                (data.distributionFound === false
+                    ? " (ยังไม่มี Planting Year Distribution สำหรับ LU + Planting Year คู่นี้ กรุณานำเข้าที่หน้าจัดการข้อมูล)"
+                    : "")
+            );
+            setTimeout(() => setSuccess(null), 6000);
+            void loadSavedConfigs();
+            // Relabel the version dropdowns to match the new active/archived statuses.
+            setRegionOptions((prev) => prev && {
+                ...prev,
+                plantingYearVersionOptions: restatus(prev.plantingYearVersionOptions, region.plantingYearMapVersion),
+                luVersionOptions: restatus(prev.luVersionOptions, region.luMapVersion),
+                biomassProfileVersionOptions: restatus(prev.biomassProfileVersionOptions, region.biomassProfileVersion),
+            });
         } catch (err) {
             setSaveError(err instanceof Error ? err.message : "บันทึกไม่สำเร็จ");
         } finally {
@@ -551,152 +528,88 @@ export default function RndConfigurationPage() {
                 ))}
             </div>
 
-            {activeTab === "density" && (
-                <div style={{ background: "#fff", border: "1px solid #e6f0ea", borderRadius: 16, overflow: "hidden" }}>
-                    {densityError ? (
-                        <div className="p-4" style={{ fontSize: 13.5, color: "#c53030" }}>
-                            ไม่สามารถโหลดข้อมูลความหนาแน่นต้นไม้จาก tbl_tree_density ได้ กรุณาลองใหม่อีกครั้ง
-                        </div>
-                    ) : densityLoading ? (
-                        <div className="text-center py-4" style={{ fontSize: 13.5, color: "#5a7a65" }}>
-                            กำลังโหลด…
-                        </div>
-                    ) : (
-                        <>
-                            <div className="d-md-none px-4 py-2 d-flex justify-content-center align-items-center gap-1" style={{ background: "#f4f9f6", color: "#1e7a47", fontSize: 12.5, fontWeight: 600, borderBottom: "1px solid #e6f0ea" }}>
-                                <span style={{ color: "#dc2626" }}>*</span>
-                                <i className="bi bi-arrows-move" /> เลื่อนตาราง ซ้าย-ขวา / ขึ้น-ลง ได้
-                            </div>
-                            <div 
-                                className="table-responsive" 
-                                style={{ 
-                                    maxHeight: "450px", 
-                                    overflow: "auto"
-                                }}
-                            >
-                                <table className="table align-middle mb-0" style={{ fontSize: 13, minWidth: 700 }}>
-                                    <thead style={{ position: "sticky", top: 0, zIndex: 10, background: "#f8fbf9", boxShadow: "0 2px 4px rgba(0,0,0,0.04)" }}>
-                                        <tr>
-                                            <th className="px-4 py-2" style={{ fontWeight: 700, fontSize: 12, color: "#5a7a65", textTransform: "uppercase", borderBottom: "none" }}>ระบบระยะปลูก</th>
-                                            <th className="py-2" style={{ fontWeight: 700, fontSize: 12, color: "#5a7a65", textTransform: "uppercase", borderBottom: "none" }}>ความหนาแน่น (ต้น/เฮกตาร์)</th>
-                                            <th className="py-2" style={{ fontWeight: 700, fontSize: 12, color: "#5a7a65", textTransform: "uppercase", borderBottom: "none" }}>ความหนาแน่น (ต้น/ไร่)</th>
-                                            <th className="py-2" style={{ fontWeight: 700, fontSize: 12, color: "#5a7a65", textTransform: "uppercase", borderBottom: "none" }}>คำอธิบาย</th>
-                                            <th className="py-2 pe-4 text-end" style={{ fontWeight: 700, fontSize: 12, color: "#5a7a65", textTransform: "uppercase", borderBottom: "none" }}>จัดการ</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                    {treeDensities.map((row) => (
-                                        <tr key={row.id}>
-                                            <td className="px-4 py-2" style={{ width: "18%" }}>
-                                                <input
-                                                    type="text"
-                                                    value={row.treeSpacing}
-                                                    onChange={(e) => updateDensityField(row.id, "treeSpacing", e.target.value)}
-                                                    style={{ ...INPUT_STYLE, padding: "6px 10px" }}
-                                                />
+            {activeTab === "list" && (
+                <>
+                    <div className="d-flex justify-content-end mb-3">
+                        <button
+                            onClick={() => { setFilterRegion(""); setFilterPCode(""); setSaveError(null); setActiveTab("region"); }}
+                            className="btn"
+                            style={{
+                                background: "#1e7a47", color: "#fff", border: "none",
+                                borderRadius: 10, padding: "9px 18px", fontWeight: 600, fontSize: "0.85rem",
+                                display: "flex", alignItems: "center", gap: 6,
+                            }}
+                        >
+                            <i className="bi bi-plus-lg" />
+                            เพิ่มค่าตั้งต้นจังหวัด
+                        </button>
+                    </div>
+                    <div style={{ background: "#fff", border: "1px solid #e6f0ea", borderRadius: 16, overflow: "hidden" }}>
+                        <div className="table-responsive">
+                            <table className="table table-hover align-middle mb-0" style={{ fontSize: 13, minWidth: 900 }}>
+                                <thead style={{ background: "#f8fbf9" }}>
+                                    <tr>
+                                        {["จังหวัด", "ภาค", "Planting Year", "LU Map", "Biomass Profile", "ระยะปลูก", "พันธุ์ยาง", "Growth Model / Allometry", "UTM"].map((h, idx) => (
+                                            <th key={h} className={idx === 0 ? "px-4 py-3" : "py-3"} style={TH_STYLE}>{h}</th>
+                                        ))}
+                                        <th className="px-4 py-3 text-end" style={TH_STYLE}>จัดการ</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {savedConfigs.map((c) => (
+                                        <tr key={c.pCode}>
+                                            <td className="px-4 py-3">
+                                                <div className="fw-semibold" style={{ color: "#1a3d2b" }}>{c.provinceName}</div>
+                                                <div style={{ fontSize: 12, color: "#94a3b8" }}>{c.pCode}</div>
                                             </td>
-                                            <td className="py-2" style={{ width: "18%" }}>
-                                                <input
-                                                    type="number"
-                                                    value={row.treeDensityHa}
-                                                    onChange={(e) => updateDensityField(row.id, "treeDensityHa", e.target.value)}
-                                                    style={{ ...INPUT_STYLE, padding: "6px 10px" }}
-                                                />
+                                            <td className="py-3" style={{ color: "#5a7a65" }}>{c.region ? REGION_LABELS[c.region] ?? c.region : "-"}</td>
+                                            <td className="py-3" style={{ color: "#5a7a65" }}>{c.plantingYearVersion}</td>
+                                            <td className="py-3" style={{ color: "#5a7a65" }}>{c.luVersion}</td>
+                                            <td className="py-3" style={{ color: "#5a7a65" }}>{c.biomassProfileVersion}</td>
+                                            <td className="py-3" style={{ color: "#5a7a65" }}>{c.defaultSpacing}</td>
+                                            <td className="py-3" style={{ color: "#5a7a65" }}>{c.defaultClone}</td>
+                                            <td className="py-3" style={{ color: "#5a7a65", maxWidth: 240 }}>
+                                                <div>{optionLabel(GROWTH_MODEL_OPTIONS, c.defaultGrowth)}</div>
+                                                <div style={{ fontSize: 12, color: "#94a3b8" }}>{optionLabel(ALLOMETRY_OPTIONS, c.defaultAllometry)}</div>
                                             </td>
-                                            <td className="py-2" style={{ width: "15%", color: "#5a7a65" }}>
-                                                {row.treeDensityRai}
+                                            <td className="py-3" style={{ color: "#5a7a65", whiteSpace: "nowrap" }}>
+                                                {c.utmEpsg === 32648 ? "48N" : c.utmEpsg === 32647 ? "47N" : c.utmEpsg}
                                             </td>
-                                            <td className="py-2" style={{ width: "29%" }}>
-                                                <input
-                                                    type="text"
-                                                    value={row.desc ?? ""}
-                                                    onChange={(e) => updateDensityField(row.id, "desc", e.target.value)}
-                                                    style={{ ...INPUT_STYLE, padding: "6px 10px" }}
-                                                />
-                                            </td>
-                                            <td className="py-2 pe-4">
-                                                <div className="d-flex justify-content-end align-items-center gap-2">
-                                                    {densityRowError[row.id] && (
-                                                        <span style={{ fontSize: 11.5, color: "#dc2626" }}>{densityRowError[row.id]}</span>
-                                                    )}
-                                                    <button
-                                                        onClick={() => saveDensityRow(row.id)}
-                                                        disabled={densityBusyId === row.id}
-                                                        className="btn btn-sm"
-                                                        title="บันทึก"
-                                                        style={{ background: "#edfaf3", color: "#1e7a47", border: "none", borderRadius: 8, padding: "6px 10px" }}
-                                                    >
-                                                        <i className="bi bi-check-lg" />
-                                                    </button>
-                                                    <button
-                                                        onClick={() => setPendingDeleteDensityId(row.id)}
-                                                        disabled={densityBusyId === row.id}
-                                                        className="btn btn-sm"
-                                                        title="ลบ"
-                                                        style={{ background: "#fdecec", color: "#c53030", border: "none", borderRadius: 8, padding: "6px 10px" }}
-                                                    >
-                                                        <i className="bi bi-trash" />
-                                                    </button>
-                                                </div>
+                                            <td className="px-4 py-3 text-end">
+                                                <button
+                                                    className="btn btn-sm"
+                                                    onClick={() => editConfig(c.pCode)}
+                                                    style={{ border: "1px solid #e6f0ea", borderRadius: 9, color: "#1a3d2b", background: "#fff", padding: "5px 11px", fontSize: "0.78rem", whiteSpace: "nowrap" }}
+                                                >
+                                                    <i className="bi bi-pencil me-1" />แก้ไข
+                                                </button>
                                             </td>
                                         </tr>
                                     ))}
-
-                                    {/* ── Add new row ── */}
-                                    <tr>
-                                        <td className="px-4 py-2">
-                                            <input
-                                                type="text"
-                                                placeholder="เช่น 2.5x8"
-                                                value={newSpacing}
-                                                onChange={(e) => setNewSpacing(e.target.value)}
-                                                style={{ ...INPUT_STYLE, padding: "6px 10px" }}
-                                            />
-                                        </td>
-                                        <td className="py-2">
-                                            <input
-                                                type="number"
-                                                placeholder="เช่น 500"
-                                                value={newDensity}
-                                                onChange={(e) => setNewDensity(e.target.value)}
-                                                style={{ ...INPUT_STYLE, padding: "6px 10px" }}
-                                            />
-                                        </td>
-                                        <td className="py-2" style={{ fontSize: 12, color: "#94a3b8" }}>
-                                            คำนวณอัตโนมัติ
-                                        </td>
-                                        <td className="py-2">
-                                            <input
-                                                type="text"
-                                                placeholder="คำอธิบาย (ไม่บังคับ)"
-                                                value={newDesc}
-                                                onChange={(e) => setNewDesc(e.target.value)}
-                                                style={{ ...INPUT_STYLE, padding: "6px 10px" }}
-                                            />
-                                        </td>
-                                        <td className="py-2 pe-4 text-end">
-                                            <button
-                                                onClick={addDensityRow}
-                                                disabled={addingDensity}
-                                                className="btn btn-sm"
-                                                title="เพิ่ม"
-                                                style={{ background: "#1e7a47", color: "#fff", border: "none", borderRadius: 8, padding: "6px 12px" }}
-                                            >
-                                                <i className="bi bi-plus-lg me-1" />เพิ่ม
-                                            </button>
-                                        </td>
-                                    </tr>
+                                    {savedConfigsLoading && (
+                                        <tr>
+                                            <td colSpan={10} className="text-center py-5" style={{ color: "#5a7a65" }}>กำลังโหลด…</td>
+                                        </tr>
+                                    )}
+                                    {!savedConfigsLoading && savedConfigsError && (
+                                        <tr>
+                                            <td colSpan={10} className="text-center py-5" style={{ color: "#c53030" }}>
+                                                โหลดรายการค่าตั้งต้นไม่สำเร็จ กรุณาลองใหม่อีกครั้ง
+                                            </td>
+                                        </tr>
+                                    )}
+                                    {!savedConfigsLoading && !savedConfigsError && savedConfigs.length === 0 && (
+                                        <tr>
+                                            <td colSpan={10} className="text-center py-5" style={{ color: "#5a7a65" }}>
+                                                ยังไม่มีค่าตั้งต้นของจังหวัดใด
+                                            </td>
+                                        </tr>
+                                    )}
                                 </tbody>
                             </table>
-                            {addDensityError && (
-                                <div className="px-4 pb-3" style={{ fontSize: 12.5, color: "#dc2626" }}>
-                                    {addDensityError}
-                                </div>
-                            )}
                         </div>
-                        </>
-                    )}
-                </div>
+                    </div>
+                </>
             )}
 
             {activeTab === "region" && (
@@ -777,12 +690,16 @@ export default function RndConfigurationPage() {
                                         </span>
                                         <span style={{ fontWeight: 600, color: "#1a3d2b", fontSize: 14 }}>{region.provinceName}</span>
                                     </div>
+                                    <div style={{ fontSize: 12.5, color: "#5a7a65", background: "#f8fbf9", border: "1px solid #e6f0ea", borderRadius: 10, padding: "8px 12px", marginBottom: 14 }}>
+                                        <i className="bi bi-info-circle me-1" />
+                                        เมื่อบันทึก เวอร์ชันข้อมูลที่เลือก (Planting Year / LU / Biomass Profile) จะถูกตั้งเป็น <strong>ใช้งานอยู่</strong> และเวอร์ชันเดิมจะถูก <strong>เก็บถาวร</strong>
+                                    </div>
                                     <div className="row g-3">
                                         <div className="col-12 col-lg-6">
-                                            <Field required label="Planting Year Map Version" value={region.plantingYearMapVersion} onChange={(v) => updateRegion(region.code, "plantingYearMapVersion", v)} options={toOptions(regionOptions?.plantingYearVersionOptions ?? [])} />
+                                            <Field required label="Planting Year Map Version" value={region.plantingYearMapVersion} onChange={(v) => updateRegion(region.code, "plantingYearMapVersion", v)} options={toVersionOptions(regionOptions?.plantingYearVersionOptions ?? [])} />
                                         </div>
                                         <div className="col-12 col-lg-6">
-                                            <Field required label="LU Map Version" value={region.luMapVersion} onChange={(v) => updateRegion(region.code, "luMapVersion", v)} options={toOptions(regionOptions?.luVersionOptions ?? [])} />
+                                            <Field required label="LU Map Version" value={region.luMapVersion} onChange={(v) => updateRegion(region.code, "luMapVersion", v)} options={toVersionOptions(regionOptions?.luVersionOptions ?? [])} />
                                         </div>
                                         <div className="col-12 col-lg-6">
                                             <Field required label="Default Spacing System" value={region.defaultSpacingSystem} onChange={(v) => updateRegion(region.code, "defaultSpacingSystem", v)} options={toOptions(regionOptions?.spacingOptions ?? [])} />
@@ -794,7 +711,10 @@ export default function RndConfigurationPage() {
                                             <Field required label="Default Growth Model" value={region.defaultModel} onChange={(v) => updateRegion(region.code, "defaultModel", v)} options={toOptions(regionOptions?.growthOptions ?? [])} />
                                         </div>
                                         <div className="col-12 col-lg-6">
-                                            <Field required label="Biomass Profile Version" value={region.biomassProfileVersion} onChange={(v) => updateRegion(region.code, "biomassProfileVersion", v)} options={toOptions(regionOptions?.biomassProfileVersionOptions ?? [])} />
+                                            <Field required label="Biomass Profile Version" value={region.biomassProfileVersion} onChange={(v) => updateRegion(region.code, "biomassProfileVersion", v)} options={toVersionOptions(regionOptions?.biomassProfileVersionOptions ?? [])} />
+                                        </div>
+                                        <div className="col-12 col-lg-6">
+                                            <Field required label="UTM Zone" hint="โซน UTM ของแผนที่ปีปลูก (Planting Year Map) ของจังหวัดนี้" value={region.utmEpsg} onChange={(v) => updateRegion(region.code, "utmEpsg", v)} options={UTM_EPSG_OPTIONS} />
                                         </div>
 
                                         {/* ── ย้ายฟิลด์ที่มีข้อความยาวมากมาไว้ด้านล่างสุด และให้กางเต็ม 100% (col-12) ── */}
@@ -880,8 +800,7 @@ export default function RndConfigurationPage() {
                 </div>
             )}
 
-            {/* ── Save bar — region-config tab only; the density tab saves/deletes
-                 each row immediately instead. ── */}
+            {/* ── Save bar — region-config tab only. ── */}
             {activeTab === "region" && (
                 <div className="d-flex flex-column align-items-end gap-2 mt-4">
                     {regionFieldsIncomplete && (
@@ -917,69 +836,6 @@ export default function RndConfigurationPage() {
                 </div>
             )}
 
-            {/* ── Delete-row confirmation popup (replaces window.confirm) ── */}
-            {pendingDeleteDensityId !== null && (
-                <div
-                    onClick={() => setPendingDeleteDensityId(null)}
-                    style={{
-                        position: "fixed", inset: 0, zIndex: 1050,
-                        background: "rgba(15,23,42,0.55)",
-                        display: "flex", alignItems: "center", justifyContent: "center",
-                        padding: 16,
-                    }}
-                >
-                    <div
-                        onClick={(e) => e.stopPropagation()}
-                        style={{
-                            background: "#fff", borderRadius: 16, width: "100%", maxWidth: 400,
-                            boxShadow: "0 20px 60px rgba(0,0,0,0.3)", overflow: "hidden",
-                        }}
-                    >
-                        <div style={{ padding: "26px 26px 22px" }}>
-                            <div style={{
-                                width: 52, height: 52, borderRadius: "50%", margin: "0 auto 16px",
-                                background: "rgba(239,68,68,0.10)",
-                                display: "flex", alignItems: "center", justifyContent: "center",
-                                color: "#dc2626", fontSize: 24,
-                            }}>
-                                <i className="bi bi-exclamation-triangle-fill" />
-                            </div>
-                            <h3 className="fw-bold text-center mb-2" style={{ fontSize: 18, color: "#111827" }}>
-                                ลบระบบระยะปลูก &ldquo;{treeDensities.find((r) => r.id === pendingDeleteDensityId)?.treeSpacing}&rdquo;?
-                            </h3>
-                            <p className="text-center mb-0" style={{ fontSize: 14, color: "#6b7280", lineHeight: 1.6 }}>
-                                การลบนี้ไม่สามารถกู้คืนได้
-                            </p>
-                        </div>
-                        <div style={{ display: "flex", gap: 10, padding: "0 26px 24px" }}>
-                            <button
-                                onClick={() => setPendingDeleteDensityId(null)}
-                                disabled={densityBusyId === pendingDeleteDensityId}
-                                className="btn"
-                                style={{
-                                    flex: 1, background: "#f1f5f9", color: "#334155", border: "none",
-                                    borderRadius: 10, padding: "10px", fontWeight: 600, fontSize: "0.875rem",
-                                }}
-                            >
-                                ยกเลิก
-                            </button>
-                            <button
-                                onClick={confirmDeleteDensityRow}
-                                disabled={densityBusyId === pendingDeleteDensityId}
-                                className="btn"
-                                style={{
-                                    flex: 1, background: "#dc2626", color: "#fff", border: "none",
-                                    borderRadius: 10, padding: "10px", fontWeight: 700, fontSize: "0.875rem",
-                                }}
-                            >
-                                {densityBusyId === pendingDeleteDensityId
-                                    ? <><span className="spinner-border spinner-border-sm me-2" style={{ width: 14, height: 14 }} />กำลังลบ…</>
-                                    : <><i className="bi bi-trash me-1" />ลบ</>}
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
         </>
     );
 }

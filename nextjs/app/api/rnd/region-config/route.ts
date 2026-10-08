@@ -1,22 +1,67 @@
 import { NextRequest, NextResponse } from "next/server";
 import { pool } from "@/lib/db";
 import { isAdminOrRnd } from "@/lib/auth-server";
+import { activateVersion, getRequesterId, syncPlantingYearDist, withTransaction } from "@/lib/dataset-version";
 
 const MAX_P_NAME_LENGTH = 100;
 const MAX_SPACING_LENGTH = 20;
 const MAX_CLONE_GROWTH_ALLOMETRY_LENGTH = 50;
+// Mirrors chk_region_config_utm_epsg: 32647 = UTM 47N, 32648 = UTM 48N.
+const UTM_EPSG_VALUES = [32647, 32648];
 
 type RegionConfigInput = {
   pCode?: unknown;
   pName?: unknown;
   luVersion?: unknown;
   plantingYearVersion?: unknown;
+  biomassProfileVersion?: unknown;
   defaultSpacing?: unknown;
   defaultClone?: unknown;
   defaultGrowth?: unknown;
   defaultAllometry?: unknown;
-  biomassProfileVersion?: unknown;
+  utmEpsg?: unknown;
 };
+
+/**
+ * GET /api/rnd/region-config
+ * Every saved tbl_region_config row (all provinces) — the
+ * "รายการค่าตั้งต้น" list tab on the R&D configuration page.
+ */
+export async function GET(request: NextRequest) {
+  if (!(await isAdminOrRnd(request))) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  try {
+    const { rows } = await pool.query(
+      `SELECT rc.p_code, rc.p_name, g.prov_name_th, g.region, rc.lu_version, rc.planting_year_version,
+              rc.default_spacing, rc.default_clone, rc.default_growth, rc.default_allometry,
+              rc.biomass_profile_version, rc.utm_epsg
+       FROM tbl_region_config rc
+       LEFT JOIN geo_thailand g ON g.p_code = rc.p_code
+       ORDER BY g.region, g.prov_name_th`
+    );
+
+    return NextResponse.json({
+      configs: rows.map((r) => ({
+        pCode: r.p_code,
+        provinceName: r.prov_name_th ?? r.p_name,
+        region: r.region ?? null,
+        luVersion: r.lu_version,
+        plantingYearVersion: r.planting_year_version,
+        defaultSpacing: r.default_spacing,
+        defaultClone: r.default_clone,
+        defaultGrowth: r.default_growth,
+        defaultAllometry: r.default_allometry,
+        biomassProfileVersion: r.biomass_profile_version,
+        utmEpsg: r.utm_epsg,
+      })),
+    });
+  } catch (err) {
+    console.error("region-config list error:", err);
+    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+  }
+}
 
 /**
  * POST /api/rnd/region-config
@@ -27,6 +72,12 @@ type RegionConfigInput = {
  * stale/tampered submission can't write a value that doesn't actually exist
  * in geo_planting_year / geo_landuse / tbl_tree_density /
  * tbl_biomass_profile.
+ *
+ * Saving is also how a dataset version goes into use: the chosen LU /
+ * Planting Year / Biomass Profile versions (any imported version in
+ * tbl_dataset_version — draft, active or archived) become 'active' and the
+ * previously active ones 'archived', in the same transaction as the upsert.
+ * The planting_year_distribution status then follows the chosen map pair.
  */
 export async function POST(request: NextRequest) {
   if (!(await isAdminOrRnd(request))) {
@@ -35,7 +86,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = (await request.json()) as RegionConfigInput;
-    const { pCode, pName, luVersion, plantingYearVersion, defaultSpacing, defaultClone, defaultGrowth, defaultAllometry, biomassProfileVersion } = body;
+    const { pCode, pName, luVersion, plantingYearVersion, biomassProfileVersion, defaultSpacing, defaultClone, defaultGrowth, defaultAllometry, utmEpsg } = body;
 
     if (typeof pCode !== "string" || !pCode.trim()) {
       return NextResponse.json({ error: "ต้องระบุ p_code" }, { status: 400 });
@@ -48,6 +99,9 @@ export async function POST(request: NextRequest) {
     }
     if (typeof plantingYearVersion !== "number" || !Number.isInteger(plantingYearVersion)) {
       return NextResponse.json({ error: "Planting Year Map Version ต้องเป็นตัวเลขปี" }, { status: 400 });
+    }
+    if (typeof utmEpsg !== "number" || !UTM_EPSG_VALUES.includes(utmEpsg)) {
+      return NextResponse.json({ error: "ต้องเลือกโซน UTM (47N หรือ 48N)" }, { status: 400 });
     }
     if (typeof defaultSpacing !== "string" || !defaultSpacing.trim() || defaultSpacing.length > MAX_SPACING_LENGTH) {
       return NextResponse.json({ error: "ต้องระบุ Default Spacing System" }, { status: 400 });
@@ -66,6 +120,27 @@ export async function POST(request: NextRequest) {
     const province = await pool.query("SELECT 1 FROM geo_thailand WHERE p_code = $1", [pCode]);
     if (province.rows.length === 0) {
       return NextResponse.json({ error: `ไม่พบ p_code "${pCode}" ใน geo_thailand` }, { status: 400 });
+    }
+
+    // Every chosen version must be a registered import of this province.
+    const registered = await pool.query(
+      `SELECT category, version FROM tbl_dataset_version
+       WHERE p_code = $1 AND category IN ('planting_year_map', 'lulc_map', 'biomass_profile')`,
+      [pCode]
+    );
+    const isRegistered = (category: string, version: string) =>
+      registered.rows.some((r) => r.category === category && r.version === version);
+    for (const [category, version, label] of [
+      ["planting_year_map", String(plantingYearVersion), "Planting Year Map"],
+      ["lulc_map", String(luVersion), "LU Map"],
+      ["biomass_profile", biomassProfileVersion as string, "Biomass Profile"],
+    ] as const) {
+      if (!isRegistered(category, version)) {
+        return NextResponse.json(
+          { error: `ไม่พบ ${label} เวอร์ชัน "${version}" ของ ${pCode} ในรายการข้อมูลที่นำเข้า` },
+          { status: 400 }
+        );
+      }
     }
 
     // Re-validate every value against the same live tables the dropdown
@@ -106,24 +181,35 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const result = await pool.query(
-      `INSERT INTO tbl_region_config
-         (p_code, p_name, lu_version, planting_year_version, default_spacing, default_clone, default_growth, default_allometry, biomass_profile_version)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-       ON CONFLICT (p_code) DO UPDATE SET
-         p_name = EXCLUDED.p_name,
-         lu_version = EXCLUDED.lu_version,
-         planting_year_version = EXCLUDED.planting_year_version,
-         default_spacing = EXCLUDED.default_spacing,
-         default_clone = EXCLUDED.default_clone,
-         default_growth = EXCLUDED.default_growth,
-         default_allometry = EXCLUDED.default_allometry,
-         biomass_profile_version = EXCLUDED.biomass_profile_version
-       RETURNING p_code, p_name, lu_version, planting_year_version, default_spacing, default_clone, default_growth, default_allometry, biomass_profile_version`,
-      [pCode, pName, luVersion, plantingYearVersion, defaultSpacing, defaultClone, defaultGrowth, defaultAllometry, biomassProfileVersion]
-    );
+    const userId = getRequesterId(request);
 
-    const row = result.rows[0];
+    const { row, distributionFound } = await withTransaction(async (client) => {
+      const result = await client.query(
+        `INSERT INTO tbl_region_config
+           (p_code, p_name, lu_version, planting_year_version, default_spacing, default_clone, default_growth, default_allometry, biomass_profile_version, utm_epsg)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+         ON CONFLICT (p_code) DO UPDATE SET
+           p_name = EXCLUDED.p_name,
+           lu_version = EXCLUDED.lu_version,
+           planting_year_version = EXCLUDED.planting_year_version,
+           default_spacing = EXCLUDED.default_spacing,
+           default_clone = EXCLUDED.default_clone,
+           default_growth = EXCLUDED.default_growth,
+           default_allometry = EXCLUDED.default_allometry,
+           biomass_profile_version = EXCLUDED.biomass_profile_version,
+           utm_epsg = EXCLUDED.utm_epsg
+         RETURNING p_code, p_name, lu_version, planting_year_version, default_spacing, default_clone, default_growth, default_allometry, biomass_profile_version, utm_epsg`,
+        [pCode, pName, luVersion, plantingYearVersion, defaultSpacing, defaultClone, defaultGrowth, defaultAllometry, biomassProfileVersion, utmEpsg]
+      );
+
+      await activateVersion(client, "planting_year_map", pCode, String(plantingYearVersion), userId);
+      await activateVersion(client, "lulc_map", pCode, String(luVersion), userId);
+      await activateVersion(client, "biomass_profile", pCode, biomassProfileVersion as string, userId);
+      const distributionFound = await syncPlantingYearDist(client, pCode, userId);
+
+      return { row: result.rows[0], distributionFound };
+    });
+
     return NextResponse.json({
       config: {
         pCode: row.p_code,
@@ -135,7 +221,11 @@ export async function POST(request: NextRequest) {
         defaultGrowth: row.default_growth,
         defaultAllometry: row.default_allometry,
         biomassProfileVersion: row.biomass_profile_version,
+        utmEpsg: row.utm_epsg,
       },
+      // false = no Planting Year Distribution imported for the chosen
+      // LU + Planting Year pair yet.
+      distributionFound,
     });
   } catch (err) {
     console.error("region-config upsert error:", err);

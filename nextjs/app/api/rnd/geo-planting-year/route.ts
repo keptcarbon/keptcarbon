@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { pool } from "@/lib/db";
 import { isAdminOrRnd } from "@/lib/auth-server";
+import { getRequesterId, recordImport, withTransaction } from "@/lib/dataset-version";
 
 // Matches the tiling already used by the table's existing rows (equivalent
 // to `raster2pgsql -t 100x100`) — one huge single-row raster is slow to
@@ -40,6 +41,7 @@ export async function GET(request: NextRequest) {
  * is decoded server-side by PostGIS's ST_FromGDALRaster (SRID read straight
  * from the file's own embedded projection), then split into 100×100-pixel
  * tiles via ST_Tile — one row per tile, not one row for the whole raster.
+ * The import is logged as a 'draft' version in tbl_dataset_version.
  */
 export async function POST(request: NextRequest) {
   if (!(await isAdminOrRnd(request))) {
@@ -78,15 +80,24 @@ export async function POST(request: NextRequest) {
 
     const buffer = Buffer.from(await file.arrayBuffer());
 
-    const result = await pool.query(
-      `INSERT INTO geo_planting_year (p_code, year, rast)
-       SELECT $1, $2, tile
-       FROM ST_Tile(ST_FromGDALRaster($3), $4, $4) AS tile
-       RETURNING rid`,
-      [pCode, year, buffer, TILE_SIZE]
-    );
+    const userId = getRequesterId(request);
 
-    return NextResponse.json({ tileCount: result.rowCount, pCode, year });
+    const tileCount = await withTransaction(async (client) => {
+      const result = await client.query(
+        `INSERT INTO geo_planting_year (p_code, year, rast)
+         SELECT $1, $2, tile
+         FROM ST_Tile(ST_FromGDALRaster($3), $4, $4) AS tile
+         RETURNING rid`,
+        [pCode, year, buffer, TILE_SIZE]
+      );
+      await recordImport(client, {
+        category: "planting_year_map", pCode, version: String(year),
+        fileName: file.name, rowCount: result.rowCount ?? 0, userId,
+      });
+      return result.rowCount;
+    });
+
+    return NextResponse.json({ tileCount, pCode, year, status: "draft" });
   } catch (err) {
     console.error("geo-planting-year import error:", err);
     const message = err instanceof Error ? err.message : "Internal Server Error";

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { pool } from "@/lib/db";
 import { isAdminOrRnd } from "@/lib/auth-server";
+import { FrozenVersionError, getRequesterId, recordImport, withTransaction } from "@/lib/dataset-version";
 import { ALLOMETRY_VALUES } from "@/lib/allometry";
 import { GROWTH_MODEL_VALUES } from "@/lib/growth-model";
 
@@ -26,7 +27,9 @@ type BiomassRowInput = {
  * POST /api/rnd/biomass-profile
  * Batch-imports a biomass lookup CSV (already parsed client-side — see
  * extractBiomassRows in the data-management page) into tbl_biomass_profile,
- * keyed by "pCode" + "clone" + "growthModel" + "allometry" + each row's age.
+ * keyed by "pCode" + "clone" + "growthModel" + "allometry" + "version" +
+ * each row's age. Each file is logged under its (pCode, version) entry in
+ * tbl_dataset_version; files can only be added while that version is a draft.
  */
 export async function POST(request: NextRequest) {
   if (!(await isAdminOrRnd(request))) {
@@ -35,8 +38,8 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { pCode, version, clone, growthModel, allometry, rows } = body as {
-      pCode?: unknown; version?: unknown; clone?: unknown; growthModel?: unknown; allometry?: unknown; rows?: unknown;
+    const { pCode, version, clone, growthModel, allometry, rows, fileName } = body as {
+      pCode?: unknown; version?: unknown; clone?: unknown; growthModel?: unknown; allometry?: unknown; rows?: unknown; fileName?: unknown;
     };
 
     if (typeof pCode !== "string" || !pCode.trim()) {
@@ -51,8 +54,10 @@ export async function POST(request: NextRequest) {
     if (typeof allometry !== "string" || !ALLOMETRY_VALUES.includes(allometry)) {
       return NextResponse.json({ error: "สมการ Allometry ไม่ถูกต้อง" }, { status: 400 });
     }
-    if (version !== undefined && version !== null && (typeof version !== "string" || version.length > 10)) {
-      return NextResponse.json({ error: "version ต้องเป็นข้อความไม่เกิน 10 ตัวอักษร" }, { status: 400 });
+    // Required: the version is what tbl_dataset_version tracks and what
+    // tbl_region_config.biomass_profile_version points at.
+    if (typeof version !== "string" || !version.trim() || version.length > 10) {
+      return NextResponse.json({ error: "ต้องระบุ version (ข้อความไม่เกิน 10 ตัวอักษร)" }, { status: 400 });
     }
     if (!Array.isArray(rows) || rows.length !== EXPECTED_ROW_COUNT) {
       return NextResponse.json({ error: `ต้องมีข้อมูล ${EXPECTED_ROW_COUNT} แถว (age 0-35)` }, { status: 400 });
@@ -86,19 +91,34 @@ export async function POST(request: NextRequest) {
       biomassCiUpper.push(row.biomassCiUpper ?? null);
     }
 
-    const result = await pool.query(
-      `INSERT INTO tbl_biomass_profile
-         (p_code, clone, growth_model, allometry, age, dbh_est, agb, bgb, biomass_est, ci, biomass_ci_lower, biomass_ci_upper, version)
-       SELECT $1, $2, $3, $4, u.age, u.dbh_est, u.agb, u.bgb, u.biomass_est, u.ci, u.biomass_ci_lower, u.biomass_ci_upper, $5
-       FROM unnest($6::integer[], $7::float8[], $8::float8[], $9::float8[], $10::float8[], $11::float8[], $12::float8[], $13::float8[])
-         AS u(age, dbh_est, agb, bgb, biomass_est, ci, biomass_ci_lower, biomass_ci_upper)
-       RETURNING id`,
-      [pCode, clone, growthModel, allometry, version ?? null, age, dbhEst, agb, bgb, biomassEst, ci, biomassCiLower, biomassCiUpper]
-    );
+    const userId = getRequesterId(request);
 
-    return NextResponse.json({ rowCount: result.rowCount, pCode, clone, growthModel, allometry });
+    const rowCount = await withTransaction(async (client) => {
+      // Logged first: rejects a frozen (active/archived) version before any
+      // profile rows are written.
+      await recordImport(client, {
+        category: "biomass_profile", pCode, version,
+        fileName: typeof fileName === "string" && fileName ? fileName : `biomass_${pCode}_${version}.csv`,
+        rowCount: rows.length, detail: { clone, growthModel, allometry }, userId,
+      });
+      const result = await client.query(
+        `INSERT INTO tbl_biomass_profile
+           (p_code, clone, growth_model, allometry, age, dbh_est, agb, bgb, biomass_est, ci, biomass_ci_lower, biomass_ci_upper, version)
+         SELECT $1, $2, $3, $4, u.age, u.dbh_est, u.agb, u.bgb, u.biomass_est, u.ci, u.biomass_ci_lower, u.biomass_ci_upper, $5
+         FROM unnest($6::integer[], $7::float8[], $8::float8[], $9::float8[], $10::float8[], $11::float8[], $12::float8[], $13::float8[])
+           AS u(age, dbh_est, agb, bgb, biomass_est, ci, biomass_ci_lower, biomass_ci_upper)
+         RETURNING id`,
+        [pCode, clone, growthModel, allometry, version, age, dbhEst, agb, bgb, biomassEst, ci, biomassCiLower, biomassCiUpper]
+      );
+      return result.rowCount;
+    });
+
+    return NextResponse.json({ rowCount, pCode, clone, growthModel, allometry, status: "draft" });
   } catch (err) {
     console.error("biomass-profile import error:", err);
+    if (err instanceof FrozenVersionError) {
+      return NextResponse.json({ error: err.message }, { status: 409 });
+    }
     // Postgres unique_violation on (p_code, clone, growth_model, allometry, age)
     const pgCode = (err as { code?: string } | undefined)?.code;
     if (pgCode === "23505") {

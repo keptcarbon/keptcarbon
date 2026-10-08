@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { pool } from "@/lib/db";
 import { isAdminOrRnd } from "@/lib/auth-server";
+import { getActiveVersions, getRequesterId, plantingYearDistVersion, recordImport, withTransaction } from "@/lib/dataset-version";
 
 type PlantingYearDistRowInput = {
   provCode: string;
@@ -24,6 +25,9 @@ type PlantingYearDistRowInput = {
  * page) into tbl_planting_year_dist. p_code/lu_year/plaining_year aren't in
  * the CSV — they're supplied once here (from the province selector and the
  * two version inputs in step 2) and apply to every row in the batch.
+ * Logged in tbl_dataset_version; it has no draft→active step of its own —
+ * it starts 'active' when its (luYear, plainingYear) pair matches the
+ * province's active LULC + Planting Year maps, otherwise 'draft'.
  */
 export async function POST(request: NextRequest) {
   if (!(await isAdminOrRnd(request))) {
@@ -32,8 +36,8 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { pCode, luYear, plainingYear, rows } = body as {
-      pCode?: unknown; luYear?: unknown; plainingYear?: unknown; rows?: unknown;
+    const { pCode, luYear, plainingYear, rows, fileName } = body as {
+      pCode?: unknown; luYear?: unknown; plainingYear?: unknown; rows?: unknown; fileName?: unknown;
     };
 
     if (typeof pCode !== "string" || !pCode.trim()) {
@@ -98,27 +102,41 @@ export async function POST(request: NextRequest) {
       sqrMAdj.push(row.sqrMAdj);
     }
 
-    const result = await pool.query(
-      `INSERT INTO tbl_planting_year_dist
-         (p_code, prov_code, prov_name_th, district_idn, district_name_th, subdistrict_idn, subdistrict_name_th,
-          lu_year, plaining_year, year, pixel_count, sqr_m, percent, adj_sqr_m, sqr_m_adj)
-       SELECT $1, u.prov_code, u.prov_name_th, u.district_idn, u.district_name_th, u.subdistrict_idn, u.subdistrict_name_th,
-              $2, $3, u.year, u.pixel_count, u.sqr_m, u.percent, u.adj_sqr_m, u.sqr_m_adj
-       FROM unnest(
-              $4::text[], $5::text[], $6::text[], $7::text[], $8::text[], $9::text[],
-              $10::integer[], $11::integer[],
-              $12::float8[], $13::float8[], $14::float8[], $15::float8[]
-            ) AS u(prov_code, prov_name_th, district_idn, district_name_th, subdistrict_idn, subdistrict_name_th,
-                    year, pixel_count, sqr_m, percent, adj_sqr_m, sqr_m_adj)
-       RETURNING id`,
-      [
-        pCode, luYear, plainingYear,
-        provCode, provNameTh, districtIdn, districtNameTh, subdistrictIdn, subdistrictNameTh,
-        year, pixelCount, sqrM, percent, adjSqrM, sqrMAdj,
-      ]
-    );
+    const userId = getRequesterId(request);
 
-    return NextResponse.json({ rowCount: result.rowCount, pCode, luYear, plainingYear });
+    const { rowCount, status } = await withTransaction(async (client) => {
+      const result = await client.query(
+        `INSERT INTO tbl_planting_year_dist
+           (p_code, prov_code, prov_name_th, district_idn, district_name_th, subdistrict_idn, subdistrict_name_th,
+            lu_year, plaining_year, year, pixel_count, sqr_m, percent, adj_sqr_m, sqr_m_adj)
+         SELECT $1, u.prov_code, u.prov_name_th, u.district_idn, u.district_name_th, u.subdistrict_idn, u.subdistrict_name_th,
+                $2, $3, u.year, u.pixel_count, u.sqr_m, u.percent, u.adj_sqr_m, u.sqr_m_adj
+         FROM unnest(
+                $4::text[], $5::text[], $6::text[], $7::text[], $8::text[], $9::text[],
+                $10::integer[], $11::integer[],
+                $12::float8[], $13::float8[], $14::float8[], $15::float8[]
+              ) AS u(prov_code, prov_name_th, district_idn, district_name_th, subdistrict_idn, subdistrict_name_th,
+                      year, pixel_count, sqr_m, percent, adj_sqr_m, sqr_m_adj)
+         RETURNING id`,
+        [
+          pCode, luYear, plainingYear,
+          provCode, provNameTh, districtIdn, districtNameTh, subdistrictIdn, subdistrictNameTh,
+          year, pixelCount, sqrM, percent, adjSqrM, sqrMAdj,
+        ]
+      );
+      const active = await getActiveVersions(client, pCode);
+      const followsActiveMaps =
+        active.lulc_map === String(luYear) && active.planting_year_map === String(plainingYear);
+      const logged = await recordImport(client, {
+        category: "planting_year_distribution", pCode, version: plantingYearDistVersion(luYear, plainingYear),
+        fileName: typeof fileName === "string" && fileName ? fileName : `planting_year_dist_${pCode}.csv`,
+        rowCount: result.rowCount ?? 0, userId,
+        initialStatus: followsActiveMaps ? "active" : "draft",
+      });
+      return { rowCount: result.rowCount, status: logged.status };
+    });
+
+    return NextResponse.json({ rowCount, pCode, luYear, plainingYear, status });
   } catch (err) {
     console.error("planting-year-dist import error:", err);
     // Postgres unique_violation on (p_code, subdistrict_idn, lu_year, plaining_year, year)
