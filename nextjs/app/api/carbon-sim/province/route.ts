@@ -24,8 +24,11 @@ export async function GET(request: NextRequest) {
 
   try {
     if (!pCode) {
+      // Region (ภาคเหนือ, ภาคตะวันออก, …) comes from the geo_subdistrict boundary layer.
       const result = await pool.query(`
-        SELECT rc.p_code, rc.p_name, MIN(d.prov_name_th) AS prov_name_th
+        SELECT rc.p_code, rc.p_name, MIN(d.prov_name_th) AS prov_name_th,
+               (SELECT MIN(sd.region_th) FROM geo_subdistrict sd
+                 WHERE sd.province_th = MIN(d.prov_name_th)) AS region_th
         FROM tbl_region_config rc
         JOIN tbl_planting_year_dist d
           ON d.p_code = rc.p_code
@@ -35,7 +38,9 @@ export async function GET(request: NextRequest) {
         ORDER BY rc.p_code
       `);
       return NextResponse.json({
-        provinces: result.rows.map((r) => ({ pCode: r.p_code, nameEn: r.p_name, nameTh: r.prov_name_th })),
+        provinces: result.rows.map((r) => ({
+          pCode: r.p_code, nameEn: r.p_name, nameTh: r.prov_name_th, regionTh: r.region_th ?? "ไม่ระบุภูมิภาค",
+        })),
       });
     }
 

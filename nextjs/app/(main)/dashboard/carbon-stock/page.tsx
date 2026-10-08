@@ -521,7 +521,7 @@ function Select({ label, icon, value, onChange, children, disabled }: {
   );
 }
 
-type ProvinceOption = { pCode: string; nameEn: string; nameTh: string };
+type ProvinceOption = { pCode: string; nameEn: string; nameTh: string; regionTh: string };
 
 /** GET /api/dashboard/carbon-stock?pCode=… */
 type CarbonStockData = {
@@ -614,8 +614,11 @@ function summarize(
 export default function DashboardPage() {
   // Province list: provinces with planting-year data (same source as /dashboard/simulation).
   const [provinces, setProvinces] = useState<ProvinceOption[] | null>(null);
+  const [region, setRegion] = useState("");
   const [pCode, setPCode] = useState("");
   const [selectedId, setSelectedId] = useState("all");
+  const regions = useMemo(() => [...new Set(provinces?.map((p) => p.regionTh))], [provinces]);
+  const regionProvinces = useMemo(() => provinces?.filter((p) => p.regionTh === region) ?? [], [provinces, region]);
   const [isMobile, setIsMobile] = useState(false);
   const [mapPlots, setMapPlots] = useState<MapPlot[]>([]);
   useEffect(() => {
@@ -631,7 +634,11 @@ export default function DashboardPage() {
       .then(r => r.ok ? r.json() : { provinces: [] })
       .then(({ provinces }: { provinces: ProvinceOption[] }) => {
         setProvinces(provinces);
-        if (provinces.length) setPCode((provinces.find(p => p.pCode === "RAY") ?? provinces[0]).pCode);
+        if (provinces.length) {
+          const initial = provinces.find(p => p.pCode === "RAY") ?? provinces[0];
+          setRegion(initial.regionTh);
+          setPCode(initial.pCode);
+        }
       })
       .catch(() => setProvinces([]));
   }, []);
@@ -740,10 +747,19 @@ export default function DashboardPage() {
         {/* ── Scope selectors ──────────────────────────────────────────────── */}
         <div className="db2-card" style={{ padding: "14px 20px" }}>
           <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
-            <Select label="เลือกจังหวัด" icon="bi-map" value={pCode} disabled={!provinces?.length}
+            <Select label="เลือกภูมิภาค" icon="bi-globe-asia-australia" value={region} disabled={!provinces?.length}
+              onChange={(v) => {
+                setRegion(v);
+                setPCode(provinces?.find(p => p.regionTh === v)?.pCode ?? "");
+                setSelectedId("all");
+              }}>
+              {!provinces?.length && <option value="">{provinces ? "ไม่มีข้อมูลภูมิภาค" : "กำลังโหลด..."}</option>}
+              {regions.map((r) => <option key={r} value={r}>{r}</option>)}
+            </Select>
+            <Select label="เลือกจังหวัด" icon="bi-map" value={pCode} disabled={!regionProvinces.length}
               onChange={(v) => { setPCode(v); setSelectedId("all"); }}>
-              {!provinces?.length && <option value="">{provinces ? "ไม่มีข้อมูลจังหวัด" : "กำลังโหลด..."}</option>}
-              {provinces?.map((p) => <option key={p.pCode} value={p.pCode}>{p.nameTh}</option>)}
+              {!regionProvinces.length && <option value="">{provinces ? "ไม่มีข้อมูลจังหวัด" : "กำลังโหลด..."}</option>}
+              {regionProvinces.map((p) => <option key={p.pCode} value={p.pCode}>{p.nameTh}</option>)}
             </Select>
             <Select label="เลือกอำเภอ" icon="bi-geo-alt-fill" value={selectedId} onChange={setSelectedId}>
               <option value="all">
