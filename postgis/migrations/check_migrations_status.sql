@@ -148,4 +148,13 @@ BEGIN
                 WHERE table_schema='public' AND table_name='tbl_plots' AND column_name='assessment_geometry')
   THEN RAISE NOTICE '035_tbl_plots_assessment_geometry ..... DONE';
   ELSE RAISE NOTICE '035_tbl_plots_assessment_geometry ..... RUN (after 009, 010)';  END IF;
+
+  IF to_regclass('public.tbl_plot_carbon_yearly') IS NULL
+  THEN RAISE NOTICE '036_drop_superseded_carbon_yearly ..... SKIP (run 009 first)';
+  ELSE
+    SELECT count(*) INTO n FROM public.tbl_plot_carbon_yearly y
+      JOIN public.tbl_plot_assessments a ON a.id = y.assessment_id WHERE NOT a.is_current;
+    IF n > 0 THEN RAISE NOTICE '036_drop_superseded_carbon_yearly ..... RUN (% superseded rows)', n;
+    ELSE RAISE NOTICE '036_drop_superseded_carbon_yearly ..... DONE'; END IF;
+  END IF;
 END $$;

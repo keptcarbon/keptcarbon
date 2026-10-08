@@ -297,15 +297,26 @@ async function recomputeLandUseOverlaps(
  * assess_parameters stop showing) until the user reruns the estimate. Safe
  * to call even if the plot has no current assessment (affects 0 rows).
  */
+// A superseded assessment keeps its tbl_plot_assessments row (which
+// parameters were used, and when) but not its yearly profile -- only the
+// current assessment's profile is ever read (GET /api/plots).
+const DROP_CURRENT_PROFILE_SQL = `
+  DELETE FROM tbl_plot_carbon_yearly y
+  USING tbl_plot_assessments a
+  WHERE y.assessment_id = a.id AND a.plot_id = $1 AND a.is_current`;
+
 async function invalidateAssessments(client: any, projectId: number, polygonIds: string[]): Promise<void> {
   if (polygonIds.length === 0) return;
-  await client.query(
-    `UPDATE tbl_plot_assessments a
-     SET is_current = FALSE
-     FROM tbl_plots p
-     WHERE a.plot_id = p.id AND p.project_id = $1 AND p.polygon_id = ANY($2::text[]) AND a.is_current = TRUE`,
+  const stale = await client.query(
+    `SELECT DISTINCT p.id FROM tbl_plots p
+     JOIN tbl_plot_assessments a ON a.plot_id = p.id AND a.is_current
+     WHERE p.project_id = $1 AND p.polygon_id = ANY($2::text[])`,
     [projectId, polygonIds]
   );
+  for (const row of stale.rows) {
+    await client.query(DROP_CURRENT_PROFILE_SQL, [row.id]);
+    await client.query(`UPDATE tbl_plot_assessments SET is_current = FALSE WHERE plot_id = $1 AND is_current`, [row.id]);
+  }
 }
 
 async function appendAssessments(client: any, projectId: number, backendResponses: AnyRecord[]): Promise<void> {
@@ -335,6 +346,7 @@ async function appendAssessments(client: any, projectId: number, backendResponse
     );
     if (unchanged.rowCount > 0) continue;
 
+    await client.query(DROP_CURRENT_PROFILE_SQL, [plotId]);
     await client.query(`UPDATE tbl_plot_assessments SET is_current = FALSE WHERE plot_id = $1 AND is_current`, [plotId]);
 
     const assessRes = await client.query(
