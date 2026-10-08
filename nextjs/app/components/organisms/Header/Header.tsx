@@ -25,6 +25,7 @@ import {
   ChevronDown,
   Leaf,
   TrendingUp,
+  GraduationCap,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -53,6 +54,7 @@ const navLinks: NavItem[] = [
     ],
   },
   { label: "ประเมินคาร์บอน", href: "/map-draw", icon: Map },
+  { label: "Kitty", href: "/kitty", icon: GraduationCap },
 ];
 
 /* Shown instead of navLinks while browsing the admin area (/admin).
