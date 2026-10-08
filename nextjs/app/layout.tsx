@@ -48,9 +48,9 @@ export default function RootLayout({
         <link rel="stylesheet" href="/assets/css/index-page.css" />
         <link rel="stylesheet" href="/assets/css/kc-design.css" />
         <link rel="stylesheet" href="/assets/css/dashboard.css?v=12" />
-        <link rel="stylesheet" href="/assets/css/map-draw.css?v=4" />
+        <link rel="stylesheet" href="/assets/css/map-draw.css?v=5" />
         <link rel="stylesheet" href="/assets/css/map-draw-redesign.css?v=10" />
-        <link rel="stylesheet" href="/assets/css/map-split.css?v=38" />
+        <link rel="stylesheet" href="/assets/css/map-split.css?v=43" />
         <link rel="stylesheet" href="/assets/css/modal-auth.css?v=3" />
       </head>
       <body suppressHydrationWarning>

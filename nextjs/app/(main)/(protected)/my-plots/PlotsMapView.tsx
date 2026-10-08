@@ -55,7 +55,7 @@ export function PlotsMapView({ plots, isMobile }: { plots: SavedPlot[], isMobile
             tileSize: 256,
             minzoom: 1,
             maxzoom: 18,
-            attribution: "",
+            attribution: "Map data © Google",
           },
           street: {
             type: "raster",
@@ -63,7 +63,7 @@ export function PlotsMapView({ plots, isMobile }: { plots: SavedPlot[], isMobile
             tileSize: 256,
             minzoom: 1,
             maxzoom: 18,
-            attribution: "",
+            attribution: '© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors',
           },
         },
         layers: [
@@ -73,7 +73,7 @@ export function PlotsMapView({ plots, isMobile }: { plots: SavedPlot[], isMobile
       },
       center: [101.258, 13.5],
       zoom: 5,
-      attributionControl: false,
+      attributionControl: { compact: true },
     });
 
     mapRef.current = map;

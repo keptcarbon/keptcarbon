@@ -46,10 +46,14 @@ export function useBoundarySelection({
       src.setData({ type: "FeatureCollection", features: [] });
       return;
     }
+    // A selection made while this fetch is in flight (e.g. the location tour
+    // stepping into a province) must not get the country outline drawn back.
+    let stale = false;
     fetch('/api/geojson/th-boundary')
       .then(r => r.json())
-      .then(fc => { src.setData(fc); })
+      .then(fc => { if (!stale) src.setData(fc); })
       .catch(console.error);
+    return () => { stale = true; };
   }, [selectedRegion, selectedProvince, mapLoaded]);
 
   // Region boundary: show only the selected region, hide when province chosen
@@ -62,9 +66,11 @@ export function useBoundarySelection({
       src.setData({ type: "FeatureCollection", features: [] });
       return;
     }
+    let stale = false;
     fetch('/api/geojson/regions')
       .then(r => r.json())
       .then((fc: GeoJSON.FeatureCollection) => {
+        if (stale) return;
         const filtered: GeoJSON.FeatureCollection = {
           type: "FeatureCollection",
           features: (fc.features || []).filter(f => f.properties?.name_th === selectedRegion),
@@ -73,6 +79,7 @@ export function useBoundarySelection({
         if (filtered.features.length && !suppressAutoZoomRef?.current) zoomToGeoJSONFeatures(filtered.features, map);
       })
       .catch(console.error);
+    return () => { stale = true; };
   }, [selectedRegion, selectedProvince, mapLoaded]);
 
   // Update province boundary to show only the selected province
@@ -85,13 +92,16 @@ export function useBoundarySelection({
       src.setData({ type: "FeatureCollection", features: [] });
       return;
     }
+    let stale = false;
     fetch(`/api/geojson/boundary?province=${encodeURIComponent(selectedProvince)}`)
       .then(r => r.json())
       .then(fc => {
+        if (stale) return;
         src.setData(fc);
         if (fc.features && !suppressAutoZoomRef?.current) zoomToGeoJSONFeatures(fc.features, map);
       })
       .catch(console.error);
+    return () => { stale = true; };
   }, [selectedProvince, selectedAmphoe, mapLoaded]);
 
   // Fetch amphoe list from DB when province changes
@@ -132,13 +142,16 @@ export function useBoundarySelection({
     const src = map.getSource("district-boundary") as maplibregl.GeoJSONSource | undefined;
     if (!src) return;
     if (!selectedAmphoe || !selectedProvince || selectedTambon) { src.setData({ type: "FeatureCollection", features: [] }); return; }
+    let stale = false;
     fetch(`/api/geojson/districts?district=${encodeURIComponent(selectedAmphoe)}&province=${encodeURIComponent(selectedProvince)}`)
       .then(r => r.json())
       .then(fc => {
+        if (stale) return;
         src.setData(fc);
         if (fc.features && !suppressAutoZoomRef?.current) zoomToGeoJSONFeatures(fc.features, map);
       })
       .catch(console.error);
+    return () => { stale = true; };
   }, [selectedAmphoe, selectedProvince, selectedTambon, mapLoaded]);
 
   // Update tambon boundary layer when tambon changes
@@ -148,13 +161,16 @@ export function useBoundarySelection({
     const src = map.getSource("tambon-boundary") as maplibregl.GeoJSONSource | undefined;
     if (!src) return;
     if (!selectedTambon || !selectedAmphoe) { src.setData({ type: "FeatureCollection", features: [] }); return; }
+    let stale = false;
     fetch(`/api/geojson/tambon?tambon=${encodeURIComponent(selectedTambon)}&district=${encodeURIComponent(selectedAmphoe)}`)
       .then(r => r.json())
       .then(fc => {
+        if (stale) return;
         src.setData(fc);
         if (fc.features && !suppressAutoZoomRef?.current) zoomToGeoJSONFeatures(fc.features, map);
       })
       .catch(console.error);
+    return () => { stale = true; };
   }, [selectedTambon, selectedAmphoe, mapLoaded]);
 
   return {

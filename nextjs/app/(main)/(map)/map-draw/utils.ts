@@ -49,6 +49,13 @@ export const zoomToGeoJSONFeatures = (
   }
 };
 
+// Thailand's extent (lng/lat) — the "country level" view
+export const THAILAND_BOUNDS: [[number, number], [number, number]] = [[97.34, 5.61], [105.64, 20.47]];
+
+export const zoomToThailand = (map: maplibregl.Map, duration: number = MAP_DRAW_ANIMATION_DURATION) => {
+  map.fitBounds(THAILAND_BOUNDS, { padding: 60, duration, essential: true });
+};
+
 export const AMPHOE_DATA: Record<string, string[]> = {
   "บึงกาฬ": ["เมืองบึงกาฬ", "พรเจริญ", "โซ่พิสัย", "เซกา", "ปากคาด", "บึงโขงหลง", "ศรีวิไล", "บุ้งคล้า"],
   "ระยอง": ["เมืองระยอง", "บ้านฉาง", "แกลง", "วังจันทร์", "บ้านค่าย", "ปลวกแดง", "เขาชะเมา", "นิคมพัฒนา"],

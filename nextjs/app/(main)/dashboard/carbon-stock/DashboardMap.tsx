@@ -126,7 +126,7 @@ export default function DashboardMap({
               "https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}",
             ],
             tileSize: 256,
-            attribution: "© Google",
+            attribution: "Map data © Google",
             maxzoom: 18,
           },
         },
@@ -134,7 +134,7 @@ export default function DashboardMap({
       },
       center: [101.2587, 12.6819],
       zoom: 8,
-      attributionControl: false,
+      attributionControl: { compact: true },
       // View is locked to the province (see lockToBounds); clicks still work.
       dragPan: false,
       scrollZoom: false,

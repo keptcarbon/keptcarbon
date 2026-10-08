@@ -105,8 +105,10 @@
       font-family: var(--font) !important;
     }
 
+    /* Map credits (tile licences) — compact ⓘ that expands on click */
     .maplibregl-ctrl-attrib {
-      display: none !important;
+      font-size: 10px !important;
+      font-family: var(--font) !important;
     }
 
     /* ============================================================
