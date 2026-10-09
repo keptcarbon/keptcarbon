@@ -30,7 +30,7 @@ type SavedRegionConfig = {
     provinceName: string;
     region: string | null;
     luVersion: number;
-    plantingYearVersion: number;
+    plantingYearVersion: number | null; // null = no planting-year map yet
     defaultSpacing: string;
     defaultClone: string;
     defaultGrowth: string;
@@ -72,7 +72,7 @@ type RegionConfigOptions = {
         pCode: string;
         pName: string;
         luVersion: number;
-        plantingYearVersion: number;
+        plantingYearVersion: number | null;
         defaultSpacing: string;
         defaultClone: string;
         defaultGrowth: string;
@@ -109,6 +109,11 @@ function restatus(versions: VersionOption[], chosen: string): VersionOption[] {
 function toVersionOptions(versions: VersionOption[]) {
     return versions.map((v) => ({ label: `${v.value} (${VERSION_STATUS_LABEL[v.status]})`, value: v.value }));
 }
+
+// Planting Year Map can be "none": the province is served with LU data only,
+// and users must enter the year of planting themselves (backend E04 otherwise).
+const NO_PLANTING_YEAR_MAP = "none";
+const NO_PLANTING_YEAR_MAP_LABEL = "ยังไม่มีแผนที่ปีปลูก (ผู้ใช้ต้องระบุปีปลูกเอง)";
 
 function toOptions(values: string[]) {
     return values.map((v) => ({ label: v, value: v }));
@@ -207,6 +212,27 @@ export default function RndConfigurationPage() {
     const [savedConfigs, setSavedConfigs] = useState<SavedRegionConfig[]>([]);
     const [savedConfigsLoading, setSavedConfigsLoading] = useState(true);
     const [savedConfigsError, setSavedConfigsError] = useState(false);
+    const [listRegion, setListRegion] = useState("");
+    const [listSearch, setListSearch] = useState("");
+
+    // Regions that actually have a saved config, for the list's filter dropdown.
+    const listRegions = useMemo(
+        () => Array.from(new Set(savedConfigs.map((c) => c.region).filter((r): r is string => !!r))).sort(),
+        [savedConfigs]
+    );
+
+    const filteredConfigs = useMemo(() => {
+        const q = listSearch.trim().toLowerCase();
+        return savedConfigs.filter((c) => {
+            if (listRegion && c.region !== listRegion) return false;
+            if (!q) return true;
+            return [
+                c.provinceName, c.pCode, String(c.plantingYearVersion ?? ""), String(c.luVersion),
+                c.biomassProfileVersion, c.defaultSpacing, c.defaultClone,
+                optionLabel(GROWTH_MODEL_OPTIONS, c.defaultGrowth), optionLabel(ALLOMETRY_OPTIONS, c.defaultAllometry),
+            ].some((v) => v.toLowerCase().includes(q));
+        });
+    }, [savedConfigs, listRegion, listSearch]);
 
     async function loadSavedConfigs() {
         setSavedConfigsError(false);
@@ -293,7 +319,7 @@ export default function RndConfigurationPage() {
                             code: cfg.pCode,
                             provinceName: cfg.pName,
                             luMapVersion: String(cfg.luVersion),
-                            plantingYearMapVersion: String(cfg.plantingYearVersion),
+                            plantingYearMapVersion: cfg.plantingYearVersion === null ? NO_PLANTING_YEAR_MAP : String(cfg.plantingYearVersion),
                             plantingYearMapQaVersion: "",
                             defaultSpacingSystem: cfg.defaultSpacing,
                             defaultRubberClone: cfg.defaultClone,
@@ -442,7 +468,7 @@ export default function RndConfigurationPage() {
                     pCode: region.code,
                     pName: region.provinceName,
                     luVersion: Number(region.luMapVersion),
-                    plantingYearVersion: Number(region.plantingYearMapVersion),
+                    plantingYearVersion: region.plantingYearMapVersion === NO_PLANTING_YEAR_MAP ? null : Number(region.plantingYearMapVersion),
                     biomassProfileVersion: region.biomassProfileVersion,
                     defaultSpacing: region.defaultSpacingSystem,
                     defaultClone: region.defaultRubberClone,
@@ -465,7 +491,9 @@ export default function RndConfigurationPage() {
             // Relabel the version dropdowns to match the new active/archived statuses.
             setRegionOptions((prev) => prev && {
                 ...prev,
-                plantingYearVersionOptions: restatus(prev.plantingYearVersionOptions, region.plantingYearMapVersion),
+                plantingYearVersionOptions: region.plantingYearMapVersion === NO_PLANTING_YEAR_MAP
+                    ? prev.plantingYearVersionOptions.map((v) => (v.status === "active" ? { ...v, status: "archived" } : v))
+                    : restatus(prev.plantingYearVersionOptions, region.plantingYearMapVersion),
                 luVersionOptions: restatus(prev.luVersionOptions, region.luMapVersion),
                 biomassProfileVersionOptions: restatus(prev.biomassProfileVersionOptions, region.biomassProfileVersion),
             });
@@ -519,14 +547,36 @@ export default function RndConfigurationPage() {
 
             {activeTab === "list" && (
                 <>
-                    <div className="d-flex justify-content-end mb-3">
+                    {/* ── Toolbar: ภาค filter · search · add, on one line ── */}
+                    <div className="d-flex flex-nowrap align-items-center gap-2 mb-3">
+                        <select
+                            value={listRegion}
+                            onChange={(e) => setListRegion(e.target.value)}
+                            className="form-select"
+                            style={{ width: "auto", flexShrink: 0, borderRadius: 10, border: "1px solid #e6f0ea", fontSize: 13, color: "#1a3d2b" }}
+                        >
+                            <option value="">ทุกภาค</option>
+                            {listRegions.map((r) => (
+                                <option key={r} value={r}>{REGION_LABELS[r] ?? r}</option>
+                            ))}
+                        </select>
+                        <div style={{ position: "relative", flex: "1 1 auto", minWidth: 0, maxWidth: 340 }}>
+                            <i className="bi bi-search" style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "#94a3b8", fontSize: 14 }} />
+                            <input
+                                value={listSearch}
+                                onChange={(e) => setListSearch(e.target.value)}
+                                placeholder="ค้นหาจังหวัด เวอร์ชัน หรือ Allometry…"
+                                style={{ width: "100%", borderRadius: 12, border: "1px solid #e6f0ea", background: "#fff", padding: "10px 14px 10px 38px", fontSize: 14, outline: "none", color: "#1a3d2b" }}
+                            />
+                        </div>
                         <button
                             onClick={() => { setFilterRegion(""); setFilterPCode(""); setSaveError(null); setActiveTab("region"); }}
-                            className="btn"
+                            className="btn ms-auto"
                             style={{
                                 background: "#1e7a47", color: "#fff", border: "none",
-                                borderRadius: 10, padding: "9px 18px", fontWeight: 600, fontSize: "0.85rem",
+                                borderRadius: 10, padding: "9px 12px", fontWeight: 600, fontSize: "0.85rem",
                                 display: "flex", alignItems: "center", gap: 6,
+                                width: "auto", flexShrink: 0, whiteSpace: "nowrap",
                             }}
                         >
                             <i className="bi bi-plus-lg" />
@@ -545,14 +595,14 @@ export default function RndConfigurationPage() {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {savedConfigs.map((c) => (
+                                    {filteredConfigs.map((c) => (
                                         <tr key={c.pCode}>
                                             <td className="px-4 py-3">
                                                 <div className="fw-semibold" style={{ color: "#1a3d2b" }}>{c.provinceName}</div>
                                                 <div style={{ fontSize: 12, color: "#94a3b8" }}>{c.pCode}</div>
                                             </td>
                                             <td className="py-3" style={{ color: "#5a7a65" }}>{c.region ? REGION_LABELS[c.region] ?? c.region : "-"}</td>
-                                            <td className="py-3" style={{ color: "#5a7a65" }}>{c.plantingYearVersion}</td>
+                                            <td className="py-3" style={{ color: c.plantingYearVersion === null ? "#94a3b8" : "#5a7a65" }}>{c.plantingYearVersion ?? "ยังไม่มี"}</td>
                                             <td className="py-3" style={{ color: "#5a7a65" }}>{c.luVersion}</td>
                                             <td className="py-3" style={{ color: "#5a7a65" }}>{c.biomassProfileVersion}</td>
                                             <td className="py-3" style={{ color: "#5a7a65" }}>{c.defaultSpacing}</td>
@@ -584,10 +634,10 @@ export default function RndConfigurationPage() {
                                             </td>
                                         </tr>
                                     )}
-                                    {!savedConfigsLoading && !savedConfigsError && savedConfigs.length === 0 && (
+                                    {!savedConfigsLoading && !savedConfigsError && filteredConfigs.length === 0 && (
                                         <tr>
                                             <td colSpan={9} className="text-center py-5" style={{ color: "#5a7a65" }}>
-                                                ยังไม่มีค่าตั้งต้นของจังหวัดใด
+                                                {savedConfigs.length === 0 ? "ยังไม่มีค่าตั้งต้นของจังหวัดใด" : "ไม่พบค่าตั้งต้นที่ตรงกับเงื่อนไข"}
                                             </td>
                                         </tr>
                                     )}
@@ -682,7 +732,7 @@ export default function RndConfigurationPage() {
                                     </div>
                                     <div className="row g-3">
                                         <div className="col-12 col-lg-6">
-                                            <Field required label="Planting Year Map Version" value={region.plantingYearMapVersion} onChange={(v) => updateRegion(region.code, "plantingYearMapVersion", v)} options={toVersionOptions(regionOptions?.plantingYearVersionOptions ?? [])} />
+                                            <Field required label="Planting Year Map Version" value={region.plantingYearMapVersion} onChange={(v) => updateRegion(region.code, "plantingYearMapVersion", v)} options={[...toVersionOptions(regionOptions?.plantingYearVersionOptions ?? []), { label: NO_PLANTING_YEAR_MAP_LABEL, value: NO_PLANTING_YEAR_MAP }]} />
                                         </div>
                                         <div className="col-12 col-lg-6">
                                             <Field required label="LU Map Version" value={region.luMapVersion} onChange={(v) => updateRegion(region.code, "luMapVersion", v)} options={toVersionOptions(regionOptions?.luVersionOptions ?? [])} />

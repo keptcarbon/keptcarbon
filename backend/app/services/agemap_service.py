@@ -56,11 +56,13 @@ class AgeMapService:
         p_code = poly_data.get("province_code")
         year = await self._latest_year(p_code)
 
+        # No planting-year map configured for this province (tbl_region_config.
+        # planting_year_version NULL): no raster counts -- the assessment then
+        # needs a user-input year of planting (CarbonService returns E04).
+        poly_data["planting_year_raster_available"] = year is not None
         if year is None:
-            raise HTTPException(
-                status_code=400,
-                detail=f"AGE RASTER NOT AVAILABLE FOR PROVINCE: {p_code}"
-            )
+            poly_data["_cached_year_counts"] = []
+            return poly_data
 
         try:
             pool = get_pool()

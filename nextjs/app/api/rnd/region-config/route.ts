@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { pool } from "@/lib/db";
 import { isAdminOrRnd } from "@/lib/auth-server";
-import { activateVersion, getRequesterId, syncPlantingYearDist, withTransaction } from "@/lib/dataset-version";
+import { activateVersion, archiveActive, getRequesterId, syncPlantingYearDist, withTransaction } from "@/lib/dataset-version";
 
 const MAX_P_NAME_LENGTH = 100;
 const MAX_SPACING_LENGTH = 20;
@@ -74,6 +74,11 @@ export async function GET(request: NextRequest) {
  * tbl_dataset_version — draft, active or archived) become 'active' and the
  * previously active ones 'archived', in the same transaction as the upsert.
  * The planting_year_distribution status then follows the chosen map pair.
+ *
+ * plantingYearVersion may be null: a province with LU data but no
+ * planting-year raster yet can still be served -- users must then enter the
+ * year of planting themselves (the backend returns E04 without it). Saving
+ * null archives the province's active planting-year map, if any.
  */
 export async function POST(request: NextRequest) {
   if (!(await isAdminOrRnd(request))) {
@@ -93,8 +98,8 @@ export async function POST(request: NextRequest) {
     if (typeof luVersion !== "number" || !Number.isInteger(luVersion)) {
       return NextResponse.json({ error: "LU Map Version ต้องเป็นตัวเลขปี" }, { status: 400 });
     }
-    if (typeof plantingYearVersion !== "number" || !Number.isInteger(plantingYearVersion)) {
-      return NextResponse.json({ error: "Planting Year Map Version ต้องเป็นตัวเลขปี" }, { status: 400 });
+    if (plantingYearVersion !== null && (typeof plantingYearVersion !== "number" || !Number.isInteger(plantingYearVersion))) {
+      return NextResponse.json({ error: "Planting Year Map Version ต้องเป็นตัวเลขปี หรือไม่ระบุ (ยังไม่มีแผนที่ปีปลูก)" }, { status: 400 });
     }
     if (typeof defaultSpacing !== "string" || !defaultSpacing.trim() || defaultSpacing.length > MAX_SPACING_LENGTH) {
       return NextResponse.json({ error: "ต้องระบุ Default Spacing System" }, { status: 400 });
@@ -124,10 +129,10 @@ export async function POST(request: NextRequest) {
     const isRegistered = (category: string, version: string) =>
       registered.rows.some((r) => r.category === category && r.version === version);
     for (const [category, version, label] of [
-      ["planting_year_map", String(plantingYearVersion), "Planting Year Map"],
-      ["lulc_map", String(luVersion), "LU Map"],
-      ["biomass_profile", biomassProfileVersion as string, "Biomass Profile"],
-    ] as const) {
+      ...(plantingYearVersion === null ? [] : [["planting_year_map", String(plantingYearVersion), "Planting Year Map"] as const]),
+      ["lulc_map", String(luVersion), "LU Map"] as const,
+      ["biomass_profile", biomassProfileVersion as string, "Biomass Profile"] as const,
+    ]) {
       if (!isRegistered(category, version)) {
         return NextResponse.json(
           { error: `ไม่พบ ${label} เวอร์ชัน "${version}" ของ ${pCode} ในรายการข้อมูลที่นำเข้า` },
@@ -150,7 +155,9 @@ export async function POST(request: NextRequest) {
     // combination whose version doesn't actually match the saved
     // clone/growth/allometry rows would be a misleading label to persist.
     const [plantingYearResult, luVersionResult, spacingResult, biomassProfileResult] = await Promise.all([
-      pool.query(`SELECT 1 FROM geo_planting_year WHERE p_code = $1 AND year = $2 LIMIT 1`, [pCode, plantingYearVersion]),
+      plantingYearVersion === null
+        ? Promise.resolve({ rows: [{}] })
+        : pool.query(`SELECT 1 FROM geo_planting_year WHERE p_code = $1 AND year = $2 LIMIT 1`, [pCode, plantingYearVersion]),
       pool.query(`SELECT 1 FROM geo_landuse WHERE p_code = $1 AND lu_year = $2 LIMIT 1`, [pCode, luVersion]),
       pool.query(`SELECT 1 FROM tbl_tree_density WHERE tree_spacing = $1 LIMIT 1`, [defaultSpacing]),
       pool.query(
@@ -194,7 +201,11 @@ export async function POST(request: NextRequest) {
         [pCode, pName, luVersion, plantingYearVersion, defaultSpacing, defaultClone, defaultGrowth, defaultAllometry, biomassProfileVersion]
       );
 
-      await activateVersion(client, "planting_year_map", pCode, String(plantingYearVersion), userId);
+      if (plantingYearVersion === null) {
+        await archiveActive(client, "planting_year_map", pCode);
+      } else {
+        await activateVersion(client, "planting_year_map", pCode, String(plantingYearVersion), userId);
+      }
       await activateVersion(client, "lulc_map", pCode, String(luVersion), userId);
       await activateVersion(client, "biomass_profile", pCode, biomassProfileVersion as string, userId);
       const distributionFound = await syncPlantingYearDist(client, pCode, userId);

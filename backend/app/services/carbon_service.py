@@ -369,6 +369,23 @@ class CarbonService:
 
 
         else:
+            if not poly_data.get("planting_year_raster_available", True):
+                # Same code as "mostly unidentified planting year": map-draw
+                # already asks the user to enter the year of planting for E04.
+                return {
+                    "polygon_id": poly_data["id"],
+                    "status": {
+                        "status": "error",
+                        "status_code": "E04",
+                        "message": (
+                            "NO PLANTING-YEAR RASTER AVAILABLE FOR THIS PROVINCE, "
+                            "USER-INPUT YEAR OF PLANTING IS REQUIRED."
+                        )
+                    },
+                    "carbon_profile": None,
+                    "assess_parameters": None
+                }
+
             cohorts = await self.age_map_svc.get_plantation_age_cohorts(poly_data)
 
             if not cohorts:
