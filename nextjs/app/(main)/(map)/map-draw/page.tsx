@@ -23,7 +23,6 @@ import type { PlotFormData } from "@/app/components/organisms/ParcelResultsPanel
 import { useSearchParams, useRouter } from "next/navigation";
 import {
   type Tab,
-  REGIONS_DATA,
   zoomToGeoJSONFeatures,
   zoomToThailand,
   AMPHOE_DATA,
@@ -32,6 +31,9 @@ import {
   SNAP_PX,
 } from "./utils";
 import { useMapInit } from "./useMapInit";
+
+/** GET /api/service-provinces row: a province with a tbl_region_config row. */
+type ServiceProvince = { pCode: string; provinceTh: string; regionTh: string };
 import { useBoundarySelection } from "./useBoundarySelection";
 import { useLocationTour, boundsToPolygon } from "./useLocationTour";
 import { NodeWarningPopup } from "./components/NodeWarningPopup";
@@ -252,33 +254,67 @@ function MapDrawContent() {
     }
   };
 
-  // Default area selection (Eastern region → Rayong), staggered so the map
-  // zooms to the region first and then the province. Used on first load and
-  // again when the user starts a new area from step 2.
+  // Served provinces (GET /api/service-provinces = tbl_region_config) -- the
+  // only ภาค / จังหวัด the เลือกพื้นที่ dropdowns offer. null = still loading.
+  const [serviceProvinces, setServiceProvinces] = useState<ServiceProvince[] | null>(null);
+  const serviceProvincesRef = useRef<ServiceProvince[] | null>(null);
+  const serviceRegions = useMemo(
+    () => Array.from(new Set((serviceProvinces ?? []).map((p) => p.regionTh))),
+    [serviceProvinces]
+  );
+
+  // Default area selection (the first served province, e.g. Eastern region →
+  // Rayong), staggered so the map zooms to the region first and then the
+  // province. Used on first load and again when the user starts a new area
+  // from step 2. Requested before the province list has loaded -> deferred.
   const defaultAreaTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const defaultAreaPendingRef = useRef(false);
   const clearDefaultAreaTimers = useCallback(() => {
     defaultAreaTimersRef.current.forEach(clearTimeout);
     defaultAreaTimersRef.current = [];
   }, []);
   const selectDefaultArea = useCallback(() => {
     clearDefaultAreaTimers();
+    const list = serviceProvincesRef.current;
+    if (list === null) {
+      defaultAreaPendingRef.current = true;
+      return;
+    }
+    defaultAreaPendingRef.current = false;
+    const first = list[0];
+    if (!first) return;
     defaultAreaTimersRef.current = [
-      setTimeout(() => setSelectedRegion("ภาคตะวันออก"), 250),
-      setTimeout(() => setSelectedProvince("ระยอง"), 250 + MAP_DRAW_ANIMATION_DURATION + 250),
+      setTimeout(() => setSelectedRegion(first.regionTh), 250),
+      setTimeout(() => setSelectedProvince(first.provinceTh), 250 + MAP_DRAW_ANIMATION_DURATION + 250),
     ];
   }, [clearDefaultAreaTimers, setSelectedRegion, setSelectedProvince]);
   useEffect(() => clearDefaultAreaTimers, [clearDefaultAreaTimers]);
 
   useEffect(() => {
+    let cancelled = false;
+    fetch("/api/service-provinces/")
+      .then((res) => (res.ok ? res.json() : Promise.reject(res)))
+      .then((data) => data.provinces ?? [])
+      .catch(() => [])
+      .then((list: ServiceProvince[]) => {
+        if (cancelled) return;
+        serviceProvincesRef.current = list;
+        setServiceProvinces(list);
+        if (defaultAreaPendingRef.current) selectDefaultArea();
+      });
+    return () => { cancelled = true; };
+  }, [selectDefaultArea]);
+
+  useEffect(() => {
     if (projNameParam || isEditingPlotParam) return;
     // Returning from the guest-limit auth flow: the restore effect will zoom
     // to the stashed plots — skip the default province auto-select, whose
-    // delayed boundary zoom (Rayong) would override that fit.
+    // delayed boundary zoom (default province) would override that fit.
     //
     // Only skip for a *fresh* stash. A real OAuth round-trip lands back here in
     // seconds; if the guest tapped login/register but then abandoned auth, the
     // key is never consumed (the restore effect needs a logged-in user) and
-    // would otherwise disable the default Eastern region/Rayong auto-select for the
+    // would otherwise disable the default province auto-select for the
     // rest of the tab session. Treat a stale key as abandoned: clear it and
     // fall through to the default.
     try {
@@ -373,7 +409,7 @@ function MapDrawContent() {
     }
     // Start over like a fresh page load: clear the area selection (the map was
     // parked on the previous plot, and an unchanged province wouldn't re-zoom),
-    // then replay the default Eastern region → Rayong selection.
+    // then replay the default province selection.
     suppressBoundaryZoomRef.current = false;
     setSelectedTambon("");
     setSelectedAmphoe("");
@@ -2880,7 +2916,7 @@ function MapDrawContent() {
             <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
               <select className="prp-input" style={{ padding: "8px 5px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: 15, background: "#fff", width: "100%" }} value={selectedRegion} onChange={(e) => { beginAreaPick(); setSelectedRegion(e.target.value); setSelectedProvince(""); setSelectedAmphoe(""); setSelectedTambon(""); if (!e.target.value && mapRef.current) zoomToThailand(mapRef.current); }}>
                 <option value="">เลือกภาค...</option>
-                {REGIONS_DATA.filter(r => r.name === "ภาคตะวันออก").map(r => <option key={r.name} value={r.name}>{r.name}</option>)}
+                {serviceRegions.map(r => <option key={r} value={r}>{r}</option>)}
               </select>
             </div>
 
@@ -2889,7 +2925,7 @@ function MapDrawContent() {
               <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
                 <select className="prp-input" style={{ padding: "8px 5px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: 15, background: selectedRegion ? "#fff" : "#f8fafc", color: selectedRegion ? "#0f172a" : "#94a3b8", width: "100%" }} value={selectedProvince} onChange={(e) => { beginAreaPick(); setSelectedProvince(e.target.value); setSelectedAmphoe(""); setSelectedTambon(""); }} disabled={!selectedRegion}>
                   <option value="">เลือกจังหวัด...</option>
-                  {selectedRegion && REGIONS_DATA.find(r => r.name === selectedRegion)?.provinces.filter(p => p === "ระยอง").map(p => <option key={p} value={p}>{p}</option>)}
+                  {selectedRegion && (serviceProvinces ?? []).filter(p => p.regionTh === selectedRegion).map(p => <option key={p.pCode} value={p.provinceTh}>{p.provinceTh}</option>)}
                 </select>
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>

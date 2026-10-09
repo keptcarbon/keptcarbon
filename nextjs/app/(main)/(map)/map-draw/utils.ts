@@ -3,12 +3,6 @@ import { MAP_DRAW_ANIMATION_DURATION } from "@/lib/map-utils";
 
 export type Tab = "draw" | "shp";
 
-export const REGIONS_DATA = [
-  { name: "ภาคตะวันออกเฉียงเหนือ", provinces: ["บึงกาฬ"] },
-  { name: "ภาคตะวันออก", provinces: ["ระยอง"] },
-  { name: "ภาคใต้", provinces: ["สุราษฎร์ธานี"] },
-];
-
 export const zoomToGeoJSONFeatures = (
   features: GeoJSON.Feature[],
   map: maplibregl.Map,
