@@ -1099,7 +1099,9 @@ export default function RndDataManagementPage() {
             const isActive = data.status === "active";
             showSuccess(
                 `นำเข้า “${importFile.name}” สำเร็จ (${data.rowCount} แถว) — ` +
-                (isActive ? "ใช้งานอยู่ตามแผนที่ที่ใช้งานอยู่" : "บันทึกเป็นฉบับร่าง เลือกใช้งานได้ที่หน้าตั้งค่าพารามิเตอร์")
+                (isActive
+                    ? `เพิ่มเข้าเวอร์ชัน ${data.version} ที่ใช้งานอยู่ เลือกชุดค่านี้ได้ที่หน้าตั้งค่าพารามิเตอร์`
+                    : "บันทึกเป็นฉบับร่าง เลือกใช้งานได้ที่หน้าตั้งค่าพารามิเตอร์")
             );
             resetImportWizard();
             void loadDatasets();
@@ -1271,37 +1273,36 @@ export default function RndDataManagementPage() {
 
             {activeTab === "list" && (
             <>
-            {/* ── Toolbar ── */}
-            <div className="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
-                <div className="d-flex flex-wrap align-items-center gap-2">
-                    <div style={{ position: "relative", flex: "1 1 260px", maxWidth: 340 }}>
-                        <i className="bi bi-search" style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "#94a3b8", fontSize: 14 }} />
-                        <input
-                            value={search}
-                            onChange={(e) => setSearch(e.target.value)}
-                            placeholder="ค้นหาจังหวัด เวอร์ชัน หรือชื่อไฟล์…"
-                            style={{ width: "100%", borderRadius: 12, border: "1px solid #e6f0ea", background: "#fff", padding: "10px 14px 10px 38px", fontSize: 14, outline: "none", color: "#1a3d2b" }}
-                        />
-                    </div>
-                    <select
-                        value={categoryFilter}
-                        onChange={(e) => setCategoryFilter(e.target.value as DatasetCategory | "all")}
-                        className="form-select"
-                        style={{ width: "auto", borderRadius: 10, border: "1px solid #e6f0ea", fontSize: 13, color: "#1a3d2b" }}
-                    >
-                        <option value="all">ทุกประเภท</option>
-                        {Object.entries(CATEGORY_META).map(([key, meta]) => (
-                            <option key={key} value={key}>{meta.label}</option>
-                        ))}
-                    </select>
+            {/* ── Toolbar: category filter · search · add, on one line ── */}
+            <div className="d-flex flex-nowrap align-items-center gap-2 mb-3">
+                <select
+                    value={categoryFilter}
+                    onChange={(e) => setCategoryFilter(e.target.value as DatasetCategory | "all")}
+                    className="form-select"
+                    style={{ width: "auto", flexShrink: 0, borderRadius: 10, border: "1px solid #e6f0ea", fontSize: 13, color: "#1a3d2b" }}
+                >
+                    <option value="all">ทุกประเภท</option>
+                    {Object.entries(CATEGORY_META).map(([key, meta]) => (
+                        <option key={key} value={key}>{meta.label}</option>
+                    ))}
+                </select>
+                <div style={{ position: "relative", flex: "1 1 auto", minWidth: 0, maxWidth: 340 }}>
+                    <i className="bi bi-search" style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "#94a3b8", fontSize: 14 }} />
+                    <input
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                        placeholder="ค้นหาจังหวัด เวอร์ชัน หรือชื่อไฟล์…"
+                        style={{ width: "100%", borderRadius: 12, border: "1px solid #e6f0ea", background: "#fff", padding: "10px 14px 10px 38px", fontSize: 14, outline: "none", color: "#1a3d2b" }}
+                    />
                 </div>
                 <button
                     onClick={() => setActiveTab("import")}
-                    className="btn"
+                    className="btn ms-auto"
                     style={{
                         background: "#1e7a47", color: "#fff", border: "none",
-                        borderRadius: 10, padding: "9px 18px", fontWeight: 600, fontSize: "0.85rem",
+                        borderRadius: 10, padding: "9px 12px", fontWeight: 600, fontSize: "0.85rem",
                         display: "flex", alignItems: "center", gap: 6,
+                        width: "auto", flexShrink: 0, whiteSpace: "nowrap",
                     }}
                 >
                     <i className="bi bi-plus-lg" />

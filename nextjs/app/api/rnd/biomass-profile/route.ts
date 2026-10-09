@@ -29,7 +29,8 @@ type BiomassRowInput = {
  * extractBiomassRows in the data-management page) into tbl_biomass_profile,
  * keyed by "pCode" + "clone" + "growthModel" + "allometry" + "version" +
  * each row's age. Each file is logged under its (pCode, version) entry in
- * tbl_dataset_version; files can only be added while that version is a draft.
+ * tbl_dataset_version; a new clone/growth model/allometry file can be added
+ * while that version is a draft or active (not once it's archived).
  */
 export async function POST(request: NextRequest) {
   if (!(await isAdminOrRnd(request))) {
@@ -93,10 +94,10 @@ export async function POST(request: NextRequest) {
 
     const userId = getRequesterId(request);
 
-    const rowCount = await withTransaction(async (client) => {
-      // Logged first: rejects a frozen (active/archived) version before any
+    const { rowCount, status } = await withTransaction(async (client) => {
+      // Logged first: rejects an archived version before any
       // profile rows are written.
-      await recordImport(client, {
+      const logged = await recordImport(client, {
         category: "biomass_profile", pCode, version,
         fileName: typeof fileName === "string" && fileName ? fileName : `biomass_${pCode}_${version}.csv`,
         rowCount: rows.length, detail: { clone, growthModel, allometry }, userId,
@@ -110,10 +111,11 @@ export async function POST(request: NextRequest) {
          RETURNING id`,
         [pCode, clone, growthModel, allometry, version, age, dbhEst, agb, bgb, biomassEst, ci, biomassCiLower, biomassCiUpper]
       );
-      return result.rowCount;
+      return { rowCount: result.rowCount, status: logged.status };
     });
 
-    return NextResponse.json({ rowCount, pCode, clone, growthModel, allometry, status: "draft" });
+    // status: the version's -- "active" when the file was added to the version in use.
+    return NextResponse.json({ rowCount, pCode, clone, growthModel, allometry, version, status });
   } catch (err) {
     console.error("biomass-profile import error:", err);
     if (err instanceof FrozenVersionError) {
@@ -123,7 +125,7 @@ export async function POST(request: NextRequest) {
     const pgCode = (err as { code?: string } | undefined)?.code;
     if (pgCode === "23505") {
       return NextResponse.json(
-        { error: "มีข้อมูล biomass profile สำหรับจังหวัด/พันธุ์/สมการนี้อยู่แล้วในระบบ" },
+        { error: "เวอร์ชันนี้มีข้อมูล biomass profile ของพันธุ์ยาง/Growth Model/Allometry ชุดนี้อยู่แล้ว — เลือกชุดค่าอื่น หรือนำเข้าเป็นเวอร์ชันใหม่" },
         { status: 409 }
       );
     }

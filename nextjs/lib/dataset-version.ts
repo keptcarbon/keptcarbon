@@ -43,10 +43,12 @@ export function plantingYearDistVersion(luYear: number, plainingYear: number): s
 
 /**
  * Logs one imported file. Creates the version row as 'draft' on first
- * import; a later import into the same version (biomass_profile adds one
- * file per clone/growth model/allometry) is only allowed while it is still
- * a draft — an active or archived version is frozen.
- * Returns the version's id and status.
+ * import. A later import into the same version is only allowed for
+ * biomass_profile, which is built from one file per clone/growth
+ * model/allometry: a new combination may be added while the version is a
+ * draft or active (it doesn't change the combinations already there -- the
+ * table's unique key rejects re-importing one). An archived version is
+ * frozen. Returns the version's id and status.
  */
 export async function recordImport(
   client: PoolClient,
@@ -72,7 +74,8 @@ export async function recordImport(
   let status: DatasetStatus;
   if (existing.rows.length > 0) {
     ({ id, status } = existing.rows[0]);
-    if (status !== "draft") {
+    const appendable = status === "draft" || (status === "active" && args.category === "biomass_profile");
+    if (!appendable) {
       throw new FrozenVersionError(args.version, status);
     }
   } else {
@@ -100,7 +103,7 @@ export async function recordImport(
   return { id, status };
 }
 
-/** Thrown by recordImport when adding a file to a non-draft version. */
+/** Thrown by recordImport when a version can't take another file. */
 export class FrozenVersionError extends Error {
   constructor(public version: string, public status: DatasetStatus) {
     super(
