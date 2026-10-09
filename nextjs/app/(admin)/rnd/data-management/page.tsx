@@ -151,6 +151,7 @@ const DUPLICATE_CHECK_ENDPOINT: Partial<Record<DatasetCategory, string>> = {
 
 // One file upload under a dataset version (tbl_dataset_import).
 type DatasetImport = {
+    id: number;
     fileName: string;
     rowCount: number;
     detail: { clone?: string; growthModel?: string; allometry?: string } | null;
@@ -164,6 +165,7 @@ type ResearchDataset = {
     category: DatasetCategory;
     pCode: string;
     provinceName: string;
+    region: string | null; // geo_thailand region code, e.g. "E"
     version: string; // planting_year_distribution: "<lu_year>/<plaining_year>"
     status: DatasetStatus;
     createdAt: string;
@@ -181,6 +183,25 @@ function formatDatasetVersion(d: ResearchDataset): string {
 
 function formatThaiDate(iso: string): string {
     return new Date(iso).toLocaleDateString("th-TH", { year: "numeric", month: "short", day: "numeric" });
+}
+
+function formatThaiDateTime(iso: string): string {
+    return new Date(iso).toLocaleString("th-TH", { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+}
+
+// One row of the รายการข้อมูล table: an imported file, with its version.
+type ImportRow = { dataset: ResearchDataset; imp: DatasetImport };
+
+/** Biomass file's combination, e.g. "RRIM 600 · Anchored Weibull · Hytönen (2018)". */
+function biomassCombo(imp: DatasetImport): string | null {
+    const d = imp.detail;
+    if (!d?.clone) return null;
+    return [d.clone, optionLabel(GROWTH_MODEL_OPTIONS, d.growthModel), optionLabel(ALLOMETRY_OPTIONS, d.allometry)].join(" · ");
+}
+
+function optionLabel(options: readonly { label: string; value: string }[], value: string | undefined): string {
+    if (!value) return "-";
+    return options.find((o) => o.value === value)?.label ?? value;
 }
 
 // A dataset's p_code ties it to a province in geo_thailand — the same key
@@ -234,6 +255,8 @@ const TH_STYLE: React.CSSProperties = {
 
 type TabKey = "list" | "import";
 
+const LIST_PAGE_SIZE = 10;
+
 const TABS: { key: TabKey; label: string }[] = [
     { key: "list", label: "รายการข้อมูล" },
     { key: "import", label: "นำเข้าข้อมูล" },
@@ -276,8 +299,11 @@ export default function RndDataManagementPage() {
     const [actionError, setActionError] = useState<string | null>(null);
     const [search, setSearch] = useState("");
     const [categoryFilter, setCategoryFilter] = useState<DatasetCategory | "all">("all");
+    const [regionFilter, setRegionFilter] = useState("");
+    const [provinceFilter, setProvinceFilter] = useState("");
+    const [listPage, setListPage] = useState(1);
     const [success, setSuccess] = useState<string | null>(null);
-    const [pendingDelete, setPendingDelete] = useState<ResearchDataset | null>(null);
+    const [pendingDelete, setPendingDelete] = useState<ImportRow | null>(null);
 
     // ── Responsive: ตรวจจับขนาดหน้าจอ <= 639px สำหรับ Stepper ──
     const [isMobile, setIsMobile] = useState(false);
@@ -398,23 +424,53 @@ export default function RndDataManagementPage() {
         return () => { cancelled = true; };
     }, [importCategory, selectedProvince, importVersion]);
 
+    // One row per imported file (a biomass version has one file per
+    // clone / growth model / allometry), in the versions' list order.
+    const importRows = useMemo<ImportRow[]>(
+        () => datasets.flatMap((dataset) => dataset.imports.map((imp) => ({ dataset, imp }))),
+        [datasets]
+    );
+
+    // ภูมิภาค / จังหวัด filter options: only those with imported data.
+    const listRegions = useMemo(
+        () => Array.from(new Set(datasets.map((d) => d.region).filter((r): r is string => !!r)))
+            .sort((a, b) => (REGION_LABELS[a] ?? a).localeCompare(REGION_LABELS[b] ?? b, "th")),
+        [datasets]
+    );
+    const listProvinces = useMemo(() => {
+        const byCode = new Map<string, string>();
+        datasets
+            .filter((d) => !regionFilter || d.region === regionFilter)
+            .forEach((d) => byCode.set(d.pCode, d.provinceName));
+        return Array.from(byCode, ([pCode, name]) => ({ pCode, name })).sort((a, b) => a.name.localeCompare(b.name, "th"));
+    }, [datasets, regionFilter]);
+
     const filtered = useMemo(() => {
         const q = search.trim().toLowerCase();
-        return datasets.filter((d) => {
+        return importRows.filter(({ dataset: d, imp }) => {
+            if (regionFilter && d.region !== regionFilter) return false;
+            if (provinceFilter && d.pCode !== provinceFilter) return false;
             const matchesQuery =
                 !q ||
                 d.provinceName.toLowerCase().includes(q) ||
                 d.pCode.toLowerCase().includes(q) ||
                 d.version.toLowerCase().includes(q) ||
-                d.imports.some((i) => i.fileName.toLowerCase().includes(q));
+                imp.fileName.toLowerCase().includes(q) ||
+                (biomassCombo(imp) ?? "").toLowerCase().includes(q);
             const matchesCategory = categoryFilter === "all" || d.category === categoryFilter;
             return matchesQuery && matchesCategory;
         });
-    }, [datasets, search, categoryFilter]);
+    }, [importRows, search, categoryFilter, regionFilter, provinceFilter]);
 
-    function datasetLabel(d: ResearchDataset): string {
-        return `${CATEGORY_META[d.category].label} ${formatDatasetVersion(d)} — ${d.provinceName}`;
-    }
+    // Back to page 1 whenever a filter changes the result set.
+    useEffect(() => {
+        setListPage(1);
+    }, [search, categoryFilter, regionFilter, provinceFilter]);
+
+    const listTotalPages = Math.max(1, Math.ceil(filtered.length / LIST_PAGE_SIZE));
+    // Clamped: deleting the last row of the last page must not leave an empty page.
+    const currentListPage = Math.min(listPage, listTotalPages);
+    const pagedRows = filtered.slice((currentListPage - 1) * LIST_PAGE_SIZE, currentListPage * LIST_PAGE_SIZE);
 
     function showSuccess(message: string) {
         setSuccess(message);
@@ -426,10 +482,10 @@ export default function RndDataManagementPage() {
         setActionBusy(true);
         setActionError(null);
         try {
-            const res = await fetch(`/api/rnd/datasets/${pendingDelete.id}/`, { method: "DELETE" });
+            const res = await fetch(`/api/rnd/dataset-imports/${pendingDelete.imp.id}/`, { method: "DELETE" });
             const data = await res.json().catch(() => ({}));
             if (!res.ok) throw new Error(data.error || "ลบไม่สำเร็จ");
-            showSuccess(`ลบ “${datasetLabel(pendingDelete)}” แล้ว`);
+            showSuccess(`ลบ “${pendingDelete.imp.fileName}” แล้ว`);
             setPendingDelete(null);
             await loadDatasets();
         } catch (err) {
@@ -1238,7 +1294,7 @@ export default function RndDataManagementPage() {
                 <div className="p-4 p-md-5" style={{ background: HERO_BG, borderBottom: "1px solid rgba(0,0,0,0.06)" }}>
                     <h1 className="fw-bold mb-2" style={{ letterSpacing: "-0.02em", color: "#1a3d2b", fontSize: 26 }}>จัดการข้อมูล GeoAI</h1>
                     <div style={{ color: "#5a7a65", fontSize: 14 }}>
-                        ชุดข้อมูลอ้างอิงทั้งหมด <span className="fw-semibold" style={{ color: "#1a3d2b" }}>{datasets.length}</span> ชุด
+                        ไฟล์ข้อมูลอ้างอิงที่นำเข้าทั้งหมด <span className="fw-semibold" style={{ color: "#1a3d2b" }}>{importRows.length}</span> ไฟล์
                         {" · "}จัดการค่าสัมประสิทธิ์ โมเดลการเติบโต และข้อมูลอ้างอิงที่ใช้ในการคำนวณคาร์บอน
                     </div>
                 </div>
@@ -1275,6 +1331,28 @@ export default function RndDataManagementPage() {
             <>
             {/* ── Toolbar: category filter · search · add, on one line ── */}
             <div className="d-flex flex-nowrap align-items-center gap-2 mb-3">
+                <select
+                    value={regionFilter}
+                    onChange={(e) => { setRegionFilter(e.target.value); setProvinceFilter(""); }}
+                    className="form-select"
+                    style={{ width: "auto", flexShrink: 0, borderRadius: 10, border: "1px solid #e6f0ea", fontSize: 13, color: "#1a3d2b" }}
+                >
+                    <option value="">ทุกภูมิภาค</option>
+                    {listRegions.map((r) => (
+                        <option key={r} value={r}>{REGION_LABELS[r] ?? r}</option>
+                    ))}
+                </select>
+                <select
+                    value={provinceFilter}
+                    onChange={(e) => setProvinceFilter(e.target.value)}
+                    className="form-select"
+                    style={{ width: "auto", flexShrink: 0, borderRadius: 10, border: "1px solid #e6f0ea", fontSize: 13, color: "#1a3d2b" }}
+                >
+                    <option value="">ทุกจังหวัด</option>
+                    {listProvinces.map((p) => (
+                        <option key={p.pCode} value={p.pCode}>{p.name}</option>
+                    ))}
+                </select>
                 <select
                     value={categoryFilter}
                     onChange={(e) => setCategoryFilter(e.target.value as DatasetCategory | "all")}
@@ -1324,35 +1402,31 @@ export default function RndDataManagementPage() {
                         <thead style={{ background: "#f8fbf9" }}>
                             <tr>
                                 <th className="px-4 py-3" style={TH_STYLE}>จังหวัด</th>
-                                <th className="py-3" style={TH_STYLE}>ชุดข้อมูล</th>
+                                <th className="py-3" style={TH_STYLE}>ไฟล์</th>
                                 <th className="py-3" style={TH_STYLE}>ประเภท</th>
                                 <th className="py-3" style={TH_STYLE}>เวอร์ชัน</th>
                                 <th className="py-3" style={TH_STYLE}>สถานะ</th>
-                                <th className="py-3" style={TH_STYLE}>นำเข้าล่าสุด</th>
+                                <th className="py-3" style={TH_STYLE}>วันที่นำเข้า</th>
                                 <th className="px-4 py-3 text-end" style={TH_STYLE}>จัดการ</th>
                             </tr>
                         </thead>
                         <tbody>
-                            {filtered.map((d) => {
+                            {pagedRows.map(({ dataset: d, imp }) => {
                                 const cat = CATEGORY_META[d.category];
                                 const status = STATUS_META[d.status];
-                                const latest = d.imports[0];
-                                const totalRows = d.imports.reduce((sum, i) => sum + i.rowCount, 0);
+                                const combo = d.category === "biomass_profile" ? biomassCombo(imp) : null;
                                 return (
-                                    <tr key={d.id}>
+                                    <tr key={imp.id}>
                                         <td className="px-4 py-3" style={{ color: "#5a7a65", whiteSpace: "nowrap" }}>
                                             {d.provinceName} <span style={{ color: "#94a3b8" }}>({d.pCode})</span>
                                         </td>
-                                        <td className="py-3" style={{ maxWidth: 320 }}>
-                                            <div className="fw-semibold text-truncate" style={{ color: "#1a3d2b" }} title={latest?.fileName}>
-                                                {latest?.fileName ?? "-"}
+                                        <td className="py-3" style={{ maxWidth: 340 }}>
+                                            <div className="fw-semibold text-truncate" style={{ color: "#1a3d2b" }} title={imp.fileName}>
+                                                {imp.fileName}
                                             </div>
                                             <div style={{ fontSize: 12, color: "#5a7a65" }}>
-                                                {d.imports.length > 1 ? `${d.imports.length} ไฟล์ · ` : ""}
-                                                {totalRows.toLocaleString("th-TH")} แถว
-                                                {d.category === "biomass_profile" && d.imports.some((i) => i.detail?.clone) && (
-                                                    <> · {Array.from(new Set(d.imports.map((i) => i.detail?.clone).filter(Boolean))).join(", ")}</>
-                                                )}
+                                                {imp.rowCount.toLocaleString("th-TH")} แถว
+                                                {combo && <> · {combo}</>}
                                             </div>
                                         </td>
                                         <td className="py-3">
@@ -1376,10 +1450,10 @@ export default function RndDataManagementPage() {
                                                 </div>
                                             )}
                                         </td>
-                                        <td className="py-3" style={{ fontSize: 13, color: "#5a7a65" }}>
-                                            {latest ? formatThaiDate(latest.importedAt) : "-"}
-                                            {latest?.importedBy && (
-                                                <div style={{ fontSize: 11.5, color: "#94a3b8" }}>{latest.importedBy}</div>
+                                        <td className="py-3" style={{ fontSize: 13, color: "#5a7a65", whiteSpace: "nowrap" }}>
+                                            {formatThaiDateTime(imp.importedAt)}
+                                            {imp.importedBy && (
+                                                <div style={{ fontSize: 11.5, color: "#94a3b8" }}>{imp.importedBy}</div>
                                             )}
                                         </td>
                                         <td className="px-4 py-3 text-end">
@@ -1387,7 +1461,7 @@ export default function RndDataManagementPage() {
                                                 {d.status === "draft" && (
                                                     <button
                                                         className="btn btn-sm"
-                                                        onClick={() => { setActionError(null); setPendingDelete(d); }}
+                                                        onClick={() => { setActionError(null); setPendingDelete({ dataset: d, imp }); }}
                                                         style={{
                                                             background: "#fef2f2", color: "#c53030", border: "1px solid #fecaca",
                                                             borderRadius: 9, padding: "5px 11px", fontWeight: 600, fontSize: "0.78rem",
@@ -1426,6 +1500,38 @@ export default function RndDataManagementPage() {
                         </tbody>
                     </table>
                 </div>
+
+                {/* ── Pagination (10 files per page) ── */}
+                {listTotalPages > 1 && (
+                    <div className="d-flex align-items-center justify-content-between gap-2 px-4 py-3" style={{ borderTop: "1px solid #f1f5f9" }}>
+                        <div style={{ fontSize: 13, color: "#5a7a65" }}>
+                            หน้า {currentListPage} จาก {listTotalPages}
+                            <span style={{ color: "#94a3b8" }}>
+                                {" "}· แสดง {(currentListPage - 1) * LIST_PAGE_SIZE + 1}–{Math.min(currentListPage * LIST_PAGE_SIZE, filtered.length)} จาก {filtered.length} ไฟล์
+                            </span>
+                        </div>
+                        <div className="d-flex gap-2">
+                            <button
+                                className="btn btn-sm"
+                                disabled={currentListPage <= 1}
+                                onClick={() => setListPage(Math.max(1, currentListPage - 1))}
+                                aria-label="หน้าก่อนหน้า"
+                                style={{ border: "1px solid #e6f0ea", borderRadius: 8, color: "#1a3d2b", background: "#fff" }}
+                            >
+                                <i className="bi bi-chevron-left" />
+                            </button>
+                            <button
+                                className="btn btn-sm"
+                                disabled={currentListPage >= listTotalPages}
+                                onClick={() => setListPage(Math.min(listTotalPages, currentListPage + 1))}
+                                aria-label="หน้าถัดไป"
+                                style={{ border: "1px solid #e6f0ea", borderRadius: 8, color: "#1a3d2b", background: "#fff" }}
+                            >
+                                <i className="bi bi-chevron-right" />
+                            </button>
+                        </div>
+                    </div>
+                )}
             </div>
             </>
             )}
@@ -2065,10 +2171,12 @@ export default function RndDataManagementPage() {
                                 <i className="bi bi-exclamation-triangle-fill" />
                             </div>
                             <h3 className="fw-bold text-center mb-2" style={{ fontSize: 19, color: "#111827" }}>
-                                ลบฉบับร่าง &ldquo;{datasetLabel(pendingDelete)}&rdquo;?
+                                ลบไฟล์ &ldquo;{pendingDelete.imp.fileName}&rdquo;?
                             </h3>
-                            <p className="text-center mb-0" style={{ fontSize: 14, color: "#6b7280", lineHeight: 1.6 }}>
-                                ข้อมูลที่นำเข้าในเวอร์ชันนี้ทั้งหมดจะถูกลบออกจากระบบและ<strong>ไม่สามารถกู้คืนได้</strong>
+                            <p className="text-center mb-0" style={{ fontSize: 14, color: "#6b7280", lineHeight: 1.6, wordBreak: "break-word" }}>
+                                {CATEGORY_META[pendingDelete.dataset.category].label} {formatDatasetVersion(pendingDelete.dataset)} — {pendingDelete.dataset.provinceName} (ฉบับร่าง)
+                                {biomassCombo(pendingDelete.imp) && <><br />{biomassCombo(pendingDelete.imp)}</>}
+                                <br />ข้อมูลที่นำเข้าจากไฟล์นี้จะถูกลบออกจากระบบและ<strong>ไม่สามารถกู้คืนได้</strong>
                             </p>
                             {actionError && (
                                 <div className="text-center mt-3" style={{ fontSize: 13, color: "#c53030" }}>{actionError}</div>

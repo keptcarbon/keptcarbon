@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
     const { rows } = await pool.query(
       `SELECT v.id, v.category, v.p_code, v.version, v.status,
               v.created_at, v.activated_at, v.archived_at,
-              g.prov_name_th,
+              g.prov_name_th, g.region,
               au.display_name AS activated_by_name,
               COALESCE(i.imports, '[]'::json) AS imports
        FROM tbl_dataset_version v
@@ -25,6 +25,7 @@ export async function GET(request: NextRequest) {
        LEFT JOIN tbl_users au ON au.id = v.activated_by
        LEFT JOIN LATERAL (
          SELECT json_agg(json_build_object(
+                  'id', di.id,
                   'fileName', di.file_name,
                   'rowCount', di.row_count,
                   'detail', di.detail,
@@ -46,6 +47,7 @@ export async function GET(request: NextRequest) {
         category: r.category,
         pCode: r.p_code,
         provinceName: r.prov_name_th ?? r.p_code,
+        region: r.region ?? null, // geo_thailand region code, e.g. 'E'
         version: r.version,
         status: r.status,
         createdAt: r.created_at,

@@ -236,6 +236,7 @@ export default function RndConfigurationPage() {
     const [savedConfigsLoading, setSavedConfigsLoading] = useState(true);
     const [savedConfigsError, setSavedConfigsError] = useState(false);
     const [listRegion, setListRegion] = useState("");
+    const [listProvince, setListProvince] = useState("");
     const [listSearch, setListSearch] = useState("");
 
     // Regions that actually have a saved config, for the list's filter dropdown.
@@ -244,10 +245,20 @@ export default function RndConfigurationPage() {
         [savedConfigs]
     );
 
+    // Provinces with a saved config, narrowed to the chosen region.
+    const listProvinces = useMemo(
+        () => savedConfigs
+            .filter((c) => !listRegion || c.region === listRegion)
+            .map((c) => ({ pCode: c.pCode, name: c.provinceName }))
+            .sort((a, b) => a.name.localeCompare(b.name, "th")),
+        [savedConfigs, listRegion]
+    );
+
     const filteredConfigs = useMemo(() => {
         const q = listSearch.trim().toLowerCase();
         return savedConfigs.filter((c) => {
             if (listRegion && c.region !== listRegion) return false;
+            if (listProvince && c.pCode !== listProvince) return false;
             if (!q) return true;
             return [
                 c.provinceName, c.pCode, String(c.plantingYearVersion ?? ""), String(c.luVersion),
@@ -255,7 +266,7 @@ export default function RndConfigurationPage() {
                 optionLabel(GROWTH_MODEL_OPTIONS, c.defaultGrowth), optionLabel(ALLOMETRY_OPTIONS, c.defaultAllometry),
             ].some((v) => v.toLowerCase().includes(q));
         });
-    }, [savedConfigs, listRegion, listSearch]);
+    }, [savedConfigs, listRegion, listProvince, listSearch]);
 
     async function loadSavedConfigs() {
         setSavedConfigsError(false);
@@ -577,13 +588,24 @@ export default function RndConfigurationPage() {
                     <div className="d-flex flex-nowrap align-items-center gap-2 mb-3">
                         <select
                             value={listRegion}
-                            onChange={(e) => setListRegion(e.target.value)}
+                            onChange={(e) => { setListRegion(e.target.value); setListProvince(""); }}
                             className="form-select"
                             style={{ width: "auto", flexShrink: 0, borderRadius: 10, border: "1px solid #e6f0ea", fontSize: 13, color: "#1a3d2b" }}
                         >
-                            <option value="">ทุกภาค</option>
+                            <option value="">ทุกภูมิภาค</option>
                             {listRegions.map((r) => (
                                 <option key={r} value={r}>{REGION_LABELS[r] ?? r}</option>
+                            ))}
+                        </select>
+                        <select
+                            value={listProvince}
+                            onChange={(e) => setListProvince(e.target.value)}
+                            className="form-select"
+                            style={{ width: "auto", flexShrink: 0, borderRadius: 10, border: "1px solid #e6f0ea", fontSize: 13, color: "#1a3d2b" }}
+                        >
+                            <option value="">ทุกจังหวัด</option>
+                            {listProvinces.map((p) => (
+                                <option key={p.pCode} value={p.pCode}>{p.name}</option>
                             ))}
                         </select>
                         <div style={{ position: "relative", flex: "1 1 auto", minWidth: 0, maxWidth: 340 }}>
