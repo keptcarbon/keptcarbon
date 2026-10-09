@@ -1,7 +1,7 @@
 -- ==========================================================================
 -- Planting-year distribution — per-(province, district, subdistrict, year
 -- bucket) area breakdown of the planting-year raster, aggregated at
--- import time from geo_planting_year for a given lu_year/plaining_year
+-- import time from tbl_planting_year for a given lu_year/plaining_year
 -- version pair. Backs the "P Year Distribution" category in the
 -- R&D data-management import wizard (nextjs/app/(admin)/rnd/data-management).
 --

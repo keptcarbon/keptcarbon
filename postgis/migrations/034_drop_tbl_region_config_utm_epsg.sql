@@ -10,7 +10,7 @@
 --     < postgis/migrations/034_drop_tbl_region_config_utm_epsg.sql
 --
 -- The UTM zone no longer needs configuring: AgeMapService reads the SRID
--- straight from the province's geo_planting_year tiles (ST_SRID(rast)) and
+-- straight from the province's tbl_planting_year tiles (ST_SRID(rast)) and
 -- reprojects the WGS84 plot geometry into it before clipping. A province's
 -- raster can be imported in EPSG:32647 (47N) or EPSG:32648 (48N); a
 -- province spanning both zones uses one zone for its whole raster.

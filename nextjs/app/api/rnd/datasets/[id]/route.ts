@@ -40,9 +40,9 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
 
       let result;
       if (category === "planting_year_map") {
-        result = await client.query(`DELETE FROM geo_planting_year WHERE p_code = $1 AND year = $2`, [pCode, Number(version)]);
+        result = await client.query(`DELETE FROM tbl_planting_year WHERE p_code = $1 AND year = $2`, [pCode, Number(version)]);
       } else if (category === "lulc_map") {
-        result = await client.query(`DELETE FROM geo_landuse WHERE p_code = $1 AND lu_year = $2`, [pCode, Number(version)]);
+        result = await client.query(`DELETE FROM tbl_landuse WHERE p_code = $1 AND lu_year = $2`, [pCode, Number(version)]);
       } else if (category === "biomass_profile") {
         result = await client.query(`DELETE FROM tbl_biomass_profile WHERE p_code = $1 AND version = $2`, [pCode, version]);
       } else {

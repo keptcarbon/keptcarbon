@@ -13,7 +13,9 @@ BEGIN
   THEN RAISE NOTICE '006_users_reset_token ................... DONE';
   ELSE RAISE NOTICE '006_users_reset_token ................... RUN';  END IF;
 
-  IF to_regclass('public.geo_planting_year') IS NOT NULL
+  -- geo_establishment_year -> geo_planting_year (020) -> tbl_planting_year.
+  IF to_regclass('public.tbl_planting_year') IS NOT NULL
+     OR to_regclass('public.geo_planting_year') IS NOT NULL
      OR to_regclass('public.geo_establishment_year') IS NOT NULL
   THEN RAISE NOTICE '007_geo_planting_year .................. DONE (raster load may still be needed)';
   ELSE RAISE NOTICE '007_geo_planting_year .................. RUN';  END IF;
@@ -44,7 +46,7 @@ BEGIN
   ELSE RAISE NOTICE '012_retire_carbon_projects ............. RUN (deploy app first)';  END IF;
 
   IF EXISTS (SELECT 1 FROM information_schema.columns
-             WHERE table_schema='public' AND table_name='geo_landuse' AND column_name='lu_id_l1')
+             WHERE table_schema='public' AND table_name IN ('geo_landuse', 'tbl_landuse') AND column_name='lu_id_l1')
   THEN RAISE NOTICE '013_drop_geo_landuse_lu_id_columns ..... RUN';
   ELSE RAISE NOTICE '013_drop_geo_landuse_lu_id_columns ..... DONE';  END IF;
 
@@ -157,4 +159,10 @@ BEGIN
     IF n > 0 THEN RAISE NOTICE '036_drop_superseded_carbon_yearly ..... RUN (% superseded rows)', n;
     ELSE RAISE NOTICE '036_drop_superseded_carbon_yearly ..... DONE'; END IF;
   END IF;
+
+  -- geo_landuse / geo_planting_year were renamed to tbl_landuse /
+  -- tbl_planting_year (SQL given in chat 2026-10-09, no migration file).
+  IF to_regclass('public.geo_landuse') IS NOT NULL OR to_regclass('public.geo_planting_year') IS NOT NULL
+  THEN RAISE NOTICE 'rename geo_landuse/geo_planting_year .. RUN (old table names present)';
+  ELSE RAISE NOTICE 'rename geo_landuse/geo_planting_year .. DONE';  END IF;
 END $$;

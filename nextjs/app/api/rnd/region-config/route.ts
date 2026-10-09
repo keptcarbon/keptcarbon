@@ -66,7 +66,7 @@ export async function GET(request: NextRequest) {
  * panel. Every dropdown value is re-validated against the same live tables
  * that populate its options (GET /api/rnd/region-config-options), so a
  * stale/tampered submission can't write a value that doesn't actually exist
- * in geo_planting_year / geo_landuse / tbl_tree_density /
+ * in tbl_planting_year / tbl_landuse / tbl_tree_density /
  * tbl_biomass_profile.
  *
  * Saving is also how a dataset version goes into use: the chosen LU /
@@ -157,8 +157,8 @@ export async function POST(request: NextRequest) {
     const [plantingYearResult, luVersionResult, spacingResult, biomassProfileResult] = await Promise.all([
       plantingYearVersion === null
         ? Promise.resolve({ rows: [{}] })
-        : pool.query(`SELECT 1 FROM geo_planting_year WHERE p_code = $1 AND year = $2 LIMIT 1`, [pCode, plantingYearVersion]),
-      pool.query(`SELECT 1 FROM geo_landuse WHERE p_code = $1 AND lu_year = $2 LIMIT 1`, [pCode, luVersion]),
+        : pool.query(`SELECT 1 FROM tbl_planting_year WHERE p_code = $1 AND year = $2 LIMIT 1`, [pCode, plantingYearVersion]),
+      pool.query(`SELECT 1 FROM tbl_landuse WHERE p_code = $1 AND lu_year = $2 LIMIT 1`, [pCode, luVersion]),
       pool.query(`SELECT 1 FROM tbl_tree_density WHERE tree_spacing = $1 LIMIT 1`, [defaultSpacing]),
       pool.query(
         `SELECT 1 FROM tbl_biomass_profile WHERE p_code = $1 AND clone = $2 AND growth_model = $3 AND allometry = $4 AND version = $5 LIMIT 1`,
@@ -166,10 +166,10 @@ export async function POST(request: NextRequest) {
       ),
     ]);
     if (plantingYearResult.rows.length === 0) {
-      return NextResponse.json({ error: `ไม่พบข้อมูล Planting Year ${plantingYearVersion} สำหรับ ${pCode} ใน geo_planting_year` }, { status: 400 });
+      return NextResponse.json({ error: `ไม่พบข้อมูล Planting Year ${plantingYearVersion} สำหรับ ${pCode} ใน tbl_planting_year` }, { status: 400 });
     }
     if (luVersionResult.rows.length === 0) {
-      return NextResponse.json({ error: `ไม่พบข้อมูล LU ${luVersion} สำหรับ ${pCode} ใน geo_landuse` }, { status: 400 });
+      return NextResponse.json({ error: `ไม่พบข้อมูล LU ${luVersion} สำหรับ ${pCode} ใน tbl_landuse` }, { status: 400 });
     }
     if (spacingResult.rows.length === 0) {
       return NextResponse.json({ error: `ไม่พบระบบระยะปลูก "${defaultSpacing}" ใน tbl_tree_density` }, { status: 400 });

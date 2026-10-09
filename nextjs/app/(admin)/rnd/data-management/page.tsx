@@ -114,7 +114,7 @@ function splitCsvLine(line: string): string[] {
     return fields;
 }
 
-// geo_landuse's fixed column schema — a .gpkg must carry exactly these as
+// tbl_landuse's fixed column schema — a .gpkg must carry exactly these as
 // TEXT fields, and be surveyed in EPSG:32647 (UTM 47N), to be importable.
 const LULC_EXPECTED_CRS = "EPSG:32647";
 const LULC_REQUIRED_FIELDS = ["LU_CODE", "LU_DES_TH", "LU_DES_EN", "LUL1_CODE", "LUL2_CODE", "LU_DES"] as const;
@@ -123,7 +123,7 @@ const LULC_REQUIRED_FIELDS = ["LU_CODE", "LU_DES_TH", "LU_DES_EN", "LUL1_CODE", 
 // clone/model/equation the profile data was derived from.
 const RUBBER_CLONE_OPTIONS = ["RRIM 600", "RRIT 251"] as const;
 
-// geo_planting_year's expected raster spec — a .tif must match all of
+// tbl_planting_year's expected raster spec — a .tif must match all of
 // these to be importable.
 // Either UTM zone: the raster is stored in the CRS it arrives in, and the
 // backend reprojects plot geometry into it (ST_SRID(rast)) when clipping. A
@@ -145,8 +145,8 @@ type DatasetStatus = "active" | "draft" | "archived";
 // Categories with a real duplicate-check endpoint (p_code + year) — used to
 // block re-importing a combination already in the target table.
 const DUPLICATE_CHECK_ENDPOINT: Partial<Record<DatasetCategory, string>> = {
-    planting_year_map: "/api/rnd/geo-planting-year",
-    lulc_map: "/api/rnd/geo-landuse",
+    planting_year_map: "/api/rnd/planting-year",
+    lulc_map: "/api/rnd/landuse",
 };
 
 // One file upload under a dataset version (tbl_dataset_import).
@@ -371,8 +371,8 @@ export default function RndDataManagementPage() {
         [provinces, importPCode]
     );
 
-    // ── Duplicate check (p_code + year) — geo_planting_year for
-    // planting_year_map, geo_landuse for lulc_map. ──
+    // ── Duplicate check (p_code + year) — tbl_planting_year for
+    // planting_year_map, tbl_landuse for lulc_map. ──
     const [yearExists, setYearExists] = useState<boolean | null>(null);
     const [yearExistsLoading, setYearExistsLoading] = useState(false);
 
@@ -576,7 +576,7 @@ export default function RndDataManagementPage() {
                 minMaxSource = downsampled ? "scan-downsampled" : "scan";
             }
 
-            // Must match geo_planting_year's expected raster spec
+            // Must match tbl_planting_year's expected raster spec
             // exactly — otherwise upload stays blocked at the confirm step.
             const crsValid = TIFF_ALLOWED_CRS.includes(crs);
             const noDataValid = noData === TIFF_EXPECTED_NODATA;
@@ -661,7 +661,7 @@ export default function RndDataManagementPage() {
                 throw new Error(`ไม่พบคอลัมน์ geometry สำหรับเลเยอร์ "${tableName}" ใน gpkg_geometry_columns`);
             }
 
-            // Must match geo_landuse's fixed schema exactly: EPSG:32647, and
+            // Must match tbl_landuse's fixed schema exactly: EPSG:32647, and
             // every required field present as TEXT — otherwise upload stays
             // blocked at the confirm step.
             const crsValid = crs === LULC_EXPECTED_CRS;
@@ -785,7 +785,7 @@ export default function RndDataManagementPage() {
 
     // Re-opens the .gpkg (sql.js state from the preview read isn't kept
     // around) and pulls every feature's 6 required fields + geometry, ready
-    // to POST to /api/rnd/geo-landuse.
+    // to POST to /api/rnd/landuse.
     async function extractLulcRows(file: File, meta: GpkgMeta) {
         const SQL = await initSqlJs({ locateFile: (f) => `/${f}` });
         const bytes = new Uint8Array(await file.arrayBuffer());
@@ -944,14 +944,14 @@ export default function RndDataManagementPage() {
                 importingRef.current = false;
                 return;
             }
-            // Real import — persisted into geo_planting_year via PostGIS.
+            // Real import — persisted into tbl_planting_year via PostGIS.
             try {
                 const body = new FormData();
                 body.set("file", importFile);
                 body.set("pCode", selectedProvince.pCode);
                 body.set("year", importVersion.trim());
 
-                const res = await fetch("/api/rnd/geo-planting-year", { method: "POST", body });
+                const res = await fetch("/api/rnd/planting-year", { method: "POST", body });
                 const data = await res.json().catch(() => ({}));
                 if (res.status === 409) {
                     throw new Error(data.error || "ไฟล์นี้มีข้อมูลซ้ำในระบบแล้ว กรุณาตรวจสอบ");
@@ -987,7 +987,7 @@ export default function RndDataManagementPage() {
             }
             try {
                 const rows = await extractLulcRows(importFile, fileMeta);
-                const res = await fetch("/api/rnd/geo-landuse", {
+                const res = await fetch("/api/rnd/landuse", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ pCode: selectedProvince.pCode, year: Number(importVersion.trim()), rows, fileName: importFile.name }),
@@ -1119,7 +1119,7 @@ export default function RndDataManagementPage() {
 
     // Block "ถัดไป" out of step 2 while the .tif metadata read is still in
     // flight — the review step needs fileMeta settled before the user moves on.
-    // geo_planting_year.year and geo_landuse.lu_year are both integer
+    // tbl_planting_year.year and tbl_landuse.lu_year are both integer
     // columns — free text like "v1" doesn't fit, so these categories require
     // a numeric year specifically.
     const requiresNumericVersion = importCategory === "planting_year_map" || importCategory === "lulc_map";
@@ -1143,7 +1143,7 @@ export default function RndDataManagementPage() {
         (importStep === 2 && (!importCategory || !versionIsValid || !importFile || fileMetaLoading || biomassFieldsMissing || estYearDistFieldsMissing));
 
     // lulc_map may only be confirmed once the .gpkg has been read AND
-    // matches geo_landuse's fixed schema exactly (CRS + the 6 required
+    // matches tbl_landuse's fixed schema exactly (CRS + the 6 required
     // text fields) AND this province+year combination isn't already in the
     // table — checked client-side before ever hitting the API.
     const lulcSchemaOk =

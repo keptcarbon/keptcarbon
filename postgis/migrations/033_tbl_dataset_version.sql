@@ -9,7 +9,7 @@
 --     < postgis/migrations/033_tbl_dataset_version.sql
 --
 -- Creates the two tables and registers every dataset already present in
--- geo_planting_year / geo_landuse / tbl_biomass_profile /
+-- tbl_planting_year / tbl_landuse / tbl_biomass_profile /
 -- tbl_planting_year_dist: the version tbl_region_config uses becomes
 -- 'active', every other version 'archived' ('draft' for a province with no
 -- tbl_region_config row).
@@ -26,8 +26,8 @@ CREATE TABLE IF NOT EXISTS tbl_dataset_version (
     CONSTRAINT chk_dataset_version_category
     CHECK (category IN ('planting_year_map', 'lulc_map', 'biomass_profile', 'planting_year_distribution')),
   p_code        VARCHAR(10)  NOT NULL,
-  -- planting_year_map: geo_planting_year.year      e.g. '2026'
-  -- lulc_map:          geo_landuse.lu_year         e.g. '2567'
+  -- planting_year_map: tbl_planting_year.year      e.g. '2026'
+  -- lulc_map:          tbl_landuse.lu_year         e.g. '2567'
   -- biomass_profile:   tbl_biomass_profile.version e.g. 'v1'
   -- planting_year_distribution: '<lu_year>/<plaining_year>' e.g. '2567/2026'
   version       VARCHAR(50)  NOT NULL,
@@ -70,7 +70,7 @@ SELECT 'planting_year_map', g.p_code, g.year::text,
        CASE WHEN rc.planting_year_version = g.year THEN 'active' WHEN rc.p_code IS NULL THEN 'draft' ELSE 'archived' END,
        CASE WHEN rc.planting_year_version = g.year THEN NOW() END,
        CASE WHEN rc.planting_year_version = g.year OR rc.p_code IS NULL THEN NULL ELSE NOW() END
-FROM (SELECT DISTINCT p_code, year FROM geo_planting_year) g
+FROM (SELECT DISTINCT p_code, year FROM tbl_planting_year) g
 LEFT JOIN tbl_region_config rc ON rc.p_code = g.p_code
 ON CONFLICT (category, p_code, version) DO NOTHING;
 
@@ -79,7 +79,7 @@ SELECT 'lulc_map', g.p_code, g.lu_year::text,
        CASE WHEN rc.lu_version = g.lu_year THEN 'active' WHEN rc.p_code IS NULL THEN 'draft' ELSE 'archived' END,
        CASE WHEN rc.lu_version = g.lu_year THEN NOW() END,
        CASE WHEN rc.lu_version = g.lu_year OR rc.p_code IS NULL THEN NULL ELSE NOW() END
-FROM (SELECT DISTINCT p_code, lu_year FROM geo_landuse) g
+FROM (SELECT DISTINCT p_code, lu_year FROM tbl_landuse) g
 LEFT JOIN tbl_region_config rc ON rc.p_code = g.p_code
 ON CONFLICT (category, p_code, version) DO NOTHING;
 
@@ -106,8 +106,8 @@ ON CONFLICT (category, p_code, version) DO NOTHING;
 INSERT INTO tbl_dataset_import (dataset_version_id, file_name, row_count, imported_at)
 SELECT v.id, '(ข้อมูลเดิมก่อนมีระบบบันทึกการนำเข้า)',
        CASE v.category
-         WHEN 'planting_year_map' THEN (SELECT count(*) FROM geo_planting_year WHERE p_code = v.p_code AND year::text = v.version)
-         WHEN 'lulc_map' THEN (SELECT count(*) FROM geo_landuse WHERE p_code = v.p_code AND lu_year::text = v.version)
+         WHEN 'planting_year_map' THEN (SELECT count(*) FROM tbl_planting_year WHERE p_code = v.p_code AND year::text = v.version)
+         WHEN 'lulc_map' THEN (SELECT count(*) FROM tbl_landuse WHERE p_code = v.p_code AND lu_year::text = v.version)
          WHEN 'biomass_profile' THEN (SELECT count(*) FROM tbl_biomass_profile WHERE p_code = v.p_code AND version = v.version)
          ELSE (SELECT count(*) FROM tbl_planting_year_dist WHERE p_code = v.p_code AND lu_year || '/' || plaining_year = v.version)
        END,

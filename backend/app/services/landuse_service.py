@@ -1,8 +1,8 @@
 """
-Land-use classification / clipping via PostGIS (geo_landuse table).
+Land-use classification / clipping via PostGIS (tbl_landuse table).
 
 Replaces the old in-memory geopandas + LU_RYG_2567.gpkg sindex lookup. The
-drawn polygon is intersected against geo_landuse (GiST-indexed, filtered by
+drawn polygon is intersected against tbl_landuse (GiST-indexed, filtered by
 p_code + the latest lu_year ingested for that province), clipped to the
 polygon, grouped by a derived class key, and dissolved -- all server-side.
 
@@ -11,7 +11,7 @@ the finer LU_CODE for agriculture ("A"), else "OTHER".
 
 Used only while the user draws a plot (/plots/info): the overlaps help them
 pick which parts of the drawn area are their rubber plot. /carbon/assess does
-NOT consult geo_landuse -- it measures the merged area the user selected (see
+NOT consult tbl_landuse -- it measures the merged area the user selected (see
 CarbonService.measure_assessment_area), so a saved plot's result never
 depends on which LU version is active later.
 
@@ -52,7 +52,7 @@ class LanduseService:
                 g.lu_des_th,
                 g.lu_des_en,
                 ST_Intersection(g.geom, target.geom) AS clipped_geom
-            FROM geo_landuse g, target
+            FROM tbl_landuse g, target
             WHERE g.p_code = $2
               AND g.lu_year = $3::integer
               AND ST_Intersects(g.geom, target.geom)

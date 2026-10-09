@@ -11,13 +11,13 @@
 -- overlaps show which parts of it are rubber/other land, and the user picks
 -- the parts that are really their plot. Those parts, merged, are the plot's
 -- assessment area -- stored here and sent as-is to /carbon/assess, which no
--- longer consults geo_landuse. A later LU version therefore never changes a
+-- longer consults tbl_landuse. A later LU version therefore never changes a
 -- saved plot's area.
 --
 --   assessment_geometry    the merged selected area (WGS84). NULL = not
 --                          known; the app falls back to rebuilding it from
 --                          the saved overlaps, as before.
---   assessment_lu_version  provenance only: the geo_landuse lu_year the
+--   assessment_lu_version  provenance only: the tbl_landuse lu_year the
 --                          selection was made on. Together with
 --                          selected_lu_classes and tbl_plot_landuse_overlaps
 --                          (per-class area) it records what was included.

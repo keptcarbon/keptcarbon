@@ -19,7 +19,7 @@ class AgeMapService:
     _VALUE_COUNT_QUERY = """
         WITH raster_srid AS (
             SELECT ST_SRID(rast) AS srid
-            FROM geo_planting_year
+            FROM tbl_planting_year
             WHERE p_code = $2 AND year = $3::integer
             LIMIT 1
         ),
@@ -29,7 +29,7 @@ class AgeMapService:
         ),
         clipped AS (
             SELECT ST_Clip(ST_Union(g.rast, 1), (SELECT geom FROM target), true) AS band
-            FROM geo_planting_year g
+            FROM tbl_planting_year g
             WHERE g.p_code = $2
               AND g.year = $3::integer
               AND ST_Intersects(g.rast, (SELECT geom FROM target))
