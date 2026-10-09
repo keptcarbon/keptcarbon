@@ -3043,7 +3043,7 @@ function MapDrawContent() {
                         onChange={(e) => setCoordN(e.target.value)}
                       />
                     </div>
-                    <div className="mds-coord-hint">ระบบ WGS84 · ประเทศไทยใช้โซน 47N (ฝั่งตะวันตกของประเทศ) และ 48N (ฝั่งตะวันออกของประเทศ)</div>
+                    <div className="mds-coord-hint">ประเทศไทยฝั่งตะวันตกใช้โซน 47N, ฝั่งตะวันออกใช้โซน 48N</div>
                   </>
                 )}
 

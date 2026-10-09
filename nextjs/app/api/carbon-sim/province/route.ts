@@ -5,15 +5,17 @@ import { pool } from "@/lib/db";
  * GET /api/carbon-sim/province
  * Feeds the province-level carbon simulation page (/dashboard/simulation).
  *
- *   - no pCode   -> { provinces }: every tbl_region_config province that has
- *                   tbl_planting_year_dist rows for its configured map versions.
+ *   - no pCode   -> { provinces }: every tbl_region_config province whose
+ *                   planting_year_dist_version is set and has rows imported.
  *   - ?pCode=RAY -> that province's simulation defaults (tbl_region_config),
  *                   its districts, and rubber area summed by planting year —
  *                   the cohorts the page sends to /carbon/sim.
  *   - &district= -> narrows the cohorts to one district (district_idn).
  *
- * Distribution rows are matched to the config's lu_version /
- * planting_year_version so a stale import can't leak into the totals.
+ * Distribution rows are the config's planting_year_dist_version
+ * ('<lu_year>/<plaining_year>', chosen in the R&D region config independently
+ * of the map versions), so other imports can't leak into the totals. The
+ * returned luVersion / plantingYearVersion are that distribution's pair.
  * year = 0 (no planting year classified) is reported separately as
  * unclassifiedAreaM2 and left out of the cohorts.
  */
@@ -32,8 +34,7 @@ export async function GET(request: NextRequest) {
         FROM tbl_region_config rc
         JOIN tbl_planting_year_dist d
           ON d.p_code = rc.p_code
-         AND d.lu_year = rc.lu_version
-         AND d.plaining_year = rc.planting_year_version
+         AND d.lu_year || '/' || d.plaining_year = rc.planting_year_dist_version
         GROUP BY rc.p_code, rc.p_name
         ORDER BY rc.p_code
       `);
@@ -45,7 +46,7 @@ export async function GET(request: NextRequest) {
     }
 
     const configResult = await pool.query(
-      `SELECT p_code, p_name, lu_version, planting_year_version, default_spacing, default_clone,
+      `SELECT p_code, p_name, planting_year_dist_version, default_spacing, default_clone,
               default_growth, default_allometry, biomass_profile_version
        FROM tbl_region_config WHERE p_code = $1`,
       [pCode]
@@ -54,7 +55,11 @@ export async function GET(request: NextRequest) {
     if (!config) {
       return NextResponse.json({ error: `ไม่พบการตั้งค่าจังหวัด "${pCode}"` }, { status: 404 });
     }
-    const versionParams = [pCode, config.lu_version, config.planting_year_version];
+    if (!config.planting_year_dist_version) {
+      return NextResponse.json({ error: `จังหวัด "${pCode}" ยังไม่มีข้อมูล Planting Year Distribution` }, { status: 404 });
+    }
+    const [distLuYear, distPlantingYear] = String(config.planting_year_dist_version).split("/").map(Number);
+    const versionParams = [pCode, distLuYear, distPlantingYear];
 
     const [districtsResult, cohortsResult] = await Promise.all([
       pool.query(
@@ -93,8 +98,8 @@ export async function GET(request: NextRequest) {
         nameTh: districtsResult.rows[0]?.prov_name_th ?? config.p_name,
       },
       config: {
-        luVersion: config.lu_version,
-        plantingYearVersion: config.planting_year_version,
+        luVersion: distLuYear,
+        plantingYearVersion: distPlantingYear,
         spacing: config.default_spacing,
         clone: config.default_clone,
         growthModel: config.default_growth,

@@ -12,6 +12,8 @@ import { isAdminOrRnd } from "@/lib/auth-server";
  *                                    -> imported versions in tbl_dataset_version,
  *                                       each with its status (draft/active/archived);
  *                                       saving the config activates the chosen ones
+ *   - Planting Year Distribution Version -> imported distributions (same, by
+ *                                       '<lu_year>/<plaining_year>'), or none
  *   - Default Spacing System         -> tbl_tree_density.tree_spacing (global, no p_code)
  *   - Default Rubber Clone           -> distinct tbl_biomass_profile.clone
  *   - Default Growth Model           -> distinct tbl_biomass_profile.growth_model
@@ -32,13 +34,13 @@ export async function GET(request: NextRequest) {
     const [configResult, versionResult, spacingResult, cloneResult, growthResult, allometryResult] =
       await Promise.all([
         pool.query(
-          `SELECT p_code, p_name, lu_version, planting_year_version, default_spacing, default_clone, default_growth, default_allometry, biomass_profile_version
+          `SELECT p_code, p_name, lu_version, planting_year_version, default_spacing, default_clone, default_growth, default_allometry, biomass_profile_version, planting_year_dist_version
            FROM tbl_region_config WHERE p_code = $1`,
           [pCode]
         ),
         pool.query(
           `SELECT category, version, status FROM tbl_dataset_version
-           WHERE p_code = $1 AND category IN ('planting_year_map', 'lulc_map', 'biomass_profile')
+           WHERE p_code = $1 AND category IN ('planting_year_map', 'lulc_map', 'biomass_profile', 'planting_year_distribution')
            ORDER BY created_at DESC`,
           [pCode]
         ),
@@ -67,6 +69,7 @@ export async function GET(request: NextRequest) {
             defaultGrowth: row.default_growth,
             defaultAllometry: row.default_allometry,
             biomassProfileVersion: row.biomass_profile_version,
+            plantingYearDistVersion: row.planting_year_dist_version ?? null,
           }
         : null,
       plantingYearVersionOptions: versionsOf("planting_year_map"),
@@ -76,6 +79,8 @@ export async function GET(request: NextRequest) {
       growthOptions: growthResult.rows.map((r) => String(r.growth_model)),
       allometryOptions: allometryResult.rows.map((r) => String(r.allometry)),
       biomassProfileVersionOptions: versionsOf("biomass_profile"),
+      // value '<lu_year>/<plaining_year>'; the page shows it as "LU … / PY …".
+      plantingYearDistVersionOptions: versionsOf("planting_year_distribution"),
     });
   } catch (err) {
     console.error("region-config-options error:", err);

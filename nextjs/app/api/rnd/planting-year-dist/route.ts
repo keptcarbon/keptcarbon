@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { pool } from "@/lib/db";
 import { isAdminOrRnd } from "@/lib/auth-server";
-import { getActiveVersions, getRequesterId, plantingYearDistVersion, recordImport, withTransaction } from "@/lib/dataset-version";
+import { getRequesterId, plantingYearDistVersion, recordImport, withTransaction } from "@/lib/dataset-version";
 
 type PlantingYearDistRowInput = {
   provCode: string;
@@ -25,9 +25,9 @@ type PlantingYearDistRowInput = {
  * page) into tbl_planting_year_dist. p_code/lu_year/plaining_year aren't in
  * the CSV — they're supplied once here (from the province selector and the
  * two version inputs in step 2) and apply to every row in the batch.
- * Logged in tbl_dataset_version; it has no draft→active step of its own —
- * it starts 'active' when its (luYear, plainingYear) pair matches the
- * province's active LULC + Planting Year maps, otherwise 'draft'.
+ * Logged in tbl_dataset_version as a draft; the dashboards use it once it's
+ * chosen as the province's Planting Year Distribution version in the region
+ * config (tbl_region_config.planting_year_dist_version).
  */
 export async function POST(request: NextRequest) {
   if (!(await isAdminOrRnd(request))) {
@@ -124,14 +124,10 @@ export async function POST(request: NextRequest) {
           year, pixelCount, sqrM, percent, adjSqrM, sqrMAdj,
         ]
       );
-      const active = await getActiveVersions(client, pCode);
-      const followsActiveMaps =
-        active.lulc_map === String(luYear) && active.planting_year_map === String(plainingYear);
       const logged = await recordImport(client, {
         category: "planting_year_distribution", pCode, version: plantingYearDistVersion(luYear, plainingYear),
         fileName: typeof fileName === "string" && fileName ? fileName : `planting_year_dist_${pCode}.csv`,
         rowCount: result.rowCount ?? 0, userId,
-        initialStatus: followsActiveMaps ? "active" : "draft",
       });
       return { rowCount: result.rowCount, status: logged.status };
     });

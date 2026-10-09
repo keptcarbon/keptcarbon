@@ -704,6 +704,10 @@ export default function DashboardPage() {
   const maxAgeCarbon = useMemo(() => Math.max(...selected.ageDist.map(a => a.carbon), 1), [selected]);
   // Follows the เลือกจังหวัด dropdown; Rayong until the province list loads.
   const provinceName = provinces?.find(p => p.pCode === pCode)?.nameTh ?? "ระยอง";
+  const yearBadgeStyle: React.CSSProperties = {
+    background: "rgba(5,150,105,0.1)", border: "1px solid rgba(5,150,105,0.2)", borderRadius: 6, padding: "2px 8px",
+    fontSize: isMobile ? 13 : 14, fontWeight: 700, color: "#059669", whiteSpace: "nowrap",
+  };
   const provinceLabel = `จังหวัด${provinceName}`;
 
   return (
@@ -725,18 +729,23 @@ export default function DashboardPage() {
             <div>
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
                 <span style={{ background: "rgba(5,150,105,0.08)", border: "1px solid rgba(5,150,105,0.18)", borderRadius: 8, padding: "5px 14px", fontSize: 15, fontWeight: 700, color: "#047857" }}>
-                  ฐานข้อมูลระบบ
+                  <i className="bi bi-geo-alt-fill" style={{ marginRight: 5 }} />ศักยภาพคาร์บอนระดับพื้นที่
                 </span>
                 <span style={{ background: "rgba(5,150,105,0.1)", border: "1px solid rgba(5,150,105,0.2)", borderRadius: 8, padding: "5px 14px", fontSize: 15, fontWeight: 700, color: "#059669" }}>
                   <i className="bi bi-geo-alt-fill" style={{ marginRight: 5 }} />{provinceLabel}
                 </span>
               </div>
               <h1 style={{ fontSize: isMobile ? 24 : 34, fontWeight: 900, color: "#064e3b", margin: "0 0 8px", letterSpacing: -0.8, lineHeight: 1.15 }}>
-                ปริมาณคาร์บอนสะสม {provinceLabel}
+                ปริมาณคาร์บอนสะสม
               </h1>
-              <div style={{ fontSize: isMobile ? 15 : 17, color: "#64748b", margin: 0, fontWeight: 500, display: "flex", flexDirection: isMobile ? "column" : "row", alignItems: isMobile ? "flex-start" : "center", gap: isMobile ? 8 : 6 }}>
-                <span>คำนวนจากฐานข้อมูล GeoAI และข้อมูลการใช้ประโยชน์ที่ดิน (LU) กรมพัฒนาที่ดิน</span>
-                <span style={{ background: "rgba(5,150,105,0.1)", border: "1px solid rgba(5,150,105,0.2)", borderRadius: 6, padding: "2px 8px", fontSize: isMobile ? 13 : 14, fontWeight: 700, color: "#059669", whiteSpace: "nowrap" }}>
+              <div style={{ fontSize: isMobile ? 15 : 17, color: "#64748b", margin: 0, fontWeight: 500, display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6 }}>
+                <span>คำนวนจากฐานข้อมูลอายุแปลงปลูก</span>
+                <span style={yearBadgeStyle}>
+                  {/* plantingYearVersion is a CE year (e.g. 2026) */}
+                  ปี พ.ศ. {stock?.data.config.plantingYearVersion != null ? stock.data.config.plantingYearVersion + BE_OFFSET : "–"}
+                </span>
+                <span>และข้อมูลการใช้ประโยชน์ที่ดิน (LU) กรมพัฒนาที่ดิน</span>
+                <span style={yearBadgeStyle}>
                   ปี พ.ศ. {stock?.data.config.luVersion ?? "–"}
                 </span>
               </div>

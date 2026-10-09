@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import { GraduationCap } from "lucide-react";
 
 export const metadata: Metadata = {
-  title: "Kitty | KeptCarbon",
-  description: "Kitty — โมดูลถ่ายทอดความรู้ของ KeptCarbon Platform",
+  title: "c | KeptCarbon",
+  description: "KITTY — โมดูลถ่ายทอดความรู้ของ KeptCarbon Platform",
 };
 
 /* Knowledge transfer module — placeholder until content is designed. */
@@ -16,7 +16,7 @@ export default function KittyPage() {
           ถ่ายทอดความรู้
         </span>
         <h1 className="m-0 text-3xl font-bold tracking-tight text-foreground md:text-5xl">
-          <span className="text-primary">Kitty</span>
+          <span className="text-primary">KITTY</span>
         </h1>
         <p className="mx-auto mt-5 mb-0 max-w-2xl text-base leading-relaxed text-muted-foreground md:text-lg">
           อยู่ระหว่างการพัฒนา

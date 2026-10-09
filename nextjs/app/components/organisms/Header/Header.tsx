@@ -49,12 +49,12 @@ const navLinks: NavItem[] = [
     href: "/dashboard",
     icon: BarChart3,
     children: [
-      { label: "ศักยภาพคาร์บอนกักเก็บ", href: "/dashboard/carbon-stock", icon: Leaf },
+      { label: "ศักยภาพคาร์บอนสะสม", href: "/dashboard/carbon-stock", icon: Leaf },
       { label: "จำลองคาร์บอนกักเก็บ", href: "/dashboard/simulation", icon: TrendingUp },
     ],
   },
   { label: "ประเมินคาร์บอน", href: "/map-draw", icon: Map },
-  { label: "Kitty", href: "/kitty", icon: GraduationCap },
+  { label: "KITTY", href: "/kitty", icon: GraduationCap },
 ];
 
 /* Shown instead of navLinks while browsing the admin area (/admin).

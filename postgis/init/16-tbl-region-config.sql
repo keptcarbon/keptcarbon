@@ -13,7 +13,9 @@ CREATE TABLE IF NOT EXISTS tbl_region_config (
   default_clone       VARCHAR(50)  NOT NULL,          -- default rubber clone, e.g. 'RRIM 600'
   default_growth      VARCHAR(50)  NOT NULL,          -- default growth model, e.g. 'anchored_weibull'
   default_allometry   VARCHAR(50)  NOT NULL,          -- default allometry equation, e.g. 'hytönen_2018'
-  biomass_profile_version VARCHAR(50)  NOT NULL       -- biomass profile dataset version in use for this region
+  biomass_profile_version VARCHAR(50)  NOT NULL,      -- biomass profile dataset version in use for this region
+  planting_year_dist_version VARCHAR(20)              -- '<lu_year>/<plaining_year>' of the tbl_planting_year_dist used by the
+                                                      -- dashboards; NULL = none imported yet (province hidden from dashboards)
 );
 
 INSERT INTO tbl_region_config

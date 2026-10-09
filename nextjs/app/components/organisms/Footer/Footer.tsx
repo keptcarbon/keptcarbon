@@ -36,7 +36,7 @@ const navLinks = [
   { label: "เกี่ยวกับโครงการ", href: "/about-project" },
   { label: "แดชบอร์ด", href: "/dashboard/carbon-stock" },
   { label: "ประเมินคาร์บอน", href: "/map-draw" },
-  { label: "Kitty", href: "/kitty" },
+  { label: "KITTY", href: "/kitty" },
 ] as const;
 
 const socialLinks = [

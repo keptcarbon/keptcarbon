@@ -60,8 +60,6 @@ export async function recordImport(
     rowCount: number;
     detail?: Record<string, unknown> | null;
     userId: number | null;
-    // planting_year_distribution follows the maps instead of starting as draft.
-    initialStatus?: DatasetStatus;
   }
 ): Promise<{ id: number; status: DatasetStatus }> {
   const existing = await client.query(
@@ -79,17 +77,12 @@ export async function recordImport(
       throw new FrozenVersionError(args.version, status);
     }
   } else {
-    status = args.initialStatus ?? "draft";
-    if (status === "active") {
-      await archiveActive(client, args.category, args.pCode);
-    }
+    status = "draft";
     const inserted = await client.query(
-      `INSERT INTO tbl_dataset_version (category, p_code, version, status, created_by, activated_at, activated_by)
-       VALUES ($1, $2, $3, $4::varchar, $5::integer,
-               CASE WHEN $4::varchar = 'active' THEN NOW() END,
-               CASE WHEN $4::varchar = 'active' THEN $5::integer END)
+      `INSERT INTO tbl_dataset_version (category, p_code, version, status, created_by)
+       VALUES ($1, $2, $3, 'draft', $4)
        RETURNING id`,
-      [args.category, args.pCode, args.version, status, args.userId]
+      [args.category, args.pCode, args.version, args.userId]
     );
     id = inserted.rows[0].id;
   }
@@ -129,7 +122,7 @@ export async function archiveActive(client: PoolClient, category: DatasetCategor
  */
 export async function activateVersion(
   client: PoolClient,
-  category: Exclude<DatasetCategory, "planting_year_distribution">,
+  category: DatasetCategory,
   pCode: string,
   version: string,
   userId: number | null
@@ -150,46 +143,4 @@ export async function activateVersion(
      WHERE id = $1`,
     [found.rows[0].id, userId]
   );
-}
-
-/** Active version string per category for a province (absent = none active). */
-export async function getActiveVersions(
-  client: PoolClient | typeof pool,
-  pCode: string
-): Promise<Partial<Record<DatasetCategory, string>>> {
-  const result = await client.query(
-    `SELECT category, version FROM tbl_dataset_version WHERE p_code = $1 AND status = 'active'`,
-    [pCode]
-  );
-  return Object.fromEntries(result.rows.map((r) => [r.category, r.version]));
-}
-
-/**
- * Re-points the province's planting_year_distribution at the pair of active
- * maps: the distribution matching (active LULC, active Planting Year) becomes
- * active, a previously active one that no longer matches is archived.
- * Returns whether a matching distribution exists.
- */
-export async function syncPlantingYearDist(client: PoolClient, pCode: string, userId: number | null): Promise<boolean> {
-  const active = await getActiveVersions(client, pCode);
-  const lu = active.lulc_map;
-  const py = active.planting_year_map;
-  const target = lu && py ? plantingYearDistVersion(Number(lu), Number(py)) : null;
-
-  await client.query(
-    `UPDATE tbl_dataset_version SET status = 'archived', archived_at = NOW()
-     WHERE category = 'planting_year_distribution' AND p_code = $1 AND status = 'active'
-       AND version IS DISTINCT FROM $2`,
-    [pCode, target]
-  );
-  if (!target) return false;
-
-  const updated = await client.query(
-    `UPDATE tbl_dataset_version
-     SET status = 'active', activated_at = NOW(), activated_by = $3, archived_at = NULL
-     WHERE category = 'planting_year_distribution' AND p_code = $1 AND version = $2
-     RETURNING id`,
-    [pCode, target, userId]
-  );
-  return updated.rows.length > 0;
 }

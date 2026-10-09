@@ -36,6 +36,7 @@ type SavedRegionConfig = {
     defaultGrowth: string;
     defaultAllometry: string;
     biomassProfileVersion: string;
+    plantingYearDistVersion: string | null; // '<lu>/<py>'; null = none (hidden from dashboards)
 };
 
 const TH_STYLE: React.CSSProperties = {
@@ -61,6 +62,7 @@ type RegionConfigRow = {
     defaultModel: string;
     defaultBiomassAssessmentMethod: string;
     biomassProfileVersion: string;
+    plantingYearDistVersion: string; // '<lu>/<py>', NO_DIST_VERSION, or "" = not chosen yet
 };
 
 
@@ -78,6 +80,7 @@ type RegionConfigOptions = {
         defaultGrowth: string;
         defaultAllometry: string;
         biomassProfileVersion: string;
+        plantingYearDistVersion: string | null;
     } | null;
     plantingYearVersionOptions: VersionOption[];
     luVersionOptions: VersionOption[];
@@ -86,6 +89,7 @@ type RegionConfigOptions = {
     growthOptions: string[];
     allometryOptions: string[];
     biomassProfileVersionOptions: VersionOption[];
+    plantingYearDistVersionOptions: VersionOption[];
 };
 
 // An imported dataset version (tbl_dataset_version) and its status.
@@ -114,6 +118,25 @@ function toVersionOptions(versions: VersionOption[]) {
 // and users must enter the year of planting themselves (backend E04 otherwise).
 const NO_PLANTING_YEAR_MAP = "none";
 const NO_PLANTING_YEAR_MAP_LABEL = "ยังไม่มีแผนที่ปีปลูก (ผู้ใช้ต้องระบุปีปลูกเอง)";
+
+// Planting Year Distribution (the dashboards' area-by-planting-year data) is
+// chosen independently of the maps; "none" hides the province from the
+// dashboards until one is imported.
+const NO_DIST_VERSION = "none";
+const NO_DIST_VERSION_LABEL = "ยังไม่มีข้อมูล (ไม่แสดงในแดชบอร์ด)";
+
+/** '2567/2026' -> 'LU 2567 / PY 2026' */
+function formatDistVersion(version: string): string {
+    const [lu, py] = version.split("/");
+    return `LU ${lu} / PY ${py}`;
+}
+
+function toDistVersionOptions(versions: VersionOption[]) {
+    return [
+        ...versions.map((v) => ({ label: `${formatDistVersion(v.value)} (${VERSION_STATUS_LABEL[v.status]})`, value: v.value })),
+        { label: NO_DIST_VERSION_LABEL, value: NO_DIST_VERSION },
+    ];
+}
 
 function toOptions(values: string[]) {
     return values.map((v) => ({ label: v, value: v }));
@@ -228,7 +251,7 @@ export default function RndConfigurationPage() {
             if (!q) return true;
             return [
                 c.provinceName, c.pCode, String(c.plantingYearVersion ?? ""), String(c.luVersion),
-                c.biomassProfileVersion, c.defaultSpacing, c.defaultClone,
+                c.biomassProfileVersion, c.plantingYearDistVersion ?? "", c.defaultSpacing, c.defaultClone,
                 optionLabel(GROWTH_MODEL_OPTIONS, c.defaultGrowth), optionLabel(ALLOMETRY_OPTIONS, c.defaultAllometry),
             ].some((v) => v.toLowerCase().includes(q));
         });
@@ -326,6 +349,7 @@ export default function RndConfigurationPage() {
                             defaultModel: cfg.defaultGrowth,
                             defaultBiomassAssessmentMethod: cfg.defaultAllometry,
                             biomassProfileVersion: cfg.biomassProfileVersion,
+                            plantingYearDistVersion: cfg.plantingYearDistVersion ?? NO_DIST_VERSION,
                         };
                         return prev.some((r) => r.code === cfg.pCode)
                             ? prev.map((r) => (r.code === cfg.pCode ? entry : r))
@@ -359,6 +383,7 @@ export default function RndConfigurationPage() {
                 defaultModel: "",
                 defaultBiomassAssessmentMethod: "",
                 biomassProfileVersion: "",
+                plantingYearDistVersion: "",
             },
         ]);
     }
@@ -429,7 +454,7 @@ export default function RndConfigurationPage() {
         visibleRegions.some((r) =>
             !r.plantingYearMapVersion || !r.luMapVersion || !r.defaultSpacingSystem ||
             !r.defaultRubberClone || !r.defaultModel || !r.defaultBiomassAssessmentMethod ||
-            !r.biomassProfileVersion
+            !r.biomassProfileVersion || !r.plantingYearDistVersion
         );
 
     // Save also requires a passing "ตรวจสอบพารามิเตอร์" check for the province
@@ -470,6 +495,7 @@ export default function RndConfigurationPage() {
                     luVersion: Number(region.luMapVersion),
                     plantingYearVersion: region.plantingYearMapVersion === NO_PLANTING_YEAR_MAP ? null : Number(region.plantingYearMapVersion),
                     biomassProfileVersion: region.biomassProfileVersion,
+                    plantingYearDistVersion: region.plantingYearDistVersion === NO_DIST_VERSION ? null : region.plantingYearDistVersion,
                     defaultSpacing: region.defaultSpacingSystem,
                     defaultClone: region.defaultRubberClone,
                     defaultGrowth: region.defaultModel,
@@ -481,10 +507,7 @@ export default function RndConfigurationPage() {
                 throw new Error(data.error || "บันทึกไม่สำเร็จ");
             }
             setSuccess(
-                `บันทึกค่าตั้งต้นสำหรับ ${region.provinceName} (${region.code}) สำเร็จ — เวอร์ชันที่เลือกถูกตั้งเป็นใช้งานอยู่แล้ว` +
-                (data.distributionFound === false
-                    ? " (ยังไม่มี Planting Year Distribution สำหรับ LU + Planting Year คู่นี้ กรุณานำเข้าที่หน้าจัดการข้อมูล)"
-                    : "")
+                `บันทึกค่าตั้งต้นสำหรับ ${region.provinceName} (${region.code}) สำเร็จ — เวอร์ชันที่เลือกถูกตั้งเป็นใช้งานอยู่แล้ว`
             );
             setTimeout(() => setSuccess(null), 6000);
             void loadSavedConfigs();
@@ -496,6 +519,9 @@ export default function RndConfigurationPage() {
                     : restatus(prev.plantingYearVersionOptions, region.plantingYearMapVersion),
                 luVersionOptions: restatus(prev.luVersionOptions, region.luMapVersion),
                 biomassProfileVersionOptions: restatus(prev.biomassProfileVersionOptions, region.biomassProfileVersion),
+                plantingYearDistVersionOptions: region.plantingYearDistVersion === NO_DIST_VERSION
+                    ? prev.plantingYearDistVersionOptions.map((v) => (v.status === "active" ? { ...v, status: "archived" } : v))
+                    : restatus(prev.plantingYearDistVersionOptions, region.plantingYearDistVersion),
             });
         } catch (err) {
             setSaveError(err instanceof Error ? err.message : "บันทึกไม่สำเร็จ");
@@ -588,7 +614,7 @@ export default function RndConfigurationPage() {
                             <table className="table table-hover align-middle mb-0" style={{ fontSize: 13, minWidth: 900 }}>
                                 <thead style={{ background: "#f8fbf9" }}>
                                     <tr>
-                                        {["จังหวัด", "ภาค", "Planting Year", "LU Map", "Biomass Profile", "ระยะปลูก", "พันธุ์ยาง", "Growth Model / Allometry"].map((h, idx) => (
+                                        {["จังหวัด", "ภาค", "Planting Year", "LU Map", "Biomass Profile", "Year Distribution", "ระยะปลูก", "พันธุ์ยาง", "Growth Model / Allometry"].map((h, idx) => (
                                             <th key={h} className={idx === 0 ? "px-4 py-3" : "py-3"} style={TH_STYLE}>{h}</th>
                                         ))}
                                         <th className="px-4 py-3 text-end" style={TH_STYLE}>จัดการ</th>
@@ -605,6 +631,9 @@ export default function RndConfigurationPage() {
                                             <td className="py-3" style={{ color: c.plantingYearVersion === null ? "#94a3b8" : "#5a7a65" }}>{c.plantingYearVersion ?? "ยังไม่มี"}</td>
                                             <td className="py-3" style={{ color: "#5a7a65" }}>{c.luVersion}</td>
                                             <td className="py-3" style={{ color: "#5a7a65" }}>{c.biomassProfileVersion}</td>
+                                            <td className="py-3" style={{ color: c.plantingYearDistVersion ? "#5a7a65" : "#94a3b8", whiteSpace: "nowrap" }}>
+                                                {c.plantingYearDistVersion ? formatDistVersion(c.plantingYearDistVersion) : "ยังไม่มีข้อมูล"}
+                                            </td>
                                             <td className="py-3" style={{ color: "#5a7a65" }}>{c.defaultSpacing}</td>
                                             <td className="py-3" style={{ color: "#5a7a65" }}>{c.defaultClone}</td>
                                             <td className="py-3" style={{ color: "#5a7a65", maxWidth: 240 }}>
@@ -624,19 +653,19 @@ export default function RndConfigurationPage() {
                                     ))}
                                     {savedConfigsLoading && (
                                         <tr>
-                                            <td colSpan={9} className="text-center py-5" style={{ color: "#5a7a65" }}>กำลังโหลด…</td>
+                                            <td colSpan={10} className="text-center py-5" style={{ color: "#5a7a65" }}>กำลังโหลด…</td>
                                         </tr>
                                     )}
                                     {!savedConfigsLoading && savedConfigsError && (
                                         <tr>
-                                            <td colSpan={9} className="text-center py-5" style={{ color: "#c53030" }}>
+                                            <td colSpan={10} className="text-center py-5" style={{ color: "#c53030" }}>
                                                 โหลดรายการค่าตั้งต้นไม่สำเร็จ กรุณาลองใหม่อีกครั้ง
                                             </td>
                                         </tr>
                                     )}
                                     {!savedConfigsLoading && !savedConfigsError && filteredConfigs.length === 0 && (
                                         <tr>
-                                            <td colSpan={9} className="text-center py-5" style={{ color: "#5a7a65" }}>
+                                            <td colSpan={10} className="text-center py-5" style={{ color: "#5a7a65" }}>
                                                 {savedConfigs.length === 0 ? "ยังไม่มีค่าตั้งต้นของจังหวัดใด" : "ไม่พบค่าตั้งต้นที่ตรงกับเงื่อนไข"}
                                             </td>
                                         </tr>
@@ -736,6 +765,9 @@ export default function RndConfigurationPage() {
                                         </div>
                                         <div className="col-12 col-lg-6">
                                             <Field required label="LU Map Version" value={region.luMapVersion} onChange={(v) => updateRegion(region.code, "luMapVersion", v)} options={toVersionOptions(regionOptions?.luVersionOptions ?? [])} />
+                                        </div>
+                                        <div className="col-12">
+                                            <Field required label="Planting Year Distribution Version (ข้อมูลแดชบอร์ด)" hint="ข้อมูลพื้นที่ตามปีปลูกที่ใช้ในแดชบอร์ด เลือกได้จากที่นำเข้าแล้ว ไม่จำเป็นต้องตรงกับเวอร์ชันแผนที่ด้านบน" value={region.plantingYearDistVersion} onChange={(v) => updateRegion(region.code, "plantingYearDistVersion", v)} options={toDistVersionOptions(regionOptions?.plantingYearDistVersionOptions ?? [])} />
                                         </div>
                                         <div className="col-12 col-lg-6">
                                             <Field required label="Default Spacing System" value={region.defaultSpacingSystem} onChange={(v) => updateRegion(region.code, "defaultSpacingSystem", v)} options={toOptions(regionOptions?.spacingOptions ?? [])} />

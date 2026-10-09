@@ -165,7 +165,7 @@ export function CarbonSimulationChart({ baseRows, isMobile, unitLabel = "แป�
 
       <div style={{ textAlign: "center", fontSize: isMobile ? 14 : 16, fontWeight: 800, color: "#17603a" }}>
         {view === "stock"
-          ? <>ปริมาณคาร์บอนกักเก็บ (tCO₂eq/{unitLabel})</>
+          ? <>ปริมาณคาร์บอนสะสม (tCO₂eq/{unitLabel})</>
           : <>คาร์บอนกักเก็บสุทธิรายปี (tCO₂eq/{unitLabel}/ปี)</>}
       </div>
 

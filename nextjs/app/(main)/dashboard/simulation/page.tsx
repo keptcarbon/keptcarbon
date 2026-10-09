@@ -119,8 +119,10 @@ export default function ProvinceSimulationPage() {
       .then(({ provinces }) => {
         setProvinces(provinces);
         if (provinces.length) {
-          setRegion(provinces[0].regionTh);
-          setPCode(provinces[0].pCode);
+          // Default to Rayong (same as the carbon-stock dashboard), else the first listed.
+          const initial = provinces.find((p) => p.pCode === "RAY") ?? provinces[0];
+          setRegion(initial.regionTh);
+          setPCode(initial.pCode);
         } else setLoading(false);
       })
       .catch((e) => {
@@ -191,7 +193,7 @@ export default function ProvinceSimulationPage() {
                 จำลองคาร์บอนกักเก็บ
               </h1>
               <p style={{ fontSize: isMobile ? 15 : 17, color: "#64748b", margin: 0, fontWeight: 500, maxWidth: 760 }}>
-                จำลองปริมาณคาร์บอนกักเก็บของสวนยางพาราทั้งจังหวัดหรือรายอำเภอ จากพื้นที่ตามปีที่ปลูกในฐานข้อมูล GeoAI แผนที่ปีปลูก
+                จำลองปริมาณคาร์บอนกักเก็บของสวนยางพาราทั้งจังหวัดหรือรายอำเภอ จากพื้นที่ตามปีที่ปลูกในฐานข้อมูลอายุแปลงปลูก
                 ปรับรอบและอัตราการปลูกทดแทนเพื่อดูแนวโน้มย้อนหลังและคาดการณ์ 35 ปี
               </p>
             </div>
@@ -258,7 +260,7 @@ export default function ProvinceSimulationPage() {
               <div className="db2-card" style={{ overflow: "hidden" }}>
                 <div className="db2-card-header">
                   <i className="bi bi-graph-up-arrow" style={{ color: "#059669" }} />
-                  <span>ปริมาณคาร์บอนกักเก็บ</span>
+                  <span>ปริมาณคาร์บอน</span>
                   <span style={{ marginLeft: 6, fontWeight: 500, color: "#94a3b8", fontSize: 15 }}>{scopeName}</span>
                 </div>
                 <div style={{ padding: isMobile ? 12 : 20 }}>
