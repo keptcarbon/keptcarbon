@@ -7,6 +7,12 @@ const MAX_P_NAME_LENGTH = 100;
 const MAX_SPACING_LENGTH = 20;
 const MAX_CLONE_GROWTH_ALLOMETRY_LENGTH = 50;
 
+// tbl_region_config columns snapshotted into tbl_region_config_history.
+const HISTORY_FIELDS = [
+  "p_name", "lu_version", "planting_year_version", "planting_year_dist_version", "default_spacing",
+  "default_clone", "default_growth", "default_allometry", "biomass_profile_version",
+] as const;
+
 type RegionConfigInput = {
   pCode?: unknown;
   pName?: unknown;
@@ -80,6 +86,10 @@ export async function GET(request: NextRequest) {
  * ข้อมูล") is the area-by-planting-year distribution the dashboards use. It's
  * chosen independently of the two map versions, from the distributions
  * imported for the province; null hides the province from the dashboards.
+ *
+ * Every save that changes the config is logged in tbl_region_config_history
+ * (full snapshot, saved_at, saved_by), marked is_current; tbl_region_config
+ * itself stays the one current row everything reads.
  *
  * plantingYearVersion may be null: a province with LU data but no
  * planting-year raster yet can still be served -- users must then enter the
@@ -226,7 +236,25 @@ export async function POST(request: NextRequest) {
         await activateVersion(client, "planting_year_distribution", pCode, distVersion, userId);
       }
 
-      return result.rows[0];
+      const saved = result.rows[0];
+
+      // Log the change: a new current snapshot, unless nothing changed.
+      const current = await client.query(
+        `SELECT ${HISTORY_FIELDS.join(", ")} FROM tbl_region_config_history
+         WHERE p_code = $1 AND is_current FOR UPDATE`,
+        [pCode]
+      );
+      const changed = !current.rows[0] || HISTORY_FIELDS.some((f) => current.rows[0][f] !== saved[f]);
+      if (changed) {
+        await client.query(`UPDATE tbl_region_config_history SET is_current = FALSE WHERE p_code = $1 AND is_current`, [pCode]);
+        await client.query(
+          `INSERT INTO tbl_region_config_history (p_code, ${HISTORY_FIELDS.join(", ")}, is_current, saved_by)
+           VALUES ($1, ${HISTORY_FIELDS.map((_, i) => `$${i + 2}`).join(", ")}, TRUE, $${HISTORY_FIELDS.length + 2})`,
+          [pCode, ...HISTORY_FIELDS.map((f) => saved[f]), userId]
+        );
+      }
+
+      return saved;
     });
 
     return NextResponse.json({
