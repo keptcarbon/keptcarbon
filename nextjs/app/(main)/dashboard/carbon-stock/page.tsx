@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import DashboardMap, { type MapPlot } from "./DashboardMap";
+import { Leaf } from "lucide-react";
+import DashboardMap from "./DashboardMap";
 import { simulateCarbon } from "@/lib/carbon-api";
 import { Footer } from "@/app/components/organisms";
 import { useCounter } from "@/lib/use-counter";
@@ -638,7 +639,6 @@ export default function DashboardPage() {
   const regions = useMemo(() => [...new Set(provinces?.map((p) => p.regionTh))], [provinces]);
   const regionProvinces = useMemo(() => provinces?.filter((p) => p.regionTh === region) ?? [], [provinces, region]);
   const [isMobile, setIsMobile] = useState(false);
-  const [mapPlots, setMapPlots] = useState<MapPlot[]>([]);
   useEffect(() => {
     if (typeof window === "undefined") return;
     setIsMobile(window.innerWidth < 768);
@@ -659,16 +659,6 @@ export default function DashboardPage() {
         }
       })
       .catch(() => setProvinces([]));
-  }, []);
-
-  useEffect(() => {
-    fetch("/api/dashboard/stats")
-      .then(r => r.ok ? r.json() : null)
-      .then(data => {
-        if (!data) return;
-        setMapPlots(data.mapPlots ?? []);
-      })
-      .catch(console.error);
   }, []);
 
   // ── Carbon stock: rubber area by district × planting year from the DB,
@@ -755,7 +745,7 @@ export default function DashboardPage() {
             <div>
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
                 <span style={{ background: "rgba(5,150,105,0.08)", border: "1px solid rgba(5,150,105,0.18)", borderRadius: 8, padding: "5px 14px", fontSize: 15, fontWeight: 700, color: "#047857" }}>
-                  <i className="bi bi-geo-alt-fill" style={{ marginRight: 5 }} />ศักยภาพคาร์บอนระดับพื้นที่
+                  <Leaf size={15} aria-hidden="true" style={{ marginRight: 5, verticalAlign: "-2px" }} />ศักยภาพคาร์บอนระดับพื้นที่
                 </span>
                 <span style={{ background: "rgba(5,150,105,0.1)", border: "1px solid rgba(5,150,105,0.2)", borderRadius: 8, padding: "5px 14px", fontSize: 15, fontWeight: 700, color: "#059669" }}>
                   <i className="bi bi-geo-alt-fill" style={{ marginRight: 5 }} />{provinceLabel}
@@ -825,8 +815,7 @@ export default function DashboardPage() {
             </div>
             <div className="db2-map-body">
               <DashboardMap
-                plots={mapPlots}
-                provinceName={provinceName}
+                provinceName={provinces?.find(p => p.pCode === pCode)?.nameTh}
                 districts={mapDistricts}
                 selectedDistrictId={selectedId}
                 onSelectDistrict={setSelectedId}

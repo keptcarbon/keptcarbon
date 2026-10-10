@@ -5,17 +5,6 @@ import maplibregl, { type Map as MLMap } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { MAP_VIEW_ANIMATION_DURATION } from "@/lib/map-utils";
 
-export type MapPlot = {
-  id: number | string;
-  name: string;
-  amphoe?: string;
-  areaRai: number;
-  carbonTotal: number;
-  age?: number;
-  geojson: GeoJSON.GeoJSON;
-  boundaryGeojson?: GeoJSON.GeoJSON | null;
-};
-
 export type DistrictMarker = {
   id: string;
   name: string;
@@ -72,17 +61,36 @@ function coordBounds(coords: unknown[]): maplibregl.LngLatBounds | null {
   return found ? b : null;
 }
 
+const NO_DISTRICTS: DistrictMarker[] = [];
+
+/** District polygons per province, fetched once per page session. */
+const boundaryCache = new Map<string, Promise<GeoJSON.Feature[]>>();
+function loadDistrictBoundaries(province: string): Promise<GeoJSON.Feature[]> {
+  let p = boundaryCache.get(province);
+  if (!p) {
+    p = fetch(`/api/geojson/districts?province=${encodeURIComponent(province)}&shape=polygon`)
+      .then(r => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
+      .then((gj: GeoJSON.FeatureCollection) => gj.features ?? []);
+    p.catch(() => boundaryCache.delete(province)); // retry on the next visit
+    boundaryCache.set(province, p);
+  }
+  return p;
+}
+
+/**
+ * The map is created once; province and district changes only swap its
+ * sources and move the view. The first province fit is instant (behind a
+ * loading veil); later province switches animate to the new extent.
+ */
 export default function DashboardMap({
-  plots,
   provinceName,
   flyToCenter,
   flyZoom = 11,
-  districts = [],
+  districts = NO_DISTRICTS,
   selectedDistrictId,
   onSelectDistrict,
 }: {
-  plots: MapPlot[];
-  /** Thai province name (geo_district.province_th) whose districts the view is locked to. */
+  /** Thai province name (geo_district.province_th) whose districts the view is locked to; undefined while unknown. */
   provinceName?: string;
   flyToCenter?: [number, number] | null;
   flyZoom?: number;
@@ -94,11 +102,13 @@ export default function DashboardMap({
   const mapRef = useRef<MLMap | null>(null);
   const onSelectRef = useRef(onSelectDistrict);
   onSelectRef.current = onSelectDistrict;
-  const selectedRef = useRef(selectedDistrictId);
-  selectedRef.current = selectedDistrictId;
-  const districtsRef = useRef(districts);
-  districtsRef.current = districts;
-  const selectedName = () => districtsRef.current.find(d => d.id === selectedRef.current)?.name ?? "";
+  // Province extent the view is locked to (refit on resize).
+  const boundsRef = useRef<maplibregl.LngLatBounds | null>(null);
+  const hasFitRef = useRef(false);
+  const markersRef = useRef<maplibregl.Marker[]>([]);
+  const [mapReady, setMapReady] = useState(false);
+  const [fitted, setFitted] = useState(false);
+  const [boundary, setBoundary] = useState<GeoJSON.Feature[] | null>(null);
   const [isMobile, setIsMobile] = useState(false);
   const [legendOpen, setLegendOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -112,8 +122,9 @@ export default function DashboardMap({
     return () => window.removeEventListener("resize", check);
   }, []);
 
+  // ── Create the map and its (empty) layers once ───────────────────────────
   useEffect(() => {
-    if (!containerRef.current || mapRef.current) return;
+    if (!containerRef.current) return;
 
     const map = new maplibregl.Map({
       container: containerRef.current,
@@ -132,10 +143,10 @@ export default function DashboardMap({
         },
         layers: [{ id: "satellite", type: "raster", source: "satellite" }],
       },
-      center: [101.2587, 12.6819],
-      zoom: 8,
+      center: [100.5, 13.0],
+      zoom: 5,
       attributionControl: { compact: true },
-      // View is locked to the province (see lockToBounds); clicks still work.
+      // View is locked to the province (see boundsRef); clicks still work.
       dragPan: false,
       scrollZoom: false,
       boxZoom: false,
@@ -147,13 +158,9 @@ export default function DashboardMap({
     });
     mapRef.current = map;
 
-    // Fit the whole province edge to edge, and refit whenever the map resizes.
-    const lockToBounds = (b: maplibregl.LngLatBounds | null) => {
-      if (!b) return;
-      const fit = () => map.fitBounds(b, { padding: 24, duration: 0 });
-      fit();
-      map.on("resize", fit);
-    };
+    map.on("resize", () => {
+      if (boundsRef.current) map.fitBounds(boundsRef.current, { padding: 24, duration: 0 });
+    });
 
     map.on("load", () => {
       // ── District boundary (bottom-most layer) ─────────────────────────
@@ -183,7 +190,7 @@ export default function DashboardMap({
         type: "line",
         source: "district-boundary",
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        filter: districtFilter(selectedName()) as any,
+        filter: districtFilter("") as any,
         paint: {
           "line-color": "#fbbf24",
           "line-width": 3.5,
@@ -191,181 +198,148 @@ export default function DashboardMap({
         },
       });
 
-      // ── User plot layers ──────────────────────────────────────────────
-      const detectedFeatures: GeoJSON.Feature[] = [];
-      const boundaryFeatures: GeoJSON.Feature[] = [];
-      const seenBoundaries = new Set<string>();
-
-      for (const plot of plots) {
-        if (plot.geojson) {
-          detectedFeatures.push({
-            type: "Feature",
-            geometry: plot.geojson as GeoJSON.Geometry,
-            properties: {
-              name: plot.name ?? "แปลงไม่มีชื่อ",
-              amphoe: plot.amphoe ?? "",
-              area: plot.areaRai ?? 0,
-              carbon: plot.carbonTotal ?? 0,
-              age: plot.age ?? 0,
-            },
-          });
-        }
-        const bnd = plot.boundaryGeojson as GeoJSON.Geometry | null | undefined;
-        if (bnd) {
-          const key = JSON.stringify(bnd);
-          if (!seenBoundaries.has(key)) {
-            seenBoundaries.add(key);
-            boundaryFeatures.push({ type: "Feature", geometry: bnd, properties: { name: plot.name } });
-          }
-        }
-      }
-
-      map.addSource("plots-boundary", { type: "geojson", data: { type: "FeatureCollection", features: boundaryFeatures } });
-      map.addLayer({ id: "plots-boundary-fill", type: "fill", source: "plots-boundary", paint: { "fill-color": "#f97316", "fill-opacity": 0.12 } });
-      map.addLayer({ id: "plots-boundary-line", type: "line", source: "plots-boundary", paint: { "line-color": "#ea580c", "line-width": 2.5 } });
-      map.addSource("plots-detected", { type: "geojson", data: { type: "FeatureCollection", features: detectedFeatures } });
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      map.addLayer({ id: "plots-detected-fill", type: "fill", source: "plots-detected", paint: {
-        "fill-color": ["interpolate", ["linear"], ["get", "carbon"],
-          0,   "#d1fae5",
-          30,  "#6ee7b7",
-          80,  "#34d399",
-          150, "#10b981",
-          280, "#059669",
-          500, "#047857",
-        ] as any,
-        "fill-opacity": 0.85,
-      } } as any); // eslint-disable-line
-      map.addLayer({ id: "plots-detected-line", type: "line", source: "plots-detected", paint: { "line-color": "#065f46", "line-width": 0.6, "line-opacity": 0.45 } });
-
       // ── District bubbles ──────────────────────────────────────────────
-      const addDistrictLayers = (points: DistrictMarker[]) => {
-        const range = carbonRange(points);
-        const features: GeoJSON.Feature[] = points.map(d => {
-          const t = carbonT(d.carbon, range);
-          return {
-            type: "Feature",
-            geometry: { type: "Point", coordinates: [d.lng, d.lat] } as GeoJSON.Point,
-            properties: { id: d.id, name: d.name, carbon: d.carbon, areaRai: d.areaRai, t, r: bubbleRadius(t) },
-          };
-        });
-        const color = ["interpolate", ["linear"], ["get", "t"], ...BUBBLE_COLOR_STOPS.flat()];
+      const color = ["interpolate", ["linear"], ["get", "t"], ...BUBBLE_COLOR_STOPS.flat()];
+      map.addSource("districts", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
 
-        map.addSource("districts", { type: "geojson", data: { type: "FeatureCollection", features } });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      map.addLayer({
+        id: "districts-glow",
+        type: "circle",
+        source: "districts",
+        paint: {
+          "circle-radius": ["*", ["get", "r"], 1.7],
+          "circle-color": color,
+          "circle-opacity": 0.2,
+          "circle-blur": 1.4,
+        },
+      } as any); // eslint-disable-line
 
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        map.addLayer({
-          id: "districts-glow",
-          type: "circle",
-          source: "districts",
-          paint: {
-            "circle-radius": ["*", ["get", "r"], 1.7],
-            "circle-color": color,
-            "circle-opacity": 0.2,
-            "circle-blur": 1.4,
-          },
-        } as any); // eslint-disable-line
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      map.addLayer({
+        id: "districts-circle",
+        type: "circle",
+        source: "districts",
+        paint: {
+          "circle-radius": ["get", "r"],
+          "circle-color": color,
+          "circle-opacity": 0.92,
+          "circle-stroke-width": 2.5,
+          "circle-stroke-color": "#ffffff",
+          "circle-stroke-opacity": 0.95,
+        },
+      } as any); // eslint-disable-line
 
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        map.addLayer({
-          id: "districts-circle",
-          type: "circle",
-          source: "districts",
-          paint: {
-            "circle-radius": ["get", "r"],
-            "circle-color": color,
-            "circle-opacity": 0.92,
-            "circle-stroke-width": 2.5,
-            "circle-stroke-color": "#ffffff",
-            "circle-stroke-opacity": 0.95,
-          },
-        } as any); // eslint-disable-line
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      map.addLayer({
+        id: "districts-selected",
+        type: "circle",
+        source: "districts",
+        filter: ["==", ["get", "id"], ""],
+        paint: {
+          "circle-radius": ["+", ["get", "r"], 7],
+          "circle-color": "rgba(0,0,0,0)",
+          "circle-stroke-width": 3.5,
+          "circle-stroke-color": "#fbbf24",
+          "circle-stroke-opacity": 0.95,
+        },
+      } as any); // eslint-disable-line
 
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        map.addLayer({
-          id: "districts-selected",
-          type: "circle",
-          source: "districts",
-          filter: ["==", ["get", "id"], selectedRef.current ?? ""],
-          paint: {
-            "circle-radius": ["+", ["get", "r"], 7],
-            "circle-color": "rgba(0,0,0,0)",
-            "circle-stroke-width": 3.5,
-            "circle-stroke-color": "#fbbf24",
-            "circle-stroke-opacity": 0.95,
-          },
-        } as any); // eslint-disable-line
+      map.on("click", "districts-circle", (e) => {
+        const props = e.features?.[0]?.properties as { id?: string } | undefined;
+        if (props?.id) onSelectRef.current?.(props.id);
+      });
+      map.on("mouseenter", "districts-circle", () => { map.getCanvas().style.cursor = "pointer"; });
+      map.on("mouseleave", "districts-circle", () => { map.getCanvas().style.cursor = ""; });
 
-        map.on("click", "districts-circle", (e) => {
-          const props = e.features?.[0]?.properties as { id?: string } | undefined;
-          if (props?.id) onSelectRef.current?.(props.id);
-        });
-        map.on("mouseenter", "districts-circle", () => { map.getCanvas().style.cursor = "pointer"; });
-        map.on("mouseleave", "districts-circle", () => { map.getCanvas().style.cursor = ""; });
-
-        for (const d of points) {
-          const radius = Math.round(bubbleRadius(carbonT(d.carbon, range)));
-          const el = document.createElement("div");
-          el.style.cssText = "text-align:center;pointer-events:none;";
-          el.innerHTML = `
-            <div style="font-size:11px;font-weight:800;color:#fff;text-shadow:0 1px 4px rgba(0,0,0,0.95),0 0 10px rgba(0,0,0,0.6);white-space:nowrap;line-height:1.4">${d.name}</div>
-            <div style="font-size:9.5px;font-weight:700;color:#86efac;text-shadow:0 1px 3px rgba(0,0,0,0.95);white-space:nowrap">${compactCarbon(d.carbon)} tCO₂eq</div>
-          `;
-          new maplibregl.Marker({ element: el, anchor: "top", offset: [0, radius + 5] })
-            .setLngLat([d.lng, d.lat])
-            .addTo(map);
-        }
-      };
-
-      // One fetch feeds the boundary layer, the locked extent, and the bubble
-      // positions (district centres). If it fails, fit to the hardcoded
-      // district positions instead.
-      fetch("/api/geojson/districts")
-        .then(r => r.json())
-        .then((gj: GeoJSON.FeatureCollection) => {
-          const inProvince = gj.features.filter(f => f.properties?.prov_nam_t === provinceName);
-          const features = inProvince.length ? inProvince : gj.features;
-          (map.getSource("district-boundary") as maplibregl.GeoJSONSource).setData({ type: "FeatureCollection", features });
-          lockToBounds(coordBounds(features.map(f => (f.geometry as GeoJSON.Polygon | GeoJSON.MultiPolygon).coordinates)));
-
-          // Bubble at each district's centre (geo_district.cen_lon/cen_lat);
-          // districts not found in the boundaries keep their own position.
-          const centres = new Map(features.map(f => [f.properties?.amphoe_t as string, f.properties]));
-          return districts.map(d => {
-            const c = centres.get(d.name);
-            return c?.cen_lon != null ? { ...d, lng: Number(c.cen_lon), lat: Number(c.cen_lat) } : d;
-          });
-        })
-        .catch(() => {
-          lockToBounds(coordBounds(districts.map(d => [d.lng, d.lat])));
-          return districts;
-        })
-        .then(points => { if (points.length) addDistrictLayers(points); });
+      setMapReady(true);
     });
 
     return () => {
+      markersRef.current.forEach(m => m.remove());
+      markersRef.current = [];
       map.remove();
       mapRef.current = null;
+      boundsRef.current = null;
+      hasFitRef.current = false;
+      setMapReady(false);
+      setFitted(false);
     };
-  }, [plots, districts, provinceName]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
 
-  // ── Update selected district ring + boundary when selection changes ──────
+  /** Locks the view to `b`: instant the first time, animated afterwards. */
+  const fitTo = (map: MLMap, b: maplibregl.LngLatBounds) => {
+    boundsRef.current = b;
+    map.fitBounds(b, { padding: 24, duration: hasFitRef.current ? MAP_VIEW_ANIMATION_DURATION : 0 });
+    hasFitRef.current = true;
+    setFitted(true);
+  };
+
+  // ── Province boundary: fetch (cached) when the province changes ──────────
+  useEffect(() => {
+    if (!provinceName) return;
+    let cancelled = false;
+    loadDistrictBoundaries(provinceName)
+      .then(features => { if (!cancelled) setBoundary(features); })
+      .catch(() => { if (!cancelled) setBoundary([]); });
+    return () => { cancelled = true; };
+  }, [provinceName]);
+
   useEffect(() => {
     const map = mapRef.current;
-    if (!map) return;
-    const apply = () => {
-      if (map.getLayer("districts-selected")) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        map.setFilter("districts-selected", ["==", ["get", "id"], selectedDistrictId ?? ""] as any);
-      }
-      if (map.getLayer("district-boundary-selected")) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        map.setFilter("district-boundary-selected", districtFilter(selectedName()) as any);
-      }
-    };
-    if (map.isStyleLoaded()) apply();
-    else map.once("load", apply);
-  }, [selectedDistrictId, districts]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (!map || !mapReady || !boundary) return;
+    (map.getSource("district-boundary") as maplibregl.GeoJSONSource).setData({ type: "FeatureCollection", features: boundary });
+    const b = coordBounds(boundary.map(f => (f.geometry as GeoJSON.Polygon | GeoJSON.MultiPolygon).coordinates));
+    if (b) fitTo(map, b);
+    else boundsRef.current = null; // no boundary: the bubbles set the extent instead
+  }, [boundary, mapReady]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── District bubbles + labels ─────────────────────────────────────────────
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady) return;
+    const range = carbonRange(districts);
+    const features: GeoJSON.Feature[] = districts.map(d => {
+      const t = carbonT(d.carbon, range);
+      return {
+        type: "Feature",
+        geometry: { type: "Point", coordinates: [d.lng, d.lat] } as GeoJSON.Point,
+        properties: { id: d.id, name: d.name, carbon: d.carbon, areaRai: d.areaRai, t, r: bubbleRadius(t) },
+      };
+    });
+    (map.getSource("districts") as maplibregl.GeoJSONSource).setData({ type: "FeatureCollection", features });
+
+    markersRef.current.forEach(m => m.remove());
+    markersRef.current = districts.map(d => {
+      const radius = Math.round(bubbleRadius(carbonT(d.carbon, range)));
+      const el = document.createElement("div");
+      el.style.cssText = "text-align:center;pointer-events:none;";
+      el.innerHTML = `
+        <div style="font-size:11px;font-weight:800;color:#fff;text-shadow:0 1px 4px rgba(0,0,0,0.95),0 0 10px rgba(0,0,0,0.6);white-space:nowrap;line-height:1.4">${d.name}</div>
+        <div style="font-size:9.5px;font-weight:700;color:#86efac;text-shadow:0 1px 3px rgba(0,0,0,0.95);white-space:nowrap">${compactCarbon(d.carbon)} tCO₂eq</div>
+      `;
+      return new maplibregl.Marker({ element: el, anchor: "top", offset: [0, radius + 5] })
+        .setLngLat([d.lng, d.lat])
+        .addTo(map);
+    });
+
+    // Boundary unavailable: lock to the district centres instead.
+    if (!boundsRef.current && districts.length && boundary?.length === 0) {
+      const b = coordBounds(districts.map(d => [d.lng, d.lat]));
+      if (b) fitTo(map, b);
+    }
+  }, [districts, mapReady, boundary]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Selected district ring + boundary ─────────────────────────────────────
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady) return;
+    const name = districts.find(d => d.id === selectedDistrictId)?.name ?? "";
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    map.setFilter("districts-selected", ["==", ["get", "id"], selectedDistrictId ?? ""] as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    map.setFilter("district-boundary-selected", districtFilter(name) as any);
+  }, [selectedDistrictId, districts, mapReady]);
 
   // ── Fly to selected district ──────────────────────────────────────────────
   useEffect(() => {
@@ -376,6 +350,18 @@ export default function DashboardMap({
   return (
     <div style={{ position: "relative", height: "100%" }}>
       <div ref={containerRef} style={{ height: "100%" }} />
+
+      {/* Veil until the first province fit, so the default view never shows. */}
+      <div aria-hidden={fitted} style={{
+        position: "absolute", inset: 0, zIndex: 5,
+        display: "flex", alignItems: "center", justifyContent: "center",
+        background: "#0f172a", color: "#a7f3d0", fontSize: 14, fontWeight: 600,
+        fontFamily: "'Noto Sans Thai','Inter',sans-serif",
+        opacity: fitted ? 0 : 1, pointerEvents: fitted ? "none" : "auto",
+        transition: "opacity 0.35s ease-out",
+      }}>
+        กำลังโหลดแผนที่...
+      </div>
 
       {/* ── Legend (collapsible; the view is locked, so it can be tucked away
              to reach bubbles underneath) ──────────────────────────────────── */}
