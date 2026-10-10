@@ -9,6 +9,14 @@ import {
   transferProjectToUser,
   ProjectNameConflictError,
 } from "@/lib/normalized-plots";
+import {
+  assertPlotCount,
+  assertProjectSlots,
+  quotaErrorResponse,
+  requireCallerQuota,
+  QuotaError,
+  type ProjectOwner,
+} from "@/lib/quota";
 
 function generateGuestProjectName(): string {
   // A default display label the user is expected to rename (shown in the
@@ -355,6 +363,15 @@ export async function POST(request: NextRequest) {
     try {
       await client.query("BEGIN");
 
+      // Quota (lib/quota.ts): the caller's role applies even to a logged-in
+      // user's forceGuest draft. Whose project slots a save can take: the
+      // user's on a real Save, the guest_key's for a plain guest. A draft
+      // takes none -- it's checked when it's saved/claimed into the account.
+      const quota = await requireCallerQuota(client, payload);
+      const quotaOwner: ProjectOwner | null = userUuid
+        ? { userUuid }
+        : payload ? null : { guestUuid: guestKey as string };
+
       // Check if project already exists (match on the owner that applies)
       const ownerClause = userUuid
         ? "user_uuid = $1"
@@ -382,6 +399,7 @@ export async function POST(request: NextRequest) {
         );
         if ((guestRow.rowCount ?? 0) > 0) {
           const adoptId = guestRow.rows[0].id;
+          await assertProjectSlots(client, quota, { userUuid });
           try {
             await transferProjectToUser(client, { projectId: adoptId, userUuid });
             const reread = await client.query(
@@ -400,6 +418,9 @@ export async function POST(request: NextRequest) {
       if (savedRow) {
         // adopted above — nothing more to do for the header
       } else if ((existing.rowCount ?? 0) > 0) {
+        if (quotaOwner) {
+          await assertProjectSlots(client, quota, quotaOwner, { projectId: existing.rows[0].id });
+        }
         // Update existing record (updated_at handled by trigger)
         const updateResult = await client.query(
           `UPDATE tbl_projects SET updated_at = NOW() WHERE id = $1 RETURNING *`,
@@ -407,6 +428,7 @@ export async function POST(request: NextRequest) {
         );
         savedRow = updateResult.rows[0];
       } else {
+        if (quotaOwner) await assertProjectSlots(client, quota, quotaOwner);
         // Insert new record
         const insertResult = await client.query(
           `INSERT INTO tbl_projects (user_uuid, guest_uuid, project_name, status)
@@ -416,6 +438,8 @@ export async function POST(request: NextRequest) {
         );
         savedRow = insertResult.rows[0];
       }
+
+      await assertPlotCount(client, quota, savedRow.id, body.frontendPlots);
 
       await upsertProjectAndPlots(
         client,
@@ -446,6 +470,7 @@ export async function POST(request: NextRequest) {
       });
     } catch (err) {
       await client.query("ROLLBACK");
+      if (err instanceof QuotaError) return quotaErrorResponse(err);
       throw err;
     } finally {
       client.release();

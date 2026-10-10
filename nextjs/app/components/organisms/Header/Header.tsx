@@ -26,6 +26,7 @@ import {
   Leaf,
   TrendingUp,
   GraduationCap,
+  Gauge,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -63,6 +64,7 @@ const navLinks: NavItem[] = [
 const adminNavLinks: NavItem[] = [
   { label: "จัดการบัญชีผู้ใช้", href: "/admin/users", icon: Users },
   { label: "บันทึกการเข้าสู่ระบบ", href: "/admin/auth-logs", icon: History },
+  { label: "จำกัดจำนวนโครงการ", href: "/admin/quotas", icon: Gauge },
 ];
 
 /* Shown instead of navLinks while browsing the R&D area (/rnd). */

@@ -160,6 +160,10 @@ BEGIN
     ELSE RAISE NOTICE '036_drop_superseded_carbon_yearly ..... DONE'; END IF;
   END IF;
 
+  IF to_regclass('public.tbl_role_quota') IS NOT NULL
+  THEN RAISE NOTICE '038_tbl_role_quota .................... DONE';
+  ELSE RAISE NOTICE '038_tbl_role_quota .................... RUN (before deploying quota code)';  END IF;
+
   -- geo_landuse / geo_planting_year were renamed to tbl_landuse /
   -- tbl_planting_year (SQL given in chat 2026-10-09, no migration file).
   IF to_regclass('public.geo_landuse') IS NOT NULL OR to_regclass('public.geo_planting_year') IS NOT NULL

@@ -62,6 +62,8 @@ type Props = {
     autoProcessTrigger?: number;
     onSave?: () => void;
     onProjectSaved?: (info: { projectId: number; projectName: string; guestKey: string | null }) => void;
+    /** A real Save was refused by the role quota (403 from lib/quota.ts): "project_limit" | "plot_limit" | "no_quota". */
+    onQuotaError?: (code: string) => void;
     /** Bump this to detach from the current DB project (e.g. it was soft-deleted upstream) so the next save creates a new one. */
     resetProjectToken?: number;
     existingProjectPlots?: any[];
@@ -175,6 +177,7 @@ export function ParcelResultsPanel({
     autoProcessTrigger,
     onSave,
     onProjectSaved,
+    onQuotaError,
     resetProjectToken,
     existingProjectPlots,
     editingPlotId,
@@ -1364,6 +1367,22 @@ export function ParcelResultsPanel({
             if (res.status === 409 && !isDraft) {
                 setCarbonErr("ชื่อโครงการนี้ถูกใช้งานแล้ว กรุณาใช้ชื่ออื่น");
                 setSaveState("idle");
+                return;
+            }
+
+            // Role quota refused the save (nothing was written). A draft fails
+            // quietly -- the real Save that follows reports it.
+            if (res.status === 403) {
+                const d = await res.json().catch(() => ({}));
+                if (!isDraft) {
+                    setCarbonErr(
+                        d.error === "plot_limit" ? `หนึ่งโครงการมีได้สูงสุด ${d.limit} แปลง`
+                            : d.error === "project_limit" ? `บัญชีของคุณสร้างได้สูงสุด ${d.limit} โครงการ — ลบโครงการเดิมก่อนบันทึก`
+                                : "บัญชีนี้ไม่มีสิทธิ์บันทึกโครงการ"
+                    );
+                    setSaveState("idle");
+                    onQuotaError?.(d.error);
+                }
                 return;
             }
 

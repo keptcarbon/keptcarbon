@@ -8,6 +8,13 @@ import {
   transferProjectToUser,
   ProjectNameConflictError,
 } from "@/lib/normalized-plots";
+import {
+  assertPlotCount,
+  assertProjectSlots,
+  quotaErrorResponse,
+  requireCallerQuota,
+  QuotaError,
+} from "@/lib/quota";
 
 
 // ---------------------------------------------------------------------------
@@ -134,6 +141,10 @@ export async function PATCH(
 
       let newRow = updateResult.rows[0];
 
+      // Quota (lib/quota.ts): the caller's role decides how many plots the
+      // project may grow to; an in-place claim below also takes a project slot.
+      const quota = await requireCallerQuota(client, payload);
+
       // In-place claim: a logged-in user doing a real Save (not a Process
       // draft, which sends forceGuest) on a project that is still guest-owned
       // but whose guest_key they hold gets the row flipped to their account —
@@ -147,6 +158,7 @@ export async function PATCH(
         body.userId &&
         body.userId === newRow.guest_uuid
       ) {
+        await assertProjectSlots(client, quota, { userUuid: callerUserUuid });
         try {
           await transferProjectToUser(client, { projectId, userUuid: callerUserUuid });
           const reread = await client.query(
@@ -168,6 +180,8 @@ export async function PATCH(
           throw e;
         }
       }
+
+      await assertPlotCount(client, quota, newRow.id, body.frontendPlots);
 
       await upsertProjectAndPlots(
         client,
@@ -198,6 +212,7 @@ export async function PATCH(
       });
     } catch (err) {
       await client.query("ROLLBACK");
+      if (err instanceof QuotaError) return quotaErrorResponse(err);
       // Renaming onto a name the owner already uses trips the partial unique
       // index uq_projects_user_project_active — report it as a conflict, not a 500.
       if ((err as { code?: string })?.code === "23505") {

@@ -3,6 +3,13 @@ import { pool } from "@/lib/db";
 import { verifyToken, AUTH_COOKIE } from "@/lib/jwt";
 import { getUserUuid } from "@/lib/carbon-projects";
 import { transferGuestProjectsToUser } from "@/lib/normalized-plots";
+import {
+  assertProjectSlots,
+  countActiveProjects,
+  quotaErrorResponse,
+  requireCallerQuota,
+  QuotaError,
+} from "@/lib/quota";
 
 // ---------------------------------------------------------------------------
 // POST /api/plots/claim — attach a guest's projects to the logged-in account.
@@ -13,6 +20,10 @@ import { transferGuestProjectsToUser } from "@/lib/normalized-plots";
 //   soft-delete: the row id is stable, so a client holding a dbProjectId keeps
 //   working. The unguessable guest_uuid is the proof the caller owned that
 //   guest session. Requires auth.
+//   Quota: all-or-nothing -- if the account lacks a free project slot for
+//   every guest project being claimed, nothing is claimed and it returns
+//   403 { error: "project_limit", limit, current }. The guest rows stay as
+//   they are, so the client can have the user delete a project and retry.
 // ---------------------------------------------------------------------------
 export async function POST(request: NextRequest) {
   const token = request.cookies.get(AUTH_COOKIE)?.value;
@@ -34,6 +45,9 @@ export async function POST(request: NextRequest) {
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
+    const quota = await requireCallerQuota(client, payload);
+    const pending = await countActiveProjects(client, { guestUuid: guestKey });
+    await assertProjectSlots(client, quota, { userUuid }, { adding: pending });
     const claimed = await transferGuestProjectsToUser(client, { guestKey, userUuid });
     await client.query("COMMIT");
 
@@ -44,6 +58,7 @@ export async function POST(request: NextRequest) {
     });
   } catch (err) {
     await client.query("ROLLBACK");
+    if (err instanceof QuotaError) return quotaErrorResponse(err);
     console.error("POST /api/plots/claim error:", err);
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   } finally {

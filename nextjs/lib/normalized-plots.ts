@@ -108,11 +108,14 @@ const UPSERT_PLOT_SQL = `
     -- browser now shows while drawing), not whatever area the client sent.
     CASE WHEN $3::text IS NULL THEN $4::float8
          ELSE ST_Area(ST_SetSRID(ST_GeomFromGeoJSON($3::text), 4326)::geography) END,
-    $5, $6, $7, $8, $9, $10, $11, $12, $13,
+    -- $5 is cast to text here AND in the lu_version lookup below: used bare,
+    -- Postgres deduces varchar from this column but text from "p_code = $5"
+    -- and refuses to prepare the statement ("inconsistent types deduced").
+    $5::text, $6, $7, $8, $9, $10, $11, $12, $13,
     COALESCE($14::text[], '{}'), $15, $16, $17, NULL,
     CASE WHEN $26::text IS NULL THEN NULL ELSE ST_SetSRID(ST_GeomFromGeoJSON($26::text), 4326) END,
     CASE WHEN $26::text IS NULL THEN NULL
-         ELSE (SELECT lu_version FROM tbl_region_config WHERE p_code = $5) END
+         ELSE (SELECT lu_version FROM tbl_region_config WHERE p_code = $5::text) END
   )
   ON CONFLICT (project_id, polygon_id) DO UPDATE SET
     geometry            = COALESCE(EXCLUDED.geometry, tbl_plots.geometry),

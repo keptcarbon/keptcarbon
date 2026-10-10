@@ -41,12 +41,23 @@ import { AreaErrorPopup } from "./components/AreaErrorPopup";
 import { ErrorPopup } from "./components/ErrorPopup";
 import { StepWarningPopup } from "./components/StepWarningPopup";
 import { GuestLimitPopup } from "./components/GuestLimitPopup";
+import { PlotLimitPopup } from "./components/PlotLimitPopup";
+import { ProjectLimitPopup } from "./components/ProjectLimitPopup";
 import { ClaimSuccessPopup } from "./components/ClaimSuccessPopup";
 import { setPostAuthRedirect } from "@/lib/post-auth-redirect";
 import { formatArea } from "@/lib/utils";
 
-/** Guests (not logged in) may draw at most this many plots. */
-const GUEST_PLOT_LIMIT = 5;
+/** Guest plot cap used only until GET /api/quota answers (tbl_role_quota is the real source). */
+const GUEST_PLOT_LIMIT_FALLBACK = 5;
+
+/** GET /api/quota response. Limits null = unlimited. */
+type QuotaInfo = {
+  role: string;
+  allowed: boolean;
+  maxProjects: number | null;
+  maxPlotsPerProject: number | null;
+  projectCount: number;
+};
 
 /** sessionStorage key holding a guest's drawn plots across the auth flow. */
 const MAP_DRAW_RESUME_KEY = "mapDrawResume";
@@ -339,7 +350,9 @@ function MapDrawContent() {
   const [projectType, setProjectType] = useState<"replanting" | "existing" | null>(null);
   const [projectName, setProjectName] = useState(projNameParam || "");
   const [stepWarningPopup, setStepWarningPopup] = useState<boolean>(false);
-  const [guestLimitPopup, setGuestLimitPopup] = useState<boolean>(false);
+  const [guestLimitPopup, setGuestLimitPopup] = useState<false | "plots" | "projects">(false);
+  const [plotLimitPopup, setPlotLimitPopup] = useState<boolean>(false);
+  const [projectLimitPopup, setProjectLimitPopup] = useState<boolean>(false);
   const [claimSuccessPopup, setClaimSuccessPopup] = useState<boolean>(false);
   const [plotsSaved, setPlotsSaved] = useState(false);
   // Tracks the currently active DB project for this drawing session (set once
@@ -420,6 +433,73 @@ function MapDrawContent() {
 
   // Multi-parcel support
   const [drawnParcels, setDrawnParcels] = useState<GeoJSON.Feature[]>([]);
+
+  // ===== QUOTA (tbl_role_quota via GET /api/quota) =====
+  // The server enforces every limit on save (lib/quota.ts); these checks only
+  // stop the user before they draw work that couldn't be saved.
+  const [quota, setQuota] = useState<QuotaInfo | null>(null);
+  // Guest key whose claim was refused for lack of a project slot -- retried
+  // once the user deletes a project in ProjectLimitPopup.
+  const pendingClaimKeyRef = useRef<string | null>(null);
+
+  const fetchQuota = useCallback(async (): Promise<QuotaInfo | null> => {
+    let guestId: string | null = null;
+    if (!user) {
+      try { guestId = localStorage.getItem("guest_user_id"); } catch { /* unavailable */ }
+    }
+    try {
+      const res = await fetch(
+        guestId ? `/api/quota?guest_user_id=${encodeURIComponent(guestId)}` : "/api/quota",
+        { cache: "no-store" }
+      );
+      if (!res.ok) return null;
+      const q: QuotaInfo = await res.json();
+      setQuota(q);
+      return q;
+    } catch {
+      return null;
+    }
+  }, [user]);
+
+  useEffect(() => { void fetchQuota(); }, [fetchQuota]);
+
+  // Until /api/quota answers, guests keep the old cap; users are left to the server.
+  const plotLimit: number | null = quota ? quota.maxPlotsPerProject : (user ? null : GUEST_PLOT_LIMIT_FALLBACK);
+
+  /** Shows the right popup and returns true when a project of `count` plots is over the plot limit. */
+  const blockPlotCount = (count: number): boolean => {
+    if (plotLimit === null || count <= plotLimit) return false;
+    if (user) setPlotLimitPopup(true); else setGuestLimitPopup("plots");
+    return true;
+  };
+
+  /**
+   * When this drawing would start a NEW project (nothing drawn or loaded
+   * yet), re-reads the quota and returns true (with the right popup) if the
+   * caller already holds their maximum number of projects. Re-read rather
+   * than cached: a guest's "start over" soft-deletes their project moments
+   * before.
+   */
+  const blockNewProject = async (): Promise<boolean> => {
+    const isNewProject =
+      !searchParams?.get("project") && !activeDbProjectId &&
+      drawnParcels.length === 0 && hiddenProjectPlots.length === 0;
+    if (!isNewProject) return false;
+    const q = await fetchQuota();
+    if (!q || q.maxProjects === null || q.projectCount < q.maxProjects) return false;
+    if (user) setProjectLimitPopup(true); else setGuestLimitPopup("projects");
+    return true;
+  };
+
+  /** A save/claim came back 403 from lib/quota.ts -- show what blocked it. */
+  const handleQuotaError = (code: string) => {
+    void fetchQuota();
+    if (code === "project_limit") {
+      if (user) setProjectLimitPopup(true); else setGuestLimitPopup("projects");
+    } else if (code === "plot_limit") {
+      if (user) setPlotLimitPopup(true); else setGuestLimitPopup("plots");
+    }
+  };
   const drawnParcelsRef = useRef<GeoJSON.Feature[]>([]);
   // Mirrors ParcelResultsPanel's plotForms (plantStatus/"ปลูกมาแล้ว" etc.) — that
   // state lives entirely in the child and never writes back into drawnParcels,
@@ -583,6 +663,39 @@ function MapDrawContent() {
   // auth-context skips its own claim while we're on /map-draw, so this is the
   // sole reconcile here.
   const reconcileRanRef = useRef(false);
+
+  // Path A's claim. A 403 project_limit (no free project slot in the account)
+  // leaves the guest rows and guest_user_id as they are and opens
+  // ProjectLimitPopup; deleting a project there retries this claim.
+  const claimGuestDraft = async (guestKey: string) => {
+    try {
+      const res = await fetch("/api/plots/claim", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ guestKey }),
+      });
+      if (res.ok) {
+        pendingClaimKeyRef.current = null;
+        // Claimed — drop the key so auth-context doesn't re-claim off-page.
+        try { localStorage.removeItem("guest_user_id"); } catch { /* unavailable */ }
+        void fetchQuota();
+        const d = await res.json();
+        const name: string | undefined = d.projects?.[0]?.projectName;
+        if (name) {
+          setProjectName(name);
+          setClaimSuccessPopup(true);
+          router.replace(`/map-draw?project=${encodeURIComponent(name)}`);
+        }
+      } else if (res.status === 403) {
+        const d = await res.json().catch(() => ({}));
+        if (d.error === "project_limit") pendingClaimKeyRef.current = guestKey;
+        handleQuotaError(d.error);
+      }
+      // On other failures, guest_user_id stays put: auth-context retries it
+      // on the next page it loads on.
+    } catch { /* non-fatal */ }
+  };
+
   useEffect(() => {
     if (!mapLoaded || !user || reconcileRanRef.current) return;
 
@@ -597,28 +710,7 @@ function MapDrawContent() {
 
     // ── Path A ──────────────────────────────────────────────────────────────
     if (guestKey) {
-      (async () => {
-        try {
-          const res = await fetch("/api/plots/claim", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ guestKey }),
-          });
-          if (res.ok) {
-            // Claimed — drop the key so auth-context doesn't re-claim off-page.
-            try { localStorage.removeItem("guest_user_id"); } catch { /* unavailable */ }
-            const d = await res.json();
-            const name: string | undefined = d.projects?.[0]?.projectName;
-            if (name) {
-              setProjectName(name);
-              setClaimSuccessPopup(true);
-              router.replace(`/map-draw?project=${encodeURIComponent(name)}`);
-            }
-          }
-          // On failure, guest_user_id stays put: auth-context retries it on the
-          // next page it loads on.
-        } catch { /* non-fatal */ }
-      })();
+      void claimGuestDraft(guestKey);
       return;
     }
 
@@ -741,6 +833,12 @@ function MapDrawContent() {
             router.replace(`/map-draw?project=${encodeURIComponent(name)}`);
           }
           setClaimSuccessPopup(true);
+          void fetchQuota();
+        } else if (res.status === 403) {
+          // At the project limit: the plots stay restored in step 2, so after
+          // deleting a project in the popup the user can Save them.
+          const d = await res.json().catch(() => ({}));
+          handleQuotaError(d.error);
         }
       } catch { /* non-fatal — the user can still Save manually */ }
     })();
@@ -2087,13 +2185,12 @@ function MapDrawContent() {
   }, []);
 
   const startDrawFlow = async () => {
-    // Guests can draw at most GUEST_PLOT_LIMIT plots. Block starting another
-    // draw once they hit the cap and prompt them to log in / register.
-    // Runs on every click, so the popup re-appears each time after closing.
-    if (!user && drawnParcels.length >= GUEST_PLOT_LIMIT) {
-      setGuestLimitPopup(true);
-      return;
-    }
+    // Quota: block starting another draw once the project is at its plot
+    // limit (guests are prompted to log in / register), or when this would
+    // start a new project past the project limit. Runs on every click, so
+    // the popup re-appears each time after closing.
+    if (blockPlotCount(drawnParcels.length + hiddenProjectPlots.length + 1)) return;
+    if (await blockNewProject()) return;
     const map = mapRef.current;
     if (!map) return;
     navMarkerRef.current?.remove();
@@ -2692,6 +2789,19 @@ function MapDrawContent() {
         (f) => f.geometry?.type === "Polygon" || f.geometry?.type === "MultiPolygon",
       );
       if (!polyFeats.length) throw new Error("ไม่พบ Polygon");
+
+      // Quota: each polygon (MultiPolygon parts count separately, as they're
+      // flattened into plots below) is one plot of a new project.
+      const plotCountInFile = polyFeats.reduce(
+        (n, f) => n + (f.geometry.type === "MultiPolygon" ? (f.geometry as GeoJSON.MultiPolygon).coordinates.length : 1),
+        0,
+      );
+      if (blockPlotCount(plotCountInFile)) {
+        throw new Error(`ไฟล์มี ${plotCountInFile} แปลง เกินจำนวนสูงสุด ${plotLimit} แปลงต่อโครงการ`);
+      }
+      if (await blockNewProject()) {
+        throw new Error("จำนวนโครงการครบตามที่กำหนดแล้ว");
+      }
 
       // Merge all rings into one MultiPolygon for the search query
       const allRings: GeoJSON.Position[][][] = [];
@@ -3799,7 +3909,9 @@ function MapDrawContent() {
                 onProjectNameChange={setProjectName}
                 autoProcessTrigger={autoProcessTrigger}
                 onSave={() => setPlotsSaved(true)}
+                onQuotaError={handleQuotaError}
                 onProjectSaved={({ projectId, projectName: savedName, guestKey }) => {
+                  void fetchQuota();
                   setActiveDbProjectId(projectId);
                   setActiveGuestKey(guestKey);
                   if (savedName && !projectName.trim()) setProjectName(savedName);
@@ -3882,11 +3994,28 @@ function MapDrawContent() {
 
       <NodeWarningPopup open={nodeWarningPopup} onClose={() => setNodeWarningPopup(false)} />
       <GuestLimitPopup
-        open={guestLimitPopup}
-        limit={GUEST_PLOT_LIMIT}
+        open={guestLimitPopup !== false}
+        kind={guestLimitPopup || "plots"}
+        limit={(guestLimitPopup === "projects" ? quota?.maxProjects : plotLimit) ?? GUEST_PLOT_LIMIT_FALLBACK}
         onClose={() => setGuestLimitPopup(false)}
         onLogin={() => { stashGuestDrawSnapshot(); setGuestLimitPopup(false); openLogin(); }}
         onRegister={() => { stashGuestDrawSnapshot(); setGuestLimitPopup(false); openRegister(); }}
+      />
+      <PlotLimitPopup
+        open={plotLimitPopup}
+        limit={plotLimit ?? 0}
+        onClose={() => setPlotLimitPopup(false)}
+      />
+      <ProjectLimitPopup
+        open={projectLimitPopup}
+        limit={quota?.maxProjects ?? null}
+        onClose={() => { setProjectLimitPopup(false); pendingClaimKeyRef.current = null; }}
+        onFreed={() => {
+          setProjectLimitPopup(false);
+          void fetchQuota();
+          const key = pendingClaimKeyRef.current;
+          if (key) void claimGuestDraft(key);
+        }}
       />
 
       <AreaErrorPopup error={areaError} onClose={() => setAreaError(null)} />
