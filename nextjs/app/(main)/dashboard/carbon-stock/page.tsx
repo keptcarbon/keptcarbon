@@ -61,8 +61,8 @@ function DistrictCarbonChart({
   const [hoverId, setHoverId] = useState<string | null>(null);
 
   const W = isMobile ? 460 : 800;
-  const barH = isMobile ? 24 : 26;
-  const gap = isMobile ? 7 : 7;
+  const barH = isMobile ? 18 : 19;
+  const gap = isMobile ? 5 : 5;
   const PL = isMobile ? 72 : 108;
   const PR = isMobile ? 78 : 98;
   // Legend: 5 groups in one row on desktop, 3 + 2 on mobile.
@@ -161,7 +161,7 @@ function DistrictCarbonChart({
               {/* District name */}
               <text x={PL - 10} y={y + barH / 2 + 5}
                 textAnchor="end"
-                fontSize={isMobile ? 13 : 14}
+                fontSize={isMobile ? 11 : 12}
                 fontWeight={isActive ? 800 : 600}
                 fill={isActive ? "#059669" : isHov ? "#334155" : "#475569"}>
                 {d.name}
@@ -186,11 +186,11 @@ function DistrictCarbonChart({
               {/* Value label */}
               <text x={PL + bw + 8} y={y + barH / 2 + 5}
                 textAnchor="start"
-                fontSize={isMobile ? 13 : 13}
+                fontSize={isMobile ? 11 : 12}
                 fontWeight={isActive ? 800 : 700}
                 fill={isActive ? "#059669" : "#64748b"}>
                 {fmtC(d.carbon)}
-                <tspan fontSize={10} fill="#94a3b8" fontWeight={500} dx={3}>tCO₂eq</tspan>
+                <tspan fontSize={9} fill="#94a3b8" fontWeight={500} dx={3}>tCO₂eq</tspan>
               </text>
             </g>
           );
@@ -201,11 +201,11 @@ function DistrictCarbonChart({
           const row = rows.find(r => r.d.id === hoverId);
           if (!row) return null;
           const { d, y, bw } = row;
-          const ttW = isMobile ? 236 : 270;
-          const lineH = isMobile ? 19 : 21;
-          const rowsTop = isMobile ? 36 : 42; // first age row, below the header + divider
+          const ttW = isMobile ? 210 : 232;
+          const lineH = isMobile ? 16 : 18;
+          const rowsTop = isMobile ? 32 : 36; // first age row, below the header + divider
           // Last row (≈10px tall) plus ~12px bottom padding.
-          const ttH = rowsTop + (AGE_GROUPS.length - 1) * lineH + (isMobile ? 20 : 22);
+          const ttH = rowsTop + (AGE_GROUPS.length - 1) * lineH + (isMobile ? 18 : 20);
           const midX = PL + bw / 2;
           const ttX = Math.min(Math.max(midX - ttW / 2, 4), W - ttW - 4);
           const ttY = y > totalH / 2 ? y - ttH - 10 : y + barH + 10;
@@ -218,17 +218,17 @@ function DistrictCarbonChart({
               <rect x={ttX} y={ttY} width={ttW} height={4} rx={2} fill="#10b981" />
 
               {/* Header */}
-              <text x={ttX + pad} y={ttY + 22}
-                fontSize={isMobile ? 14 : 15} fontWeight={800} fill="#fff">{d.name}</text>
-              <text x={ttX + ttW - pad} y={ttY + 22}
-                textAnchor="end" fontSize={isMobile ? 14 : 15} fontWeight={800} fill="#4ade80">
+              <text x={ttX + pad} y={ttY + 20}
+                fontSize={isMobile ? 12 : 13} fontWeight={800} fill="#fff">{d.name}</text>
+              <text x={ttX + ttW - pad} y={ttY + 20}
+                textAnchor="end" fontSize={isMobile ? 12 : 13} fontWeight={800} fill="#4ade80">
                 {fmtC(d.carbon)}
-                <tspan fontSize={10} fill="#98a3b4" dx={3}>tCO₂eq</tspan>
+                <tspan fontSize={9} fill="#98a3b4" dx={3}>tCO₂eq</tspan>
               </text>
 
               {/* Divider */}
-              <line x1={ttX + pad} y1={ttY + (isMobile ? 30 : 34)}
-                x2={ttX + ttW - pad} y2={ttY + (isMobile ? 30 : 34)}
+              <line x1={ttX + pad} y1={ttY + (isMobile ? 27 : 29)}
+                x2={ttX + ttW - pad} y2={ttY + (isMobile ? 27 : 29)}
                 stroke="rgba(255,255,255,0.08)" strokeWidth={2} />
 
               {/* Age breakdown */}
@@ -237,15 +237,15 @@ function DistrictCarbonChart({
                 const rowY = ttY + rowsTop + i * lineH;
                 return (
                   <g key={s.key}>
-                    <rect x={ttX + pad} y={rowY} width={10} height={10} rx={2} fill={s.color} />
-                    <text x={ttX + pad + 14} y={rowY + 10}
-                      fontSize={isMobile ? 11 : 12} fill="#98a3b4" fontWeight={600}>
+                    <rect x={ttX + pad} y={rowY} width={9} height={9} rx={2} fill={s.color} />
+                    <text x={ttX + pad + 13} y={rowY + 9}
+                      fontSize={isMobile ? 10 : 11} fill="#98a3b4" fontWeight={600}>
                       {s.label}
                     </text>
                     <text x={ttX + ttW - pad} y={rowY + 8}
-                      textAnchor="end" fontSize={isMobile ? 12 : 13} fill="#e2e8f0" fontWeight={700}>
+                      textAnchor="end" fontSize={isMobile ? 10 : 11} fill="#e2e8f0" fontWeight={700}>
                       {fmtC(carbon)}
-                      <tspan fontSize={10} fill="#98a3b4" dx={2}>tCO₂eq</tspan>
+                      <tspan fontSize={9} fill="#98a3b4" dx={2}>tCO₂eq</tspan>
                     </text>
                   </g>
                 );
