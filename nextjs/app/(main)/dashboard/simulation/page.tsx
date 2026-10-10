@@ -220,7 +220,7 @@ export default function ProvinceSimulationPage() {
                 onChange={setDistrictId}>
                 <option value="all">ทั้งจังหวัด</option>
                 {data?.districts.map((d) => (
-                  <option key={d.id} value={d.id}>{d.nameTh} — {formatArea(d.areaM2 / M2_PER_RAI)} ไร่</option>
+                  <option key={d.id} value={d.id}>{d.nameTh}</option>
                 ))}
               </Select>
             </div>
