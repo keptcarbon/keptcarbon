@@ -7,7 +7,6 @@ from app.services.province_service import ProvinceService
 from app.services.landuse_service import LanduseService
 from app.services.tree_service import TreeService
 from app.services.agemap_service import AgeMapService
-from app.services.spatial_utils import SpatialUtils
 from app.services import economics
 
 from shapely.geometry import shape, mapping
@@ -29,7 +28,6 @@ class CarbonService:
         self.lu_svc = LanduseService()
         self.age_map_svc = AgeMapService()
         self.tree_svc = TreeService()
-        self.spatial_svc = SpatialUtils()
 
     # $1 = the plot's assessment area (GeoJSON, WGS84): the drawn parcel, or
     # the LU parts the user selected inside it, merged in map-draw. Repaired,

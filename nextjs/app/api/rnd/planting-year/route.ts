@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { pool } from "@/lib/db";
 import { isAdminOrRnd } from "@/lib/auth-server";
 import { getRequesterId, recordImport, withTransaction } from "@/lib/dataset-version";
+import { ImportValidationError, assertRasterCoversProvince } from "@/lib/import-checks";
 
 // Matches the tiling already used by the table's existing rows (equivalent
 // to `raster2pgsql -t 100x100`) — one huge single-row raster is slow to
@@ -41,6 +42,7 @@ export async function GET(request: NextRequest) {
  * is decoded server-side by PostGIS's ST_FromGDALRaster (SRID read straight
  * from the file's own embedded projection), then split into 100×100-pixel
  * tiles via ST_Tile — one row per tile, not one row for the whole raster.
+ * Before committing, the tiles must be in UTM 47N/48N and cover the province.
  * The import is logged as a 'draft' version in tbl_dataset_version.
  */
 export async function POST(request: NextRequest) {
@@ -90,6 +92,7 @@ export async function POST(request: NextRequest) {
          RETURNING rid`,
         [pCode, year, buffer, TILE_SIZE]
       );
+      await assertRasterCoversProvince(client, pCode, year);
       await recordImport(client, {
         category: "planting_year_map", pCode, version: String(year),
         fileName: file.name, rowCount: result.rowCount ?? 0, userId,
@@ -99,6 +102,9 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ tileCount, pCode, year, status: "draft" });
   } catch (err) {
+    if (err instanceof ImportValidationError) {
+      return NextResponse.json({ error: err.message }, { status: 400 });
+    }
     console.error("planting-year import error:", err);
     const message = err instanceof Error ? err.message : "Internal Server Error";
     // ST_FromGDALRaster throws a Postgres error (not our own validation) when

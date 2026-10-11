@@ -115,8 +115,10 @@ function splitCsvLine(line: string): string[] {
 }
 
 // tbl_landuse's fixed column schema — a .gpkg must carry exactly these as
-// TEXT fields, and be surveyed in EPSG:32647 (UTM 47N), to be importable.
-const LULC_EXPECTED_CRS = "EPSG:32647";
+// TEXT fields, and be in UTM 47N or 48N, to be importable. The zone is read
+// from the file and sent as "srid"; the server reprojects to EPSG:4326 and
+// checks the features fall inside the selected province.
+const LULC_ALLOWED_CRS = ["EPSG:32647", "EPSG:32648"];
 const LULC_REQUIRED_FIELDS = ["LU_CODE", "LU_DES_TH", "LU_DES_EN", "LUL1_CODE", "LUL2_CODE", "LU_DES"] as const;
 
 // Required alongside the CSV for biomass_profile — identifies which
@@ -717,10 +719,10 @@ export default function RndDataManagementPage() {
                 throw new Error(`ไม่พบคอลัมน์ geometry สำหรับเลเยอร์ "${tableName}" ใน gpkg_geometry_columns`);
             }
 
-            // Must match tbl_landuse's fixed schema exactly: EPSG:32647, and
+            // Must match tbl_landuse's fixed schema exactly: UTM 47N/48N, and
             // every required field present as TEXT — otherwise upload stays
             // blocked at the confirm step.
-            const crsValid = crs === LULC_EXPECTED_CRS;
+            const crsValid = LULC_ALLOWED_CRS.includes(crs);
             const missingFields = LULC_REQUIRED_FIELDS.filter((required) => {
                 const match = fields.find((f) => f.name.toUpperCase() === required);
                 // OGR-exported GeoPackage text fields commonly declare a
@@ -1046,7 +1048,10 @@ export default function RndDataManagementPage() {
                 const res = await fetch("/api/rnd/landuse", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ pCode: selectedProvince.pCode, year: Number(importVersion.trim()), rows, fileName: importFile.name }),
+                    body: JSON.stringify({
+                        pCode: selectedProvince.pCode, year: Number(importVersion.trim()),
+                        srid: Number(fileMeta.crs.split(":")[1]), rows, fileName: importFile.name,
+                    }),
                 });
                 const data = await res.json().catch(() => ({}));
                 if (res.status === 409) {
@@ -1537,7 +1542,7 @@ export default function RndDataManagementPage() {
             )}
 
             {activeTab === "import" && (
-                <div style={{ background: "#fff", border: "1px solid #e6f0ea", borderRadius: 16, padding: "32px 40px", maxWidth: 640, margin: "0 auto" }}>
+                <div style={{ background: "#fff", border: "1px solid #e6f0ea", borderRadius: 16, padding: "32px 40px", maxWidth: 800, margin: "0 auto" }}>
                     {/* ── Step indicator: สลับระหว่าง Desktop/Mobile ด้วย isMobile state ── */}
                     {!isMobile ? (
                         /* Desktop View (> 639px): UI เดิมเป๊ะ */
@@ -1945,7 +1950,7 @@ export default function RndDataManagementPage() {
                                     {[
                                         {
                                             ok: fileMeta?.kind === "gpkg" && fileMeta.crsValid,
-                                            label: `CRS = ${LULC_EXPECTED_CRS}${fileMeta?.kind === "gpkg" ? ` (พบ ${fileMeta.crs})` : ""}`,
+                                            label: `CRS = ${LULC_ALLOWED_CRS.join(" หรือ ")} (UTM 47N / 48N)${fileMeta?.kind === "gpkg" ? ` (พบ ${fileMeta.crs})` : ""}`,
                                         },
                                         {
                                             ok: fileMeta?.kind === "gpkg" && fileMeta.schemaValid,
