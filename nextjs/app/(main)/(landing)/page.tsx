@@ -15,7 +15,7 @@ const benefits = [
     icon: Clock,
     title: "ประหยัดเวลาและต้นทุน",
     description:
-      "ลดการลงพื้นที่สำรวจทุกต้นด้วยการวิเคราะห์ผ่านภาพถ่ายดาวเทียม และ GeoAI",
+      "ลดการลงสำรวจพื้นที่ด้วยการประมาณการผ่านข้อมูลภูมิสารสนเทศ ภาพถ่ายดาวเทียม และ GeoAI",
   },
   {
     icon: Target,
@@ -96,7 +96,7 @@ export default function Home() {
         <div className="mx-auto w-full max-w-7xl">
           <Reveal className="mx-auto mb-12 max-w-2xl text-center">
             <h2 className="mt-0 mb-3 text-2xl font-bold tracking-tight text-foreground md:text-3xl">
-              ทำไมต้องเลือก KeptCarbon?
+              ทำไมต้อง KeptCarbon?
             </h2>
             <p className="m-0 text-base text-muted-foreground">
               ยกระดับการจัดการคาร์บอนเครดิตด้วยเทคโนโลยีที่แม่นยำและกระบวนการเชื่อถือได้

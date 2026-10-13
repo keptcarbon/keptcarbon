@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import ContactForm from "../ContactForm";
 import Reveal from "./Reveal";
+import { partners } from "@/app/components/organisms/Footer/partners";
 
 export const metadata: Metadata = {
   title: "เกี่ยวกับโครงการ | KeptCarbon",
@@ -200,8 +201,8 @@ export default function AboutProjectPage() {
                   โดยใช้เทคโนโลยีภูมิสารสนเทศ (Geospatial) ร่วมกับปัญญาประดิษฐ์
                   (GeoAI) เพื่อพยากรณ์อายุยางพาราและประเมินศักยภาพคาร์บอนกักเก็บในระดับรายแปลง
                   พร้อมนำเสนอข้อมูลเชิงพื้นที่และเวลาในรูปแบบที่เข้าใจง่าย
-                  ช่วยให้เกษตรกรเห็นภาพรายได้ระยะยาว ลดความเสี่ยงในการตัดสินใจ
-                  และสนับสนุนการสื่อสารเชิงนโยบายได้อย่างมีประสิทธิภาพ
+                  ช่วยให้เกษตรกรเห็นภาพรายได้ระยะยาว ประเมินความเสี่ยง สนับสนุนการตัดสินใจ
+                  และเป็นเครื่องมือสื่อสารเชิงนโยบายได้อย่างมีประสิทธิภาพ
                 </p>
               </Reveal>
 
@@ -276,19 +277,24 @@ export default function AboutProjectPage() {
             <SectionHeading title="หน่วยงานร่วมโครงการ" />
           </Reveal>
           <Reveal delay={100} className="grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-4">
-            {[1, 2, 3, 4].map((n) => (
-              <div
-                key={n}
+            {partners.map(({ name, logo, href }) => (
+              <a
+                key={href}
+                href={href}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label={name}
+                title={name}
                 className="group flex items-center justify-center rounded-xl border border-border bg-card p-6 transition-all duration-300 hover:-translate-y-1 hover:border-primary/40 hover:shadow-md"
               >
                 <Image
-                  src={`/assets/img/clients/client-${n}.png`}
-                  alt={`หน่วยงานร่วมโครงการ ${n}`}
+                  src={logo}
+                  alt={name}
                   width={220}
                   height={120}
                   className="h-20 w-auto object-contain transition-all duration-300 group-hover:opacity-100 group-hover:grayscale-0 md:h-24"
                 />
-              </div>
+              </a>
             ))}
           </Reveal>
         </div>
