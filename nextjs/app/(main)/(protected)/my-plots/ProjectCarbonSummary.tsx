@@ -7,7 +7,7 @@ import styles from "./ProjectCarbonSummary.module.css";
 import { Accordion } from "./Accordion";
 import { plotDisplayArea } from "./plotArea";
 import { PendingNotice } from "./PendingNotice";
-import { formatArea, ciTonnes, formatCiTonnes } from "@/lib/utils";
+import { formatArea, carbon2, ciCarbon2, formatCarbon, formatCiCarbon } from "@/lib/utils";
 
 export function ProjectCarbonSummary({ plots, isMobile, open, onToggle }: {
   plots: SavedPlot[];
@@ -37,14 +37,14 @@ export function ProjectCarbonSummary({ plots, isMobile, open, onToggle }: {
       if (plot.carbonProfile && plot.carbonProfile.length > 0) {
         allPtsArrays.push(plot.carbonProfile);
       } else {
-        if (plot.carbonTotal > 0) fallbackTotal += Math.floor(plot.carbonTotal);
+        if (plot.carbonTotal > 0) fallbackTotal += carbon2(plot.carbonTotal);
         const approxCi = (plot.carbonTotal || 0) * 0.05;
-        fallbackLinearCi += ciTonnes(approxCi);
+        fallbackLinearCi += ciCarbon2(approxCi);
       }
     }
 
     if (allPtsArrays.length === 0) {
-      return { combinedPts: [], totalNow: fallbackTotal, ciNow: fallbackLinearCi, initialMaxYearBE: undefined };
+      return { combinedPts: [], totalNow: carbon2(fallbackTotal), ciNow: carbon2(fallbackLinearCi), initialMaxYearBE: undefined };
     }
 
     // Sum by calendar year (พ.ศ.) over the union of every plot's years: a plot
@@ -71,10 +71,11 @@ export function ProjectCarbonSummary({ plots, isMobile, open, onToggle }: {
       for (const p of pts) {
         const e = sumMap.get(p.yearBE);
         if (!e) continue;
-        e.co2 += Math.floor(p.co2 || 0);
-        e.sumLinearCi += ciTonnes(p.ci || 0);
-        e.gainValue += Math.floor(p.gainValue || 0);
-        e.gainCi += ciTonnes(p.gainCi || 0);
+        // Profiles are already 2-decimal per plot (yearlyRowsToBarPoints).
+        e.co2 += carbon2(p.co2 || 0);
+        e.sumLinearCi += ciCarbon2(p.ci || 0);
+        e.gainValue += carbon2(p.gainValue || 0);
+        e.gainCi += ciCarbon2(p.gainCi || 0);
         if (p.isAgeValid) { e.totalValidAge += p.age; e.validAgeCount += 1; }
         else { e.fallbackAgeAccum += p.age; e.fallbackCount += 1; }
       }
@@ -86,10 +87,10 @@ export function ProjectCarbonSummary({ plots, isMobile, open, onToggle }: {
       const avgAge = d.validAgeCount > 0 ? Math.round(d.totalValidAge / d.validAgeCount) : Math.round(d.fallbackAgeAccum / (d.fallbackCount || 1));
       return {
         age: avgAge, yearBE, year_at: yearAt,
-        co2: d.co2, ci: d.sumLinearCi,
-        gainValue: d.gainValue,
-        gainCi: d.gainCi,
-        cycle: Math.floor(yearAt / 7), cycleAge: avgAge, errorMargin: d.sumLinearCi,
+        co2: carbon2(d.co2), ci: carbon2(d.sumLinearCi),
+        gainValue: carbon2(d.gainValue),
+        gainCi: carbon2(d.gainCi),
+        cycle: Math.floor(yearAt / 7), cycleAge: avgAge, errorMargin: carbon2(d.sumLinearCi),
         isAgeValid: d.validAgeCount > 0
       };
     });
@@ -97,7 +98,7 @@ export function ProjectCarbonSummary({ plots, isMobile, open, onToggle }: {
     const currentPt = combinedPts.find(p => p.year_at === 0) ?? (combinedPts.length > 0 ? combinedPts[0] : null);
     return {
       combinedPts,
-      totalNow: (currentPt?.co2 ?? 0) + fallbackTotal,
+      totalNow: carbon2((currentPt?.co2 ?? 0) + fallbackTotal),
       ciNow: currentPt ? currentPt.ci : fallbackLinearCi,
       initialMaxYearBE,
     };
@@ -223,10 +224,10 @@ export function ProjectCarbonSummary({ plots, isMobile, open, onToggle }: {
                             <div className={styles.cycleValueLabel}>คาร์บอนกักเก็บ</div>
                             <div className={styles.cycleValueRow}>
                               <span className={`${styles.cycleValueMain} ${isMobile ? styles.cycleValueMainMobile : ""}`} style={{ color: col.bot }}>
-                                {Math.floor(pt.gainValue).toLocaleString("th-TH")}
+                                {formatCarbon(pt.gainValue)}
                               </span>
                               <span className={styles.cycleValueCi} style={{ color: col.bot }}>
-                                ± {formatCiTonnes(pt.gainCi)}
+                                ± {formatCiCarbon(pt.gainCi)}
                               </span>
                               <span className={styles.cycleValueUnit}>tCO₂eq</span>
                             </div>

@@ -6,7 +6,7 @@ import DashboardMap from "./DashboardMap";
 import { simulateCarbon } from "@/lib/carbon-api";
 import { Footer } from "@/app/components/organisms";
 import { useCounter } from "@/lib/use-counter";
-import { formatArea } from "@/lib/utils";
+import { formatArea, carbon2, formatCarbon } from "@/lib/utils";
 
 // Rubber age groups (years) shared by every chart on this page. "31+" has no
 // upper bound (rubber older than 35 is kept at its real age).
@@ -41,9 +41,9 @@ type District = {
 
 const M2_PER_RAI = 1600;
 const BE_OFFSET = 543;
-/** Keeps 2 decimals of an area for display (carbon stays whole). */
+/** Keeps 2 decimals of an area for display; carbon uses carbon2 (also 2 decimals). */
 const round2 = (n: number) => Math.round(n * 100) / 100;
-const fmtC = (n: number) => n.toLocaleString("th-TH", { maximumFractionDigits: 0 });
+const fmtC = formatCarbon;
 
 
 // ── District carbon comparison chart ─────────────────────────────────────────
@@ -422,7 +422,7 @@ function AgeDistributionChart({ isMobile, perYearRai, perYearCarbon, scopeLabel,
                 {formatArea(val)} ไร่
               </text>
               <text x={ttX + ttW / 2} y={ttY + (isMobile ? 60 : 68)} textAnchor="middle" fontSize={isMobile ? 13 : 16} fill={CARBON_ON_DARK} fontWeight={800}>
-                {carbon.toLocaleString("th-TH")} tCO₂eq
+                {formatCarbon(carbon)} tCO₂eq
               </text>
             </g>
           );
@@ -457,7 +457,7 @@ function AgeDistributionChart({ isMobile, perYearRai, perYearCarbon, scopeLabel,
 /** Running number that glides to `value` (see useCounter). */
 function AnimatedNumber({ value, digits = 0 }: { value: number; digits?: number }) {
   const v = useCounter(value);
-  return <>{digits ? v.toLocaleString("th-TH", { minimumFractionDigits: digits, maximumFractionDigits: digits }) : fmtC(v)}</>;
+  return <>{digits ? v.toLocaleString("th-TH", { minimumFractionDigits: digits, maximumFractionDigits: digits }) : v.toLocaleString("th-TH", { maximumFractionDigits: 0 })}</>;
 }
 
 /** Four headline indicators for the selected scope (replaces per-age-group area cards). */
@@ -472,7 +472,7 @@ function InsightCards({ d }: { d: District }) {
     },
     {
       icon: "bi-graph-up-arrow", color: "#16a34a", label: "อัตราการกักเก็บคาร์บอนต่อปี",
-      value: d.annualGain, digits: 0, unit: "tCO₂eq/ปี",
+      value: d.annualGain, digits: 2, unit: "tCO₂eq/ปี",
       note: `เพิ่มขึ้น ${pct(d.annualGain, d.carbon).toFixed(1)}% ของคาร์บอนสะสม จากการเติบโตของต้นยางอายุ 0–34 ปีในปีถัดไป`,
     },
     {
@@ -618,13 +618,13 @@ function summarize(
   return {
     id, name, lat, lng,
     areaRai: round2(areaRai),
-    carbon: Math.round(carbon),
-    ageDist: groups.map(g => ({ key: g.key, areaRai: round2(g.areaRai), carbon: Math.round(g.carbon) })),
+    carbon: carbon2(carbon),
+    ageDist: groups.map(g => ({ key: g.key, areaRai: round2(g.areaRai), carbon: carbon2(g.carbon) })),
     perYearRai: perYear.map(round2),
-    perYearCarbon: perYearCo2.map(Math.round),
-    annualGain: Math.round(annualGain),
+    perYearCarbon: perYearCo2.map(carbon2),
+    annualGain: carbon2(annualGain),
     matureRai: round2(matureRai),
-    matureCarbon: Math.round(matureCarbon),
+    matureCarbon: carbon2(matureCarbon),
     unclassifiedRai: round2(unclassifiedM2 / M2_PER_RAI),
   };
 }
@@ -841,7 +841,7 @@ export default function DashboardPage() {
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
                 {[
                   { label: "พื้นที่ปลูกยางพารา", value: selected.areaRai, unit: "ไร่", color: "#052e16", digits: 2 },
-                  { label: "คาร์บอนสะสมรวม", value: selected.carbon, unit: "tCO₂eq", color: "#065f46", digits: 0 },
+                  { label: "คาร์บอนสะสมรวม", value: selected.carbon, unit: "tCO₂eq", color: "#065f46", digits: 2 },
                 ].map(m => (
                   <div key={m.label} style={{ background: "#fff", borderRadius: 11, padding: "12px 14px", border: "1px solid rgba(16,185,129,0.12)" }}>
                     <div style={{ fontSize: 14, color: "#64748b", fontWeight: 600, marginBottom: 4 }}>{m.label} <span>({m.unit})</span></div>

@@ -82,6 +82,12 @@ def floor_tonnes(value: float) -> int:
     return math.floor(value + FLOOR_EPS)
 
 
+def carbon2(value: float) -> float:
+    """Carbon to 2 decimals, half away from zero (nextjs lib/utils carbon2)."""
+    sign = 1 if value >= 0 else -1
+    return sign * math.floor(abs(value) * 100 + 0.5 + 1e-7) / 100
+
+
 def npv(cash_flows: Sequence[float], rate: float) -> float:
     return sum(cf / (1 + rate) ** t for t, cf in enumerate(cash_flows))
 
@@ -138,15 +144,18 @@ def evaluate(
 
     credit_paths holds one path per plot (default: total_stock as a single
     unit) that credits are measured on -- see credit_path; total_stock stays
-    the reported carbon stock. Following TGO, each plot's credits at each
-    round are rounded down to whole tonnes, then summed for the project.
+    the reported carbon stock. Each plot's credits at a round are kept to 2
+    decimals (from its 2-decimal stocks) and summed; following TGO, only the
+    project's sum is rounded down to whole tonnes before pricing. A plot's
+    revenue is its share of that round's (rounded-down) revenue, so plot
+    revenues add up to the project's.
     """
     crediting_years = len(total_stock) - 1
     rounds = sorted({t for t in round_years if 1 <= t <= crediting_years})
     upfront = costs["pdd"] + costs["validation"]
     overrides = round_overrides or {}
     paths = [total_stock] if credit_paths is None else credit_paths
-    plot_credits = [0] * len(paths)
+    plot_credits = [0.0] * len(paths)
     plot_revenue = [0.0] * len(paths)
 
     def round_terms(t: int) -> tuple:
@@ -169,11 +178,14 @@ def evaluate(
         round_price, round_cost = round_terms(t) if is_round else (None, 0.0)
         credits = 0
         if is_round:
-            for i, path in enumerate(paths):
-                issued = floor_tonnes(path[t] - path[last_verified])
-                plot_credits[i] += issued
-                plot_revenue[i] += issued * round_price
-                credits += issued
+            increments = [carbon2(carbon2(path[t]) - carbon2(path[last_verified])) for path in paths]
+            credits = floor_tonnes(sum(increments))
+            round_revenue = credits * round_price
+            positive = sum(max(inc, 0.0) for inc in increments)
+            for i, inc in enumerate(increments):
+                plot_credits[i] = carbon2(plot_credits[i] + inc)
+                if positive > 0:
+                    plot_revenue[i] += round_revenue * max(inc, 0.0) / positive
         cost = (upfront if t == 0 else 0.0) + round_cost
         revenue = credits * round_price if is_round else 0.0
         total_cost += cost

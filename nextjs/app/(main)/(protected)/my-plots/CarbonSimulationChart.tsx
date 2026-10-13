@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Loader2 } from "lucide-react";
+import { formatCarbon } from "@/lib/utils";
 import { simulateCarbon, type SimulationYearlyPoint } from "@/lib/carbon-api";
 import type { SimBaseRow } from "./simulationRequest";
 
@@ -35,11 +36,11 @@ const VIEWS: { key: ChartView; label: string }[] = [
   { key: "net", label: "คาร์บอนกักเก็บ" },
 ];
 
-// Tonnes are rounded down (TGO convention), like every other carbon figure.
-const fmt = (v: number) => Math.floor(v).toLocaleString("th-TH");
-/** Axis labels only: province-scale totals ("30 ล้าน") would overflow the left margin as full digits. */
+// Carbon in tooltips: 2 decimals, like every other carbon figure.
+const fmt = formatCarbon;
+/** Axis labels only: province-scale totals ("30 ล้าน") would overflow the left margin as full digits; ticks are clean steps, so no decimals. */
 export const fmtTick = (v: number) =>
-  v >= 1_000_000 ? v.toLocaleString("th-TH", { notation: "compact", maximumFractionDigits: 1 }) : fmt(v);
+  v >= 1_000_000 ? v.toLocaleString("th-TH", { notation: "compact", maximumFractionDigits: 1 }) : v.toLocaleString("th-TH", { maximumFractionDigits: 2 });
 
 /** Round the axis max up to a 1/2/5 × 10^n step so gridlines land on clean numbers. */
 function niceTicks(max: number, count = 5) {

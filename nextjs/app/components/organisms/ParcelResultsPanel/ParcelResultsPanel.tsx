@@ -26,7 +26,7 @@ import {
     computePlot,
     aggregateProfiles,
 } from "./utils";
-import { formatArea, ciTonnes } from "@/lib/utils";
+import { formatArea, carbon2, ciCarbon2 } from "@/lib/utils";
 
 
 // ── Types ─────────────────────────────────────────────────────────────────
@@ -2281,10 +2281,10 @@ export function ParcelResultsPanel({
 
         const summaryTotalCo2 = aggregatePts.length > 0
             ? (aggregateNowPt?.co2 ?? 0)
-            : carbonResults.reduce((sum, c) => sum + Math.floor(c.co2Now || 0), 0);
+            : carbon2(carbonResults.reduce((sum, c) => sum + carbon2(c.co2Now || 0), 0));
         const summaryTotalCo2Ci = aggregatePts.length > 0
             ? (aggregateNowPt?.ci ?? 0)
-            : carbonResults.reduce((sum, c) => sum + ciTonnes(c.co2NowCi || 0), 0);
+            : carbon2(carbonResults.reduce((sum, c) => sum + ciCarbon2(c.co2NowCi || 0), 0));
 
         const showAggregateAge = carbonResults.some((c, idx) => {
             const form = plotForms[idx];

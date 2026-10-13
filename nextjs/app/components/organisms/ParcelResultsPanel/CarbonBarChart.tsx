@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import type { YearlyAssess } from "@/lib/carbon-api";
-import { formatCiTonnes } from "@/lib/utils";
+import { carbon2, ciCarbon2, formatCarbon, formatCiCarbon } from "@/lib/utils";
 
 // All-green theme: lime → mint → emerald → forest → teal
 const GREEN_THEME_COLORS = [
@@ -30,7 +30,14 @@ export type BarPoint = {
   isAgeValid?: boolean;
 };
 
+/**
+ * One plot's chart rows, carbon to 2 decimals. Gain is taken from the rounded
+ * stocks against the backend's baseline row (year_at 0), so it always equals
+ * stock(t) − stock(base) as shown.
+ */
 export function profileToBarPoints(profile: YearlyAssess[], baseAge: number = 0): BarPoint[] {
+  const base = profile.find((item, i) => (item.year_at ?? i) === 0) ?? profile[0];
+  const baseStock = carbon2(base?.stocks.value ?? 0);
   return profile.map((item, i) => {
     const yearAt = item.year_at ?? i;
     const age = (item.age != null && !isNaN(item.age)) ? item.age : baseAge + yearAt;
@@ -38,13 +45,13 @@ export function profileToBarPoints(profile: YearlyAssess[], baseAge: number = 0)
       age,
       yearBE: item.year + 543,
       year_at: yearAt,
-      co2: item.stocks.value,
-      ci: item.stocks.ci,
-      gainValue: item.gain.value,
-      gainCi: item.gain.ci,
+      co2: carbon2(item.stocks.value),
+      ci: ciCarbon2(item.stocks.ci),
+      gainValue: carbon2(carbon2(item.stocks.value) - baseStock),
+      gainCi: ciCarbon2(item.gain.ci),
       cycle: Math.floor(yearAt / 7),
       cycleAge: age,
-      errorMargin: item.stocks.ci,
+      errorMargin: ciCarbon2(item.stocks.ci),
       isAgeValid: (item.age != null && !isNaN(item.age)),
     };
   });
@@ -60,6 +67,7 @@ export function CarbonBarChart({
   showAge = true,
   initialMaxYearBE,
   baseline,
+  compact = false,
 }: {
   pts: BarPoint[];
   isMobile?: boolean;
@@ -69,6 +77,12 @@ export function CarbonBarChart({
   initialMaxYearBE?: number;
   /** Current-year carbon stock, shown under the title as "Baseline: value ± ci". */
   baseline?: { value: number; ci: number };
+  /**
+   * For a full-width container: wide, short viewBox with smaller axis labels
+   * (the SVG scales to its container, so a narrow viewBox blows labels up),
+   * every year shown by default, and no card of its own.
+   */
+  compact?: boolean;
 }) {
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
@@ -83,24 +97,26 @@ export function CarbonBarChart({
   const [range, setRange] = useState<[number, number]>([0, actualMaxIdx]);
 
   useEffect(() => {
+    if (compact) { setRange([0, actualMaxIdx]); return; }
     // Start out showing from year 0 up to 15 bars max; scroll for more.
     const idx0 = allPts.findIndex(p => p.year_at === 0);
     const startIdx = idx0 !== -1 ? idx0 : 0;
     const initialMax = Math.min(startIdx + 14, actualMaxIdx);
 
     setRange([startIdx, initialMax]);
-  }, [allPts.length, actualMaxIdx]);
+  }, [allPts.length, actualMaxIdx, compact]);
 
   const minVal = Math.max(0, Math.min(range[0], actualMaxIdx));
   const maxVal = Math.max(minVal, Math.min(range[1], actualMaxIdx));
 
   const displayPts = allPts.slice(minVal, maxVal + 1);
 
-  const W = isMobile ? 560 : (narrowMode ? 760 : 1120);
-  const H = isMobile ? 280 : (narrowMode ? 320 : 340);
+  const W = compact ? 1120 : isMobile ? 560 : (narrowMode ? 760 : 1120);
+  const H = compact ? 260 : isMobile ? 280 : (narrowMode ? 320 : 340);
+  const axisFontSize = compact ? 15 : isMobile ? 16 : 22;
   const PL = isMobile ? 40 : (narrowMode ? 50 : 60);
   const PT = 15;
-  const PB = showAge ? 82 : 44;
+  const PB = compact ? (showAge ? 56 : 32) : (showAge ? 82 : 44);
   const PR = isMobile ? 25 : 30;
   const iW = W - PL - PR;
   const iH = H - PT - PB;
@@ -135,11 +151,14 @@ export function CarbonBarChart({
 
   return (
     <div style={{
-      background: "#edfaf3",
-      borderRadius: 16,
-      padding: isMobile ? "12px 10px 8px" : "18px 16px 12px",
-      boxShadow: "0 10px 30px -5px rgba(30, 122, 71,0.12)",
-      border: "1px solid rgba(30, 122, 71,0.15)",
+      // compact sits inside the caller's own block, so it draws no card.
+      ...(compact ? {} : {
+        background: "#edfaf3",
+        borderRadius: 16,
+        padding: isMobile ? "12px 10px 8px" : "18px 16px 12px",
+        boxShadow: "0 10px 30px -5px rgba(30, 122, 71,0.12)",
+        border: "1px solid rgba(30, 122, 71,0.15)",
+      }),
       height: "100%",
       display: "flex",
       flexDirection: "column",
@@ -152,7 +171,7 @@ export function CarbonBarChart({
       )}
       {baseline && (
         <div style={{ textAlign: "center", fontSize: isMobile ? 12 : 14, fontWeight: 600, color: "#5a7a65", marginBottom: isMobile ? 6 : 10 }}>
-          Baseline: <span style={{ fontSize: isMobile ? 16 : 18, color: "#17603a", fontWeight: 800 }}>{Math.floor(baseline.value).toLocaleString()}</span> ± {formatCiTonnes(baseline.ci)}
+          Baseline: <span style={{ fontSize: isMobile ? 16 : 18, color: "#17603a", fontWeight: 800 }}>{formatCarbon(baseline.value)}</span> ± {formatCiCarbon(baseline.ci)}
         </div>
       )}
 
@@ -264,12 +283,12 @@ export function CarbonBarChart({
               <g key={p.year_at}>
                 {/* อายุ — แถวแรกใส่คำว่า "อายุ" นำหน้า */}
                 {showAge && (
-                  <text x={x} y={PT + iH + 28} textAnchor="middle" fontSize={isMobile ? 16 : 22} fill="#475569" fontWeight={700}>
+                  <text x={x} y={PT + iH + (compact ? 20 : 28)} textAnchor="middle" fontSize={axisFontSize} fill="#475569" fontWeight={700}>
                     {isFirst ? `อายุ ${p.age}` : p.age}
                   </text>
                 )}
                 {/* พ.ศ. — แถวแรกใส่คำว่า "พ.ศ." นำหน้า */}
-                <text x={x} y={PT + iH + (showAge ? 58 : 30)} textAnchor="middle" fontSize={isMobile ? 16 : 22} fill="#94a3b8" fontWeight={500}>
+                <text x={x} y={PT + iH + (compact ? (showAge ? 42 : 22) : (showAge ? 58 : 30))} textAnchor="middle" fontSize={axisFontSize} fill="#94a3b8" fontWeight={500}>
                   {isFirst ? `พ.ศ. ${p.yearBE}` : p.yearBE}
                 </text>
               </g>
@@ -295,10 +314,10 @@ export function CarbonBarChart({
           const xPct = xSvg / W * 100;
           const translateX = xPct > 70 ? "-90%" : xPct < 30 ? "-10%" : "-50%";
 
-          const co2Val = Math.floor(p.co2 || 0);
-          const co2Ci = formatCiTonnes(p.ci || 0);
-          const gainVal = Math.floor(p.gainValue || 0).toLocaleString("th-TH");
-          const gainCiVal = formatCiTonnes(p.gainCi || 0);
+          const co2Val = formatCarbon(p.co2 || 0);
+          const co2Ci = formatCiCarbon(p.ci || 0);
+          const gainVal = formatCarbon(p.gainValue || 0);
+          const gainCiVal = formatCiCarbon(p.gainCi || 0);
 
           const tooltipBottomY = yFixed - 10;
 
@@ -332,7 +351,7 @@ export function CarbonBarChart({
                 </div>
                 <div style={{ display: "flex", alignItems: "baseline", justifyContent: "center", gap: 3 }}>
                   <span style={{ fontSize: 18, fontWeight: 800, color: "#fff", lineHeight: 1 }}>
-                    {co2Val.toLocaleString("th-TH")}
+                    {co2Val}
                   </span>
                   <span style={{ fontSize: 14, color: "rgba(255,255,255,0.6)", fontWeight: 600 }}>
                     ± {co2Ci}

@@ -167,11 +167,11 @@ async def test_service_groups_cohorts_by_plot(svc):
     assert p1["beyond_model_age"] is False and p2["beyond_model_age"] is True
     # 800 trees * 70 kg growth * 0.47 * 3.667 / 1000, per cohort
     per_cohort = 800 * 70 * 0.47 * 3.667 / 1000  # 96.51 t
-    # Cohorts of one plot are summed before rounding down; plots are rounded separately.
-    assert p1["credits_tCO2e"] == math.floor(2 * per_cohort)  # 193, not 2 x 96
+    # Plot credits keep 2 decimals; only the project sum is rounded down (TGO).
+    assert p1["credits_tCO2e"] == pytest.approx(2 * per_cohort, abs=0.01)
     # p2 (age 30 -> 37) only grows to the last modeled age 35.
-    assert p2["credits_tCO2e"] == math.floor(800 * 50 * 0.47 * 3.667 / 1000)
-    assert res["result"]["total_credits_tCO2e"] == p1["credits_tCO2e"] + p2["credits_tCO2e"]
+    assert p2["credits_tCO2e"] == pytest.approx(800 * 50 * 0.47 * 3.667 / 1000, abs=0.01)
+    assert res["result"]["total_credits_tCO2e"] == math.floor(p1["credits_tCO2e"] + p2["credits_tCO2e"])
     assert res["result"]["schedule"][0]["year"] == year
 
 
@@ -287,6 +287,15 @@ def test_credit_path_future_planting_starts_from_planting_stock():
     assert economics.credit_path([0.0] * 8, -9) == [0.0] * 8  # planted after the period
 
 
+def test_project_sum_rounded_down_once_per_round():
+    # Two plots of 0.6 t each: 1.2 t -> 1 credit (per-plot rounding gave 0).
+    a = [0, 0.6, 0.6, 0.6, 0.6, 0.6, 0.6, 0.6]
+    res = economics.evaluate(a, economics.RAI_M2, SLIDE_COSTS, 100, [7], 0.0, credit_paths=[a, a])
+    assert res["total_credits_tCO2e"] == 1
+    assert res["plot_credits_tCO2e"] == [0.6, 0.6]
+    assert sum(res["plot_revenue_thb"]) == pytest.approx(res["total_revenue_thb"]) == pytest.approx(100)
+
+
 def test_credit_paths_drive_credits_not_reported_stock():
     stock = [0, 2, 10, 30, 60, 100, 150, 210]
     res = economics.evaluate(stock, economics.RAI_M2, SLIDE_COSTS, 100, [7], 0.0,
@@ -305,9 +314,9 @@ async def test_service_future_plot_excludes_planting_stock(svc):
     res = await svc.get_carbon_economics(_req([{**ROW, "year_of_planting": year + 1, "plot_id": "f"}]))
     # Planted at t=1 (age 0) and verified at t=7 (age 6): only the 60 kg grown
     # on site counts, not the 5 kg at planting.
-    expected = math.floor(800 * 60 * 0.47 * 3.667 / 1000)
-    assert res["plots"][0]["credits_tCO2e"] == expected
-    assert res["result"]["total_credits_tCO2e"] == expected
+    expected = 800 * 60 * 0.47 * 3.667 / 1000
+    assert res["plots"][0]["credits_tCO2e"] == pytest.approx(expected, abs=0.01)
+    assert res["result"]["total_credits_tCO2e"] == math.floor(expected)
     assert res["plots"][0]["carbon_stock_start_tCO2e"] == 0
     assert res["plots"][0]["carbon_stock_end_tCO2e"] == pytest.approx(800 * 65 * 0.47 * 3.667 / 1000, rel=1e-4)
 
@@ -349,7 +358,8 @@ async def test_service_ci_bounds_bracket_central(svc):
     s7 = r["schedule"][7]
     assert s7["credits_issued_low_tCO2e"] <= s7["credits_issued_tCO2e"] <= s7["credits_issued_high_tCO2e"]
     plot = res["plots"][0]
-    assert plot["credits_low_tCO2e"] == r["low"]["total_credits_tCO2e"]
+    # The plot keeps 2 decimals; the project rounds each round's sum down.
+    assert plot["credits_low_tCO2e"] == pytest.approx(k * 8 * 7, abs=0.02)
     assert plot["revenue_high_thb"] == pytest.approx(r["high"]["total_revenue_thb"])
     assert all("low" in c and "high" in c for c in res["frequency_comparison"])
 

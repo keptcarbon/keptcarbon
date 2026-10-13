@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "crypto";
 import { pool } from "@/lib/db";
 import { verifyToken, AUTH_COOKIE } from "@/lib/jwt";
+import { carbon2, ciCarbon2 } from "@/lib/utils";
 import { getUserUuid, generateGuestKey, rowToProjectFromNormalized } from "@/lib/carbon-projects";
 import {
   upsertProjectAndPlots,
@@ -44,6 +45,8 @@ function luCheckedFromSelected(selectedLuClasses: string[] | null): Record<strin
  *  reimplemented here rather than importing that component file into an API
  *  route. */
 function yearlyRowsToBarPoints(rows: any[], baseAge: number) {
+  const base = rows.find((row) => (row.year_at ?? 0) === 0) ?? rows[0];
+  const baseStock = carbon2(Number(base?.stock_value ?? 0));
   return rows.map((row) => {
     const yearAt = row.year_at ?? 0;
     const hasAge = row.age !== null && row.age !== undefined;
@@ -52,13 +55,13 @@ function yearlyRowsToBarPoints(rows: any[], baseAge: number) {
       age,
       yearBE: row.year + 543,
       year_at: yearAt,
-      co2: row.stock_value,
-      ci: row.stock_ci,
-      gainValue: row.gain_value,
-      gainCi: row.gain_ci,
+      co2: carbon2(Number(row.stock_value)),
+      ci: ciCarbon2(Number(row.stock_ci)),
+      gainValue: carbon2(carbon2(Number(row.stock_value)) - baseStock),
+      gainCi: ciCarbon2(Number(row.gain_ci)),
       cycle: Math.floor(yearAt / 7),
       cycleAge: age,
-      errorMargin: row.stock_ci,
+      errorMargin: ciCarbon2(Number(row.stock_ci)),
       isAgeValid: hasAge,
     };
   });
