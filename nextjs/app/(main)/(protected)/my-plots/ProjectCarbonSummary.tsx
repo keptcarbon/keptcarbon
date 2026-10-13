@@ -221,7 +221,9 @@ export function ProjectCarbonSummary({ plots, isMobile, open, onToggle }: {
                         label={`ปีที่ ${pt.year_at} (พ.ศ. ${pt.yearBE})`}
                         value={
                           <div className={styles.cycleValueBlock}>
-                            <div className={styles.cycleValueLabel}>คาร์บอนกักเก็บ</div>
+                            <div className={styles.cycleValueLabel}>
+                              คาร์บอนกักเก็บ <span className={styles.cycleValueUnit}>tCO₂eq</span>
+                            </div>
                             <div className={styles.cycleValueRow}>
                               <span className={`${styles.cycleValueMain} ${isMobile ? styles.cycleValueMainMobile : ""}`} style={{ color: col.bot }}>
                                 {formatCarbon(pt.gainValue)}
@@ -229,7 +231,6 @@ export function ProjectCarbonSummary({ plots, isMobile, open, onToggle }: {
                               <span className={styles.cycleValueCi} style={{ color: col.bot }}>
                                 ± {formatCiCarbon(pt.gainCi)}
                               </span>
-                              <span className={styles.cycleValueUnit}>tCO₂eq</span>
                             </div>
                           </div>
                         }

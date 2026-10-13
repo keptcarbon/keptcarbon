@@ -12,8 +12,8 @@ import { CarbonBarChart, type BarPoint } from "@/app/components/organisms/Parcel
  * Landing-page preliminary carbon assessment: no map, just province + year of
  * planting + area (ไร่/งาน/ตร.วา) or tree count per plot. Each plot is
  * sent to /carbon/sim with the province's configured defaults. Carbon is
- * rounded to 2 decimals per plot, then summed (see carbon2); only the
- * estimated revenue rounds the credits down to whole tonnes (TGO).
+ * rounded to 2 decimals per plot, then summed (see carbon2); only block 4
+ * rounds to whole tonnes (TGO): the 7-year gain down, its CI up.
  */
 
 type ProvinceDefaults = {
@@ -74,13 +74,18 @@ const ESTIMATE_FIELDS: { label: string; unit?: string; defaultValue: string; not
 const DEFAULT_REGION = "ภาคตะวันออก";
 const DEFAULT_PROVINCE_TH = "ระยอง";
 
-const DEFAULT_ROWS = 3;
 const M2_PER_RAI = 1600;
 const M2_PER_NGAN = 400;
 const M2_PER_WAH = 4;
 
 let nextKey = 0;
 const emptyRow = (): PlotRow => ({ key: nextKey++, year: "", rai: "", ngan: "", wah: "", trees: "" });
+/** Example plots the form opens with (planting year พ.ศ., area ไร่ or tree count). */
+const DEFAULT_PLOTS: Partial<Omit<PlotRow, "key">>[] = [
+  { year: "2567", rai: "50" },
+  { year: "2557", trees: "2000" },
+  { year: "2547", rai: "25" },
+];
 
 const fieldClass =
   "w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground transition-colors outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 disabled:opacity-60";
@@ -320,7 +325,7 @@ export default function PreliminaryAssessment() {
   const [loadError, setLoadError] = useState(false);
   const [region, setRegion] = useState(DEFAULT_REGION);
   const [pCode, setPCode] = useState("");
-  const [rows, setRows] = useState<PlotRow[]>(() => Array.from({ length: DEFAULT_ROWS }, emptyRow));
+  const [rows, setRows] = useState<PlotRow[]>(() => DEFAULT_PLOTS.map((p) => ({ ...emptyRow(), ...p })));
   const [rowErrors, setRowErrors] = useState<Record<number, string>>({});
   const [error, setError] = useState("");
   const [running, setRunning] = useState(false);
@@ -438,6 +443,15 @@ export default function PreliminaryAssessment() {
     }
   }
 
+  // Assess the example plots once the preset province is in, so a result shows on load.
+  const autoAssessed = useRef(false);
+  useEffect(() => {
+    if (!pCode || autoAssessed.current) return;
+    autoAssessed.current = true;
+    void assess();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pCode]);
+
   // Sums of each plot's 2-decimal values (CIs: each rounded up), as in the project summaries.
   const sumOf = (f: (r: PlotResult) => number) => carbon2(results?.reduce((sum, r) => sum + f(r), 0) ?? 0);
   const totalCarbon = sumOf((r) => r.carbon);
@@ -453,12 +467,12 @@ export default function PreliminaryAssessment() {
   const gain7 = projection[PROJECTION_YEARS].gain;
   const price = Number(estimateInputs[0]);
   const validPrice = Number.isFinite(price) && price > 0 ? price : 0;
-  // TGO: credits are priced as whole tonnes, the 2-decimal total rounded down.
+  // TGO: box 2 shows whole tonnes, the gain rounded down and its CI rounded up
+  // (never overstate credits nor understate uncertainty); box 3 prices those.
   const credits7 = creditTonnes(gain7);
+  const credits7Ci = Math.ceil(projection[PROJECTION_YEARS].gainCi - 1e-9);
   const revenue = credits7 * validPrice;
-  // Gain CI as in table 2; revenue CI scales with price.
-  const gain7Ci = projection[PROJECTION_YEARS].gainCi;
-  const revenueCi = gain7Ci * validPrice;
+  const revenueCi = credits7Ci * validPrice;
   const totalPts = useMemo(() => sumProfiles(results?.map((r) => r.profile) ?? []), [results]);
   const totalArea = results?.reduce((sum, r) => sum + r.areaM2, 0) ?? 0;
   // A total area would understate plots entered by tree count only.
@@ -650,10 +664,10 @@ export default function PreliminaryAssessment() {
       {results && (
         <div className="mt-6 border-t border-border pt-5" aria-live="polite">
           <div className="rounded-xl border border-border bg-background p-4">
-            <h3 className="mt-0 mb-2 text-sm font-semibold text-foreground">1. ปริมาณคาร์บอนสะสม ณ วันที่ประเมิน: รวมทุกแปลงและแยกรายแปลง</h3>
+            <h3 className="mt-0 mb-2 text-sm font-semibold text-foreground">1. ปริมาณคาร์บอนสะสม ณ ปีที่ประเมิน: รวมทุกแปลงและแยกรายแปลง</h3>
             <div className="mb-3 rounded-lg bg-secondary px-4 py-4 text-center">
               <div className="text-sm text-muted-foreground">
-                คาร์บอนสะสมรวม ณ ปี พ.ศ. {CURRENT_CE + 543}
+                คาร์บอนสะสมรวม ณ ปีฐาน
                 {allHaveArea && ` (พื้นที่รวม ${formatArea(totalArea / M2_PER_RAI)} ไร่)`}
               </div>
               <div className="mt-1 text-3xl font-bold text-primary">
@@ -670,8 +684,9 @@ export default function PreliminaryAssessment() {
                     <th className="py-2 pr-3 text-right font-medium">ปีที่ปลูก</th>
                     <th className="py-2 pr-3 text-right font-medium">พื้นที่ (ไร่)</th>
                     <th className="py-2 pr-3 text-right font-medium">จำนวนต้น</th>
+                    <th className="py-2 pr-3 text-right font-medium">อายุยาง (ปี)</th>
                     <th className="py-2 pr-3 text-right font-medium">คาร์บอนสะสม (tCO₂eq)</th>
-                    <th className="py-2 text-right font-medium">95% CI (±)</th>
+                    <th className="py-2 text-right font-medium">95% CI</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -684,6 +699,7 @@ export default function PreliminaryAssessment() {
                         {r.treeCount.toLocaleString("th-TH")}
                         {r.rejectedTrees !== null && <span className="text-amber-600">*</span>}
                       </td>
+                      <td className="py-2 pr-3 text-right">{Math.max(0, CURRENT_CE + 543 - r.yearBE)}</td>
                       <td className="py-2 pr-3 text-right font-semibold">{formatCarbon(r.carbon)}</td>
                       <td className="py-2 text-right text-muted-foreground">± {formatCarbon(r.ci)}</td>
                     </tr>
@@ -749,18 +765,13 @@ export default function PreliminaryAssessment() {
                   <span className="mb-1.5 block text-xs font-medium text-muted-foreground">{ESTIMATE_FIELDS[i].label}</span>
                   <span className="flex items-baseline gap-2 py-1.5">
                     <span className={`text-2xl font-bold ${ESTIMATE_FIELDS[i].valueClass ?? "text-primary"}`}>
-                      {ESTIMATE_FIELDS[i].computed === "gain7" ? formatCarbon(gain7) : revenue.toLocaleString("th-TH", { maximumFractionDigits: 2 })}
+                      {(ESTIMATE_FIELDS[i].computed === "gain7" ? credits7 : revenue).toLocaleString("th-TH", { maximumFractionDigits: 2 })}
                     </span>
                     <span className="text-base font-semibold text-muted-foreground">
-                      ± {ESTIMATE_FIELDS[i].computed === "gain7" ? formatCarbon(gain7Ci) : revenueCi.toLocaleString("th-TH", { maximumFractionDigits: 2 })}
+                      ± {(ESTIMATE_FIELDS[i].computed === "gain7" ? credits7Ci : revenueCi).toLocaleString("th-TH", { maximumFractionDigits: 2 })}
                     </span>
                     <span className="text-sm text-foreground">{ESTIMATE_FIELDS[i].unit}</span>
                   </span>
-                  {ESTIMATE_FIELDS[i].computed === "revenue" && (
-                    <span className="mt-0.5 block text-xs text-muted-foreground">
-                      คิดจาก {credits7.toLocaleString("th-TH")} tCO₂eq (ปัดลงเป็นจำนวนเต็ม)
-                    </span>
-                  )}
                 </div>
               ) : (
                 <label key={i} className={`block rounded-lg px-3 py-2.5 ${ESTIMATE_FIELDS[i].boxClass ?? "bg-secondary"}`}>
