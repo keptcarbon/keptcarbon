@@ -4,8 +4,8 @@ import { pool } from "@/lib/db";
 /**
  * GET /api/tree-density
  * Planting-spacing lookup list from tbl_tree_density -- feeds the map-draw
- * "ระยะปลูก (ม.)" dropdown (ParcelResultsPanel). Public counterpart of the
- * admin-gated /api/rnd/tree-density used by the R&D configuration page.
+ * "ระยะปลูก (ม.)" dropdown (ParcelResultsPanel). Read-only; rows are
+ * maintained directly in the database.
  * Ordered by id (table order), not alphabetically.
  */
 export async function GET() {

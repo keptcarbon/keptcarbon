@@ -5,8 +5,10 @@ import { pool } from "@/lib/db";
  * GET /api/dashboard/carbon-stock?pCode=RAY
  * Feeds the carbon-stock dashboard (/dashboard/carbon-stock).
  *
- * Returns, for the province's configured map versions (tbl_region_config
- * lu_version / planting_year_version):
+ * Returns, for the province's configured Planting Year Distribution
+ * (tbl_region_config.planting_year_dist_version = '<lu_year>/<plaining_year>',
+ * chosen in the R&D region config; its pair is returned as luVersion /
+ * plantingYearVersion):
  *   - config    the simulation defaults the page sends to /carbon/sim
  *   - districts every district with rubber area by planting year
  *               (tbl_planting_year_dist; year = 0 / unclassified excluded) and
@@ -22,7 +24,7 @@ export async function GET(request: NextRequest) {
 
   try {
     const configResult = await pool.query(
-      `SELECT p_code, p_name, lu_version, planting_year_version, default_spacing, default_clone,
+      `SELECT p_code, p_name, planting_year_dist_version, default_spacing, default_clone,
               default_growth, default_allometry, biomass_profile_version
        FROM tbl_region_config WHERE p_code = $1`,
       [pCode]
@@ -31,6 +33,10 @@ export async function GET(request: NextRequest) {
     if (!config) {
       return NextResponse.json({ error: `ไม่พบการตั้งค่าจังหวัด "${pCode}"` }, { status: 404 });
     }
+    if (!config.planting_year_dist_version) {
+      return NextResponse.json({ error: `จังหวัด "${pCode}" ยังไม่มีข้อมูล Planting Year Distribution` }, { status: 404 });
+    }
+    const [distLuYear, distPlantingYear] = String(config.planting_year_dist_version).split("/").map(Number);
 
     const { rows } = await pool.query(
       `WITH dist AS (
@@ -50,14 +56,14 @@ export async function GET(request: NextRequest) {
        FROM dist d
        LEFT JOIN geo_district g ON g.name_th = d.district_name_th AND g.province_th = d.prov_name_th
        ORDER BY d.district_idn`,
-      [pCode, config.lu_version, config.planting_year_version]
+      [pCode, distLuYear, distPlantingYear]
     );
 
     return NextResponse.json({
       province: { pCode: config.p_code, nameEn: config.p_name, nameTh: rows[0]?.prov_name_th ?? config.p_name },
       config: {
-        luVersion: config.lu_version,
-        plantingYearVersion: config.planting_year_version,
+        luVersion: distLuYear,
+        plantingYearVersion: distPlantingYear,
         spacing: config.default_spacing,
         clone: config.default_clone,
         growthModel: config.default_growth,

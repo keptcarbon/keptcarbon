@@ -221,7 +221,7 @@ export interface EconomicsPlot {
     cohort_ages: number[];
     carbon_stock_start_tCO2e: number;
     carbon_stock_end_tCO2e: number;
-    /** whole tonnes, rounded down per round (TGO) */
+    /** 2 decimals; the project sum is rounded down to whole tonnes per round (TGO) */
     credits_tCO2e: number;
     /** credits x each round's price; plots sum to the project revenue */
     revenue_thb: number;

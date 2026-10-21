@@ -23,14 +23,17 @@ import type { PlotFormData } from "@/app/components/organisms/ParcelResultsPanel
 import { useSearchParams, useRouter } from "next/navigation";
 import {
   type Tab,
-  REGIONS_DATA,
   zoomToGeoJSONFeatures,
+  zoomToThailand,
   AMPHOE_DATA,
   utmToLatLng,
   cursorAddNode,
   SNAP_PX,
 } from "./utils";
 import { useMapInit } from "./useMapInit";
+
+/** GET /api/service-provinces row: a province with a tbl_region_config row. */
+type ServiceProvince = { pCode: string; provinceTh: string; regionTh: string };
 import { useBoundarySelection } from "./useBoundarySelection";
 import { useLocationTour, boundsToPolygon } from "./useLocationTour";
 import { NodeWarningPopup } from "./components/NodeWarningPopup";
@@ -38,12 +41,23 @@ import { AreaErrorPopup } from "./components/AreaErrorPopup";
 import { ErrorPopup } from "./components/ErrorPopup";
 import { StepWarningPopup } from "./components/StepWarningPopup";
 import { GuestLimitPopup } from "./components/GuestLimitPopup";
+import { PlotLimitPopup } from "./components/PlotLimitPopup";
+import { ProjectLimitPopup } from "./components/ProjectLimitPopup";
 import { ClaimSuccessPopup } from "./components/ClaimSuccessPopup";
 import { setPostAuthRedirect } from "@/lib/post-auth-redirect";
 import { formatArea } from "@/lib/utils";
 
-/** Guests (not logged in) may draw at most this many plots. */
-const GUEST_PLOT_LIMIT = 5;
+/** Guest plot cap used only until GET /api/quota answers (tbl_role_quota is the real source). */
+const GUEST_PLOT_LIMIT_FALLBACK = 5;
+
+/** GET /api/quota response. Limits null = unlimited. */
+type QuotaInfo = {
+  role: string;
+  allowed: boolean;
+  maxProjects: number | null;
+  maxPlotsPerProject: number | null;
+  projectCount: number;
+};
 
 /** sessionStorage key holding a guest's drawn plots across the auth flow. */
 const MAP_DRAW_RESUME_KEY = "mapDrawResume";
@@ -59,6 +73,8 @@ function MapDrawContent() {
   const [coordMode, setCoordMode] = useState<"latlng" | "utm">("latlng");
   const [coordLat, setCoordLat] = useState("");
   const [coordLng, setCoordLng] = useState("");
+  // Single "lat, lng" box in the map's ค้นหาจากพิกัด card
+  const [coordLatLngText, setCoordLatLngText] = useState("");
   const [coordUtmZone, setCoordUtmZone] = useState<47 | 48>(47);
   const [coordE, setCoordE] = useState("");
   const [coordN, setCoordN] = useState("");
@@ -111,7 +127,9 @@ function MapDrawContent() {
   // Tab + UI
   const [tab, setTab] = useState<Tab>("draw");
   const [basemapOpen, setBasemapOpen] = useState(false);
-  const [basemap, setBasemap] = useState<"hybrid" | "sat" | "street" | "topo">("hybrid");
+  const [areaPickerOpen, setAreaPickerOpen] = useState(false);
+  const [coordPickerOpen, setCoordPickerOpen] = useState(false);
+  const [basemap, setBasemap] = useState<"hybrid" | "sat" | "groad" | "gterrain" | "street" | "topo">("hybrid");
   const [status, setStatus] = useState("🇹🇭 แผนที่ประเทศไทย — เลือกภาค จังหวัด อำเภอ หรือตำบล แล้วกด \"เริ่มวาดแปลง\"");
   const [mapLoaded, setMapLoaded] = useState(false);
 
@@ -136,6 +154,14 @@ function MapDrawContent() {
     setSelectedAmphoe,
     setSelectedTambon,
   });
+
+  // A manual pick from the เลือกพื้นที่ dropdowns: stop any running location tour and
+  // re-enable the boundary fit-to-bounds zoom (a tour, coordinate search or guest
+  // restore leaves it suppressed), so every level zooms to the chosen area.
+  const beginAreaPick = useCallback(() => {
+    cancelTour();
+    suppressBoundaryZoomRef.current = false;
+  }, [cancelTour]);
 
   // SHP state
   const [shpFile, setShpFile] = useState<File | null>(null);
@@ -239,33 +265,67 @@ function MapDrawContent() {
     }
   };
 
-  // Default area selection (Eastern region → Rayong), staggered so the map
-  // zooms to the region first and then the province. Used on first load and
-  // again when the user starts a new area from step 2.
+  // Served provinces (GET /api/service-provinces = tbl_region_config) -- the
+  // only ภาค / จังหวัด the เลือกพื้นที่ dropdowns offer. null = still loading.
+  const [serviceProvinces, setServiceProvinces] = useState<ServiceProvince[] | null>(null);
+  const serviceProvincesRef = useRef<ServiceProvince[] | null>(null);
+  const serviceRegions = useMemo(
+    () => Array.from(new Set((serviceProvinces ?? []).map((p) => p.regionTh))),
+    [serviceProvinces]
+  );
+
+  // Default area selection (the first served province, e.g. Eastern region →
+  // Rayong), staggered so the map zooms to the region first and then the
+  // province. Used on first load and again when the user starts a new area
+  // from step 2. Requested before the province list has loaded -> deferred.
   const defaultAreaTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const defaultAreaPendingRef = useRef(false);
   const clearDefaultAreaTimers = useCallback(() => {
     defaultAreaTimersRef.current.forEach(clearTimeout);
     defaultAreaTimersRef.current = [];
   }, []);
   const selectDefaultArea = useCallback(() => {
     clearDefaultAreaTimers();
+    const list = serviceProvincesRef.current;
+    if (list === null) {
+      defaultAreaPendingRef.current = true;
+      return;
+    }
+    defaultAreaPendingRef.current = false;
+    const first = list[0];
+    if (!first) return;
     defaultAreaTimersRef.current = [
-      setTimeout(() => setSelectedRegion("ภาคตะวันออก"), 250),
-      setTimeout(() => setSelectedProvince("ระยอง"), 250 + MAP_DRAW_ANIMATION_DURATION + 250),
+      setTimeout(() => setSelectedRegion(first.regionTh), 250),
+      setTimeout(() => setSelectedProvince(first.provinceTh), 250 + MAP_DRAW_ANIMATION_DURATION + 250),
     ];
   }, [clearDefaultAreaTimers, setSelectedRegion, setSelectedProvince]);
   useEffect(() => clearDefaultAreaTimers, [clearDefaultAreaTimers]);
 
   useEffect(() => {
+    let cancelled = false;
+    fetch("/api/service-provinces/")
+      .then((res) => (res.ok ? res.json() : Promise.reject(res)))
+      .then((data) => data.provinces ?? [])
+      .catch(() => [])
+      .then((list: ServiceProvince[]) => {
+        if (cancelled) return;
+        serviceProvincesRef.current = list;
+        setServiceProvinces(list);
+        if (defaultAreaPendingRef.current) selectDefaultArea();
+      });
+    return () => { cancelled = true; };
+  }, [selectDefaultArea]);
+
+  useEffect(() => {
     if (projNameParam || isEditingPlotParam) return;
     // Returning from the guest-limit auth flow: the restore effect will zoom
     // to the stashed plots — skip the default province auto-select, whose
-    // delayed boundary zoom (Rayong) would override that fit.
+    // delayed boundary zoom (default province) would override that fit.
     //
     // Only skip for a *fresh* stash. A real OAuth round-trip lands back here in
     // seconds; if the guest tapped login/register but then abandoned auth, the
     // key is never consumed (the restore effect needs a logged-in user) and
-    // would otherwise disable the default Eastern region/Rayong auto-select for the
+    // would otherwise disable the default province auto-select for the
     // rest of the tab session. Treat a stale key as abandoned: clear it and
     // fall through to the default.
     try {
@@ -290,7 +350,9 @@ function MapDrawContent() {
   const [projectType, setProjectType] = useState<"replanting" | "existing" | null>(null);
   const [projectName, setProjectName] = useState(projNameParam || "");
   const [stepWarningPopup, setStepWarningPopup] = useState<boolean>(false);
-  const [guestLimitPopup, setGuestLimitPopup] = useState<boolean>(false);
+  const [guestLimitPopup, setGuestLimitPopup] = useState<false | "plots" | "projects">(false);
+  const [plotLimitPopup, setPlotLimitPopup] = useState<boolean>(false);
+  const [projectLimitPopup, setProjectLimitPopup] = useState<boolean>(false);
   const [claimSuccessPopup, setClaimSuccessPopup] = useState<boolean>(false);
   const [plotsSaved, setPlotsSaved] = useState(false);
   // Tracks the currently active DB project for this drawing session (set once
@@ -360,7 +422,7 @@ function MapDrawContent() {
     }
     // Start over like a fresh page load: clear the area selection (the map was
     // parked on the previous plot, and an unchanged province wouldn't re-zoom),
-    // then replay the default Eastern region → Rayong selection.
+    // then replay the default province selection.
     suppressBoundaryZoomRef.current = false;
     setSelectedTambon("");
     setSelectedAmphoe("");
@@ -371,6 +433,73 @@ function MapDrawContent() {
 
   // Multi-parcel support
   const [drawnParcels, setDrawnParcels] = useState<GeoJSON.Feature[]>([]);
+
+  // ===== QUOTA (tbl_role_quota via GET /api/quota) =====
+  // The server enforces every limit on save (lib/quota.ts); these checks only
+  // stop the user before they draw work that couldn't be saved.
+  const [quota, setQuota] = useState<QuotaInfo | null>(null);
+  // Guest key whose claim was refused for lack of a project slot -- retried
+  // once the user deletes a project in ProjectLimitPopup.
+  const pendingClaimKeyRef = useRef<string | null>(null);
+
+  const fetchQuota = useCallback(async (): Promise<QuotaInfo | null> => {
+    let guestId: string | null = null;
+    if (!user) {
+      try { guestId = localStorage.getItem("guest_user_id"); } catch { /* unavailable */ }
+    }
+    try {
+      const res = await fetch(
+        guestId ? `/api/quota?guest_user_id=${encodeURIComponent(guestId)}` : "/api/quota",
+        { cache: "no-store" }
+      );
+      if (!res.ok) return null;
+      const q: QuotaInfo = await res.json();
+      setQuota(q);
+      return q;
+    } catch {
+      return null;
+    }
+  }, [user]);
+
+  useEffect(() => { void fetchQuota(); }, [fetchQuota]);
+
+  // Until /api/quota answers, guests keep the old cap; users are left to the server.
+  const plotLimit: number | null = quota ? quota.maxPlotsPerProject : (user ? null : GUEST_PLOT_LIMIT_FALLBACK);
+
+  /** Shows the right popup and returns true when a project of `count` plots is over the plot limit. */
+  const blockPlotCount = (count: number): boolean => {
+    if (plotLimit === null || count <= plotLimit) return false;
+    if (user) setPlotLimitPopup(true); else setGuestLimitPopup("plots");
+    return true;
+  };
+
+  /**
+   * When this drawing would start a NEW project (nothing drawn or loaded
+   * yet), re-reads the quota and returns true (with the right popup) if the
+   * caller already holds their maximum number of projects. Re-read rather
+   * than cached: a guest's "start over" soft-deletes their project moments
+   * before.
+   */
+  const blockNewProject = async (): Promise<boolean> => {
+    const isNewProject =
+      !searchParams?.get("project") && !activeDbProjectId &&
+      drawnParcels.length === 0 && hiddenProjectPlots.length === 0;
+    if (!isNewProject) return false;
+    const q = await fetchQuota();
+    if (!q || q.maxProjects === null || q.projectCount < q.maxProjects) return false;
+    if (user) setProjectLimitPopup(true); else setGuestLimitPopup("projects");
+    return true;
+  };
+
+  /** A save/claim came back 403 from lib/quota.ts -- show what blocked it. */
+  const handleQuotaError = (code: string) => {
+    void fetchQuota();
+    if (code === "project_limit") {
+      if (user) setProjectLimitPopup(true); else setGuestLimitPopup("projects");
+    } else if (code === "plot_limit") {
+      if (user) setPlotLimitPopup(true); else setGuestLimitPopup("plots");
+    }
+  };
   const drawnParcelsRef = useRef<GeoJSON.Feature[]>([]);
   // Mirrors ParcelResultsPanel's plotForms (plantStatus/"ปลูกมาแล้ว" etc.) — that
   // state lives entirely in the child and never writes back into drawnParcels,
@@ -534,6 +663,39 @@ function MapDrawContent() {
   // auth-context skips its own claim while we're on /map-draw, so this is the
   // sole reconcile here.
   const reconcileRanRef = useRef(false);
+
+  // Path A's claim. A 403 project_limit (no free project slot in the account)
+  // leaves the guest rows and guest_user_id as they are and opens
+  // ProjectLimitPopup; deleting a project there retries this claim.
+  const claimGuestDraft = async (guestKey: string) => {
+    try {
+      const res = await fetch("/api/plots/claim", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ guestKey }),
+      });
+      if (res.ok) {
+        pendingClaimKeyRef.current = null;
+        // Claimed — drop the key so auth-context doesn't re-claim off-page.
+        try { localStorage.removeItem("guest_user_id"); } catch { /* unavailable */ }
+        void fetchQuota();
+        const d = await res.json();
+        const name: string | undefined = d.projects?.[0]?.projectName;
+        if (name) {
+          setProjectName(name);
+          setClaimSuccessPopup(true);
+          router.replace(`/map-draw?project=${encodeURIComponent(name)}`);
+        }
+      } else if (res.status === 403) {
+        const d = await res.json().catch(() => ({}));
+        if (d.error === "project_limit") pendingClaimKeyRef.current = guestKey;
+        handleQuotaError(d.error);
+      }
+      // On other failures, guest_user_id stays put: auth-context retries it
+      // on the next page it loads on.
+    } catch { /* non-fatal */ }
+  };
+
   useEffect(() => {
     if (!mapLoaded || !user || reconcileRanRef.current) return;
 
@@ -548,28 +710,7 @@ function MapDrawContent() {
 
     // ── Path A ──────────────────────────────────────────────────────────────
     if (guestKey) {
-      (async () => {
-        try {
-          const res = await fetch("/api/plots/claim", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ guestKey }),
-          });
-          if (res.ok) {
-            // Claimed — drop the key so auth-context doesn't re-claim off-page.
-            try { localStorage.removeItem("guest_user_id"); } catch { /* unavailable */ }
-            const d = await res.json();
-            const name: string | undefined = d.projects?.[0]?.projectName;
-            if (name) {
-              setProjectName(name);
-              setClaimSuccessPopup(true);
-              router.replace(`/map-draw?project=${encodeURIComponent(name)}`);
-            }
-          }
-          // On failure, guest_user_id stays put: auth-context retries it on the
-          // next page it loads on.
-        } catch { /* non-fatal */ }
-      })();
+      void claimGuestDraft(guestKey);
       return;
     }
 
@@ -692,6 +833,12 @@ function MapDrawContent() {
             router.replace(`/map-draw?project=${encodeURIComponent(name)}`);
           }
           setClaimSuccessPopup(true);
+          void fetchQuota();
+        } else if (res.status === 403) {
+          // At the project limit: the plots stay restored in step 2, so after
+          // deleting a project in the popup the user can Save them.
+          const d = await res.json().catch(() => ({}));
+          handleQuotaError(d.error);
         }
       } catch { /* non-fatal — the user can still Save manually */ }
     })();
@@ -2038,13 +2185,12 @@ function MapDrawContent() {
   }, []);
 
   const startDrawFlow = async () => {
-    // Guests can draw at most GUEST_PLOT_LIMIT plots. Block starting another
-    // draw once they hit the cap and prompt them to log in / register.
-    // Runs on every click, so the popup re-appears each time after closing.
-    if (!user && drawnParcels.length >= GUEST_PLOT_LIMIT) {
-      setGuestLimitPopup(true);
-      return;
-    }
+    // Quota: block starting another draw once the project is at its plot
+    // limit (guests are prompted to log in / register), or when this would
+    // start a new project past the project limit. Runs on every click, so
+    // the popup re-appears each time after closing.
+    if (blockPlotCount(drawnParcels.length + hiddenProjectPlots.length + 1)) return;
+    if (await blockNewProject()) return;
     const map = mapRef.current;
     if (!map) return;
     navMarkerRef.current?.remove();
@@ -2081,13 +2227,32 @@ function MapDrawContent() {
     }
   };
 
-  // "ค้นหาแปลงจากพิกัด" (Search plot by coordinates) — locate the lat/lng via /plots/locate, then tour down to it + drop a marker if serviced
+  // "ค้นหาจากพิกัด" (Search by coordinates) — "lat, lng" or UTM X/Y; locate the point via /plots/locate,
+  // then tour down to it + drop a marker if serviced. Closes the map card on success.
   const handleCoordSearch = async () => {
     const map = mapRef.current;
-    const la = parseFloat(coordLat.replace(/,/g, '')), lo = parseFloat(coordLng.replace(/,/g, ''));
+    let la: number, lo: number;
+    if (coordMode === "utm") {
+      const ev = parseFloat(coordE.replace(/,/g, '')), nv = parseFloat(coordN.replace(/,/g, ''));
+      if (isNaN(ev) || isNaN(nv)) {
+        setNavError("กรุณากรอกพิกัด X (E) และ Y (N) ให้ถูกต้อง");
+        return;
+      }
+      try {
+        ({ lat: la, lng: lo } = utmToLatLng(ev, nv, coordUtmZone, true));
+      } catch {
+        setNavError("กรุณากรอกพิกัด X (E) และ Y (N) ให้ถูกต้อง");
+        return;
+      }
+    } else {
+      // "12.7869, 101.2564" — comma and/or whitespace between the two numbers
+      const parts = coordLatLngText.trim().split(/[\s,]+/).filter(Boolean);
+      la = parts.length === 2 ? Number(parts[0]) : NaN;
+      lo = parts.length === 2 ? Number(parts[1]) : NaN;
+    }
 
     if (isNaN(la) || isNaN(lo) || la < -90 || la > 90 || lo < -180 || lo > 180) {
-      setNavError("กรุณากรอกพิกัด Latitude/Longitude ให้ถูกต้อง");
+      setNavError(coordMode === "utm" ? "กรุณากรอกพิกัด X (E) และ Y (N) ให้ถูกต้อง" : "กรุณากรอกพิกัดในรูปแบบ ละติจูด, ลองจิจูด เช่น 12.7869, 101.2564");
       return;
     }
 
@@ -2117,6 +2282,7 @@ function MapDrawContent() {
         }
         navMarkerRef.current.setLngLat([lo, la]).addTo(map);
       }
+      setCoordPickerOpen(false);
     } catch (err) {
       console.error("plots/locate search failed:", err);
       setNavError("เกิดข้อผิดพลาดในการค้นหาพิกัด กรุณาลองใหม่อีกครั้ง");
@@ -2168,6 +2334,7 @@ function MapDrawContent() {
     setProjectType(null);
     setCoordLat("");
     setCoordLng("");
+    setCoordLatLngText("");
     setCoordE("");
     setCoordN("");
     setCoordUtmZone(47);
@@ -2623,6 +2790,19 @@ function MapDrawContent() {
       );
       if (!polyFeats.length) throw new Error("ไม่พบ Polygon");
 
+      // Quota: each polygon (MultiPolygon parts count separately, as they're
+      // flattened into plots below) is one plot of a new project.
+      const plotCountInFile = polyFeats.reduce(
+        (n, f) => n + (f.geometry.type === "MultiPolygon" ? (f.geometry as GeoJSON.MultiPolygon).coordinates.length : 1),
+        0,
+      );
+      if (blockPlotCount(plotCountInFile)) {
+        throw new Error(`ไฟล์มี ${plotCountInFile} แปลง เกินจำนวนสูงสุด ${plotLimit} แปลงต่อโครงการ`);
+      }
+      if (await blockNewProject()) {
+        throw new Error("จำนวนโครงการครบตามที่กำหนดแล้ว");
+      }
+
       // Merge all rings into one MultiPolygon for the search query
       const allRings: GeoJSON.Position[][][] = [];
       for (const f of polyFeats) {
@@ -2694,11 +2874,11 @@ function MapDrawContent() {
   };
 
   // ===== BASEMAP SWITCH =====
-  const switchBasemap = (mode: "hybrid" | "sat" | "street" | "topo") => {
+  const switchBasemap = (mode: "hybrid" | "sat" | "groad" | "gterrain" | "street" | "topo") => {
     setBasemap(mode);
     const map = mapRef.current;
     if (!map) return;
-    (["hybrid", "sat", "street", "topo"] as const).forEach((m) => {
+    (["hybrid", "sat", "groad", "gterrain", "street", "topo"] as const).forEach((m) => {
       if (map.getLayer(m)) {
         map.setLayoutProperty(m, "visibility", m === mode ? "visible" : "none");
       }
@@ -2820,6 +3000,180 @@ function MapDrawContent() {
           )}
         </div>
 
+        {/* Area picker: region → province → amphoe → tambon */}
+        {!drawing && (
+          <div className="mds-area-picker">
+            <button
+              type="button"
+              className={`mds-area-picker-btn${areaPickerOpen ? " open" : ""}`}
+              onClick={() => { setAreaPickerOpen((v) => !v); setCoordPickerOpen(false); }}
+              title="เลือกพื้นที่"
+            >
+              <i className="bi bi-pin-map" />
+              <span className="mds-area-picker-label">
+                {selectedTambon || selectedAmphoe || selectedProvince || selectedRegion || "เลือกพื้นที่"}
+              </span>
+              <i className={`bi bi-chevron-${areaPickerOpen ? "up" : "down"}`} style={{ fontSize: 12 }} />
+            </button>
+            {areaPickerOpen && (
+              <div className="mds-area-picker-card">
+                <div className="mds-basemap-header">
+                  <span><i className="bi bi-pin-map me-1" /> เลือกพื้นที่</span>
+                  <i className="bi bi-x" style={{ cursor: "pointer", fontSize: 18 }} onClick={() => setAreaPickerOpen(false)} />
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {/* ภาค (Region) */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+              <select className="prp-input" style={{ padding: "8px 5px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: 15, background: "#fff", width: "100%" }} value={selectedRegion} onChange={(e) => { beginAreaPick(); setSelectedRegion(e.target.value); setSelectedProvince(""); setSelectedAmphoe(""); setSelectedTambon(""); if (!e.target.value && mapRef.current) zoomToThailand(mapRef.current); }}>
+                <option value="">เลือกภาค...</option>
+                {serviceRegions.map(r => <option key={r} value={r}>{r}</option>)}
+              </select>
+            </div>
+
+            {/* Province / Amphoe / Tambon */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 8 }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                <select className="prp-input" style={{ padding: "8px 5px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: 15, background: selectedRegion ? "#fff" : "#f8fafc", color: selectedRegion ? "#0f172a" : "#94a3b8", width: "100%" }} value={selectedProvince} onChange={(e) => { beginAreaPick(); setSelectedProvince(e.target.value); setSelectedAmphoe(""); setSelectedTambon(""); }} disabled={!selectedRegion}>
+                  <option value="">เลือกจังหวัด...</option>
+                  {selectedRegion && (serviceProvinces ?? []).filter(p => p.regionTh === selectedRegion).map(p => <option key={p.pCode} value={p.provinceTh}>{p.provinceTh}</option>)}
+                </select>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                {amphoesFromDb.length > 0 ? (
+                  <select className="prp-input" style={{ padding: "8px 5px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: 15, background: selectedProvince ? "#fff" : "#f8fafc", color: selectedProvince ? "#0f172a" : "#94a3b8", width: "100%" }} value={selectedAmphoe} onChange={(e) => { beginAreaPick(); setSelectedAmphoe(e.target.value); setSelectedTambon(""); }} disabled={!selectedProvince}>
+                    <option value="">เลือกอำเภอ...</option>
+                    {amphoesFromDb.map(a => <option key={a} value={a}>{a}</option>)}
+                  </select>
+                ) : AMPHOE_DATA[selectedProvince] ? (
+                  <select className="prp-input" style={{ padding: "8px 5px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: 15, background: selectedProvince ? "#fff" : "#f8fafc", color: selectedProvince ? "#0f172a" : "#94a3b8", width: "100%" }} value={selectedAmphoe} onChange={(e) => { beginAreaPick(); setSelectedAmphoe(e.target.value); setSelectedTambon(""); }} disabled={!selectedProvince}>
+                    <option value="">เลือกอำเภอ...</option>
+                    {AMPHOE_DATA[selectedProvince].map(a => <option key={a} value={a}>{a}</option>)}
+                  </select>
+                ) : (
+                  <select className="prp-input" style={{ padding: "8px 5px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: 15, background: "#f8fafc", color: "#94a3b8", width: "100%" }} disabled>
+                    <option value="">{selectedProvince ? "กำลังโหลด..." : "เลือกจังหวัดก่อน"}</option>
+                  </select>
+                )}
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                {tambonsLoading ? (
+                  <select className="prp-input" style={{ padding: "8px 5px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: 15, background: "#f8fafc", color: "#94a3b8", width: "100%" }} disabled>
+                    <option value="">กำลังโหลด...</option>
+                  </select>
+                ) : tambonsFromDb.length > 0 ? (
+                  <select className="prp-input" style={{ padding: "8px 5px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: 15, background: selectedAmphoe ? "#fff" : "#f8fafc", color: selectedAmphoe ? "#0f172a" : "#94a3b8", width: "100%" }} value={selectedTambon} onChange={e => { beginAreaPick(); setSelectedTambon(e.target.value); }} disabled={!selectedAmphoe}>
+                    <option value="">เลือกตำบล...</option>
+                    {tambonsFromDb.map(t => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                ) : selectedAmphoe ? (
+                  <input className="prp-input" style={{ padding: "8px 5px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: 15, width: "100%", boxSizing: "border-box" }} placeholder="ตำบล..." value={selectedTambon} onChange={e => { beginAreaPick(); setSelectedTambon(e.target.value); }} />
+                ) : (
+                  <select className="prp-input" style={{ padding: "8px 5px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: 15, background: "#f8fafc", color: "#94a3b8", width: "100%" }} disabled>
+                    <option value="">เลือกอำเภอก่อน</option>
+                  </select>
+                )}
+              </div>
+            </div>
+                  {!selectedRegion || !selectedProvince ? (
+                    <div style={{ color: "#f59e0b", fontSize: 12, fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
+                      <i className="bi bi-exclamation-circle-fill" /> กรุณาเลือกภาคและจังหวัดเพื่อดำเนินการต่อ
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+            )}
+
+            <button
+              type="button"
+              className={`mds-area-picker-btn${coordPickerOpen ? " open" : ""}`}
+              onClick={() => { setCoordPickerOpen((v) => !v); setAreaPickerOpen(false); setNavError(null); }}
+              title="ค้นหาจากพิกัด"
+            >
+              <i className="bi bi-crosshair" />
+              <span className="mds-area-picker-label">ค้นหาจากพิกัด</span>
+              <i className={`bi bi-chevron-${coordPickerOpen ? "up" : "down"}`} style={{ fontSize: 12 }} />
+            </button>
+            {coordPickerOpen && (
+              <form
+                className="mds-area-picker-card mds-coord-card"
+                onSubmit={(e) => { e.preventDefault(); if (!navSearching) handleCoordSearch(); }}
+              >
+                <div className="mds-coord-head">
+                  <div className="mds-coord-tabs">
+                    {(["latlng", "utm"] as const).map((m) => (
+                      <button
+                        key={m}
+                        type="button"
+                        className={coordMode === m ? "active" : ""}
+                        onClick={() => { setCoordMode(m); setNavError(null); }}
+                      >
+                        {m === "latlng" ? "Lat / Long" : "UTM X, Y"}
+                      </button>
+                    ))}
+                  </div>
+                  <i className="bi bi-x" style={{ cursor: "pointer", fontSize: 22, color: "#64748b" }} onClick={() => setCoordPickerOpen(false)} />
+                </div>
+
+                {coordMode === "latlng" ? (
+                  <>
+                    <input
+                      className="mds-coord-input"
+                      autoFocus
+                      inputMode="decimal"
+                      placeholder="12.7869, 101.2564"
+                      value={coordLatLngText}
+                      onChange={(e) => setCoordLatLngText(e.target.value)}
+                    />
+                    <div className="mds-coord-hint">องศาทศนิยม คั่นด้วยจุลภาค</div>
+                  </>
+                ) : (
+                  <>
+                    <div className="mds-coord-utm">
+                      <select
+                        className="mds-coord-input"
+                        value={coordUtmZone}
+                        onChange={(e) => setCoordUtmZone(Number(e.target.value) as 47 | 48)}
+                      >
+                        <option value={47}>47N</option>
+                        <option value={48}>48N</option>
+                      </select>
+                      <input
+                        className="mds-coord-input"
+                        autoFocus
+                        inputMode="decimal"
+                        placeholder="X (E)"
+                        value={coordE}
+                        onChange={(e) => setCoordE(e.target.value)}
+                      />
+                      <input
+                        className="mds-coord-input"
+                        inputMode="decimal"
+                        placeholder="Y (N)"
+                        value={coordN}
+                        onChange={(e) => setCoordN(e.target.value)}
+                      />
+                    </div>
+                    <div className="mds-coord-hint">ประเทศไทยฝั่งตะวันตกใช้โซน 47N, ฝั่งตะวันออกใช้โซน 48N</div>
+                  </>
+                )}
+
+                {navError && (
+                  <div style={{ color: "#dc2626", fontSize: 13, fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
+                    <i className="bi bi-exclamation-circle-fill" /> {navError}
+                  </div>
+                )}
+
+                <button type="submit" className="mds-coord-go" disabled={navSearching}>
+                  {navSearching
+                    ? <div className="spinner-border spinner-border-sm" role="status" style={{ width: 16, height: 16, borderWidth: 2 }} />
+                    : <i className="bi bi-search" />}
+                  ไปยังตำแหน่ง
+                </button>
+              </form>
+            )}
+          </div>
+        )}
+
         {/* Layer switcher button */}
         <div className="mds-map-controls">
           <button
@@ -2834,19 +3188,23 @@ function MapDrawContent() {
         {/* Basemap card */}
         <div className={`mds-basemap-card${basemapOpen ? " open" : ""}`}>
           <div className="mds-basemap-header">
-            <span><i className="bi bi-layers me-1" /> แผนที่</span>
+            <span><i className="bi bi-layers me-1" /> แผนที่ฐาน</span>
             <i className="bi bi-x" style={{ cursor: "pointer", fontSize: 18 }} onClick={() => setBasemapOpen(false)} />
           </div>
-          {(["hybrid", "sat", "street", "topo"] as const).map((m) => (
+          {(["hybrid", "sat", "groad", "gterrain", "street", "topo"] as const).map((m) => (
             <div
               key={m}
               className={`mds-basemap-option${basemap === m ? " active" : ""}`}
               onClick={() => switchBasemap(m)}
             >
-              <i className={(m === "hybrid" || m === "sat") ? "bi bi-globe-asia-australia" : m === "street" ? "bi bi-map" : "bi bi-tree"} />
+              <i className={(m === "hybrid" || m === "sat") ? "bi bi-globe-asia-australia" : (m === "groad" || m === "street") ? "bi bi-map" : "bi bi-tree"} />
               {m === "hybrid" ? (
-                <span>ดาวเทียม <br />(Google map)</span>
-              ) : m === "sat" ? "ดาวเทียม (ดั้งเดิม)" : m === "street" ? "ถนน " : "ภูมิประเทศ"}
+                <span>ดาวเทียม + ป้ายกำกับ</span>
+              ) : m === "sat" ? "ดาวเทียม"
+                : m === "groad" ? "ถนน (Google)"
+                : m === "gterrain" ? "ภูมิประเทศ (Google)"
+                : m === "street" ? "ถนน (OSM)"
+                : "ภูมิประเทศ (Esri)"}
             </div>
           ))}
         </div>
@@ -3229,100 +3587,16 @@ function MapDrawContent() {
 
                           {locationMethod === "area" ? (
                             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                              {/* ภาค (Region) */}
-                              <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-                                <label style={{ fontSize: 14, fontWeight: 600, color: "#64748b" }}>ภาค</label>
-                                <select className="prp-input" style={{ padding: "8px 5px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: 15, background: "#fff", width: "100%" }} value={selectedRegion} onChange={(e) => { suppressBoundaryZoomRef.current = false; setSelectedRegion(e.target.value); setSelectedProvince(""); setSelectedAmphoe(""); setSelectedTambon(""); }}>
-                                  <option value="">เลือกภาค...</option>
-                                  {REGIONS_DATA.filter(r => r.name === "ภาคตะวันออก").map(r => <option key={r.name} value={r.name}>{r.name}</option>)}
-                                </select>
-                              </div>
-
-                              {/* 3-column: Province / Amphoe / Tambon */}
-                              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6 }}>
-                                <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-                                  <label style={{ fontSize: 14, fontWeight: 600, color: "#64748b" }}>จังหวัด</label>
-                                  <select className="prp-input" style={{ padding: "8px 5px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: 15, background: selectedRegion ? "#fff" : "#f8fafc", color: selectedRegion ? "#0f172a" : "#94a3b8", width: "100%" }} value={selectedProvince} onChange={(e) => { suppressBoundaryZoomRef.current = false; setSelectedProvince(e.target.value); setSelectedAmphoe(""); setSelectedTambon(""); }} disabled={!selectedRegion}>
-                                    <option value="">เลือกจังหวัด...</option>
-                                    {selectedRegion && REGIONS_DATA.find(r => r.name === selectedRegion)?.provinces.filter(p => p === "ระยอง").map(p => <option key={p} value={p}>{p}</option>)}
-                                  </select>
-                                </div>
-                                <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-                                  <label style={{ fontSize: 14, fontWeight: 600, color: "#64748b" }}>อำเภอ</label>
-                                  {amphoesFromDb.length > 0 ? (
-                                    <select className="prp-input" style={{ padding: "8px 5px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: 15, background: selectedProvince ? "#fff" : "#f8fafc", color: selectedProvince ? "#0f172a" : "#94a3b8", width: "100%" }} value={selectedAmphoe} onChange={(e) => { setSelectedAmphoe(e.target.value); setSelectedTambon(""); }} disabled={!selectedProvince}>
-                                      <option value="">เลือกอำเภอ...</option>
-                                      {amphoesFromDb.map(a => <option key={a} value={a}>{a}</option>)}
-                                    </select>
-                                  ) : AMPHOE_DATA[selectedProvince] ? (
-                                    <select className="prp-input" style={{ padding: "8px 5px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: 15, background: selectedProvince ? "#fff" : "#f8fafc", color: selectedProvince ? "#0f172a" : "#94a3b8", width: "100%" }} value={selectedAmphoe} onChange={(e) => { setSelectedAmphoe(e.target.value); setSelectedTambon(""); }} disabled={!selectedProvince}>
-                                      <option value="">เลือกอำเภอ...</option>
-                                      {AMPHOE_DATA[selectedProvince].map(a => <option key={a} value={a}>{a}</option>)}
-                                    </select>
-                                  ) : (
-                                    <select className="prp-input" style={{ padding: "8px 5px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: 15, background: "#f8fafc", color: "#94a3b8", width: "100%" }} disabled>
-                                      <option value="">{selectedProvince ? "กำลังโหลด..." : "เลือกจังหวัดก่อน"}</option>
-                                    </select>
-                                  )}
-                                </div>
-                                <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-                                  <label style={{ fontSize: 14, fontWeight: 600, color: "#64748b" }}>ตำบล</label>
-                                  {tambonsLoading ? (
-                                    <select className="prp-input" style={{ padding: "8px 5px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: 15, background: "#f8fafc", color: "#94a3b8", width: "100%" }} disabled>
-                                      <option value="">กำลังโหลด...</option>
-                                    </select>
-                                  ) : tambonsFromDb.length > 0 ? (
-                                    <select className="prp-input" style={{ padding: "8px 5px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: 15, background: selectedAmphoe ? "#fff" : "#f8fafc", color: selectedAmphoe ? "#0f172a" : "#94a3b8", width: "100%" }} value={selectedTambon} onChange={e => setSelectedTambon(e.target.value)} disabled={!selectedAmphoe}>
-                                      <option value="">เลือกตำบล...</option>
-                                      {tambonsFromDb.map(t => <option key={t} value={t}>{t}</option>)}
-                                    </select>
-                                  ) : selectedAmphoe ? (
-                                    <input className="prp-input" style={{ padding: "8px 5px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: 15, width: "100%", boxSizing: "border-box" }} placeholder="ตำบล..." value={selectedTambon} onChange={e => setSelectedTambon(e.target.value)} />
-                                  ) : (
-                                    <select className="prp-input" style={{ padding: "8px 5px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: 15, background: "#f8fafc", color: "#94a3b8", width: "100%" }} disabled>
-                                      <option value="">เลือกอำเภอก่อน</option>
-                                    </select>
-                                  )}
-                                </div>
-                              </div>
-
                               {!selectedRegion || !selectedProvince ? (
-                                <div style={{ color: "#f59e0b", fontSize: 11, fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
-                                  <i className="bi bi-exclamation-circle-fill" /> กรุณาเลือกภาคและจังหวัดเพื่อดำเนินการต่อ
-                                </div>
-                              ) : null}
-
-                              {/* ── grey divider ── */}
-                              <div style={{ height: 1, background: "#e2e8f0", margin: "14px 0 10px" }} />
-
-                              {/* Latitude / Longitude / ค้นหา (optional) */}
-                              <label style={{ fontSize: 15, fontWeight: 600, color: "#64748b" }}>ค้นหาแปลงจากพิกัด</label>
-                              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr auto", gap: 6, alignItems: "end" }}>
-                                <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-                                  <label style={{ fontSize: 14, fontWeight: 600, color: "#64748b" }}>Latitude</label>
-                                  <input className="prp-input" style={{ padding: "8px 5px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: 15, width: "100%", boxSizing: "border-box", transform: "none" }} placeholder="เช่น 15.8700" value={coordLat} onChange={e => setCoordLat(e.target.value)} />
-                                </div>
-                                <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-                                  <label style={{ fontSize: 14, fontWeight: 600, color: "#64748b" }}>Longitude</label>
-                                  <input className="prp-input" style={{ padding: "8px 5px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: 15, width: "100%", boxSizing: "border-box", transform: "none" }} placeholder="เช่น 100.9925" value={coordLng} onChange={e => setCoordLng(e.target.value)} />
-                                </div>
                                 <button
                                   type="button"
-                                  onClick={handleCoordSearch}
-                                  disabled={navSearching}
-                                  style={{ padding: "8px 14px", borderRadius: 8, border: "none", background: "#1e7a47", color: "#fff", fontSize: 15, fontWeight: 700, cursor: navSearching ? "not-allowed" : "pointer", opacity: navSearching ? 0.7 : 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, whiteSpace: "nowrap", height: 38 }}
+                                  onClick={() => { setAreaPickerOpen(true); setCoordPickerOpen(false); }}
+                                  style={{ color: "#f59e0b", fontSize: 13, fontWeight: 600, display: "flex", alignItems: "center", gap: 4, background: "none", border: "none", padding: 0, cursor: "pointer", textAlign: "left" }}
                                 >
-                                  {navSearching
-                                    ? <div className="spinner-border spinner-border-sm" role="status" style={{ width: 14, height: 14, borderWidth: 2, color: "#fff" }} />
-                                    : <i className="bi bi-search" />}
-                                  {" "}ค้นหา
+                                  <i className="bi bi-exclamation-circle-fill" /> กรุณาเลือกภาคและจังหวัดจากปุ่ม &quot;เลือกพื้นที่&quot; บนแผนที่เพื่อดำเนินการต่อ
                                 </button>
-                              </div>
-                              {navError && (
-                                <div style={{ color: "#dc2626", fontSize: 12, fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
-                                  <i className="bi bi-exclamation-circle-fill" /> {navError}
-                                </div>
-                              )}
+                              ) : null}
+
                             </div>
                           ) : (
                             <div style={{ padding: "10px 12px", background: "#f8fbf9", border: "1px solid rgba(5,150,105,0.18)", borderRadius: 10, display: "flex", flexDirection: "column", gap: 8 }}>
@@ -3466,6 +3740,17 @@ function MapDrawContent() {
                       <>
                         {drawnParcels.length === 0 && (
                           <ol className="mds-instr-list">
+                            <li>
+                              <span>คลิกปุ่ม</span>
+                              <button
+                                type="button"
+                                onClick={() => { setAreaPickerOpen(true); setCoordPickerOpen(false); }}
+                                style={{ display: "inline-flex", alignItems: "center", gap: 4, margin: "0 5px", background: "rgba(5,150,105,0.12)", color: "#047857", padding: "2px 9px", borderRadius: "6px", border: "none", fontWeight: 700, fontSize: "12px", whiteSpace: "nowrap", cursor: "pointer" }}
+                              >
+                                <i className="bi bi-pin-map" /> เลือกพื้นที่
+                              </button>
+                              <span>ที่เมนูบนแผนที่</span>
+                            </li>
                             <li>คลิกปุ่ม <strong>&ldquo;เริ่มวาดแปลง&rdquo;</strong></li>
                             <li>คลิกบนแผนที่เพื่อเพิ่มจุดขอบเขต (≥ 3 จุด)</li>
                             <li>
@@ -3624,7 +3909,9 @@ function MapDrawContent() {
                 onProjectNameChange={setProjectName}
                 autoProcessTrigger={autoProcessTrigger}
                 onSave={() => setPlotsSaved(true)}
+                onQuotaError={handleQuotaError}
                 onProjectSaved={({ projectId, projectName: savedName, guestKey }) => {
+                  void fetchQuota();
                   setActiveDbProjectId(projectId);
                   setActiveGuestKey(guestKey);
                   if (savedName && !projectName.trim()) setProjectName(savedName);
@@ -3707,11 +3994,28 @@ function MapDrawContent() {
 
       <NodeWarningPopup open={nodeWarningPopup} onClose={() => setNodeWarningPopup(false)} />
       <GuestLimitPopup
-        open={guestLimitPopup}
-        limit={GUEST_PLOT_LIMIT}
+        open={guestLimitPopup !== false}
+        kind={guestLimitPopup || "plots"}
+        limit={(guestLimitPopup === "projects" ? quota?.maxProjects : plotLimit) ?? GUEST_PLOT_LIMIT_FALLBACK}
         onClose={() => setGuestLimitPopup(false)}
         onLogin={() => { stashGuestDrawSnapshot(); setGuestLimitPopup(false); openLogin(); }}
         onRegister={() => { stashGuestDrawSnapshot(); setGuestLimitPopup(false); openRegister(); }}
+      />
+      <PlotLimitPopup
+        open={plotLimitPopup}
+        limit={plotLimit ?? 0}
+        onClose={() => setPlotLimitPopup(false)}
+      />
+      <ProjectLimitPopup
+        open={projectLimitPopup}
+        limit={quota?.maxProjects ?? null}
+        onClose={() => { setProjectLimitPopup(false); pendingClaimKeyRef.current = null; }}
+        onFreed={() => {
+          setProjectLimitPopup(false);
+          void fetchQuota();
+          const key = pendingClaimKeyRef.current;
+          if (key) void claimGuestDraft(key);
+        }}
       />
 
       <AreaErrorPopup error={areaError} onClose={() => setAreaError(null)} />

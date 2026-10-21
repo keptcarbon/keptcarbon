@@ -32,14 +32,30 @@ export function formatArea(value: number): string {
 }
 
 /**
- * A carbon ± CI in whole tonnes, rounded UP: carbon values are rounded down
- * (TGO), and rounding their uncertainty up keeps it from being understated.
- * Project CIs sum each plot's rounded-up CI.
+ * Carbon (tCO₂eq) is kept and shown with 2 decimals everywhere, so per-plot
+ * values add up visually to project totals and gain = stock(t) − stock(base).
+ * Round each plot's value with carbon2, derive gains and sums from those, and
+ * round down to whole tonnes (creditTonnes) only where credits are priced.
+ * The epsilon guards float noise such as 0.1 + 0.2.
  */
-export function ciTonnes(value: number): number {
-  return Math.max(0, Math.ceil(value - 1e-9));
+export function carbon2(value: number): number {
+  return Math.round(value * 100 + (value >= 0 ? 1e-7 : -1e-7)) / 100;
 }
 
-export function formatCiTonnes(value: number): string {
-  return ciTonnes(value).toLocaleString("th-TH");
+/** A carbon ± CI with 2 decimals, rounded UP so uncertainty is never understated. */
+export function ciCarbon2(value: number): number {
+  return Math.max(0, Math.ceil(value * 100 - 1e-7) / 100);
+}
+
+export function formatCarbon(value: number): string {
+  return carbon2(value).toLocaleString("th-TH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+export function formatCiCarbon(value: number): string {
+  return formatCarbon(ciCarbon2(value));
+}
+
+/** TGO: credits are priced as whole tonnes, rounded DOWN from the (2-decimal) total. */
+export function creditTonnes(value: number): number {
+  return Math.max(0, Math.floor(value + 1e-9));
 }

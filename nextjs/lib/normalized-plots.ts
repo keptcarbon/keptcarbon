@@ -98,7 +98,8 @@ const UPSERT_PLOT_SQL = `
     project_id, polygon_id, geometry, area_m2, province_code,
     status, status_code, message,
     year_of_planting, rubber_clone, tree_count, spacing_system, project_type,
-    selected_lu_classes, plot_note, growth_model, allometry, deleted_at
+    selected_lu_classes, plot_note, growth_model, allometry, deleted_at,
+    assessment_geometry, assessment_lu_version
   )
   VALUES (
     $1, $2,
@@ -107,8 +108,14 @@ const UPSERT_PLOT_SQL = `
     -- browser now shows while drawing), not whatever area the client sent.
     CASE WHEN $3::text IS NULL THEN $4::float8
          ELSE ST_Area(ST_SetSRID(ST_GeomFromGeoJSON($3::text), 4326)::geography) END,
-    $5, $6, $7, $8, $9, $10, $11, $12, $13,
-    COALESCE($14::text[], '{}'), $15, $16, $17, NULL
+    -- $5 is cast to text here AND in the lu_version lookup below: used bare,
+    -- Postgres deduces varchar from this column but text from "p_code = $5"
+    -- and refuses to prepare the statement ("inconsistent types deduced").
+    $5::text, $6, $7, $8, $9, $10, $11, $12, $13,
+    COALESCE($14::text[], '{}'), $15, $16, $17, NULL,
+    CASE WHEN $26::text IS NULL THEN NULL ELSE ST_SetSRID(ST_GeomFromGeoJSON($26::text), 4326) END,
+    CASE WHEN $26::text IS NULL THEN NULL
+         ELSE (SELECT lu_version FROM tbl_region_config WHERE p_code = $5::text) END
   )
   ON CONFLICT (project_id, polygon_id) DO UPDATE SET
     geometry            = COALESCE(EXCLUDED.geometry, tbl_plots.geometry),
@@ -133,6 +140,18 @@ const UPSERT_PLOT_SQL = `
     plot_note             = CASE WHEN $18::boolean THEN EXCLUDED.plot_note ELSE tbl_plots.plot_note END,
     growth_model          = CASE WHEN $24::boolean THEN EXCLUDED.growth_model ELSE tbl_plots.growth_model END,
     allometry             = CASE WHEN $25::boolean THEN EXCLUDED.allometry ELSE tbl_plots.allometry END,
+    -- $26: a freshly processed plot's merged selected area (map-draw) -> store
+    -- it with the LU version it was picked on. Otherwise keep it -- unless the
+    -- boundary itself changed, which makes the old selection meaningless
+    -- (NULL -> the app rebuilds it from the saved overlaps until re-processed).
+    assessment_geometry   = CASE
+      WHEN $26::text IS NOT NULL THEN EXCLUDED.assessment_geometry
+      WHEN EXCLUDED.geometry IS NOT NULL AND NOT ST_Equals(EXCLUDED.geometry, tbl_plots.geometry) THEN NULL
+      ELSE tbl_plots.assessment_geometry END,
+    assessment_lu_version = CASE
+      WHEN $26::text IS NOT NULL THEN EXCLUDED.assessment_lu_version
+      WHEN EXCLUDED.geometry IS NOT NULL AND NOT ST_Equals(EXCLUDED.geometry, tbl_plots.geometry) THEN NULL
+      ELSE tbl_plots.assessment_lu_version END,
     deleted_at            = NULL
 `;
 
@@ -211,6 +230,7 @@ async function upsertPlots(
       has(payload, "project_type"),
       has(payload, "growth_model"),
       has(payload, "allometry"),
+      payload?.assessment_geometry ? JSON.stringify(payload.assessment_geometry) : null,
     ]);
   }
 
@@ -280,15 +300,26 @@ async function recomputeLandUseOverlaps(
  * assess_parameters stop showing) until the user reruns the estimate. Safe
  * to call even if the plot has no current assessment (affects 0 rows).
  */
+// A superseded assessment keeps its tbl_plot_assessments row (which
+// parameters were used, and when) but not its yearly profile -- only the
+// current assessment's profile is ever read (GET /api/plots).
+const DROP_CURRENT_PROFILE_SQL = `
+  DELETE FROM tbl_plot_carbon_yearly y
+  USING tbl_plot_assessments a
+  WHERE y.assessment_id = a.id AND a.plot_id = $1 AND a.is_current`;
+
 async function invalidateAssessments(client: any, projectId: number, polygonIds: string[]): Promise<void> {
   if (polygonIds.length === 0) return;
-  await client.query(
-    `UPDATE tbl_plot_assessments a
-     SET is_current = FALSE
-     FROM tbl_plots p
-     WHERE a.plot_id = p.id AND p.project_id = $1 AND p.polygon_id = ANY($2::text[]) AND a.is_current = TRUE`,
+  const stale = await client.query(
+    `SELECT DISTINCT p.id FROM tbl_plots p
+     JOIN tbl_plot_assessments a ON a.plot_id = p.id AND a.is_current
+     WHERE p.project_id = $1 AND p.polygon_id = ANY($2::text[])`,
     [projectId, polygonIds]
   );
+  for (const row of stale.rows) {
+    await client.query(DROP_CURRENT_PROFILE_SQL, [row.id]);
+    await client.query(`UPDATE tbl_plot_assessments SET is_current = FALSE WHERE plot_id = $1 AND is_current`, [row.id]);
+  }
 }
 
 async function appendAssessments(client: any, projectId: number, backendResponses: AnyRecord[]): Promise<void> {
@@ -318,6 +349,7 @@ async function appendAssessments(client: any, projectId: number, backendResponse
     );
     if (unchanged.rowCount > 0) continue;
 
+    await client.query(DROP_CURRENT_PROFILE_SQL, [plotId]);
     await client.query(`UPDATE tbl_plot_assessments SET is_current = FALSE WHERE plot_id = $1 AND is_current`, [plotId]);
 
     const assessRes = await client.query(

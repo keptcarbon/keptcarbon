@@ -64,9 +64,8 @@ class CarbonAssessRequest(BasePlotsRequest):
     allometry: Optional[str] = Field(None, description="Allometry equation override, e.g. 'hytönen_2018'. If None, use the province's default from tbl_region_config.")
     biomass_profile_version: Optional[str] = Field(None, description="Biomass profile dataset version override. If None, use the province's default from tbl_region_config.")
     selected_lu_classes: List[str] = Field(
-        #default=["A302"],
-        ...,
-        description="List of LU codes, which identify areas the user wants included in carbon calculations"
+        default_factory=list,
+        description="Deprecated, ignored: the geometry itself is the assessment area (the LU parts the user selected, merged client-side)."
     )
 
 

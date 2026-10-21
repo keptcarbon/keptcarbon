@@ -13,10 +13,10 @@ import { formatArea } from "@/lib/utils";
 const M2_PER_RAI = 1600;
 const BE_OFFSET = 543;
 
-type ProvinceOption = { pCode: string; nameEn: string; nameTh: string };
+type ProvinceOption = { pCode: string; nameEn: string; nameTh: string; regionTh: string };
 
 type ProvinceSimData = {
-  province: ProvinceOption;
+  province: Omit<ProvinceOption, "regionTh">;
   config: {
     luVersion: number;
     plantingYearVersion: number;
@@ -105,8 +105,11 @@ export default function ProvinceSimulationPage() {
   }, []);
 
   const [provinces, setProvinces] = useState<ProvinceOption[] | null>(null);
+  const [region, setRegion] = useState("");
   const [pCode, setPCode] = useState("");
   const [districtId, setDistrictId] = useState("all");
+  const regions = useMemo(() => [...new Set(provinces?.map((p) => p.regionTh))], [provinces]);
+  const regionProvinces = useMemo(() => provinces?.filter((p) => p.regionTh === region) ?? [], [provinces, region]);
   const [data, setData] = useState<ProvinceSimData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -115,8 +118,12 @@ export default function ProvinceSimulationPage() {
     fetchJson<{ provinces: ProvinceOption[] }>("/api/carbon-sim/province")
       .then(({ provinces }) => {
         setProvinces(provinces);
-        if (provinces.length) setPCode(provinces[0].pCode);
-        else setLoading(false);
+        if (provinces.length) {
+          // Default to Rayong (same as the carbon-stock dashboard), else the first listed.
+          const initial = provinces.find((p) => p.pCode === "RAY") ?? provinces[0];
+          setRegion(initial.regionTh);
+          setPCode(initial.pCode);
+        } else setLoading(false);
       })
       .catch((e) => {
         setError(e instanceof Error ? e.message : String(e));
@@ -186,7 +193,7 @@ export default function ProvinceSimulationPage() {
                 จำลองคาร์บอนกักเก็บ
               </h1>
               <p style={{ fontSize: isMobile ? 15 : 17, color: "#64748b", margin: 0, fontWeight: 500, maxWidth: 760 }}>
-                จำลองปริมาณคาร์บอนกักเก็บของสวนยางพาราทั้งจังหวัดหรือรายอำเภอ จากพื้นที่ตามปีที่ปลูกในฐานข้อมูล GeoAI แผนที่ปีปลูก
+                จำลองปริมาณคาร์บอนกักเก็บของสวนยางพาราทั้งจังหวัดหรือรายอำเภอ จากพื้นที่ตามปีที่ปลูกในฐานข้อมูลอายุแปลงปลูก
                 ปรับรอบและอัตราการปลูกทดแทนเพื่อดูแนวโน้มย้อนหลังและคาดการณ์ 35 ปี
               </p>
             </div>
@@ -195,16 +202,25 @@ export default function ProvinceSimulationPage() {
           {/* ── Scope selectors ──────────────────────────────────────────── */}
           <div className="db2-card" style={{ padding: "14px 20px" }}>
             <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
-              <Select label="เลือกจังหวัด" icon="bi-map" value={pCode} disabled={!provinces?.length}
+              <Select label="เลือกภูมิภาค" icon="bi-globe-asia-australia" value={region} disabled={!provinces?.length}
+                onChange={(v) => {
+                  setRegion(v);
+                  setPCode(provinces?.find((p) => p.regionTh === v)?.pCode ?? "");
+                  setDistrictId("all");
+                }}>
+                {!provinces?.length && <option value="">{provinces ? "ไม่มีข้อมูลภูมิภาค" : "กำลังโหลด..."}</option>}
+                {regions.map((r) => <option key={r} value={r}>{r}</option>)}
+              </Select>
+              <Select label="เลือกจังหวัด" icon="bi-map" value={pCode} disabled={!regionProvinces.length}
                 onChange={(v) => { setPCode(v); setDistrictId("all"); }}>
-                {!provinces?.length && <option value="">{provinces ? "ไม่มีข้อมูลจังหวัด" : "กำลังโหลด..."}</option>}
-                {provinces?.map((p) => <option key={p.pCode} value={p.pCode}>{p.nameTh}</option>)}
+                {!regionProvinces.length && <option value="">{provinces ? "ไม่มีข้อมูลจังหวัด" : "กำลังโหลด..."}</option>}
+                {regionProvinces.map((p) => <option key={p.pCode} value={p.pCode}>{p.nameTh}</option>)}
               </Select>
               <Select label="เลือกอำเภอ" icon="bi-geo-alt-fill" value={districtId} disabled={!data}
                 onChange={setDistrictId}>
                 <option value="all">ทั้งจังหวัด</option>
                 {data?.districts.map((d) => (
-                  <option key={d.id} value={d.id}>{d.nameTh} — {formatArea(d.areaM2 / M2_PER_RAI)} ไร่</option>
+                  <option key={d.id} value={d.id}>{d.nameTh}</option>
                 ))}
               </Select>
             </div>
@@ -244,7 +260,7 @@ export default function ProvinceSimulationPage() {
               <div className="db2-card" style={{ overflow: "hidden" }}>
                 <div className="db2-card-header">
                   <i className="bi bi-graph-up-arrow" style={{ color: "#059669" }} />
-                  <span>ปริมาณคาร์บอนกักเก็บ</span>
+                  <span>ปริมาณคาร์บอน</span>
                   <span style={{ marginLeft: 6, fontWeight: 500, color: "#94a3b8", fontSize: 15 }}>{scopeName}</span>
                 </div>
                 <div style={{ padding: isMobile ? 12 : 20 }}>

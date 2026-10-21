@@ -60,7 +60,7 @@ class TestRegionConfigResolution:
         with patch_db_fetch(
             fetchrow_results=[{"default_clone": "RRIT 251", "default_spacing": "2.5x8",
                                 "default_growth": "anchored_weibull", "default_allometry": "hytönen_2018",
-                                "biomass_profile_version": "v1", "utm_epsg": 32647}],
+                                "biomass_profile_version": "v1"}],
         ):
             resolved = await mock_carbon_service._resolve_region_config("RAY", {"rubber_clone": "RRIM 600"})
         assert resolved["clone"] == "RRIT 251"
@@ -226,16 +226,6 @@ class TestMultipleCohorts:
             assert abs(d["stocks"]["value"] - 2 * s["stocks"]["value"]) < 0.001
 
 
-class TestRegionConfigUtmEpsg:
-
-    @pytest.mark.asyncio
-    async def test_utm_epsg_comes_from_region_config(self, mock_carbon_service, patch_db_fetch):
-        from tests.conftest import _DEFAULT_REGION_CONFIG_ROW
-        with patch_db_fetch(fetchrow_results=[{**_DEFAULT_REGION_CONFIG_ROW, "utm_epsg": 32648}]):
-            resolved = await mock_carbon_service._resolve_region_config("RAY", {})
-        assert resolved["utm_epsg"] == 32648
-
-
 # ── raster majority path: tree count (get_carbon_profile) ─────────────────────
 
 class TestRasterMajorityTreeCount:
@@ -258,8 +248,8 @@ class TestRasterMajorityTreeCount:
         svc.pro_svc.get_province = AsyncMock(return_value=located)
         svc._resolve_region_config = AsyncMock(return_value={
             "default_spacing": "2.5x8", "growth_model": "anchored_weibull", "allometry": "hytönen_2018",
-            "biomass_profile_version": "v1", "clone": "RRIM 600", "utm_epsg": 32647})
-        svc.lu_svc.find_rubber_cultivation_area = AsyncMock(return_value=clipped)
+            "biomass_profile_version": "v1", "clone": "RRIM 600"})
+        svc.measure_assessment_area = AsyncMock(return_value=clipped)
         svc.age_map_svc.get_plantation_year_count = AsyncMock(return_value=clipped)
         svc.age_map_svc.get_plantation_age_cohorts = AsyncMock(return_value=[
             {"age": year - 2012, "pixel_count": 953, "proportion": 0.953, "tree_count": 6883},  # full area
@@ -275,3 +265,49 @@ class TestRasterMajorityTreeCount:
         assert result["assess_parameters"]["tree_count"]["value"] == 6883
         cohorts_used = svc.generate_carbon_profile.call_args.args[1]
         assert cohorts_used == [{"age": year - 2012, "pixel_count": None, "proportion": 1, "tree_count": 6883}]
+
+
+# ── province without a planting-year map (planting_year_version NULL) ────────
+
+class TestNoPlantingYearRaster:
+
+    def _setup(self, svc, poly):
+        from unittest.mock import AsyncMock
+        located = {**poly, "province_code": "NEW"}
+        measured = {**located, "A302_geometry": {"type": "Polygon"}, "A302_area_m2": 16000.0}
+        no_raster = {**measured, "planting_year_raster_available": False, "_cached_year_counts": []}
+        svc.pro_svc.get_province = AsyncMock(return_value=located)
+        svc._resolve_region_config = AsyncMock(return_value={
+            "default_spacing": "2.5x8", "growth_model": "anchored_weibull", "allometry": "hytönen_2018",
+            "biomass_profile_version": "v1", "clone": "RRIM 600"})
+        svc.measure_assessment_area = AsyncMock(return_value=measured)
+        svc.age_map_svc.get_plantation_year_count = AsyncMock(return_value=no_raster)
+        svc.age_map_svc.get_plantation_age_cohorts = AsyncMock(return_value=[])
+        svc.age_map_svc.get_plantation_year_of_planting_info = AsyncMock(return_value=[])
+        svc.generate_carbon_profile = AsyncMock(return_value=[])
+
+    @pytest.mark.asyncio
+    async def test_without_user_year_returns_e04(self, mock_carbon_service):
+        poly = {"id": "p1", "project_type": "existing", "year_of_planting": None, "spacing_system": None,
+                "growth_model": None, "allometry": None, "biomass_profile_version": None}
+        self._setup(mock_carbon_service, poly)
+
+        result = await mock_carbon_service.get_carbon_profile(poly)
+
+        assert result["status"]["status_code"] == "E04"
+        assert result["carbon_profile"] is None
+        mock_carbon_service.age_map_svc.get_plantation_age_cohorts.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_with_user_year_assesses(self, mock_carbon_service):
+        poly = {"id": "p1", "project_type": "existing", "year_of_planting": 2015, "tree_count": 800,
+                "spacing_system": None, "growth_model": None, "allometry": None, "biomass_profile_version": None}
+        self._setup(mock_carbon_service, poly)
+        from unittest.mock import AsyncMock
+        mock_carbon_service.tree_svc.get_tree_count_user_input = AsyncMock(
+            return_value={"tree_count": 800, "is_calculated": False})
+
+        result = await mock_carbon_service.get_carbon_profile(poly)
+
+        assert result["status"]["status_code"] == "S03"
+        assert result["assess_parameters"]["year_of_planting"]["value"] == 2015

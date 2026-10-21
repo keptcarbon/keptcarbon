@@ -93,41 +93,8 @@ export default function PlotDetailPage() {
       };
     });
 
-    const polygonsPayload = allPlotsForProject.map((p) => {
-      let geom = p.geojson as GeoJSON.Geometry;
-      if (!geom && p.boundaryGeojson) geom = p.boundaryGeojson as GeoJSON.Geometry;
-      const luFeatures = p.backendData?.lu_polygon || [];
-      const luChecked = p.luChecked || { A: true, A302: true };
-      let combinedGeom = geom;
-      if (luFeatures.length > 0) {
-        const allRings: GeoJSON.Position[][][] = [];
-        for (const feat of luFeatures) {
-          const code = (feat as any).properties?.lu_class as string | undefined;
-          const P = code ? code.charAt(0).toUpperCase() : "";
-          if (!code || luChecked[code] || luChecked[P] || code === "A302") {
-            const fGeom = feat.geometry as GeoJSON.Polygon | GeoJSON.MultiPolygon;
-            if (fGeom.type === "Polygon") allRings.push(fGeom.coordinates);
-            else if (fGeom.type === "MultiPolygon") allRings.push(...fGeom.coordinates);
-          }
-        }
-        if (allRings.length > 0) {
-          combinedGeom = allRings.length === 1 ? { type: "Polygon", coordinates: allRings[0] } : { type: "MultiPolygon", coordinates: allRings };
-        }
-      }
-      const userYearBE = p.backendData?.form?.plantYear ? parseInt(p.backendData.form.plantYear) : 0;
-      return {
-        id: p.id,
-        geometry: combinedGeom,
-        year_of_planting: userYearBE > 0 ? userYearBE - 543 : null,
-        rubber_clone: p.backendData?.form?.variety || null,
-        tree_count: p.backendData?.form?.treeCount ? parseInt(p.backendData.form.treeCount) : null,
-        spacing_system: p.backendData?.form?.spacing || null,
-        growth_model: p.backendData?.form?.growthModel || null,
-        allometry: p.backendData?.form?.allometry || null,
-        selected_lu_classes: Object.entries(p.luChecked || {}).filter(([_, on]) => on).map(([cls]) => cls),
-        project_type: (p.plantStatus as "replanting" | "existing") || undefined,
-      };
-    });
+    // Same payload a re-assessment sends (assessPlot.buildAssessRequest).
+    const polygonsPayload = allPlotsForProject.map(buildAssessRequest);
 
     return { frontendPlots: allPlotsForProject, plantationInfo, polygonsPayload };
   };

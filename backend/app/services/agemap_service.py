@@ -12,17 +12,24 @@ class AgeMapService:
     def __init__(self):
         self.tree_svc = TreeService()
 
-    # $1 = plantation geometry (GeoJSON in the province's UTM zone -- matches
-    # geo_planting_year's SRID, no reprojection needed, see landuse_service
-    # module docstring). $2 = p_code, $3 = year, $4 = that UTM EPSG
-    # (tbl_region_config.utm_epsg, carried on poly_data["utm_epsg"]).
+    # $1 = plantation geometry (GeoJSON, WGS84 / EPSG:4326), $2 = p_code,
+    # $3 = year. The raster keeps the CRS it was imported in (a province's
+    # GeoTIFF is in one UTM zone, 47N or 48N), so the geometry is reprojected
+    # into that raster's own SRID -- read from its tiles, not configured.
     _VALUE_COUNT_QUERY = """
-        WITH target AS (
-            SELECT ST_SetSRID(ST_GeomFromGeoJSON($1), $4::integer) AS geom
+        WITH raster_srid AS (
+            SELECT ST_SRID(rast) AS srid
+            FROM tbl_planting_year
+            WHERE p_code = $2 AND year = $3::integer
+            LIMIT 1
+        ),
+        target AS (
+            SELECT ST_Transform(ST_SetSRID(ST_GeomFromGeoJSON($1), 4326), raster_srid.srid) AS geom
+            FROM raster_srid
         ),
         clipped AS (
             SELECT ST_Clip(ST_Union(g.rast, 1), (SELECT geom FROM target), true) AS band
-            FROM geo_planting_year g
+            FROM tbl_planting_year g
             WHERE g.p_code = $2
               AND g.year = $3::integer
               AND ST_Intersects(g.rast, (SELECT geom FROM target))
@@ -49,11 +56,13 @@ class AgeMapService:
         p_code = poly_data.get("province_code")
         year = await self._latest_year(p_code)
 
+        # No planting-year map configured for this province (tbl_region_config.
+        # planting_year_version NULL): no raster counts -- the assessment then
+        # needs a user-input year of planting (CarbonService returns E04).
+        poly_data["planting_year_raster_available"] = year is not None
         if year is None:
-            raise HTTPException(
-                status_code=400,
-                detail=f"AGE RASTER NOT AVAILABLE FOR PROVINCE: {p_code}"
-            )
+            poly_data["_cached_year_counts"] = []
+            return poly_data
 
         try:
             pool = get_pool()
@@ -71,7 +80,6 @@ class AgeMapService:
                     json.dumps(poly_data[key]),
                     p_code,
                     year,
-                    poly_data["utm_epsg"],
                 )
         except HTTPException:
             raise

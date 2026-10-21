@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { pool } from "@/lib/db";
 import { isAdminOrRnd } from "@/lib/auth-server";
+import { getRequesterId, recordImport, withTransaction } from "@/lib/dataset-version";
+import { ImportValidationError, UTM_SRIDS, assertLanduseInsideProvince, isUtmSrid } from "@/lib/import-checks";
 
-// The .gpkg is required (client-side, before upload) to be surveyed in
-// EPSG:32647 (UTM 47N) — matches gen_geo_landuse_sql.py's source projection.
-// geo_landuse.geom is stored in EPSG:4326, so every geometry is transformed
-// on the way in.
-const SOURCE_SRID = 32647;
+// The .gpkg may be in UTM 47N or 48N; the client reads the zone from the
+// file's gpkg_spatial_ref_sys and sends it as "srid". tbl_landuse.geom is
+// stored in EPSG:4326, so every geometry is transformed on the way in.
 const TARGET_SRID = 4326;
 
 type LulcRowInput = {
@@ -20,7 +20,7 @@ type LulcRowInput = {
 };
 
 /**
- * GET /api/rnd/geo-landuse?pCode=...&year=...
+ * GET /api/rnd/landuse?pCode=...&year=...
  * Existence check used to block re-importing a province+year combination
  * that's already in the table.
  */
@@ -38,7 +38,7 @@ export async function GET(request: NextRequest) {
   }
 
   const result = await pool.query(
-    "SELECT 1 FROM geo_landuse WHERE p_code = $1 AND lu_year = $2 LIMIT 1",
+    "SELECT 1 FROM tbl_landuse WHERE p_code = $1 AND lu_year = $2 LIMIT 1",
     [pCode, Number(yearRaw)]
   );
 
@@ -46,12 +46,14 @@ export async function GET(request: NextRequest) {
 }
 
 /**
- * POST /api/rnd/geo-landuse
+ * POST /api/rnd/landuse
  * Batch-imports LULC features (already extracted client-side from a .gpkg —
- * see gpkgBlobToWkbHex in the data-management page) into geo_landuse, keyed
+ * see gpkgBlobToWkbHex in the data-management page) into tbl_landuse, keyed
  * by "pCode" (province) and "year" (lu_year). Each row supplies the 6
  * lu_* text fields plus a hex-encoded WKB geometry; the geometry is
- * reprojected 32647 -> 4326 in a single batched INSERT via unnest().
+ * reprojected "srid" (32647/32648) -> 4326 in a single batched INSERT via
+ * unnest(), then checked to lie inside the province before committing.
+ * The import is logged as a 'draft' version in tbl_dataset_version.
  */
 export async function POST(request: NextRequest) {
   if (!(await isAdminOrRnd(request))) {
@@ -60,13 +62,16 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { pCode, year, rows } = body as { pCode?: unknown; year?: unknown; rows?: unknown };
+    const { pCode, year, srid, rows, fileName } = body as { pCode?: unknown; year?: unknown; srid?: unknown; rows?: unknown; fileName?: unknown };
 
     if (typeof pCode !== "string" || !pCode.trim()) {
       return NextResponse.json({ error: "ต้องระบุ p_code" }, { status: 400 });
     }
     if (typeof year !== "number" || !Number.isInteger(year)) {
       return NextResponse.json({ error: "year ต้องเป็นตัวเลขปี" }, { status: 400 });
+    }
+    if (!isUtmSrid(srid)) {
+      return NextResponse.json({ error: `CRS ต้องเป็น EPSG:${UTM_SRIDS.join(" หรือ EPSG:")}` }, { status: 400 });
     }
     if (!Array.isArray(rows) || rows.length === 0) {
       return NextResponse.json({ error: "ไม่มีข้อมูล feature ให้นำเข้า" }, { status: 400 });
@@ -78,7 +83,7 @@ export async function POST(request: NextRequest) {
     }
 
     const existing = await pool.query(
-      "SELECT 1 FROM geo_landuse WHERE p_code = $1 AND lu_year = $2 LIMIT 1",
+      "SELECT 1 FROM tbl_landuse WHERE p_code = $1 AND lu_year = $2 LIMIT 1",
       [pCode, year]
     );
     if (existing.rows.length > 0) {
@@ -106,19 +111,33 @@ export async function POST(request: NextRequest) {
       geomHex.push(row.geomWkbHex);
     }
 
-    const result = await pool.query(
-      `INSERT INTO geo_landuse (p_code, lu_year, lu_code, lu_des_th, lu_des_en, lul1_code, lul2_code, lu_des, geom)
-       SELECT $1, $2, u.lu_code, u.lu_des_th, u.lu_des_en, u.lul1_code, u.lul2_code, u.lu_des,
-              ST_Multi(ST_Transform(ST_SetSRID(ST_GeomFromWKB(decode(u.geom_hex, 'hex')), $3::integer), $4::integer))
-       FROM unnest($5::text[], $6::text[], $7::text[], $8::text[], $9::text[], $10::text[], $11::text[])
-         AS u(lu_code, lu_des_th, lu_des_en, lul1_code, lul2_code, lu_des, geom_hex)
-       RETURNING id`,
-      [pCode, year, SOURCE_SRID, TARGET_SRID, luCode, luDesTh, luDesEn, lul1Code, lul2Code, luDes, geomHex]
-    );
+    const userId = getRequesterId(request);
 
-    return NextResponse.json({ featureCount: result.rowCount, pCode, year });
+    const featureCount = await withTransaction(async (client) => {
+      const result = await client.query(
+        `INSERT INTO tbl_landuse (p_code, lu_year, lu_code, lu_des_th, lu_des_en, lul1_code, lul2_code, lu_des, geom)
+         SELECT $1, $2, u.lu_code, u.lu_des_th, u.lu_des_en, u.lul1_code, u.lul2_code, u.lu_des,
+                ST_Multi(ST_Transform(ST_SetSRID(ST_GeomFromWKB(decode(u.geom_hex, 'hex')), $3::integer), $4::integer))
+         FROM unnest($5::text[], $6::text[], $7::text[], $8::text[], $9::text[], $10::text[], $11::text[])
+           AS u(lu_code, lu_des_th, lu_des_en, lul1_code, lul2_code, lu_des, geom_hex)
+         RETURNING id`,
+        [pCode, year, srid, TARGET_SRID, luCode, luDesTh, luDesEn, lul1Code, lul2Code, luDes, geomHex]
+      );
+      await assertLanduseInsideProvince(client, pCode, year);
+      await recordImport(client, {
+        category: "lulc_map", pCode, version: String(year),
+        fileName: typeof fileName === "string" && fileName ? fileName : `lulc_${pCode}_${year}.gpkg`,
+        rowCount: result.rowCount ?? 0, userId,
+      });
+      return result.rowCount;
+    });
+
+    return NextResponse.json({ featureCount, pCode, year, status: "draft" });
   } catch (err) {
-    console.error("geo-landuse import error:", err);
+    if (err instanceof ImportValidationError) {
+      return NextResponse.json({ error: err.message }, { status: 400 });
+    }
+    console.error("landuse import error:", err);
     const message = err instanceof Error ? err.message : "Internal Server Error";
     // ST_GeomFromWKB/ST_Transform throw a Postgres error (not our own
     // validation) when a geometry is malformed — surface that as a 400.

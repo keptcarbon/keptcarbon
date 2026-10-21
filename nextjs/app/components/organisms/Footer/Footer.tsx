@@ -1,6 +1,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { Mail } from "lucide-react";
+import { partners } from "./partners";
 
 type IconProps = { className?: string };
 
@@ -36,6 +37,7 @@ const navLinks = [
   { label: "เกี่ยวกับโครงการ", href: "/about-project" },
   { label: "แดชบอร์ด", href: "/dashboard/carbon-stock" },
   { label: "ประเมินคาร์บอน", href: "/map-draw" },
+  { label: "KITTY", href: "/kitty" },
 ] as const;
 
 const socialLinks = [
@@ -45,7 +47,7 @@ const socialLinks = [
   // { label: "LINE", href: "#", icon: LineIcon },
 ] as const;
 
-const year = new Date().getFullYear();
+const year =new Date().getFullYear();
 
 export default function Footer() {
   return (
@@ -55,15 +57,41 @@ export default function Footer() {
         <div className="grid grid-cols-1 gap-y-10 sm:grid-cols-2 sm:gap-x-6 md:grid-cols-4 md:gap-8">
           {/* Brand */}
           <div className="sm:col-span-2">
-            <Link href="/" className="inline-flex items-center gap-2.5 no-underline">
-              <Image
-                src="/assets/img/keptcarbon-logo.png"
-                alt="KeptCarbon"
-                width={56}
-                height={56}
-                className="h-14 w-auto"
-              />
-            </Link>
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
+              <Link href="/" className="inline-flex items-center gap-2.5 no-underline">
+                <Image
+                  src="/assets/img/keptcarbon-logo.png"
+                  alt="KeptCarbon"
+                  width={56}
+                  height={56}
+                  className="h-14 w-auto"
+                />
+              </Link>
+
+              {/* Partner organisations (same logos as about-project page) */}
+              <span className="hidden h-10 w-px bg-border sm:block" aria-hidden="true" />
+              <div className="flex flex-wrap items-center gap-3">
+                {partners.map(({ name, logo, href }) => (
+                  <a
+                    key={href}
+                    href={href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label={name}
+                    title={name}
+                    className="transition-opacity hover:opacity-80"
+                  >
+                    <Image
+                      src={logo}
+                      alt={name}
+                      width={110}
+                      height={60}
+                      className="h-10 w-auto object-contain"
+                    />
+                  </a>
+                ))}
+              </div>
+            </div>
             <p className="mt-4 max-w-md text-base leading-relaxed text-slate-500">
               แพลตฟอร์มภูมิสารสนเทศและปัญญาประดิษฐ์
               เพื่อการจัดการสวนยางพาราอย่างยืดหยุ่นต่อการเปลี่ยนแปลงสภาพภูมิอากาศ

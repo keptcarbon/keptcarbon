@@ -11,7 +11,7 @@ import {
 import type { SimBaseRow } from "./simulationRequest";
 import { fmtTick, niceSignedTicks } from "./CarbonSimulationChart";
 import { PlantStatusIcon } from "./PlantStatusIcon";
-import { formatArea } from "@/lib/utils";
+import { formatArea, formatCarbon, creditTonnes } from "@/lib/utils";
 
 const BE_OFFSET = 543;
 const INPUT_DEBOUNCE_MS = 500;
@@ -67,8 +67,10 @@ const LOSS = "#eb6834";
 const INK = "#17603a";
 
 const fmt = (v: number, digits = 0) => v.toLocaleString("th-TH", { maximumFractionDigits: digits, minimumFractionDigits: digits });
-/** Carbon tonnes are always shown rounded down (TGO convention); credits from the backend are already whole. */
-const fmtTonnes = (v: number) => fmt(Math.floor(v + 1e-9));
+/** Carbon stock and per-plot credits: 2 decimals (see carbon2). */
+const fmtTonnes = formatCarbon;
+/** Credits issued / sold: the project's sum rounded down to whole tonnes (TGO); the backend sends them whole. */
+const fmtCredits = (v: number) => fmt(creditTonnes(v));
 const fmtBaht = (v: number) => (Math.abs(v) >= 1_000_000 ? `${fmt(v / 1_000_000, 2)} ล้าน` : fmt(v));
 const signed = (v: number, f: (n: number) => string = fmtBaht) => `${v > 0 ? "+" : v < 0 ? "−" : ""}${f(Math.abs(v))}`;
 /** "a – b" in ascending order, or one value when both ends match; null ends show "–". */
@@ -351,9 +353,9 @@ function SummaryTiles({ data, isMobile }: { data: CarbonEconomicsResponse; isMob
     },
     {
       label: "คาร์บอนเครดิตรวม",
-      value: `${fmtTonnes(r.total_credits_tCO2e)} tCO₂eq`,
+      value: `${fmtCredits(r.total_credits_tCO2e)} tCO₂eq`,
       sub: [`${fmt(r.credits_per_rai_tCO2e, 2)} tCO₂eq/ไร่, ราคาขายเฉลี่ย ${fmt(r.price_thb_per_tCO2e, 2)} บาท`],
-      range: `${rangeText(low.total_credits_tCO2e, high.total_credits_tCO2e, fmtTonnes)} tCO₂eq`,
+      range: `${rangeText(low.total_credits_tCO2e, high.total_credits_tCO2e, fmtCredits)} tCO₂eq`,
     },
     {
       label: "ปีคุ้มทุน",
@@ -492,8 +494,8 @@ function CashFlowChart({ schedule, isMobile }: { schedule: EconomicsScheduleYear
               พ.ศ. {h.year + BE_OFFSET} <span style={{ fontWeight: 500, opacity: 0.7 }}>(ปีที่ {h.year_at}{h.is_verification ? ", ทวนสอบ" : ""})</span>
             </div>
             {row("คาร์บอนสะสม (tCO₂eq)", fmtTonnes(h.carbon_stock_tCO2e))}
-            {h.is_verification && row("เครดิตที่ขาย (tCO₂eq)", fmtTonnes(h.credits_issued_tCO2e))}
-            {h.is_verification && row("ช่วง CI (tCO₂eq)", rangeText(h.credits_issued_low_tCO2e, h.credits_issued_high_tCO2e, fmtTonnes))}
+            {h.is_verification && row("เครดิตที่ขาย (tCO₂eq)", fmtCredits(h.credits_issued_tCO2e))}
+            {h.is_verification && row("ช่วง CI (tCO₂eq)", rangeText(h.credits_issued_low_tCO2e, h.credits_issued_high_tCO2e, fmtCredits))}
             {h.price_thb_per_tCO2e != null && row("ราคาขาย (บาท/tCO₂eq)", fmt(h.price_thb_per_tCO2e, 2))}
             {row("รายได้ (บาท)", fmtBaht(h.revenue_thb))}
             {row("ต้นทุน (บาท)", fmtBaht(h.cost_thb))}

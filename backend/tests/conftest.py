@@ -46,8 +46,7 @@ def mock_carbon_service():
     with patch("app.services.carbon_service.ProvinceService"), \
          patch("app.services.carbon_service.LanduseService"), \
          patch("app.services.carbon_service.AgeMapService"), \
-         patch("app.services.carbon_service.TreeService"), \
-         patch("app.services.carbon_service.SpatialUtils"):
+         patch("app.services.carbon_service.TreeService"):
         from app.services.carbon_service import CarbonService
         svc = CarbonService()
         yield svc
@@ -55,8 +54,8 @@ def mock_carbon_service():
 
 @pytest.fixture
 def mock_tree_service():
-    """TreeService -- area now comes from poly_data["A302_area_m2"], so no
-    SpatialUtils to mock; DB reads are faked via patch_tree_db."""
+    """TreeService -- area now comes from poly_data["A302_area_m2"], and DB reads
+    are faked via patch_tree_db."""
     from app.services.tree_service import TreeService
     yield TreeService()
 
@@ -138,7 +137,6 @@ _DEFAULT_REGION_CONFIG_ROW = {
     "default_allometry": "hytönen_2018",
     "default_spacing": "2.5x8",
     "biomass_profile_version": "v1",
-    "utm_epsg": 32647,
 }
 
 

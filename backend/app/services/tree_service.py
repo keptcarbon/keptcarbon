@@ -22,7 +22,7 @@ class TreeService:
     @staticmethod
     def _area_ha(poly_data: dict) -> float:
         """Rubber (A302) area in hectares -- the geodesic A302_area_m2 that
-        LanduseService.find_rubber_cultivation_area already measured, so the
+        CarbonService.measure_assessment_area already measured, so the
         tree count uses the same area that is reported as the assessed area.
         (Re-measuring A302_geometry here used its planar UTM area, ~0.1% larger
         in Rayong and more toward a zone edge.)"""

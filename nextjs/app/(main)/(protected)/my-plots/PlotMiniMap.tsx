@@ -76,13 +76,13 @@ export function PlotMiniMap({ plot, isMobile, index }: { plot: SavedPlot; isMobi
         version: 8,
         glyphs: "https://fonts.openmaptiles.org/{fontstack}/{range}.pbf",
         sources: {
-          sat: { type: "raster", tiles: ["https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}"], tileSize: 256, maxzoom: 18 }
+          sat: { type: "raster", tiles: ["https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}"], tileSize: 256, maxzoom: 18, attribution: "Map data © Google" }
         },
         layers: [{ id: "sat", type: "raster", source: "sat" }]
       },
       center: [101.258, 13.5],
       zoom: 14,
-      attributionControl: false,
+      attributionControl: { compact: true },
     });
     mapRef.current = map;
 

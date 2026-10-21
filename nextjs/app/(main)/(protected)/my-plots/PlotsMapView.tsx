@@ -7,7 +7,7 @@ import type { SavedPlot } from "./types";
 import styles from "./PlotsMapView.module.css";
 import { MAP_VIEW_ANIMATION_DURATION } from "@/lib/map-utils";
 import { plotDisplayArea } from "./plotArea";
-import { formatArea } from "@/lib/utils";
+import { formatArea, formatCarbon } from "@/lib/utils";
 
 const PROJECT_COLORS = [
   "#f97316",
@@ -55,7 +55,7 @@ export function PlotsMapView({ plots, isMobile }: { plots: SavedPlot[], isMobile
             tileSize: 256,
             minzoom: 1,
             maxzoom: 18,
-            attribution: "",
+            attribution: "Map data © Google",
           },
           street: {
             type: "raster",
@@ -63,7 +63,7 @@ export function PlotsMapView({ plots, isMobile }: { plots: SavedPlot[], isMobile
             tileSize: 256,
             minzoom: 1,
             maxzoom: 18,
-            attribution: "",
+            attribution: '© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors',
           },
         },
         layers: [
@@ -73,7 +73,7 @@ export function PlotsMapView({ plots, isMobile }: { plots: SavedPlot[], isMobile
       },
       center: [101.258, 13.5],
       zoom: 5,
-      attributionControl: false,
+      attributionControl: { compact: true },
     });
 
     mapRef.current = map;
@@ -107,7 +107,7 @@ export function PlotsMapView({ plots, isMobile }: { plots: SavedPlot[], isMobile
             id: p.id,
             projectName: name,
             area: formatArea(plotDisplayArea(p).rai),
-            carbon: Math.floor(p.carbonTotal).toLocaleString("th-TH"), // whole tonnes, rounded down (TGO)
+            carbon: formatCarbon(p.carbonTotal), // 2 decimals (see carbon2)
             carbonPerTree: carbonPerTree ?? "—",
             province: p.province || "—",
           };
@@ -266,7 +266,7 @@ export function PlotsMapView({ plots, isMobile }: { plots: SavedPlot[], isMobile
         id: p.id,
         projectName: name,
         area: formatArea(plotDisplayArea(p).rai),
-        carbon: Math.floor(p.carbonTotal).toLocaleString("th-TH"), // whole tonnes, rounded down (TGO)
+        carbon: formatCarbon(p.carbonTotal), // 2 decimals (see carbon2)
         carbonPerTree: carbonPerTree ?? "—",
         province: p.province || "—",
       };

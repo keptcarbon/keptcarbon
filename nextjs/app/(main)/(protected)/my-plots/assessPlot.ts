@@ -4,6 +4,32 @@ import type { SavedPlot } from "./types";
 
 /** Builds the /carbon/assess request payload for one plot's current (possibly just-edited) data. */
 export function buildAssessRequest(plot: SavedPlot): CarbonAssessRequest {
+  const assessment = buildAssessGeometry(plot);
+  const userYearBE = plot.backendData?.form?.plantYear ? parseInt(plot.backendData.form.plantYear) : 0;
+
+  return {
+    id: plot.id,
+    geometry: assessment,
+    // Only send to backend if the user EXPLICITLY filled it out in the form
+    year_of_planting: userYearBE > 0 ? userYearBE - 543 : null,
+    rubber_clone: plot.backendData?.form?.variety || null,
+    tree_count: plot.backendData?.form?.treeCount ? parseInt(plot.backendData.form.treeCount) : null,
+    spacing_system: plot.backendData?.form?.spacing || null,
+    growth_model: plot.backendData?.form?.growthModel || null,
+    allometry: plot.backendData?.form?.allometry || null,
+    selected_lu_classes: Object.entries(plot.luChecked || {})
+      .filter(([_, on]) => on)
+      .map(([cls]) => cls),
+    project_type: (plot.plantStatus as "replanting" | "existing") || undefined,
+  };
+}
+
+/** The area to assess: the saved assessment area (LU selection made when the
+ *  plot was drawn) -- independent of the LU version active now. Plots saved
+ *  before it existed fall back to rebuilding it from their saved overlaps. */
+function buildAssessGeometry(plot: SavedPlot): GeoJSON.Geometry {
+  if (plot.assessmentGeojson) return plot.assessmentGeojson as GeoJSON.Geometry;
+
   let geom = plot.geojson as GeoJSON.Geometry;
   if (!geom && plot.boundaryGeojson) {
     geom = plot.boundaryGeojson as GeoJSON.Geometry;
@@ -31,23 +57,7 @@ export function buildAssessRequest(plot: SavedPlot): CarbonAssessRequest {
     }
   }
 
-  const userYearBE = plot.backendData?.form?.plantYear ? parseInt(plot.backendData.form.plantYear) : 0;
-
-  return {
-    id: plot.id,
-    geometry: combinedGeom,
-    // Only send to backend if the user EXPLICITLY filled it out in the form
-    year_of_planting: userYearBE > 0 ? userYearBE - 543 : null,
-    rubber_clone: plot.backendData?.form?.variety || null,
-    tree_count: plot.backendData?.form?.treeCount ? parseInt(plot.backendData.form.treeCount) : null,
-    spacing_system: plot.backendData?.form?.spacing || null,
-    growth_model: plot.backendData?.form?.growthModel || null,
-    allometry: plot.backendData?.form?.allometry || null,
-    selected_lu_classes: Object.entries(plot.luChecked || {})
-      .filter(([_, on]) => on)
-      .map(([cls]) => cls),
-    project_type: (plot.plantStatus as "replanting" | "existing") || undefined,
-  };
+  return combinedGeom;
 }
 
 /** Folds a /carbon/assess response back into the plot, mirroring the backend's derived fields. */

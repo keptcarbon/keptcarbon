@@ -26,7 +26,7 @@ import {
     computePlot,
     aggregateProfiles,
 } from "./utils";
-import { formatArea, ciTonnes } from "@/lib/utils";
+import { formatArea, carbon2, ciCarbon2 } from "@/lib/utils";
 
 
 // ── Types ─────────────────────────────────────────────────────────────────
@@ -62,6 +62,8 @@ type Props = {
     autoProcessTrigger?: number;
     onSave?: () => void;
     onProjectSaved?: (info: { projectId: number; projectName: string; guestKey: string | null }) => void;
+    /** A real Save was refused by the role quota (403 from lib/quota.ts): "project_limit" | "plot_limit" | "no_quota". */
+    onQuotaError?: (code: string) => void;
     /** Bump this to detach from the current DB project (e.g. it was soft-deleted upstream) so the next save creates a new one. */
     resetProjectToken?: number;
     existingProjectPlots?: any[];
@@ -175,6 +177,7 @@ export function ParcelResultsPanel({
     autoProcessTrigger,
     onSave,
     onProjectSaved,
+    onQuotaError,
     resetProjectToken,
     existingProjectPlots,
     editingPlotId,
@@ -1123,9 +1126,12 @@ export function ParcelResultsPanel({
                     };
                 });
 
-            // Build polygons_payload: the data sent to the backend for assessCarbon
+            // Build polygons_payload: the data sent to the backend for assessCarbon.
+            // A processed plot's geometry is the LU parts the user selected, merged --
+            // saved as tbl_plots.assessment_geometry, the plot's assessment area from
+            // now on (re-assessments use it as-is, whatever LU version is active later).
             const polygonsPayload = activePolygons.length > 0
-                ? activePolygons
+                ? activePolygons.map((p) => ({ ...p, assessment_geometry: p.geometry }))
                 : parcelFeatures.map((feat, i) => {
                     const form = plotForms[i] || {};
                     const userYearBE = form.plantYear ? parseInt(form.plantYear) : 0;
@@ -1361,6 +1367,22 @@ export function ParcelResultsPanel({
             if (res.status === 409 && !isDraft) {
                 setCarbonErr("ชื่อโครงการนี้ถูกใช้งานแล้ว กรุณาใช้ชื่ออื่น");
                 setSaveState("idle");
+                return;
+            }
+
+            // Role quota refused the save (nothing was written). A draft fails
+            // quietly -- the real Save that follows reports it.
+            if (res.status === 403) {
+                const d = await res.json().catch(() => ({}));
+                if (!isDraft) {
+                    setCarbonErr(
+                        d.error === "plot_limit" ? `หนึ่งโครงการมีได้สูงสุด ${d.limit} แปลง`
+                            : d.error === "project_limit" ? `บัญชีของคุณสร้างได้สูงสุด ${d.limit} โครงการ — ลบโครงการเดิมก่อนบันทึก`
+                                : "บัญชีนี้ไม่มีสิทธิ์บันทึกโครงการ"
+                    );
+                    setSaveState("idle");
+                    onQuotaError?.(d.error);
+                }
                 return;
             }
 
@@ -2259,10 +2281,10 @@ export function ParcelResultsPanel({
 
         const summaryTotalCo2 = aggregatePts.length > 0
             ? (aggregateNowPt?.co2 ?? 0)
-            : carbonResults.reduce((sum, c) => sum + Math.floor(c.co2Now || 0), 0);
+            : carbon2(carbonResults.reduce((sum, c) => sum + carbon2(c.co2Now || 0), 0));
         const summaryTotalCo2Ci = aggregatePts.length > 0
             ? (aggregateNowPt?.ci ?? 0)
-            : carbonResults.reduce((sum, c) => sum + ciTonnes(c.co2NowCi || 0), 0);
+            : carbon2(carbonResults.reduce((sum, c) => sum + ciCarbon2(c.co2NowCi || 0), 0));
 
         const showAggregateAge = carbonResults.some((c, idx) => {
             const form = plotForms[idx];

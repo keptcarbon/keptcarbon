@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState,useRef } from "react";
 import { fromArrayBuffer, GeoTIFFImage } from "geotiff";
 import initSqlJs from "sql.js";
+import Link from "next/link";
 import { Alert, Card } from "@/app/components";
 import { ALLOMETRY_OPTIONS } from "@/lib/allometry";
 import { GROWTH_MODEL_OPTIONS } from "@/lib/growth-model";
@@ -56,6 +57,9 @@ type CsvMeta = {
     sampleRows: string[][]; // up to 6 data rows
     columnsValid: boolean;
     missingColumns: string[];
+    // Required columns whose header appears more than once — ambiguous, since
+    // rows are mapped by header name and only the first match would be read.
+    duplicateColumns: string[];
     rowCountValid: boolean;
 };
 
@@ -110,18 +114,23 @@ function splitCsvLine(line: string): string[] {
     return fields;
 }
 
-// geo_landuse's fixed column schema — a .gpkg must carry exactly these as
-// TEXT fields, and be surveyed in EPSG:32647 (UTM 47N), to be importable.
-const LULC_EXPECTED_CRS = "EPSG:32647";
+// tbl_landuse's fixed column schema — a .gpkg must carry exactly these as
+// TEXT fields, and be in UTM 47N or 48N, to be importable. The zone is read
+// from the file and sent as "srid"; the server reprojects to EPSG:4326 and
+// checks the features fall inside the selected province.
+const LULC_ALLOWED_CRS = ["EPSG:32647", "EPSG:32648"];
 const LULC_REQUIRED_FIELDS = ["LU_CODE", "LU_DES_TH", "LU_DES_EN", "LUL1_CODE", "LUL2_CODE", "LU_DES"] as const;
 
 // Required alongside the CSV for biomass_profile — identifies which
 // clone/model/equation the profile data was derived from.
 const RUBBER_CLONE_OPTIONS = ["RRIM 600", "RRIT 251"] as const;
 
-// geo_planting_year's expected raster spec — a .tif must match all of
+// tbl_planting_year's expected raster spec — a .tif must match all of
 // these to be importable.
-const TIFF_EXPECTED_CRS = "EPSG:32647";
+// Either UTM zone: the raster is stored in the CRS it arrives in, and the
+// backend reprojects plot geometry into it (ST_SRID(rast)) when clipping. A
+// province spanning both zones is exported in one zone for its whole area.
+const TIFF_ALLOWED_CRS = ["EPSG:32647", "EPSG:32648"];
 const TIFF_EXPECTED_NODATA = -9999;
 const TIFF_EXPECTED_PIXEL_SIZE = 10;
 // Pixel size is a floating-point affine-transform value — allow a tiny
@@ -138,21 +147,64 @@ type DatasetStatus = "active" | "draft" | "archived";
 // Categories with a real duplicate-check endpoint (p_code + year) — used to
 // block re-importing a combination already in the target table.
 const DUPLICATE_CHECK_ENDPOINT: Partial<Record<DatasetCategory, string>> = {
-    planting_year_map: "/api/rnd/geo-planting-year",
-    lulc_map: "/api/rnd/geo-landuse",
+    planting_year_map: "/api/rnd/planting-year",
+    lulc_map: "/api/rnd/landuse",
 };
 
+// One file upload under a dataset version (tbl_dataset_import).
+type DatasetImport = {
+    id: number;
+    fileName: string;
+    rowCount: number;
+    detail: { clone?: string; growthModel?: string; allometry?: string } | null;
+    importedAt: string;
+    importedBy: string | null;
+};
+
+// GET /api/rnd/datasets row — one version in tbl_dataset_version.
 type ResearchDataset = {
-    id: string;
-    name: string;
+    id: number;
     category: DatasetCategory;
     pCode: string;
     provinceName: string;
-    version: string;
-    description: string;
-    updatedAt: string;
+    region: string | null; // geo_thailand region code, e.g. "E"
+    version: string; // planting_year_distribution: "<lu_year>/<plaining_year>"
     status: DatasetStatus;
+    createdAt: string;
+    activatedAt: string | null;
+    activatedBy: string | null;
+    archivedAt: string | null;
+    imports: DatasetImport[]; // newest first
 };
+
+function formatDatasetVersion(d: ResearchDataset): string {
+    if (d.category !== "planting_year_distribution") return d.version;
+    const [lu, py] = d.version.split("/");
+    return `LU ${lu} / PY ${py}`;
+}
+
+function formatThaiDate(iso: string): string {
+    return new Date(iso).toLocaleDateString("th-TH", { year: "numeric", month: "short", day: "numeric" });
+}
+
+function formatThaiDateTime(iso: string): string {
+    return new Date(iso).toLocaleString("th-TH", { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+}
+
+// One row of the รายการข้อมูล table: an imported file, with its version.
+type ImportRow = { dataset: ResearchDataset; imp: DatasetImport };
+
+/** Biomass file's combination, e.g. "RRIM 600 · Anchored Weibull · Hytönen (2018)". */
+function biomassCombo(imp: DatasetImport): string | null {
+    const d = imp.detail;
+    if (!d?.clone) return null;
+    return [d.clone, optionLabel(GROWTH_MODEL_OPTIONS, d.growthModel), optionLabel(ALLOMETRY_OPTIONS, d.allometry)].join(" · ");
+}
+
+function optionLabel(options: readonly { label: string; value: string }[], value: string | undefined): string {
+    if (!value) return "-";
+    return options.find((o) => o.value === value)?.label ?? value;
+}
 
 // A dataset's p_code ties it to a province in geo_thailand — the same key
 // used when importing other data into related tables.
@@ -172,66 +224,6 @@ const REGION_LABELS: Record<string, string> = {
     NE: "ภาคตะวันออกเฉียงเหนือ",
     S: "ภาคใต้",
 };
-
-// Seeded from backend/app/core/constants.py REGION_CONFIG — the live source
-// of truth until this page is wired to a datasets API.
-const INITIAL_DATASETS: ResearchDataset[] = [
-    {
-        id: "planting-year-rayong",
-        name: "Planting Year Map — Rayong (RAY)",
-        category: "planting_year_map",
-        pCode: "RAY",
-        provinceName: "ระยอง",
-        version: "2026",
-        description: "แผนที่ปีปลูกยางพารา จังหวัดระยอง",
-        updatedAt: "2026-02-01",
-        status: "active",
-    },
-    {
-        id: "planting-year-qa-rayong",
-        name: "Planting Year Map QA — Rayong (RAY)",
-        category: "planting_year_map",
-        pCode: "RAY",
-        provinceName: "ระยอง",
-        version: "2026 QA",
-        description: "แผนที่ปีปลูกฉบับตรวจสอบคุณภาพ จังหวัดระยอง",
-        updatedAt: "2026-01-20",
-        status: "draft",
-    },
-    {
-        id: "lulc-rayong",
-        name: "LULC Map — Rayong (RAY)",
-        category: "lulc_map",
-        pCode: "RAY",
-        provinceName: "ระยอง",
-        version: "2567",
-        description: "แผนที่การใช้ประโยชน์ที่ดิน จังหวัดระยอง",
-        updatedAt: "2025-11-02",
-        status: "active",
-    },
-    {
-        id: "biomass-profile-rrim600",
-        name: "Biomass Profile — RRIM 600",
-        category: "biomass_profile",
-        pCode: "RAY",
-        provinceName: "ระยอง",
-        version: "v1",
-        description: "ข้อมูลชีวมวลอ้างอิงพันธุ์ยาง RRIM 600",
-        updatedAt: "2025-08-20",
-        status: "active",
-    },
-    {
-        id: "biomass-profile-hytonen",
-        name: "Biomass Profile — Hytonen 2018",
-        category: "biomass_profile",
-        pCode: "RAY",
-        provinceName: "ระยอง",
-        version: "2018",
-        description: "ข้อมูลชีวมวลอ้างอิงตามวิธี Hytonen (2018)",
-        updatedAt: "2025-06-11",
-        status: "archived",
-    },
-];
 
 const CATEGORY_META: Record<DatasetCategory, { label: string; bg: string; color: string }> = {
     planting_year_map: { label: "Map of Planting Year", bg: "rgba(59,130,246,0.10)", color: "#1e40af" },
@@ -264,6 +256,8 @@ const TH_STYLE: React.CSSProperties = {
 };
 
 type TabKey = "list" | "import";
+
+const LIST_PAGE_SIZE = 10;
 
 const TABS: { key: TabKey; label: string }[] = [
     { key: "list", label: "รายการข้อมูล" },
@@ -298,11 +292,20 @@ function gpkgBlobToWkbHex(blob: Uint8Array): string {
 
 export default function RndDataManagementPage() {
     const [activeTab, setActiveTab] = useState<TabKey>("list");
-    const [datasets, setDatasets] = useState<ResearchDataset[]>(INITIAL_DATASETS);
+    // Loaded from tbl_dataset_version via GET /api/rnd/datasets; reloaded
+    // after every import / activate / delete.
+    const [datasets, setDatasets] = useState<ResearchDataset[]>([]);
+    const [datasetsLoading, setDatasetsLoading] = useState(true);
+    const [datasetsError, setDatasetsError] = useState(false);
+    const [actionBusy, setActionBusy] = useState(false);
+    const [actionError, setActionError] = useState<string | null>(null);
     const [search, setSearch] = useState("");
     const [categoryFilter, setCategoryFilter] = useState<DatasetCategory | "all">("all");
+    const [regionFilter, setRegionFilter] = useState("");
+    const [provinceFilter, setProvinceFilter] = useState("");
+    const [listPage, setListPage] = useState(1);
     const [success, setSuccess] = useState<string | null>(null);
-    const [pendingDelete, setPendingDelete] = useState<ResearchDataset | null>(null);
+    const [pendingDelete, setPendingDelete] = useState<ImportRow | null>(null);
 
     // ── Responsive: ตรวจจับขนาดหน้าจอ <= 639px สำหรับ Stepper ──
     const [isMobile, setIsMobile] = useState(false);
@@ -365,6 +368,24 @@ export default function RndDataManagementPage() {
         return () => { cancelled = true; };
     }, []);
 
+    async function loadDatasets() {
+        setDatasetsError(false);
+        try {
+            const res = await fetch("/api/rnd/datasets/");
+            if (!res.ok) throw new Error();
+            const data = await res.json();
+            setDatasets(data.datasets ?? []);
+        } catch {
+            setDatasetsError(true);
+        } finally {
+            setDatasetsLoading(false);
+        }
+    }
+
+    useEffect(() => {
+        void loadDatasets();
+    }, []);
+
     const regions = useMemo(
          () => Array.from(new Set(provinces.map((p) => p.region))).sort(),
         [provinces]
@@ -378,8 +399,8 @@ export default function RndDataManagementPage() {
         [provinces, importPCode]
     );
 
-    // ── Duplicate check (p_code + year) — geo_planting_year for
-    // planting_year_map, geo_landuse for lulc_map. ──
+    // ── Duplicate check (p_code + year) — tbl_planting_year for
+    // planting_year_map, tbl_landuse for lulc_map. ──
     const [yearExists, setYearExists] = useState<boolean | null>(null);
     const [yearExistsLoading, setYearExistsLoading] = useState(false);
 
@@ -405,30 +426,75 @@ export default function RndDataManagementPage() {
         return () => { cancelled = true; };
     }, [importCategory, selectedProvince, importVersion]);
 
+    // One row per imported file (a biomass version has one file per
+    // clone / growth model / allometry), in the versions' list order.
+    const importRows = useMemo<ImportRow[]>(
+        () => datasets.flatMap((dataset) => dataset.imports.map((imp) => ({ dataset, imp }))),
+        [datasets]
+    );
+
+    // ภูมิภาค / จังหวัด filter options: only those with imported data.
+    const listRegions = useMemo(
+        () => Array.from(new Set(datasets.map((d) => d.region).filter((r): r is string => !!r)))
+            .sort((a, b) => (REGION_LABELS[a] ?? a).localeCompare(REGION_LABELS[b] ?? b, "th")),
+        [datasets]
+    );
+    const listProvinces = useMemo(() => {
+        const byCode = new Map<string, string>();
+        datasets
+            .filter((d) => !regionFilter || d.region === regionFilter)
+            .forEach((d) => byCode.set(d.pCode, d.provinceName));
+        return Array.from(byCode, ([pCode, name]) => ({ pCode, name })).sort((a, b) => a.name.localeCompare(b.name, "th"));
+    }, [datasets, regionFilter]);
+
     const filtered = useMemo(() => {
         const q = search.trim().toLowerCase();
-        return datasets.filter((d) => {
+        return importRows.filter(({ dataset: d, imp }) => {
+            if (regionFilter && d.region !== regionFilter) return false;
+            if (provinceFilter && d.pCode !== provinceFilter) return false;
             const matchesQuery =
                 !q ||
-                d.name.toLowerCase().includes(q) ||
-                d.description.toLowerCase().includes(q);
+                d.provinceName.toLowerCase().includes(q) ||
+                d.pCode.toLowerCase().includes(q) ||
+                d.version.toLowerCase().includes(q) ||
+                imp.fileName.toLowerCase().includes(q) ||
+                (biomassCombo(imp) ?? "").toLowerCase().includes(q);
             const matchesCategory = categoryFilter === "all" || d.category === categoryFilter;
             return matchesQuery && matchesCategory;
         });
-    }, [datasets, search, categoryFilter]);
+    }, [importRows, search, categoryFilter, regionFilter, provinceFilter]);
 
-    function handleAdd() {
-        // No datasets API yet — this only demonstrates the UI flow.
-        setSuccess("การอัปโหลดชุดข้อมูลใหม่ยังไม่เชื่อมต่อ API จริง");
-        setTimeout(() => setSuccess(null), 3000);
+    // Back to page 1 whenever a filter changes the result set.
+    useEffect(() => {
+        setListPage(1);
+    }, [search, categoryFilter, regionFilter, provinceFilter]);
+
+    const listTotalPages = Math.max(1, Math.ceil(filtered.length / LIST_PAGE_SIZE));
+    // Clamped: deleting the last row of the last page must not leave an empty page.
+    const currentListPage = Math.min(listPage, listTotalPages);
+    const pagedRows = filtered.slice((currentListPage - 1) * LIST_PAGE_SIZE, currentListPage * LIST_PAGE_SIZE);
+
+    function showSuccess(message: string) {
+        setSuccess(message);
+        setTimeout(() => setSuccess(null), 4000);
     }
 
-    function confirmDelete() {
-        if (!pendingDelete) return;
-        setDatasets((prev) => prev.filter((d) => d.id !== pendingDelete.id));
-        setSuccess(`ลบ “${pendingDelete.name}” แล้ว`);
-        setTimeout(() => setSuccess(null), 3000);
-        setPendingDelete(null);
+    async function confirmDelete() {
+        if (!pendingDelete || actionBusy) return;
+        setActionBusy(true);
+        setActionError(null);
+        try {
+            const res = await fetch(`/api/rnd/dataset-imports/${pendingDelete.imp.id}/`, { method: "DELETE" });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(data.error || "ลบไม่สำเร็จ");
+            showSuccess(`ลบ “${pendingDelete.imp.fileName}” แล้ว`);
+            setPendingDelete(null);
+            await loadDatasets();
+        } catch (err) {
+            setActionError(err instanceof Error ? err.message : "ลบไม่สำเร็จ");
+        } finally {
+            setActionBusy(false);
+        }
     }
 
     function resetImportWizard() {
@@ -568,9 +634,9 @@ export default function RndDataManagementPage() {
                 minMaxSource = downsampled ? "scan-downsampled" : "scan";
             }
 
-            // Must match geo_planting_year's expected raster spec
+            // Must match tbl_planting_year's expected raster spec
             // exactly — otherwise upload stays blocked at the confirm step.
-            const crsValid = crs === TIFF_EXPECTED_CRS;
+            const crsValid = TIFF_ALLOWED_CRS.includes(crs);
             const noDataValid = noData === TIFF_EXPECTED_NODATA;
             const pixelSizeValid =
                 pixelSizeX !== null && pixelSizeY !== null &&
@@ -653,10 +719,10 @@ export default function RndDataManagementPage() {
                 throw new Error(`ไม่พบคอลัมน์ geometry สำหรับเลเยอร์ "${tableName}" ใน gpkg_geometry_columns`);
             }
 
-            // Must match geo_landuse's fixed schema exactly: EPSG:32647, and
+            // Must match tbl_landuse's fixed schema exactly: UTM 47N/48N, and
             // every required field present as TEXT — otherwise upload stays
             // blocked at the confirm step.
-            const crsValid = crs === LULC_EXPECTED_CRS;
+            const crsValid = LULC_ALLOWED_CRS.includes(crs);
             const missingFields = LULC_REQUIRED_FIELDS.filter((required) => {
                 const match = fields.find((f) => f.name.toUpperCase() === required);
                 // OGR-exported GeoPackage text fields commonly declare a
@@ -726,12 +792,16 @@ export default function RndDataManagementPage() {
 
             // Must match the target table's expected shape exactly —
             // otherwise upload stays blocked at the confirm step.
-            const headerSet = new Set(headers.map((h) => h.trim().toLowerCase()));
+            const normalizedHeaders = headers.map((h) => h.trim().toLowerCase());
+            const headerSet = new Set(normalizedHeaders);
             const missingColumns = requiredColumns ? requiredColumns.filter((col) => !headerSet.has(col)) : [];
-            const columnsValid = missingColumns.length === 0;
+            const duplicateColumns = requiredColumns
+                ? requiredColumns.filter((col) => normalizedHeaders.filter((h) => h === col).length > 1)
+                : [];
+            const columnsValid = missingColumns.length === 0 && duplicateColumns.length === 0;
             const rowCountValid = expectedRowCount === null ? true : rowCount === expectedRowCount;
 
-            setFileMeta({ kind: "csv", rowCount, headers, sampleRows, columnsValid, missingColumns, rowCountValid });
+            setFileMeta({ kind: "csv", rowCount, headers, sampleRows, columnsValid, missingColumns, duplicateColumns, rowCountValid });
         } catch (err) {
             setFileMetaError(err instanceof Error ? err.message : String(err));
         } finally {
@@ -773,7 +843,7 @@ export default function RndDataManagementPage() {
 
     // Re-opens the .gpkg (sql.js state from the preview read isn't kept
     // around) and pulls every feature's 6 required fields + geometry, ready
-    // to POST to /api/rnd/geo-landuse.
+    // to POST to /api/rnd/landuse.
     async function extractLulcRows(file: File, meta: GpkgMeta) {
         const SQL = await initSqlJs({ locateFile: (f) => `/${f}` });
         const bytes = new Uint8Array(await file.arrayBuffer());
@@ -932,37 +1002,29 @@ export default function RndDataManagementPage() {
                 importingRef.current = false;
                 return;
             }
-            // Real import — persisted into geo_planting_year via PostGIS.
+            // Real import — persisted into tbl_planting_year via PostGIS.
             try {
                 const body = new FormData();
                 body.set("file", importFile);
                 body.set("pCode", selectedProvince.pCode);
                 body.set("year", importVersion.trim());
 
-                const res = await fetch("/api/rnd/geo-planting-year", { method: "POST", body });
-                if (res.status === 409) {
-                    throw new Error("ไฟล์นี้มีข้อมูลซ้ำในระบบแล้ว กรุณาตรวจสอบ");
-                }
+                const res = await fetch("/api/rnd/planting-year", { method: "POST", body });
                 const data = await res.json().catch(() => ({}));
+                if (res.status === 409) {
+                    throw new Error(data.error || "ไฟล์นี้มีข้อมูลซ้ำในระบบแล้ว กรุณาตรวจสอบ");
+                }
                 if (!res.ok) {
                     throw new Error(data.error || "นำเข้าไฟล์ไม่สำเร็จ");
                 }
 
-                const newDataset: ResearchDataset = {
-                    id: `imported-${Date.now()}`,
-                    name: importFile.name.replace(/\.[^/.]+$/, ""),
-                    category: importCategory,
-                    pCode: selectedProvince.pCode,
-                    provinceName: selectedProvince.nameTh,
-                    version: importVersion.trim(),
-                    description: "นำเข้าโดยผู้ใช้งาน R&D",
-                    updatedAt: new Date().toISOString().slice(0, 10),
-                    status: "active",
-                };
-                setDatasets((prev) => [newDataset, ...prev]);
-                setSuccess(`นำเข้า “${newDataset.name}” สำเร็จ (${data.tileCount} tiles)`);
-                setTimeout(() => setSuccess(null), 3000);
+                const isActive = data.status === "active";
+                showSuccess(
+                    `นำเข้า “${importFile.name}” สำเร็จ (${data.tileCount} tiles) — ` +
+                    (isActive ? "ใช้งานอยู่ตามแผนที่ที่ใช้งานอยู่" : "บันทึกเป็นฉบับร่าง เลือกใช้งานได้ที่หน้าตั้งค่าพารามิเตอร์")
+                );
                 resetImportWizard();
+                void loadDatasets();
             } catch (err) {
                 setConfirmError(err instanceof Error ? err.message : "นำเข้าไฟล์ไม่สำเร็จ");
             } finally {
@@ -983,34 +1045,29 @@ export default function RndDataManagementPage() {
             }
             try {
                 const rows = await extractLulcRows(importFile, fileMeta);
-                const res = await fetch("/api/rnd/geo-landuse", {
+                const res = await fetch("/api/rnd/landuse", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ pCode: selectedProvince.pCode, year: Number(importVersion.trim()), rows }),
+                    body: JSON.stringify({
+                        pCode: selectedProvince.pCode, year: Number(importVersion.trim()),
+                        srid: Number(fileMeta.crs.split(":")[1]), rows, fileName: importFile.name,
+                    }),
                 });
-                if (res.status === 409) {
-                    throw new Error("ไฟล์นี้มีข้อมูลซ้ำในระบบแล้ว กรุณาตรวจสอบ");
-                }
                 const data = await res.json().catch(() => ({}));
+                if (res.status === 409) {
+                    throw new Error(data.error || "ไฟล์นี้มีข้อมูลซ้ำในระบบแล้ว กรุณาตรวจสอบ");
+                }
                 if (!res.ok) {
                     throw new Error(data.error || "นำเข้าไฟล์ไม่สำเร็จ");
                 }
 
-                const newDataset: ResearchDataset = {
-                    id: `imported-${Date.now()}`,
-                    name: importFile.name.replace(/\.[^/.]+$/, ""),
-                    category: importCategory,
-                    pCode: selectedProvince.pCode,
-                    provinceName: selectedProvince.nameTh,
-                    version: importVersion.trim(),
-                    description: "นำเข้าโดยผู้ใช้งาน R&D",
-                    updatedAt: new Date().toISOString().slice(0, 10),
-                    status: "active",
-                };
-                setDatasets((prev) => [newDataset, ...prev]);
-                setSuccess(`นำเข้า “${newDataset.name}” สำเร็จ (${data.featureCount} features)`);
-                setTimeout(() => setSuccess(null), 3000);
+                const isActive = data.status === "active";
+                showSuccess(
+                    `นำเข้า “${importFile.name}” สำเร็จ (${data.featureCount} features) — ` +
+                    (isActive ? "ใช้งานอยู่ตามแผนที่ที่ใช้งานอยู่" : "บันทึกเป็นฉบับร่าง เลือกใช้งานได้ที่หน้าตั้งค่าพารามิเตอร์")
+                );
                 resetImportWizard();
+                void loadDatasets();
             } catch (err) {
                 setConfirmError(err instanceof Error ? err.message : "นำเข้าไฟล์ไม่สำเร็จ");
             } finally {
@@ -1040,31 +1097,24 @@ export default function RndDataManagementPage() {
                         luYear: Number(importLuYear.trim()),
                         plainingYear: Number(importPlantingYear.trim()),
                         rows,
+                        fileName: importFile.name,
                     }),
                 });
-                if (res.status === 409) {
-                    throw new Error("ไฟล์นี้มีข้อมูลซ้ำในระบบแล้ว กรุณาตรวจสอบ");
-                }
                 const data = await res.json().catch(() => ({}));
+                if (res.status === 409) {
+                    throw new Error(data.error || "ไฟล์นี้มีข้อมูลซ้ำในระบบแล้ว กรุณาตรวจสอบ");
+                }
                 if (!res.ok) {
                     throw new Error(data.error || "นำเข้าไฟล์ไม่สำเร็จ");
                 }
 
-                const newDataset: ResearchDataset = {
-                    id: `imported-${Date.now()}`,
-                    name: importFile.name.replace(/\.[^/.]+$/, ""),
-                    category: importCategory,
-                    pCode: selectedProvince.pCode,
-                    provinceName: selectedProvince.nameTh,
-                    version: `LU ${importLuYear.trim()} / EY ${importPlantingYear.trim()}`,
-                    description: "นำเข้าโดยผู้ใช้งาน R&D",
-                    updatedAt: new Date().toISOString().slice(0, 10),
-                    status: "active",
-                };
-                setDatasets((prev) => [newDataset, ...prev]);
-                setSuccess(`นำเข้า “${newDataset.name}” สำเร็จ (${data.rowCount} แถว)`);
-                setTimeout(() => setSuccess(null), 3000);
+                const isActive = data.status === "active";
+                showSuccess(
+                    `นำเข้า “${importFile.name}” สำเร็จ (${data.rowCount} แถว) — ` +
+                    (isActive ? "ใช้งานอยู่ตามแผนที่ที่ใช้งานอยู่" : "บันทึกเป็นฉบับร่าง เลือกใช้งานได้ที่หน้าตั้งค่าพารามิเตอร์")
+                );
                 resetImportWizard();
+                void loadDatasets();
             } catch (err) {
                 setConfirmError(err instanceof Error ? err.message : "นำเข้าไฟล์ไม่สำเร็จ");
             } finally {
@@ -1091,36 +1141,31 @@ export default function RndDataManagementPage() {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     pCode: selectedProvince.pCode,
-                    version: importVersion.trim() || null,
+                    version: importVersion.trim(),
                     clone: importClone,
                     growthModel: importGrowthModel,
                     allometry: importAllometry,
                     rows,
+                    fileName: importFile.name,
                 }),
             });
-            if (res.status === 409) {
-                throw new Error("ไฟล์นี้มีข้อมูลซ้ำในระบบแล้ว กรุณาตรวจสอบ");
-            }
             const data = await res.json().catch(() => ({}));
+            if (res.status === 409) {
+                throw new Error(data.error || "ไฟล์นี้มีข้อมูลซ้ำในระบบแล้ว กรุณาตรวจสอบ");
+            }
             if (!res.ok) {
                 throw new Error(data.error || "นำเข้าไฟล์ไม่สำเร็จ");
             }
 
-            const newDataset: ResearchDataset = {
-                id: `imported-${Date.now()}`,
-                name: importFile.name.replace(/\.[^/.]+$/, ""),
-                category: importCategory,
-                pCode: selectedProvince.pCode,
-                provinceName: selectedProvince.nameTh,
-                version: importVersion.trim(),
-                description: "นำเข้าโดยผู้ใช้งาน R&D",
-                updatedAt: new Date().toISOString().slice(0, 10),
-                status: "active",
-            };
-            setDatasets((prev) => [newDataset, ...prev]);
-            setSuccess(`นำเข้า “${newDataset.name}” สำเร็จ (${data.rowCount} แถว)`);
-            setTimeout(() => setSuccess(null), 3000);
+            const isActive = data.status === "active";
+            showSuccess(
+                `นำเข้า “${importFile.name}” สำเร็จ (${data.rowCount} แถว) — ` +
+                (isActive
+                    ? `เพิ่มเข้าเวอร์ชัน ${data.version} ที่ใช้งานอยู่ เลือกชุดค่านี้ได้ที่หน้าตั้งค่าพารามิเตอร์`
+                    : "บันทึกเป็นฉบับร่าง เลือกใช้งานได้ที่หน้าตั้งค่าพารามิเตอร์")
+            );
             resetImportWizard();
+            void loadDatasets();
         } catch (err) {
             setConfirmError(err instanceof Error ? err.message : "นำเข้าไฟล์ไม่สำเร็จ");
         } finally {
@@ -1137,7 +1182,7 @@ export default function RndDataManagementPage() {
 
     // Block "ถัดไป" out of step 2 while the .tif metadata read is still in
     // flight — the review step needs fileMeta settled before the user moves on.
-    // geo_planting_year.year and geo_landuse.lu_year are both integer
+    // tbl_planting_year.year and tbl_landuse.lu_year are both integer
     // columns — free text like "v1" doesn't fit, so these categories require
     // a numeric year specifically.
     const requiresNumericVersion = importCategory === "planting_year_map" || importCategory === "lulc_map";
@@ -1161,7 +1206,7 @@ export default function RndDataManagementPage() {
         (importStep === 2 && (!importCategory || !versionIsValid || !importFile || fileMetaLoading || biomassFieldsMissing || estYearDistFieldsMissing));
 
     // lulc_map may only be confirmed once the .gpkg has been read AND
-    // matches geo_landuse's fixed schema exactly (CRS + the 6 required
+    // matches tbl_landuse's fixed schema exactly (CRS + the 6 required
     // text fields) AND this province+year combination isn't already in the
     // table — checked client-side before ever hitting the API.
     const lulcSchemaOk =
@@ -1254,7 +1299,7 @@ export default function RndDataManagementPage() {
                 <div className="p-4 p-md-5" style={{ background: HERO_BG, borderBottom: "1px solid rgba(0,0,0,0.06)" }}>
                     <h1 className="fw-bold mb-2" style={{ letterSpacing: "-0.02em", color: "#1a3d2b", fontSize: 26 }}>จัดการข้อมูล GeoAI</h1>
                     <div style={{ color: "#5a7a65", fontSize: 14 }}>
-                        ชุดข้อมูลอ้างอิงทั้งหมด <span className="fw-semibold" style={{ color: "#1a3d2b" }}>{datasets.length}</span> ชุด
+                        ไฟล์ข้อมูลอ้างอิงที่นำเข้าทั้งหมด <span className="fw-semibold" style={{ color: "#1a3d2b" }}>{importRows.length}</span> ไฟล์
                         {" · "}จัดการค่าสัมประสิทธิ์ โมเดลการเติบโต และข้อมูลอ้างอิงที่ใช้ในการคำนวณคาร์บอน
                     </div>
                 </div>
@@ -1289,42 +1334,70 @@ export default function RndDataManagementPage() {
 
             {activeTab === "list" && (
             <>
-            {/* ── Toolbar ── */}
-            <div className="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
-                <div className="d-flex flex-wrap align-items-center gap-2">
-                    <div style={{ position: "relative", flex: "1 1 260px", maxWidth: 340 }}>
-                        <i className="bi bi-search" style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "#94a3b8", fontSize: 14 }} />
-                        <input
-                            value={search}
-                            onChange={(e) => setSearch(e.target.value)}
-                            placeholder="ค้นหาชื่อหรือคำอธิบาย…"
-                            style={{ width: "100%", borderRadius: 12, border: "1px solid #e6f0ea", background: "#fff", padding: "10px 14px 10px 38px", fontSize: 14, outline: "none", color: "#1a3d2b" }}
-                        />
-                    </div>
-                    <select
-                        value={categoryFilter}
-                        onChange={(e) => setCategoryFilter(e.target.value as DatasetCategory | "all")}
-                        className="form-select"
-                        style={{ width: "auto", borderRadius: 10, border: "1px solid #e6f0ea", fontSize: 13, color: "#1a3d2b" }}
-                    >
-                        <option value="all">ทุกประเภท</option>
-                        {Object.entries(CATEGORY_META).map(([key, meta]) => (
-                            <option key={key} value={key}>{meta.label}</option>
-                        ))}
-                    </select>
+            {/* ── Toolbar: category filter · search · add, on one line ── */}
+            <div className="d-flex flex-nowrap align-items-center gap-2 mb-3">
+                <select
+                    value={regionFilter}
+                    onChange={(e) => { setRegionFilter(e.target.value); setProvinceFilter(""); }}
+                    className="form-select"
+                    style={{ width: "auto", flexShrink: 0, borderRadius: 10, border: "1px solid #e6f0ea", fontSize: 13, color: "#1a3d2b" }}
+                >
+                    <option value="">ทุกภูมิภาค</option>
+                    {listRegions.map((r) => (
+                        <option key={r} value={r}>{REGION_LABELS[r] ?? r}</option>
+                    ))}
+                </select>
+                <select
+                    value={provinceFilter}
+                    onChange={(e) => setProvinceFilter(e.target.value)}
+                    className="form-select"
+                    style={{ width: "auto", flexShrink: 0, borderRadius: 10, border: "1px solid #e6f0ea", fontSize: 13, color: "#1a3d2b" }}
+                >
+                    <option value="">ทุกจังหวัด</option>
+                    {listProvinces.map((p) => (
+                        <option key={p.pCode} value={p.pCode}>{p.name}</option>
+                    ))}
+                </select>
+                <select
+                    value={categoryFilter}
+                    onChange={(e) => setCategoryFilter(e.target.value as DatasetCategory | "all")}
+                    className="form-select"
+                    style={{ width: "auto", flexShrink: 0, borderRadius: 10, border: "1px solid #e6f0ea", fontSize: 13, color: "#1a3d2b" }}
+                >
+                    <option value="all">ทุกประเภท</option>
+                    {Object.entries(CATEGORY_META).map(([key, meta]) => (
+                        <option key={key} value={key}>{meta.label}</option>
+                    ))}
+                </select>
+                <div style={{ position: "relative", flex: "1 1 auto", minWidth: 0, maxWidth: 340 }}>
+                    <i className="bi bi-search" style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "#94a3b8", fontSize: 14 }} />
+                    <input
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                        placeholder="ค้นหาจังหวัด เวอร์ชัน หรือชื่อไฟล์…"
+                        style={{ width: "100%", borderRadius: 12, border: "1px solid #e6f0ea", background: "#fff", padding: "10px 14px 10px 38px", fontSize: 14, outline: "none", color: "#1a3d2b" }}
+                    />
                 </div>
                 <button
-                    onClick={handleAdd}
-                    className="btn"
+                    onClick={() => setActiveTab("import")}
+                    className="btn ms-auto"
                     style={{
                         background: "#1e7a47", color: "#fff", border: "none",
-                        borderRadius: 10, padding: "9px 18px", fontWeight: 600, fontSize: "0.85rem",
+                        borderRadius: 10, padding: "9px 12px", fontWeight: 600, fontSize: "0.85rem",
                         display: "flex", alignItems: "center", gap: 6,
+                        width: "auto", flexShrink: 0, whiteSpace: "nowrap",
                     }}
                 >
                     <i className="bi bi-plus-lg" />
                     เพิ่มชุดข้อมูล
                 </button>
+            </div>
+
+            <div style={{ fontSize: 12.5, color: "#5a7a65", background: "#f8fbf9", border: "1px solid #e6f0ea", borderRadius: 10, padding: "8px 12px", marginBottom: 12 }}>
+                <i className="bi bi-info-circle me-1" />
+                ข้อมูลที่นำเข้าจะเป็น <strong>ฉบับร่าง</strong> — เลือกเวอร์ชันที่ใช้งานได้ที่{" "}
+                <Link href="/rnd/configuration" style={{ color: "#1e7a47", fontWeight: 600 }}>หน้าตั้งค่าพารามิเตอร์</Link>
+                {" "}(เวอร์ชันเดิมจะถูกเก็บถาวร) · ลบได้เฉพาะฉบับร่าง
             </div>
 
             {/* ── Datasets table ── */}
@@ -1333,67 +1406,95 @@ export default function RndDataManagementPage() {
                     <table className="table table-hover align-middle mb-0" style={{ fontSize: 13 }}>
                         <thead style={{ background: "#f8fbf9" }}>
                             <tr>
-                                <th className="px-4 py-3" style={TH_STYLE}>ชุดข้อมูล</th>
+                                <th className="px-4 py-3" style={TH_STYLE}>จังหวัด</th>
+                                <th className="py-3" style={TH_STYLE}>ไฟล์</th>
                                 <th className="py-3" style={TH_STYLE}>ประเภท</th>
-                                <th className="py-3" style={TH_STYLE}>จังหวัด</th>
-                                <th className="py-3" style={TH_STYLE}>ปี</th>
+                                <th className="py-3" style={TH_STYLE}>เวอร์ชัน</th>
                                 <th className="py-3" style={TH_STYLE}>สถานะ</th>
-                                <th className="py-3" style={TH_STYLE}>อัปเดตล่าสุด</th>
+                                <th className="py-3" style={TH_STYLE}>วันที่นำเข้า</th>
                                 <th className="px-4 py-3 text-end" style={TH_STYLE}>จัดการ</th>
                             </tr>
                         </thead>
                         <tbody>
-                            {filtered.map((d) => {
+                            {pagedRows.map(({ dataset: d, imp }) => {
                                 const cat = CATEGORY_META[d.category];
                                 const status = STATUS_META[d.status];
+                                const combo = d.category === "biomass_profile" ? biomassCombo(imp) : null;
                                 return (
-                                    <tr key={d.id}>
-                                        <td className="px-4 py-3">
-                                            <div className="fw-semibold" style={{ color: "#1a3d2b" }}>{d.name}</div>
-                                            <div style={{ fontSize: 12, color: "#5a7a65" }}>{d.description}</div>
+                                    <tr key={imp.id}>
+                                        <td className="px-4 py-3" style={{ color: "#5a7a65", whiteSpace: "nowrap" }}>
+                                            {d.provinceName} <span style={{ color: "#94a3b8" }}>({d.pCode})</span>
+                                        </td>
+                                        <td className="py-3" style={{ maxWidth: 340 }}>
+                                            <div className="fw-semibold text-truncate" style={{ color: "#1a3d2b" }} title={imp.fileName}>
+                                                {imp.fileName}
+                                            </div>
+                                            <div style={{ fontSize: 12, color: "#5a7a65" }}>
+                                                {imp.rowCount.toLocaleString("th-TH")} แถว
+                                                {combo && <> · {combo}</>}
+                                            </div>
                                         </td>
                                         <td className="py-3">
                                             <span className="badge rounded-pill" style={{ background: cat.bg, color: cat.color, fontWeight: 600, fontSize: 12, padding: "4px 10px" }}>
                                                 {cat.label}
                                             </span>
                                         </td>
-                                        <td className="py-3" style={{ color: "#5a7a65" }}>
-                                            {d.provinceName} <span style={{ color: "#94a3b8" }}>({d.pCode})</span>
-                                        </td>
-                                        <td className="py-3" style={{ color: "#5a7a65" }}>{d.version}</td>
+                                        <td className="py-3" style={{ color: "#5a7a65", whiteSpace: "nowrap" }}>{formatDatasetVersion(d)}</td>
                                         <td className="py-3">
                                             <span className="badge rounded-pill" style={{ background: status.bg, color: status.color, fontWeight: 600, fontSize: 12, padding: "4px 10px" }}>
                                                 {status.label}
                                             </span>
+                                            {d.status === "active" && d.activatedAt && (
+                                                <div style={{ fontSize: 11.5, color: "#94a3b8", marginTop: 3 }}>
+                                                    ตั้งแต่ {formatThaiDate(d.activatedAt)}
+                                                </div>
+                                            )}
+                                            {d.status === "archived" && d.archivedAt && (
+                                                <div style={{ fontSize: 11.5, color: "#94a3b8", marginTop: 3 }}>
+                                                    เมื่อ {formatThaiDate(d.archivedAt)}
+                                                </div>
+                                            )}
                                         </td>
-                                        <td className="py-3" style={{ fontSize: 13, color: "#5a7a65" }}>
-                                            {new Date(d.updatedAt).toLocaleDateString("th-TH", { year: "numeric", month: "short", day: "numeric" })}
+                                        <td className="py-3" style={{ fontSize: 13, color: "#5a7a65", whiteSpace: "nowrap" }}>
+                                            {formatThaiDateTime(imp.importedAt)}
+                                            {imp.importedBy && (
+                                                <div style={{ fontSize: 11.5, color: "#94a3b8" }}>{imp.importedBy}</div>
+                                            )}
                                         </td>
                                         <td className="px-4 py-3 text-end">
                                             <div className="d-flex justify-content-end gap-2">
-                                                <button
-                                                    className="btn btn-sm"
-                                                    onClick={handleAdd}
-                                                    style={{ border: "1px solid #e6f0ea", borderRadius: 9, color: "#1a3d2b", background: "#fff", padding: "5px 11px", fontSize: "0.78rem" }}
-                                                >
-                                                    <i className="bi bi-pencil me-1" />แก้ไข
-                                                </button>
-                                                <button
-                                                    className="btn btn-sm"
-                                                    onClick={() => setPendingDelete(d)}
-                                                    style={{
-                                                        background: "#fef2f2", color: "#c53030", border: "1px solid #fecaca",
-                                                        borderRadius: 9, padding: "5px 11px", fontWeight: 600, fontSize: "0.78rem",
-                                                    }}
-                                                >
-                                                    <i className="bi bi-trash me-1" />ลบ
-                                                </button>
+                                                {d.status === "draft" && (
+                                                    <button
+                                                        className="btn btn-sm"
+                                                        onClick={() => { setActionError(null); setPendingDelete({ dataset: d, imp }); }}
+                                                        style={{
+                                                            background: "#fef2f2", color: "#c53030", border: "1px solid #fecaca",
+                                                            borderRadius: 9, padding: "5px 11px", fontWeight: 600, fontSize: "0.78rem",
+                                                        }}
+                                                    >
+                                                        <i className="bi bi-trash me-1" />ลบ
+                                                    </button>
+                                                )}
                                             </div>
                                         </td>
                                     </tr>
                                 );
                             })}
-                            {filtered.length === 0 && (
+                            {datasetsLoading && (
+                                <tr>
+                                    <td colSpan={7} className="text-center py-5" style={{ color: "#5a7a65" }}>
+                                        กำลังโหลดรายการข้อมูล…
+                                    </td>
+                                </tr>
+                            )}
+                            {!datasetsLoading && datasetsError && (
+                                <tr>
+                                    <td colSpan={7} className="text-center py-5" style={{ color: "#c53030" }}>
+                                        โหลดรายการข้อมูลไม่สำเร็จ กรุณาลองใหม่อีกครั้ง
+                                    </td>
+                                </tr>
+                            )}
+                            {!datasetsLoading && !datasetsError && filtered.length === 0 && (
                                 <tr>
                                     <td colSpan={7} className="text-center py-5" style={{ color: "#5a7a65" }}>
                                         <i className="bi bi-search d-block mb-2" style={{ fontSize: 26, color: "#c7dbcf" }} />
@@ -1404,12 +1505,44 @@ export default function RndDataManagementPage() {
                         </tbody>
                     </table>
                 </div>
+
+                {/* ── Pagination (10 files per page) ── */}
+                {listTotalPages > 1 && (
+                    <div className="d-flex align-items-center justify-content-between gap-2 px-4 py-3" style={{ borderTop: "1px solid #f1f5f9" }}>
+                        <div style={{ fontSize: 13, color: "#5a7a65" }}>
+                            หน้า {currentListPage} จาก {listTotalPages}
+                            <span style={{ color: "#94a3b8" }}>
+                                {" "}· แสดง {(currentListPage - 1) * LIST_PAGE_SIZE + 1}–{Math.min(currentListPage * LIST_PAGE_SIZE, filtered.length)} จาก {filtered.length} ไฟล์
+                            </span>
+                        </div>
+                        <div className="d-flex gap-2">
+                            <button
+                                className="btn btn-sm"
+                                disabled={currentListPage <= 1}
+                                onClick={() => setListPage(Math.max(1, currentListPage - 1))}
+                                aria-label="หน้าก่อนหน้า"
+                                style={{ border: "1px solid #e6f0ea", borderRadius: 8, color: "#1a3d2b", background: "#fff" }}
+                            >
+                                <i className="bi bi-chevron-left" />
+                            </button>
+                            <button
+                                className="btn btn-sm"
+                                disabled={currentListPage >= listTotalPages}
+                                onClick={() => setListPage(Math.min(listTotalPages, currentListPage + 1))}
+                                aria-label="หน้าถัดไป"
+                                style={{ border: "1px solid #e6f0ea", borderRadius: 8, color: "#1a3d2b", background: "#fff" }}
+                            >
+                                <i className="bi bi-chevron-right" />
+                            </button>
+                        </div>
+                    </div>
+                )}
             </div>
             </>
             )}
 
             {activeTab === "import" && (
-                <div style={{ background: "#fff", border: "1px solid #e6f0ea", borderRadius: 16, padding: "32px 40px", maxWidth: 640, margin: "0 auto" }}>
+                <div style={{ background: "#fff", border: "1px solid #e6f0ea", borderRadius: 16, padding: "32px 40px", maxWidth: 800, margin: "0 auto" }}>
                     {/* ── Step indicator: สลับระหว่าง Desktop/Mobile ด้วย isMobile state ── */}
                     {!isMobile ? (
                         /* Desktop View (> 639px): UI เดิมเป๊ะ */
@@ -1817,7 +1950,7 @@ export default function RndDataManagementPage() {
                                     {[
                                         {
                                             ok: fileMeta?.kind === "gpkg" && fileMeta.crsValid,
-                                            label: `CRS = ${LULC_EXPECTED_CRS}${fileMeta?.kind === "gpkg" ? ` (พบ ${fileMeta.crs})` : ""}`,
+                                            label: `CRS = ${LULC_ALLOWED_CRS.join(" หรือ ")} (UTM 47N / 48N)${fileMeta?.kind === "gpkg" ? ` (พบ ${fileMeta.crs})` : ""}`,
                                         },
                                         {
                                             ok: fileMeta?.kind === "gpkg" && fileMeta.schemaValid,
@@ -1859,7 +1992,7 @@ export default function RndDataManagementPage() {
                                     {[
                                         {
                                             ok: fileMeta?.kind === "tiff" && fileMeta.crsValid,
-                                            label: `CRS = ${TIFF_EXPECTED_CRS}${fileMeta?.kind === "tiff" ? ` (พบ ${fileMeta.crs})` : ""}`,
+                                            label: `CRS = ${TIFF_ALLOWED_CRS.join(" หรือ ")} (UTM 47N / 48N)${fileMeta?.kind === "tiff" ? ` (พบ ${fileMeta.crs})` : ""}`,
                                         },
                                         {
                                             ok: fileMeta?.kind === "tiff" && fileMeta.noDataValid,
@@ -1904,6 +2037,9 @@ export default function RndDataManagementPage() {
                                                     {fileMeta?.kind === "csv" && fileMeta.missingColumns.length > 0 && (
                                                         <> — ขาด: {fileMeta.missingColumns.join(", ")}</>
                                                     )}
+                                                    {fileMeta?.kind === "csv" && fileMeta.duplicateColumns.length > 0 && (
+                                                        <> — พบคอลัมน์ชื่อซ้ำ: {fileMeta.duplicateColumns.join(", ")} (กรุณาลบคอลัมน์ที่ไม่ใช้ออก)</>
+                                                    )}
                                                 </>
                                             ),
                                         },
@@ -1937,6 +2073,9 @@ export default function RndDataManagementPage() {
                                             {fileMeta?.kind === "csv" && fileMeta.missingColumns.length > 0 && (
                                                 <> — ขาด: {fileMeta.missingColumns.join(", ")}</>
                                             )}
+                                            {fileMeta?.kind === "csv" && fileMeta.duplicateColumns.length > 0 && (
+                                                <> — พบคอลัมน์ชื่อซ้ำ: {fileMeta.duplicateColumns.join(", ")} (กรุณาลบคอลัมน์ที่ไม่ใช้ออก)</>
+                                            )}
                                         </span>
                                     </div>
                                 </div>
@@ -1956,7 +2095,12 @@ export default function RndDataManagementPage() {
                     {/* ── Step navigation ── */}
                     <div className="d-flex justify-content-between gap-3 mt-4">
                         <button
-                            onClick={() => setImportStep((s) => (s > 1 ? ((s - 1) as ImportStep) : s))}
+                            onClick={() => {
+                                // A failed import's error belongs to the confirm step — clear it
+                                // so it doesn't linger after going back to fix the file/inputs.
+                                setConfirmError(null);
+                                setImportStep((s) => (s > 1 ? ((s - 1) as ImportStep) : s));
+                            }}
                             disabled={importStep === 1}
                             className="btn"
                             style={{
@@ -2007,7 +2151,7 @@ export default function RndDataManagementPage() {
             {/* ── Delete confirmation modal ── */}
             {pendingDelete && (
                 <div
-                    onClick={() => setPendingDelete(null)}
+                    onClick={() => !actionBusy && setPendingDelete(null)}
                     style={{
                         position: "fixed", inset: 0, zIndex: 1050,
                         background: "rgba(15,23,42,0.55)",
@@ -2032,11 +2176,16 @@ export default function RndDataManagementPage() {
                                 <i className="bi bi-exclamation-triangle-fill" />
                             </div>
                             <h3 className="fw-bold text-center mb-2" style={{ fontSize: 19, color: "#111827" }}>
-                                ลบ &ldquo;{pendingDelete.name}&rdquo;?
+                                ลบไฟล์ &ldquo;{pendingDelete.imp.fileName}&rdquo;?
                             </h3>
-                            <p className="text-center mb-0" style={{ fontSize: 14, color: "#6b7280", lineHeight: 1.6 }}>
-                                ชุดข้อมูลนี้จะถูกลบออกจากระบบและ<strong>ไม่สามารถกู้คืนได้</strong>
+                            <p className="text-center mb-0" style={{ fontSize: 14, color: "#6b7280", lineHeight: 1.6, wordBreak: "break-word" }}>
+                                {CATEGORY_META[pendingDelete.dataset.category].label} {formatDatasetVersion(pendingDelete.dataset)} — {pendingDelete.dataset.provinceName} (ฉบับร่าง)
+                                {biomassCombo(pendingDelete.imp) && <><br />{biomassCombo(pendingDelete.imp)}</>}
+                                <br />ข้อมูลที่นำเข้าจากไฟล์นี้จะถูกลบออกจากระบบและ<strong>ไม่สามารถกู้คืนได้</strong>
                             </p>
+                            {actionError && (
+                                <div className="text-center mt-3" style={{ fontSize: 13, color: "#c53030" }}>{actionError}</div>
+                            )}
                         </div>
                         <div style={{ display: "flex", gap: 10, padding: "0 26px 24px" }}>
                             <button
@@ -2051,18 +2200,20 @@ export default function RndDataManagementPage() {
                             </button>
                             <button
                                 onClick={confirmDelete}
+                                disabled={actionBusy}
                                 className="btn"
                                 style={{
                                     flex: 1, background: "#dc2626", color: "#fff", border: "none",
                                     borderRadius: 10, padding: "10px", fontWeight: 700, fontSize: "0.875rem",
                                 }}
                             >
-                                <i className="bi bi-trash me-1" />ลบถาวร
+                                <i className="bi bi-trash me-1" />{actionBusy ? "กำลังลบ…" : "ลบถาวร"}
                             </button>
                         </div>
                     </div>
                 </div>
             )}
+
         </>
     );
 }

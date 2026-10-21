@@ -25,6 +25,8 @@ import {
   ChevronDown,
   Leaf,
   TrendingUp,
+  GraduationCap,
+  Gauge,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -48,11 +50,12 @@ const navLinks: NavItem[] = [
     href: "/dashboard",
     icon: BarChart3,
     children: [
-      { label: "ศักยภาพคาร์บอนกักเก็บ", href: "/dashboard/carbon-stock", icon: Leaf },
+      { label: "ศักยภาพคาร์บอนสะสม", href: "/dashboard/carbon-stock", icon: Leaf },
       { label: "จำลองคาร์บอนกักเก็บ", href: "/dashboard/simulation", icon: TrendingUp },
     ],
   },
   { label: "ประเมินคาร์บอน", href: "/map-draw", icon: Map },
+  { label: "KITTY", href: "/kitty", icon: GraduationCap },
 ];
 
 /* Shown instead of navLinks while browsing the admin area (/admin).
@@ -61,6 +64,7 @@ const navLinks: NavItem[] = [
 const adminNavLinks: NavItem[] = [
   { label: "จัดการบัญชีผู้ใช้", href: "/admin/users", icon: Users },
   { label: "บันทึกการเข้าสู่ระบบ", href: "/admin/auth-logs", icon: History },
+  { label: "จำกัดจำนวนโครงการ", href: "/admin/quotas", icon: Gauge },
 ];
 
 /* Shown instead of navLinks while browsing the R&D area (/rnd). */

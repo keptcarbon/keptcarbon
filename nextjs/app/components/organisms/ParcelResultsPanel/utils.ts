@@ -1,6 +1,6 @@
 import type { CarbonAssessResponse, YearlyAssess } from "@/lib/carbon-api";
 import type { BarPoint } from "./CarbonBarChart";
-import { ciTonnes } from "@/lib/utils";
+import { carbon2, ciCarbon2 } from "@/lib/utils";
 
 export interface PlotFormData {
     plantStatus: "replanting" | "existing" | "";
@@ -263,18 +263,22 @@ export function aggregateProfiles(responses: CarbonAssessResponse[], fallbackBas
         yearMap.set(y, { totalCo2: 0, sumLinearCI: 0, totalAge: 0, validAgeCount: 0, totalGain: 0, sumLinearGainCI: 0 });
     }
 
+    // Each plot rounded to 2 decimals first (gain from its rounded stocks
+    // against its year_at 0 baseline, as profileToBarPoints), then summed.
     for (const profile of profiles) {
+        const base = profile.find((item, i) => (item.year_at ?? i) === 0) ?? profile[0];
+        const baseStock = carbon2(base?.stocks.value || 0);
         for (const item of profile) {
             const data = item && yearMap.get(item.year);
             if (!data) continue;
-            data.totalCo2 += Math.floor(item.stocks.value || 0);
-            data.sumLinearCI += ciTonnes(item.stocks.ci || 0);
+            data.totalCo2 += carbon2(item.stocks.value || 0);
+            data.sumLinearCI += ciCarbon2(item.stocks.ci || 0);
             if (item.age != null && !isNaN(item.age)) {
                 data.totalAge += item.age;
                 data.validAgeCount++;
             }
-            data.totalGain += Math.floor(item.gain.value || 0);
-            data.sumLinearGainCI += ciTonnes(item.gain.ci || 0);
+            data.totalGain += carbon2(item.stocks.value || 0) - baseStock;
+            data.sumLinearGainCI += ciCarbon2(item.gain.ci || 0);
         }
     }
 
@@ -285,13 +289,13 @@ export function aggregateProfiles(responses: CarbonAssessResponse[], fallbackBas
             age: avgAge,
             yearBE: year + 543,
             year_at: yearAt,
-            co2: data.totalCo2,
-            ci: data.sumLinearCI,
-            gainValue: data.totalGain,
-            gainCi: data.sumLinearGainCI,
+            co2: carbon2(data.totalCo2),
+            ci: carbon2(data.sumLinearCI),
+            gainValue: carbon2(data.totalGain),
+            gainCi: carbon2(data.sumLinearGainCI),
             cycle: Math.floor(yearAt / 7),
             cycleAge: avgAge,
-            errorMargin: data.sumLinearCI,
+            errorMargin: carbon2(data.sumLinearCI),
         };
     });
 }

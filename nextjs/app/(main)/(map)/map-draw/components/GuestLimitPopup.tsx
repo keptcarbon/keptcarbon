@@ -1,19 +1,23 @@
 import styles from "./Popup.module.css";
 
 /**
- * Shown when a guest (not logged in) tries to draw more than the allowed
- * number of plots. Prompts them to log in or register to continue.
+ * Shown when a guest (not logged in) hits the guest quota (tbl_role_quota
+ * 'guest' row): kind "plots" -- tried to draw more plots than allowed;
+ * kind "projects" -- already holds the allowed number of projects and tried
+ * to start another. Prompts them to log in or register to continue.
  * Re-appears every time the guest clicks "วาดแปลงเพิ่ม" while at the limit.
  */
 export function GuestLimitPopup({
   open,
   limit,
+  kind = "plots",
   onClose,
   onLogin,
   onRegister,
 }: {
   open: boolean;
   limit: number;
+  kind?: "plots" | "projects";
   onClose: () => void;
   onLogin: () => void;
   onRegister: () => void;
@@ -35,11 +39,15 @@ export function GuestLimitPopup({
         <div className={styles.chip}>
           <i className="bi bi-info-circle" />
           <span>
-            ผู้ใช้ทั่วไปวาดได้สูงสุด <b>{limit} แปลง</b>
+            {kind === "plots"
+              ? <>ผู้ใช้ทั่วไปวาดได้สูงสุด <b>{limit} แปลง</b></>
+              : <>ผู้ใช้ทั่วไปสร้างได้สูงสุด <b>{limit} โครงการ</b></>}
           </span>
         </div>
         <p className={styles.desc}>
-          กรุณาเข้าสู่ระบบหรือสมัครสมาชิกเพื่อวาดแปลงเพิ่ม
+          {kind === "plots"
+            ? "กรุณาเข้าสู่ระบบหรือสมัครสมาชิกเพื่อวาดแปลงเพิ่ม"
+            : "กรุณาเข้าสู่ระบบหรือสมัครสมาชิกเพื่อสร้างโครงการเพิ่ม"}
         </p>
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           <button onClick={onLogin} className={styles.buttonPrimary}>

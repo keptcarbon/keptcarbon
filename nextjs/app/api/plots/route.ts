@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "crypto";
 import { pool } from "@/lib/db";
 import { verifyToken, AUTH_COOKIE } from "@/lib/jwt";
+import { carbon2, ciCarbon2 } from "@/lib/utils";
 import { getUserUuid, generateGuestKey, rowToProjectFromNormalized } from "@/lib/carbon-projects";
 import {
   upsertProjectAndPlots,
@@ -9,6 +10,14 @@ import {
   transferProjectToUser,
   ProjectNameConflictError,
 } from "@/lib/normalized-plots";
+import {
+  assertPlotCount,
+  assertProjectSlots,
+  quotaErrorResponse,
+  requireCallerQuota,
+  QuotaError,
+  type ProjectOwner,
+} from "@/lib/quota";
 
 function generateGuestProjectName(): string {
   // A default display label the user is expected to rename (shown in the
@@ -36,6 +45,8 @@ function luCheckedFromSelected(selectedLuClasses: string[] | null): Record<strin
  *  reimplemented here rather than importing that component file into an API
  *  route. */
 function yearlyRowsToBarPoints(rows: any[], baseAge: number) {
+  const base = rows.find((row) => (row.year_at ?? 0) === 0) ?? rows[0];
+  const baseStock = carbon2(Number(base?.stock_value ?? 0));
   return rows.map((row) => {
     const yearAt = row.year_at ?? 0;
     const hasAge = row.age !== null && row.age !== undefined;
@@ -44,13 +55,13 @@ function yearlyRowsToBarPoints(rows: any[], baseAge: number) {
       age,
       yearBE: row.year + 543,
       year_at: yearAt,
-      co2: row.stock_value,
-      ci: row.stock_ci,
-      gainValue: row.gain_value,
-      gainCi: row.gain_ci,
+      co2: carbon2(Number(row.stock_value)),
+      ci: ciCarbon2(Number(row.stock_ci)),
+      gainValue: carbon2(carbon2(Number(row.stock_value)) - baseStock),
+      gainCi: ciCarbon2(Number(row.gain_ci)),
       cycle: Math.floor(yearAt / 7),
       cycleAge: age,
-      errorMargin: row.stock_ci,
+      errorMargin: ciCarbon2(Number(row.stock_ci)),
       isAgeValid: hasAge,
     };
   });
@@ -187,6 +198,7 @@ export async function GET(request: NextRequest) {
               area_m2, province_code, year_of_planting, rubber_clone, tree_count,
               spacing_system, project_type, selected_lu_classes, plot_note,
               growth_model, allometry, province_th, district_th, subdistrict_th,
+              ST_AsGeoJSON(assessment_geometry)::json AS assessment_geometry,
               updated_at
        FROM tbl_plots
        WHERE project_id = ANY($1) AND deleted_at IS NULL`,
@@ -284,6 +296,7 @@ export async function GET(request: NextRequest) {
         date: (assessment?.created_at ?? pl.updated_at) as unknown as string,
         geojson: pl.geometry,
         boundaryGeojson: null,
+        assessmentGeojson: pl.assessment_geometry ?? null,
         carbonProfile: yearlyRowsToBarPoints(yearly, rubberAge),
         processed: !!assessment,
         backendData: {
@@ -353,6 +366,15 @@ export async function POST(request: NextRequest) {
     try {
       await client.query("BEGIN");
 
+      // Quota (lib/quota.ts): the caller's role applies even to a logged-in
+      // user's forceGuest draft. Whose project slots a save can take: the
+      // user's on a real Save, the guest_key's for a plain guest. A draft
+      // takes none -- it's checked when it's saved/claimed into the account.
+      const quota = await requireCallerQuota(client, payload);
+      const quotaOwner: ProjectOwner | null = userUuid
+        ? { userUuid }
+        : payload ? null : { guestUuid: guestKey as string };
+
       // Check if project already exists (match on the owner that applies)
       const ownerClause = userUuid
         ? "user_uuid = $1"
@@ -380,6 +402,7 @@ export async function POST(request: NextRequest) {
         );
         if ((guestRow.rowCount ?? 0) > 0) {
           const adoptId = guestRow.rows[0].id;
+          await assertProjectSlots(client, quota, { userUuid });
           try {
             await transferProjectToUser(client, { projectId: adoptId, userUuid });
             const reread = await client.query(
@@ -398,6 +421,9 @@ export async function POST(request: NextRequest) {
       if (savedRow) {
         // adopted above — nothing more to do for the header
       } else if ((existing.rowCount ?? 0) > 0) {
+        if (quotaOwner) {
+          await assertProjectSlots(client, quota, quotaOwner, { projectId: existing.rows[0].id });
+        }
         // Update existing record (updated_at handled by trigger)
         const updateResult = await client.query(
           `UPDATE tbl_projects SET updated_at = NOW() WHERE id = $1 RETURNING *`,
@@ -405,6 +431,7 @@ export async function POST(request: NextRequest) {
         );
         savedRow = updateResult.rows[0];
       } else {
+        if (quotaOwner) await assertProjectSlots(client, quota, quotaOwner);
         // Insert new record
         const insertResult = await client.query(
           `INSERT INTO tbl_projects (user_uuid, guest_uuid, project_name, status)
@@ -414,6 +441,8 @@ export async function POST(request: NextRequest) {
         );
         savedRow = insertResult.rows[0];
       }
+
+      await assertPlotCount(client, quota, savedRow.id, body.frontendPlots);
 
       await upsertProjectAndPlots(
         client,
@@ -444,6 +473,7 @@ export async function POST(request: NextRequest) {
       });
     } catch (err) {
       await client.query("ROLLBACK");
+      if (err instanceof QuotaError) return quotaErrorResponse(err);
       throw err;
     } finally {
       client.release();

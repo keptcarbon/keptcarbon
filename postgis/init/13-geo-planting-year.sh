@@ -1,5 +1,5 @@
 #!/bin/bash
-# Loads geo_planting_year raster data on a fresh volume. Runs after
+# Loads tbl_planting_year raster data on a fresh volume. Runs after
 # 13-geo-planting-year-schema.sql (docker-entrypoint-initdb.d executes
 # files in this directory in lexical order) via the postgis image's own
 # initdb hook, so $POSTGRES_USER / $POSTGRES_DB are already exported.
@@ -18,14 +18,14 @@ if [ ! -f "$RASTER" ]; then
 fi
 
 EXISTING=$(psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" -tAc \
-  "SELECT count(*) FROM geo_planting_year")
+  "SELECT count(*) FROM tbl_planting_year")
 if [ "$EXISTING" -gt 0 ]; then
-  echo "13-geo-planting-year.sh: geo_planting_year already populated, skipping" >&2
+  echo "13-geo-planting-year.sh: tbl_planting_year already populated, skipping" >&2
   exit 0
 fi
 
-raster2pgsql -s 32647 -t 100x100 -a -I "$RASTER" public.geo_planting_year \
+raster2pgsql -s 32647 -t 100x100 -a -I "$RASTER" public.tbl_planting_year \
   | psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB"
 
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" -c \
-  "DO \$\$ BEGIN RAISE NOTICE 'geo_planting_year seeded: % raster tiles', (SELECT count(*) FROM geo_planting_year); END \$\$;"
+  "DO \$\$ BEGIN RAISE NOTICE 'tbl_planting_year seeded: % raster tiles', (SELECT count(*) FROM tbl_planting_year); END \$\$;"

@@ -41,7 +41,7 @@ export function useMapInit({
             tileSize: 256,
             minzoom: 1,
             maxzoom: 20,
-            attribution: "© Google",
+            attribution: "Map data © Google",
           },
           sat: {
             type: "raster",
@@ -49,7 +49,24 @@ export function useMapInit({
             tileSize: 256,
             minzoom: 1,
             maxzoom: 20,
-            attribution: "© Google",
+            attribution: "Map data © Google",
+          },
+          // Google road map / terrain — same unofficial tile endpoint as the satellite layers above
+          groad: {
+            type: "raster",
+            tiles: ["https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}"],
+            tileSize: 256,
+            minzoom: 1,
+            maxzoom: 20,
+            attribution: "Map data © Google",
+          },
+          gterrain: {
+            type: "raster",
+            tiles: ["https://mt1.google.com/vt/lyrs=p&x={x}&y={y}&z={z}"],
+            tileSize: 256,
+            minzoom: 1,
+            maxzoom: 20,
+            attribution: "Map data © Google",
           },
           street: {
             type: "raster",
@@ -57,7 +74,7 @@ export function useMapInit({
             tileSize: 256,
             minzoom: 1,
             maxzoom: 19,
-            attribution: "",
+            attribution: '© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors',
           },
           topo: {
             type: "raster",
@@ -65,13 +82,15 @@ export function useMapInit({
             tileSize: 256,
             minzoom: 1,
             maxzoom: 19,
-            attribution: "",
+            attribution: "Tiles © Esri — Esri, DeLorme, NAVTEQ, TomTom, Intermap, iPC, USGS, FAO, NPS, NRCAN, GeoBase, Kadaster NL, Ordnance Survey, Esri Japan, METI, Esri China (Hong Kong), and the GIS User Community",
           },
         },
         layers: [
           { id: "background", type: "background", paint: { "background-color": "#ffffff" } },
           { id: "hybrid", type: "raster", source: "hybrid", layout: { visibility: "visible" } },
           { id: "sat", type: "raster", source: "sat", layout: { visibility: "none" } },
+          { id: "groad", type: "raster", source: "groad", layout: { visibility: "none" } },
+          { id: "gterrain", type: "raster", source: "gterrain", layout: { visibility: "none" } },
           { id: "street", type: "raster", source: "street", layout: { visibility: "none" } },
           { id: "topo", type: "raster", source: "topo", layout: { visibility: "none" } },
         ],
@@ -90,6 +109,9 @@ export function useMapInit({
     });
     mapRef.current = map;
 
+    // Compact "ⓘ" credit for whichever basemap is visible (tile licences require it).
+    // Bottom-left: the bottom-right corner is taken by the zoom/layer controls.
+    map.addControl(new maplibregl.AttributionControl({ compact: true }), "bottom-left");
     map.addControl(new maplibregl.NavigationControl({ showCompass: false, showZoom: true }), "bottom-right");
     map.addControl(
       new maplibregl.GeolocateControl({
@@ -174,14 +196,8 @@ export function useMapInit({
         },
       });
 
-      // Fetch Thailand boundary on initial load
-      fetch('/api/geojson/th-boundary')
-        .then(r => r.json())
-        .then(fc => {
-          const src = map.getSource("th-boundary") as maplibregl.GeoJSONSource | undefined;
-          if (src) src.setData(fc);
-        })
-        .catch(console.error);
+      // Thailand boundary data is loaded by useBoundarySelection once mapLoaded
+      // flips, so it respects whatever region/province is already selected.
 
       // ── Province Boundaries ───────────────────────────────────────────────
       map.addSource("province-boundary", {

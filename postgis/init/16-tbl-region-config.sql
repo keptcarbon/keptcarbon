@@ -8,18 +8,18 @@ CREATE TABLE IF NOT EXISTS tbl_region_config (
   p_code          VARCHAR(10)  NOT NULL UNIQUE,  -- province code, e.g. 'RAY'
   p_name          VARCHAR(100) NOT NULL,          -- e.g. 'Rayong'
   lu_version          INTEGER      NOT NULL,          -- LULC map version (Buddhist-Era year)
-  planting_year_version    INTEGER      NOT NULL,     -- planting-year map version
+  planting_year_version    INTEGER,                    -- planting-year map version; NULL = no raster yet (users must enter the year of planting)
   default_spacing     VARCHAR(20)  NOT NULL,          -- default tree spacing system, e.g. '2.5x8'
   default_clone       VARCHAR(50)  NOT NULL,          -- default rubber clone, e.g. 'RRIM 600'
   default_growth      VARCHAR(50)  NOT NULL,          -- default growth model, e.g. 'anchored_weibull'
   default_allometry   VARCHAR(50)  NOT NULL,          -- default allometry equation, e.g. 'hytönen_2018'
   biomass_profile_version VARCHAR(50)  NOT NULL,      -- biomass profile dataset version in use for this region
-  utm_epsg            INTEGER      NOT NULL            -- UTM zone of the planting-year raster: 32647 = 47N, 32648 = 48N
-    CONSTRAINT chk_region_config_utm_epsg CHECK (utm_epsg IN (32647, 32648))
+  planting_year_dist_version VARCHAR(20)              -- '<lu_year>/<plaining_year>' of the tbl_planting_year_dist used by the
+                                                      -- dashboards; NULL = none imported yet (province hidden from dashboards)
 );
 
 INSERT INTO tbl_region_config
-  (p_code, p_name, lu_version, planting_year_version, default_spacing, default_clone, default_growth, default_allometry, biomass_profile_version, utm_epsg)
+  (p_code, p_name, lu_version, planting_year_version, default_spacing, default_clone, default_growth, default_allometry, biomass_profile_version)
 VALUES
-  ('RAY', 'Rayong', 2567, 2026, '2.5x8', 'RRIM 600', 'anchored_weibull', 'hytönen_2018', 'v1', 32647)
+  ('RAY', 'Rayong', 2567, 2026, '2.5x8', 'RRIM 600', 'anchored_weibull', 'hytönen_2018', 'v1')
 ON CONFLICT (p_code) DO NOTHING;
