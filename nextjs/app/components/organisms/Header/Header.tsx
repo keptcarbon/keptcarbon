@@ -27,6 +27,9 @@ import {
   TrendingUp,
   GraduationCap,
   Gauge,
+  Newspaper,
+  BookOpen,
+  Library,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -38,6 +41,10 @@ type NavItem = {
   /* Present = the item is a dropdown group; its href is just a key, and each
      child is matched exactly (/dashboard/carbon-stock vs /dashboard/simulation). */
   children?: { label: string; href: string; icon: LucideIcon }[];
+  /* With children: the parent's href is a real landing page, so the parent
+     itself is a link (and active anywhere under its href) as well as a
+     dropdown trigger. */
+  landing?: boolean;
 };
 
 /* Shown to every visitor — guest, registered, R&D, and admin — outside the
@@ -55,7 +62,17 @@ const navLinks: NavItem[] = [
     ],
   },
   { label: "ประเมินคาร์บอน", href: "/map-draw", icon: Map },
-  { label: "KITTY", href: "/kitty", icon: GraduationCap },
+  {
+    label: "KITTY",
+    href: "/kitty",
+    icon: GraduationCap,
+    landing: true,
+    children: [
+      { label: "Keppy Blog", href: "/kitty/blog", icon: Newspaper },
+      { label: "KeptCarbon Handbook", href: "/kitty/handbook", icon: BookOpen },
+      { label: "KeptCarbon Textbook", href: "/kitty/textbook", icon: Library },
+    ],
+  },
 ];
 
 /* Shown instead of navLinks while browsing the admin area (/admin).
@@ -139,7 +156,7 @@ export default function Header() {
      a trailing "/" on pathname. */
   const isExactActive = (href: string) => (pathname.replace(/(.)\/$/, "$1") || "/") === href;
   const isItemActive = (item: NavItem) =>
-    item.children ? item.children.some((c) => isExactActive(c.href)) : isActive(item.href);
+    item.children && !item.landing ? item.children.some((c) => isExactActive(c.href)) : isActive(item.href);
 
   const isRnd = user?.role === "rd";
   const isAdmin = user?.role === "admin";
@@ -191,14 +208,26 @@ export default function Header() {
                 /* Hover/focus dropdown — no state, so it closes on its own
                    once the pointer or focus leaves. */
                 <div key={item.href} className="group relative">
-                  <button
-                    type="button"
-                    aria-haspopup="true"
-                    className={`flex cursor-pointer items-center gap-1 border-0 bg-transparent ${navLinkClass(isItemActive(item))}`}
-                  >
-                    {item.label}
-                    <ChevronDown className="size-4 transition-transform duration-200 group-hover:rotate-180 group-focus-within:rotate-180" />
-                  </button>
+                  {item.landing ? (
+                    <Link
+                      href={item.href}
+                      aria-haspopup="true"
+                      onClick={(e) => e.currentTarget.blur()}
+                      className={`flex items-center gap-1 ${navLinkClass(isItemActive(item))}`}
+                    >
+                      {item.label}
+                      <ChevronDown className="size-4 transition-transform duration-200 group-hover:rotate-180 group-focus-within:rotate-180" />
+                    </Link>
+                  ) : (
+                    <button
+                      type="button"
+                      aria-haspopup="true"
+                      className={`flex cursor-pointer items-center gap-1 border-0 bg-transparent ${navLinkClass(isItemActive(item))}`}
+                    >
+                      {item.label}
+                      <ChevronDown className="size-4 transition-transform duration-200 group-hover:rotate-180 group-focus-within:rotate-180" />
+                    </button>
+                  )}
                   <div className="pointer-events-none absolute left-1/2 top-full -translate-x-1/2 -translate-y-1 pt-2 opacity-0 transition-all duration-200 group-hover:pointer-events-auto group-hover:translate-y-0 group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:translate-y-0 group-focus-within:opacity-100">
                     <div className="w-60 overflow-hidden rounded-xl border border-[var(--kc-border-input)] bg-white py-1 shadow-[var(--kc-shadow-card)]">
                       {item.children.map(({ label, href, icon: Icon }) => (
@@ -380,13 +409,27 @@ export default function Header() {
 
         {/* Drawer body (scrollable) */}
         <div className="flex-1 overflow-y-auto px-4 py-4">
-          {activeNavLinks.map(({ label, href, icon: Icon, children }) =>
+          {activeNavLinks.map(({ label, href, icon: Icon, children, landing }) =>
             children ? (
               <div key={href}>
-                <div className="flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-[var(--kc-ink)]">
-                  <Icon className="size-4 shrink-0 opacity-60" />
-                  {label}
-                </div>
+                {landing ? (
+                  <Link
+                    href={href}
+                    className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium no-underline transition-colors ${isExactActive(href)
+                      ? "bg-[var(--kc-green-50)] text-[var(--kc-green)]"
+                      : "text-[var(--kc-ink)] hover:bg-[var(--kc-green-50)]"
+                      }`}
+                    onClick={closeNav}
+                  >
+                    <Icon className="size-4 shrink-0 opacity-60" />
+                    {label}
+                  </Link>
+                ) : (
+                  <div className="flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-[var(--kc-ink)]">
+                    <Icon className="size-4 shrink-0 opacity-60" />
+                    {label}
+                  </div>
+                )}
                 {children.map((child) => (
                   <Link
                     key={child.href}
