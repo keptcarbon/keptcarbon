@@ -89,6 +89,7 @@ const rndNavLinks: NavItem[] = [
   { label: "หน้าแรก", href: "/", icon: LayoutGrid },
   { label: "จัดการข้อมูล GeoAI", href: "/rnd/data-management", icon: Database },
   { label: "ตั้งค่าพารามิเตอร์", href: "/rnd/configuration", icon: Settings },
+  { label: "จัดการ KITTY Content", href: "/rnd/kitty-content", icon: GraduationCap },
 ];
 
 /* ── Component ───────────────────────────────────────────────────────────── */

@@ -1,0 +1,5 @@
+# Images uploaded through POST /api/rnd/blog land here at runtime
+# (<slug>-cover.jpg, <slug>-blog-img-01.png, …) — they belong to the
+# database rows in tbl_blog, not to the repo. Keep only this file.
+*
+!.gitignore

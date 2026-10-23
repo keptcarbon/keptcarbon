@@ -3,85 +3,47 @@ import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { getPublishedPosts } from "@/lib/kitty-blog";
 import {
-  blogPosts,
   categoryOf,
-  findPost,
   formatThaiDate,
-  quoteAccent,
   readingMinutes,
   relatedPosts,
 } from "../content";
-import type { PostBlock } from "../content";
+import PostBlockView from "../PostBlockView";
 import ShareButtons from "./ShareButtons";
+import TagList from "../TagList";
 
 type Props = { params: Promise<{ slug: string }> };
 
-/* Only the posts in content.ts exist — anything else is a 404. */
-export const dynamicParams = false;
+/* Rendered per request so a publish / hide switch shows up at once. Only
+   published posts in content.ts exist — anything else is a 404. */
+export const dynamic = "force-dynamic";
 
-export function generateStaticParams() {
-  return blogPosts.map(({ slug }) => ({ slug }));
+/** The published post with this slug (from content.ts or tbl_blog), plus
+    every published post for the related list. */
+async function findVisiblePost(slug: string) {
+  const posts = await getPublishedPosts();
+  const post = posts.find((p) => p.slug === slug);
+  return post ? { post, posts } : null;
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const post = findPost((await params).slug);
-  if (!post) return {};
+  const found = await findVisiblePost((await params).slug);
+  if (!found) return {};
+  const { post } = found;
   return {
     title: `${post.title} | Keppy Blog`,
     openGraph: { title: post.title, images: [post.image] },
   };
 }
 
-function Block({ block }: { block: PostBlock }) {
-  switch (block.type) {
-    case "heading":
-      return (
-        <h2 className="mt-10 mb-4 text-xl font-bold tracking-tight text-foreground md:text-2xl">
-          {block.text}
-        </h2>
-      );
-    case "quote":
-    case "quote-green":
-    case "quote-blue":
-    case "quote-amber":
-    case "quote-red":
-    case "quote-yellow": {
-      const { color } = quoteAccent(block.type);
-      return (
-        <blockquote
-          className="my-8 rounded-r-xl border-l-4 px-6 py-5 text-base leading-relaxed font-medium text-foreground md:px-8"
-          style={{ borderLeftColor: color, backgroundColor: `color-mix(in srgb, ${color} 10%, white)` }}
-        >
-          “{block.text}”
-        </blockquote>
-      );
-    }
-    case "image":
-      return (
-        <figure className="my-8">
-          <Image
-            src={block.src}
-            alt={block.alt}
-            width={1200}
-            height={700}
-            className="h-auto w-full rounded-2xl border border-border"
-          />
-          {block.caption ? (
-            <figcaption className="mt-2 text-center text-xs text-muted-foreground">{block.caption}</figcaption>
-          ) : null}
-        </figure>
-      );
-    default:
-      return <p className="mt-0 mb-4 text-base leading-loose text-foreground/90">{block.text}</p>;
-  }
-}
-
 export default async function BlogPostPage({ params }: Props) {
-  const post = findPost((await params).slug);
-  if (!post) notFound();
+  const found = await findVisiblePost((await params).slug);
+  if (!found) notFound();
+  const { post, posts } = found;
   const { label, color, ink } = categoryOf(post);
-  const related = relatedPosts(post);
+  const related = relatedPosts(post, posts);
 
   return (
     <div className="kc-tw bg-muted/60 px-4 pt-24 pb-16 sm:px-6 md:pt-28 md:pb-24 lg:px-8">
@@ -117,12 +79,16 @@ export default async function BlogPostPage({ params }: Props) {
         <div className="grid grid-cols-1 gap-10 lg:grid-cols-[minmax(0,1fr)_340px] lg:gap-12">
           {/* ── Article ── */}
           <article className="min-w-0">
-            <span
-              className="inline-block rounded-full px-3 py-1 text-xs font-medium"
-              style={{ backgroundColor: color, color: ink }}
-            >
-              {label}
-            </span>
+            {/* Category badge, then the tags on the same row (wrapping if long) */}
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span
+                className="inline-block rounded-full px-3 py-1 text-xs font-medium"
+                style={{ backgroundColor: color, color: ink }}
+              >
+                {label}
+              </span>
+              <TagList tags={post.tags} linked />
+            </div>
             <h1 className="mt-3 mb-5 text-2xl leading-snug font-bold tracking-tight text-foreground md:text-4xl">
               {post.title}
             </h1>
@@ -152,14 +118,14 @@ export default async function BlogPostPage({ params }: Props) {
             </div>
 
             {post.body.length > 0 ? (
-              post.body.map((block, i) => <Block key={i} block={block} />)
+              post.body.map((block, i) => <PostBlockView key={i} block={block} />)
             ) : (
               <p className="m-0 rounded-2xl border border-dashed border-border bg-card px-4 py-12 text-center text-sm text-muted-foreground">
                 เนื้อหากำลังจัดทำ
               </p>
             )}
 
-            <div className="mt-12 border-t border-border pt-8">
+            <div className="mt-12 flex justify-center border-t border-border pt-8">
               <Link
                 href="/kitty/blog/"
                 className="group inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-5 py-2.5 text-sm font-medium text-foreground no-underline transition-colors hover:border-primary/30 hover:bg-secondary"

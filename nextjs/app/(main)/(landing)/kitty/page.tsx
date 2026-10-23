@@ -9,8 +9,9 @@ import {
   Newspaper,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import { getPublishedPosts } from "@/lib/kitty-blog";
 import Reveal from "../about-project/Reveal";
-import { categoryOf, formatThaiDate, sortedPosts } from "./blog/content";
+import { categoryOf, formatThaiDate } from "./blog/content";
 import type { BlogPost } from "./blog/content";
 
 export const metadata: Metadata = {
@@ -64,7 +65,9 @@ const sections: KittySection[] = [
    are still empty — each block shows an empty state until filled. */
 type Topic = { label: string; href: string };
 
-const latestPosts = sortedPosts().slice(0, 3);
+/* Rendered per request so the latest posts follow the blog's publish /
+   hide switch at once. */
+export const dynamic = "force-dynamic";
 const handbookTopics: Topic[] = [];
 const textbookTopics: Topic[] = [];
 
@@ -193,7 +196,8 @@ function TopicList({ title, tone, topics }: { title: string; tone: string; topic
 }
 
 /* ── Page ────────────────────────────────────────────────────────────── */
-export default function KittyPage() {
+export default async function KittyPage() {
+  const latestPosts = (await getPublishedPosts()).slice(0, 3);
   return (
     <div className="kc-tw bg-background">
       {/* ── Hero + section cards ────────────────────────────────────── */}

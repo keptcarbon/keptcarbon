@@ -4,22 +4,23 @@ import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { ArrowRight, ChevronDown, ChevronLeft, ChevronRight, Search } from "lucide-react";
-import { blogCategories, categoryOf, formatThaiDate, sortedPosts } from "./content";
+import { blogCategories, categoryOf, formatThaiDate, postMatches } from "./content";
+import TagList from "./TagList";
 import type { BlogPost } from "./content";
 
 const PAGE_SIZE = 6;
-const posts = sortedPosts();
 
-/* Category sidebar (chips below lg) + search + paged card grid. */
-export default function BlogBrowser() {
+/* Category sidebar (chips below lg) + search (title or tag) + paged card grid.
+   `posts`: the published posts, newest first (hidden ones already removed).
+   `initialQuery`: from ?q= — a tag chip on a post page links here with it. */
+export default function BlogBrowser({ posts, initialQuery = "" }: { posts: BlogPost[]; initialQuery?: string }) {
   const [category, setCategory] = useState(""); // "" = ทั้งหมด
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(initialQuery);
   const [page, setPage] = useState(1);
   const [categoriesOpen, setCategoriesOpen] = useState(true);
 
-  const q = query.trim().toLowerCase();
   const filtered = posts.filter(
-    (p) => (!category || p.category === category) && (!q || p.title.toLowerCase().includes(q))
+    (p) => (!category || p.category === category) && postMatches(p, query)
   );
   const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const current = Math.min(page, pageCount);
@@ -98,7 +99,7 @@ export default function BlogBrowser() {
                 setQuery(e.target.value);
                 setPage(1);
               }}
-              placeholder="ค้นหาบทความ..."
+              placeholder="ค้นหาบทความหรือแท็ก..."
               className="h-11 w-full rounded-xl border border-border bg-card pr-10 pl-4 text-sm text-foreground outline-none placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/15"
             />
             <Search
@@ -216,9 +217,10 @@ export function PostCard({ post }: { post: BlogPost }) {
         </span>
       </div>
       <div className="flex flex-1 flex-col px-5 pt-4 pb-4">
-        <h2 className="mt-0 mb-6 line-clamp-2 text-base leading-snug font-semibold text-foreground group-hover:text-primary">
+        <h2 className="mt-0 mb-3 line-clamp-2 text-base leading-snug font-semibold text-foreground group-hover:text-primary">
           {post.title}
         </h2>
+        <TagList tags={post.tags} max={3} className="mb-3" />
         <div className="mt-auto flex items-center justify-between border-t border-border pt-4 text-sm">
           <span className="text-muted-foreground">{formatThaiDate(post.date)}</span>
           <span className="inline-flex items-center gap-1.5 font-medium text-primary">

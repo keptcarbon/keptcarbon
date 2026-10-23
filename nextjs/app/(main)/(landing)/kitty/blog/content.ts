@@ -1,7 +1,8 @@
 /* ── Keppy Blog content ──────────────────────────────────────────────────
-   Categories + posts. The blog list (filter, search, paging), each post's
-   page, and the "บทความล่าสุด" block on /kitty are all built from this
-   list, so adding a post here is all it needs.
+   Categories + posts written in code. Posts written in the editor on
+   /rnd/kitty-content/blog/new are stored in tbl_blog instead;
+   lib/kitty-blog.ts merges both for the blog list, each post's page, and
+   the "บทความล่าสุด" block on /kitty.
 
    No posts yet — the pages show an empty state until they're written. */
 
@@ -10,8 +11,8 @@
    light ones (white on orange/yellow is hard to read). */
 export const accents = {
   green: { color: "var(--kc-green-dark)", ink: "#ffffff" },
-  blue: { color: "#2563eb", ink: "#ffffff" },
-  amber: { color: "#ff9900", ink: "var(--kc-ink)" },
+  blue: { color: "#3971ec", ink: "#ffffff" },
+  amber: { color: "#f6a62e", ink: "var(--kc-ink)" },
   red: { color: "var(--kc-error)", ink: "#ffffff" },
   yellow: { color: "var(--kc-warning)", ink: "var(--kc-ink)" },
 } as const;
@@ -55,6 +56,8 @@ export type BlogPost = {
   date: string;
   /** Defaults to "ทีมงาน KeptCarbon". */
   author?: string;
+  /** Keywords for "บทความที่เกี่ยวข้อง" — posts sharing more tags rank higher. */
+  tags?: string[];
   /** Cover image under /public, e.g. "/assets/img/kitty/blog/tree-planting.jpg". */
   image: string;
   body: PostBlock[];
@@ -131,7 +134,7 @@ export const blogPosts: BlogPost[] = [
 const fallbackCategory: BlogCategory = { id: "", label: "บทความ", accent: "green" };
 
 /** The post's category label + badge colours. */
-export function categoryOf(post: BlogPost) {
+export function categoryOf(post: Pick<BlogPost, "category">) {
   const category = blogCategories.find((c) => c.id === post.category) ?? fallbackCategory;
   return { label: category.label, ...accents[category.accent] };
 }
@@ -152,9 +155,17 @@ export function formatThaiDate(iso: string) {
   });
 }
 
+/** Does the search text match the post's title or one of its tags?
+    Ignores case and a leading "#" (so "#ยางพารา" finds the tag). */
+export function postMatches(post: BlogPost, query: string) {
+  const q = query.trim().replace(/^#/, "").toLowerCase();
+  if (!q) return true;
+  return post.title.toLowerCase().includes(q) || (post.tags ?? []).some((t) => t.toLowerCase().includes(q));
+}
+
 /** Newest first. */
-export function sortedPosts() {
-  return [...blogPosts].sort((a, b) => b.date.localeCompare(a.date));
+export function sortPosts(posts: BlogPost[]) {
+  return [...posts].sort((a, b) => b.date.localeCompare(a.date));
 }
 
 /** "อ่าน N นาที" — Thai has no word spaces, so estimate from characters
@@ -164,15 +175,23 @@ export function readingMinutes(post: BlogPost) {
   return Math.max(1, Math.round(chars / 600));
 }
 
-/** Up to `limit` other posts — same category first, then newest. */
-export function relatedPosts(post: BlogPost, limit = 3) {
-  const others = sortedPosts().filter((p) => p.slug !== post.slug);
-  return [
-    ...others.filter((p) => p.category === post.category),
-    ...others.filter((p) => p.category !== post.category),
-  ].slice(0, limit);
+/** Up to `limit` other posts from `posts` (the published ones), ranked by
+    tags shared with `post` (ignoring case), then same category, then
+    newest. */
+export function relatedPosts(post: BlogPost, posts: BlogPost[], limit = 3) {
+  const own = new Set((post.tags ?? []).map((t) => t.toLowerCase()));
+  const shared = (p: BlogPost) => (p.tags ?? []).filter((t) => own.has(t.toLowerCase())).length;
+  const sameCategory = (p: BlogPost) => (p.category === post.category ? 1 : 0);
+  return sortPosts(posts)
+    .filter((p) => p.slug !== post.slug)
+    .map((p, newest) => ({ p, tags: shared(p), category: sameCategory(p), newest }))
+    .sort((a, b) => b.tags - a.tags || b.category - a.category || a.newest - b.newest)
+    .slice(0, limit)
+    .map(({ p }) => p);
 }
 
+/** A post written in this file (not one saved from the editor — those are
+    in tbl_blog; see lib/kitty-blog.ts for both). */
 export function findPost(slug: string) {
   return blogPosts.find((p) => p.slug === slug) ?? null;
 }
