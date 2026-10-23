@@ -10,6 +10,8 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import Reveal from "../about-project/Reveal";
+import { categoryOf, formatThaiDate, sortedPosts } from "./blog/content";
+import type { BlogPost } from "./blog/content";
 
 export const metadata: Metadata = {
   title: "Knowledge Center | KeptCarbon",
@@ -58,20 +60,11 @@ const sections: KittySection[] = [
 ];
 
 /* ── Content ─────────────────────────────────────────────────────────────
-   No content yet — each block shows an empty state until these are filled
-   (later from the blog / handbook / textbook data). */
-type Post = {
-  href: string;
-  title: string;
-  category: string;
-  /** Pre-formatted Thai date, e.g. "8 ต.ค. 2569". */
-  date: string;
-  image: string;
-};
-
+   Latest posts come from the blog's content.ts. The recommended topics
+   are still empty — each block shows an empty state until filled. */
 type Topic = { label: string; href: string };
 
-const latestPosts: Post[] = [];
+const latestPosts = sortedPosts().slice(0, 3);
 const handbookTopics: Topic[] = [];
 const textbookTopics: Topic[] = [];
 
@@ -141,23 +134,28 @@ function EmptyState({ children }: { children: React.ReactNode }) {
   );
 }
 
-function PostCard({ href, title, category, date, image }: Post) {
+function PostCard({ post }: { post: BlogPost }) {
+  const { slug, title, date, image } = post;
+  const { label, color, ink } = categoryOf(post);
   return (
     <Link
-      href={href}
+      href={`/kitty/blog/${slug}/`}
       className="group flex h-full gap-4 rounded-xl border border-border bg-card p-2.5 no-underline transition-all duration-200 hover:border-primary/30 hover:shadow-md"
     >
       <div className="relative aspect-[4/3] w-28 shrink-0 overflow-hidden rounded-lg">
         <Image src={image} alt="" fill sizes="112px" className="object-cover" />
       </div>
       <div className="flex min-w-0 flex-col py-1 pr-1">
-        <span className="mb-2 self-start rounded-full bg-secondary px-2.5 py-0.5 text-xs font-medium text-secondary-foreground">
-          {category}
+        <span
+          className="mb-2 self-start rounded-full px-2.5 py-0.5 text-xs font-medium"
+          style={{ backgroundColor: color, color: ink }}
+        >
+          {label}
         </span>
         <h3 className="m-0 line-clamp-2 text-sm font-semibold leading-snug text-foreground group-hover:text-primary">
           {title}
         </h3>
-        <span className="mt-auto pt-2 text-xs text-muted-foreground">{date}</span>
+        <span className="mt-auto pt-2 text-xs text-muted-foreground">{formatThaiDate(date)}</span>
       </div>
     </Link>
   );
@@ -255,8 +253,8 @@ export default function KittyPage() {
             <SectionHeader title="บทความล่าสุดจาก Keppy Blog" href="/kitty/blog" />
             {latestPosts.length ? (
               <div className="grid grid-cols-1 gap-4 md:grid-cols-3 md:gap-6">
-                {latestPosts.slice(0, 3).map((p) => (
-                  <PostCard key={p.href} {...p} />
+                {latestPosts.map((p) => (
+                  <PostCard key={p.slug} post={p} />
                 ))}
               </div>
             ) : (
