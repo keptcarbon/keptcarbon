@@ -89,7 +89,7 @@ export default async function BlogPostPage({ params }: Props) {
               </span>
               <TagList tags={post.tags} linked />
             </div>
-            <h1 className="mt-3 mb-5 text-2xl leading-snug font-bold tracking-tight text-foreground md:text-4xl">
+            <h1 className="mt-3 mb-5 text-2xl leading-snug font-bold tracking-tight text-foreground wrap-anywhere md:text-4xl">
               {post.title}
             </h1>
 
@@ -149,7 +149,7 @@ export default async function BlogPostPage({ params }: Props) {
                           <Image src={p.image} alt="" fill sizes="80px" className="object-cover" />
                         </span>
                         <span className="flex min-w-0 flex-col py-0.5">
-                          <span className="line-clamp-3 text-sm leading-snug font-medium text-foreground group-hover:text-primary">
+                          <span className="line-clamp-3 text-sm leading-snug font-medium text-foreground wrap-anywhere group-hover:text-primary">
                             {p.title}
                           </span>
                           <span className="mt-auto pt-1 text-xs text-muted-foreground">{formatThaiDate(p.date)}</span>

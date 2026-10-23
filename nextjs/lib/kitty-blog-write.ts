@@ -1,7 +1,7 @@
 import { mkdir, unlink, writeFile } from "fs/promises";
 import path from "path";
 import type { PoolClient } from "pg";
-import { blogCategories } from "@/app/(main)/(landing)/kitty/blog/content";
+import { badInlineLinks, blogCategories, linkHref } from "@/app/(main)/(landing)/kitty/blog/content";
 import type { PostBlock } from "@/app/(main)/(landing)/kitty/blog/content";
 import { normalizeTag, tagProblem } from "@/app/(main)/(landing)/kitty/blog/tags";
 
@@ -138,9 +138,19 @@ export async function parseBlogForm(
       } else {
         throw new BadRequest(`ส่วนที่ ${n}: ไม่ได้ระบุไฟล์รูปภาพ`);
       }
+    } else if (b?.type === "link") {
+      const url = typeof b.url === "string" ? linkHref(b.url) : null;
+      if (!url) throw new BadRequest(`ส่วนที่ ${n}: ลิงก์ต้องเป็น URL ที่ขึ้นต้นด้วย http:// หรือ https://`);
+      const label = typeof b.text === "string" ? b.text.trim() : "";
+      if (label.length > 300) throw new BadRequest(`ส่วนที่ ${n}: ข้อความของลิงก์ยาวเกิน 300 ตัวอักษร`);
+      blocks.push({ block: { type: "link", url, text: label || undefined } });
     } else if (b?.type === "paragraph" || b?.type === "heading" || QUOTE_TYPES.includes(b?.type as string)) {
       const t = typeof b.text === "string" ? b.text.trim() : "";
       if (!t) throw new BadRequest(`ส่วนที่ ${n}: ข้อความว่างอยู่`);
+      const bad = badInlineLinks(t);
+      if (bad.length) {
+        throw new BadRequest(`ส่วนที่ ${n}: ลิงก์ในข้อความไม่ถูกต้อง (${bad[0]}) — ใช้ URL ที่ขึ้นต้นด้วย http:// หรือ https://`);
+      }
       blocks.push({ block: { type: b.type, text: t } as PostBlock });
     } else {
       throw new BadRequest(`ส่วนที่ ${n}: ชนิดเนื้อหาไม่ถูกต้อง`);

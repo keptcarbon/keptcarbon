@@ -367,7 +367,7 @@ export default function KittyContentPage() {
                         return (
                             <tr key={p.slug}>
                                 <td className="px-4 py-3" style={{ maxWidth: 380 }}>
-                                    <div className="fw-semibold" style={{ color: "#1a3d2b" }}>{p.title}</div>
+                                    <div className="fw-semibold" style={{ color: "#1a3d2b", overflowWrap: "anywhere" }}>{p.title}</div>
                                     <div style={{ fontSize: 12, color: MUTED }}>
                                         {p.slug}
                                         {p.source === "file" && <span title="เขียนไว้ในโค้ด (content.ts) — แก้ไขผ่านหน้านี้ไม่ได้"> · ไฟล์ระบบ</span>}

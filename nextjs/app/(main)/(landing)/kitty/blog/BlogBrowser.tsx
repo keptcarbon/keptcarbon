@@ -217,7 +217,7 @@ export function PostCard({ post }: { post: BlogPost }) {
         </span>
       </div>
       <div className="flex flex-1 flex-col px-5 pt-4 pb-4">
-        <h2 className="mt-0 mb-3 line-clamp-2 text-base leading-snug font-semibold text-foreground group-hover:text-primary">
+        <h2 className="mt-0 mb-3 line-clamp-2 text-base leading-snug font-semibold text-foreground wrap-anywhere group-hover:text-primary">
           {post.title}
         </h2>
         <TagList tags={post.tags} max={3} className="mb-3" />

@@ -155,7 +155,7 @@ function PostCard({ post }: { post: BlogPost }) {
         >
           {label}
         </span>
-        <h3 className="m-0 line-clamp-2 text-sm font-semibold leading-snug text-foreground group-hover:text-primary">
+        <h3 className="m-0 line-clamp-2 text-sm font-semibold leading-snug text-foreground wrap-anywhere group-hover:text-primary">
           {title}
         </h3>
         <span className="mt-auto pt-2 text-xs text-muted-foreground">{formatThaiDate(date)}</span>

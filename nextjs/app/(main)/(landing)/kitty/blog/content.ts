@@ -44,7 +44,9 @@ export type PostBlock =
       text: string;
     }
   /** Figure under /public, e.g. "/assets/img/kitty/blog/tree-planting-2.jpg". */
-  | { type: "image"; src: string; alt: string; caption?: string };
+  | { type: "image"; src: string; alt: string; caption?: string }
+  /** Link to another page, opened in a new tab; `text` defaults to the URL. */
+  | { type: "link"; url: string; text?: string };
 
 export type BlogPost = {
   /** URL segment: /kitty/blog/<slug>. Must be unique. */
@@ -163,6 +165,119 @@ export function postMatches(post: BlogPost, query: string) {
   return post.title.toLowerCase().includes(q) || (post.tags ?? []).some((t) => t.toLowerCase().includes(q));
 }
 
+/** A link block's URL as a safe href: http(s) only ("www.x.com" gets
+    https:// added), or null if it isn't one. Used by the editor and the API. */
+export function linkHref(raw: string): string | null {
+  const value = raw.trim();
+  if (!value || value.length > 2000) return null;
+  try {
+    const url = new URL(/^[a-z][a-z0-9+.-]*:/i.test(value) ? value : `https://${value}`);
+    return (url.protocol === "https:" || url.protocol === "http:") && url.hostname.includes(".") ? url.href : null;
+  } catch {
+    return null;
+  }
+}
+
+/* ── Formatting inside text ── paragraphs, headings and quotes may contain
+     [ข้อความ](https://…)   link, opened in a new tab
+     **ตัวหนา**  *ตัวเอียง*  __ขีดเส้นใต้__
+   and they nest (***หนาและเอียง***, **[ลิงก์ตัวหนา](https://…)**). The text
+   stays plain in the database; parseInline only splits it for display.
+   A marker counts only with a matching close on the same line, touching
+   the text inside ("5 * 3" keeps its asterisks); a link only with an
+   http(s) URL (linkHref) — anything else is shown exactly as typed. */
+const INLINE_LINK = /\[([^\]\n]+)\]\(([^)\s]+)\)/g;
+const LINK_AT = /^\[([^\]\n]+)\]\(([^)\s]+)\)/;
+
+export type InlineNode =
+  | string
+  | { kind: "b" | "i" | "u"; children: InlineNode[] }
+  | { kind: "link"; href: string; children: InlineNode[] };
+
+/** Closing ** or __ for a pair opened just before `from`: the first one on
+    the same line not followed by a third marker char ("***x***" closes at
+    the end, leaving *x* inside for italic). */
+function closeDouble(text: string, from: number, ch: string) {
+  for (let j = from; j < text.length - 1; j++) {
+    if (text[j] === "\n") return -1;
+    if (text[j] === ch && text[j + 1] === ch && text[j + 2] !== ch) return j;
+  }
+  return -1;
+}
+
+/** Closing * for an italic opened just before `from`, skipping ** pairs. */
+function closeSingle(text: string, from: number) {
+  for (let j = from; j < text.length; j++) {
+    if (text[j] === "\n") return -1;
+    if (text[j] === "*") {
+      if (text[j + 1] === "*") { j++; continue; }
+      return j;
+    }
+  }
+  return -1;
+}
+
+const okInner = (s: string) => s.length > 0 && !/^\s|\s$/.test(s);
+const WORD_CHAR = /[A-Za-z0-9]/;
+
+export function parseInline(text: string): InlineNode[] {
+  const out: InlineNode[] = [];
+  let plain = "";
+  const flush = () => {
+    if (plain) out.push(plain);
+    plain = "";
+  };
+  let i = 0;
+  while (i < text.length) {
+    const c = text[i];
+    if (c === "[") {
+      const m = LINK_AT.exec(text.slice(i));
+      const href = m ? linkHref(m[2]) : null;
+      if (m && href) {
+        flush();
+        out.push({ kind: "link", href, children: parseInline(m[1]) });
+        i += m[0].length;
+        continue;
+      }
+    } else if ((c === "*" || c === "_") && text[i + 1] === c) {
+      const j = closeDouble(text, i + 2, c);
+      // __ only at word edges, so names like file__name stay as typed.
+      const edgeOk = c === "*" || (!WORD_CHAR.test(text[i - 1] ?? "") && !WORD_CHAR.test(text[j + 2] ?? ""));
+      if (j > 0 && edgeOk && okInner(text.slice(i + 2, j))) {
+        flush();
+        out.push({ kind: c === "*" ? "b" : "u", children: parseInline(text.slice(i + 2, j)) });
+        i = j + 2;
+        continue;
+      }
+    } else if (c === "*") {
+      const j = closeSingle(text, i + 1);
+      if (j > 0 && okInner(text.slice(i + 1, j))) {
+        flush();
+        out.push({ kind: "i", children: parseInline(text.slice(i + 1, j)) });
+        i = j + 1;
+        continue;
+      }
+    }
+    plain += c;
+    i++;
+  }
+  flush();
+  return out;
+}
+
+const flatten = (nodes: InlineNode[]): string =>
+  nodes.map((n) => (typeof n === "string" ? n : flatten(n.children))).join("");
+
+/** URLs of [..](..) links in the text that aren't valid http(s) links. */
+export function badInlineLinks(text: string): string[] {
+  return [...text.matchAll(INLINE_LINK)].map((m) => m[2]).filter((u) => !linkHref(u));
+}
+
+/** The text as readers see it — formatting and link syntax removed. */
+export function plainText(text: string) {
+  return flatten(parseInline(text));
+}
+
 /** Newest first. */
 export function sortPosts(posts: BlogPost[]) {
   return [...posts].sort((a, b) => b.date.localeCompare(a.date));
@@ -171,7 +286,10 @@ export function sortPosts(posts: BlogPost[]) {
 /** "อ่าน N นาที" — Thai has no word spaces, so estimate from characters
     (~600 per minute), at least 1. */
 export function readingMinutes(post: BlogPost) {
-  const chars = post.body.reduce((n, b) => n + (b.type === "image" ? 0 : b.text.length), 0);
+  const chars = post.body.reduce(
+    (n, b) => n + (b.type === "image" ? 0 : b.type === "link" ? (b.text ?? "").length : plainText(b.text).length),
+    0
+  );
   return Math.max(1, Math.round(chars / 600));
 }
 

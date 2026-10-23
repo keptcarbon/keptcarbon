@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
 import { Card } from "@/app/components";
-import { accents, blogCategories, blogPosts, formatThaiDate } from "@/app/(main)/(landing)/kitty/blog/content";
+import { accents, badInlineLinks, blogCategories, blogPosts, formatThaiDate, linkHref } from "@/app/(main)/(landing)/kitty/blog/content";
 import type { AccentName, PostBlock } from "@/app/(main)/(landing)/kitty/blog/content";
 import PostBlockView from "@/app/(main)/(landing)/kitty/blog/PostBlockView";
 import PublishSwitch from "../PublishSwitch";
@@ -102,7 +102,8 @@ type DraftBlock =
     | { id: number; type: "paragraph"; text: string }
     | { id: number; type: "heading"; text: string }
     | { id: number; type: "quote"; color: AccentName; text: string }
-    | { id: number; type: "image"; src: string | null; file: File | null; fileName: string; alt: string; caption: string };
+    | { id: number; type: "image"; src: string | null; file: File | null; fileName: string; alt: string; caption: string }
+    | { id: number; type: "link"; url: string; text: string };
 
 type BlockType = DraftBlock["type"];
 
@@ -111,14 +112,55 @@ const BLOCK_META: Record<BlockType, { label: string; icon: string }> = {
     heading: { label: "หัวข้อ", icon: "bi-type-h2" },
     quote: { label: "ข้อความเน้น", icon: "bi-quote" },
     image: { label: "รูปภาพ", icon: "bi-image" },
+    link: { label: "ลิงก์", icon: "bi-link-45deg" },
 };
 
 function newBlock(id: number, type: BlockType): DraftBlock {
     switch (type) {
         case "quote": return { id, type, color: "green", text: "" };
         case "image": return { id, type, src: null, file: null, fileName: "", alt: "", caption: "" };
+        case "link": return { id, type, url: "", text: "" };
         default: return { id, type, text: "" };
     }
+}
+
+// ── Text formatting markers (rendered by InlineText on the post page) ──
+type FormatKind = "b" | "i" | "u";
+const FORMAT_MARK: Record<FormatKind, string> = { b: "**", i: "*", u: "__" };
+const FORMAT_BUTTONS: { kind: FormatKind; label: string; title: string; style: React.CSSProperties }[] = [
+    { kind: "b", label: "B", title: "ตัวหนา (Ctrl/⌘+B)", style: { fontWeight: 800 } },
+    { kind: "i", label: "I", title: "ตัวเอียง (Ctrl/⌘+I)", style: { fontStyle: "italic", fontFamily: "Georgia, serif" } },
+    { kind: "u", label: "U", title: "ขีดเส้นใต้ (Ctrl/⌘+U)", style: { textDecoration: "underline" } },
+];
+
+const runBefore = (t: string, pos: number, ch: string) => { let n = 0; while (pos - n - 1 >= 0 && t[pos - n - 1] === ch) n++; return n; };
+const runAfter = (t: string, pos: number, ch: string) => { let n = 0; while (pos + n < t.length && t[pos + n] === ch) n++; return n; };
+
+/** Adds or removes a format's markers around [start, end) — removes when
+    the selection is already wrapped (so B on bold text un-bolds it).
+    Surrounding spaces are left outside the markers, which must touch the
+    text. With nothing selected it inserts an empty pair, caret inside. */
+function toggleFormat(text: string, start: number, end: number, kind: FormatKind) {
+    while (start < end && /\s/.test(text[start])) start++;
+    while (end > start && /\s/.test(text[end - 1])) end--;
+    const mark = FORMAT_MARK[kind];
+    const ch = mark[0];
+    const before = runBefore(text, start, ch);
+    const after = runAfter(text, end, ch);
+    // * vs **: italic is an odd run of stars around the text, bold ≥ 2.
+    const wrapped = kind === "i" ? before % 2 === 1 && after % 2 === 1 : before >= 2 && after >= 2;
+    if (wrapped && start < end) {
+        return {
+            text: text.slice(0, start - mark.length) + text.slice(start, end) + text.slice(end + mark.length),
+            start: start - mark.length,
+            end: end - mark.length,
+        };
+    }
+    return {
+        text: text.slice(0, start) + mark + text.slice(start, end) + mark + text.slice(end),
+        start: start + mark.length,
+        end: end + mark.length,
+    };
 }
 
 /** A saved block back into an editable draft. */
@@ -126,6 +168,8 @@ function toDraft(b: PostBlock, id: number): DraftBlock {
     switch (b.type) {
         case "image":
             return { id, type: "image", src: b.src, file: null, fileName: b.src.split("/").pop() ?? "", alt: b.alt, caption: b.caption ?? "" };
+        case "link":
+            return { id, type: "link", url: b.url, text: b.text ?? "" };
         case "paragraph":
         case "heading":
             return { id, type: b.type, text: b.text };
@@ -141,6 +185,10 @@ function toPostBlock(b: DraftBlock): PostBlock | null {
             return b.src ? { type: "image", src: b.src, alt: b.alt, caption: b.caption || undefined } : null;
         case "quote":
             return b.text.trim() ? { type: b.color === "green" ? "quote" : `quote-${b.color}`, text: b.text } : null;
+        case "link": {
+            const url = linkHref(b.url);
+            return url ? { type: "link", url, text: b.text.trim() || undefined } : null;
+        }
         default:
             return b.text.trim() ? { type: b.type, text: b.text } : null;
     }
@@ -180,6 +228,76 @@ export default function BlogEditor({ initial }: {
     const [saveError, setSaveError] = useState<string | null>(null);
     // Rejected picks, keyed "cover" or the image block's id.
     const [pickErrors, setPickErrors] = useState<Record<string, string>>({});
+
+    // ── แทรกลิงก์: insert [ข้อความ](URL) into a paragraph / heading / quote
+    //    at the cursor (or over the selected text, which becomes the label). ──
+    const fieldRefs = useRef(new Map<number, HTMLInputElement | HTMLTextAreaElement>());
+    const fieldRef = (id: number) => (el: HTMLInputElement | HTMLTextAreaElement | null) => {
+        if (el) fieldRefs.current.set(id, el);
+        else fieldRefs.current.delete(id);
+    };
+    // Last cursor / selection per field, kept as it changes — reading it on
+    // click is too late once focus has moved to the button (e.g. by Tab).
+    const selections = useRef(new Map<number, [number, number]>());
+    const rememberSelection = (id: number) => (e: React.SyntheticEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+        const el = e.currentTarget;
+        selections.current.set(id, [el.selectionStart ?? el.value.length, el.selectionEnd ?? el.value.length]);
+    };
+    const [linkForm, setLinkForm] = useState<{
+        blockId: number; start: number; end: number; text: string; url: string; error: string | null;
+    } | null>(null);
+
+    function openLinkForm(id: number, text: string) {
+        const [start, end] = selections.current.get(id) ?? [text.length, text.length];
+        setLinkForm({ blockId: id, start, end, text: text.slice(start, end), url: "", error: null });
+    }
+
+    function applyFormat(id: number, kind: FormatKind) {
+        const block = blocks.find((b) => b.id === id);
+        if (!block || !("text" in block)) return;
+        const [start, end] = selections.current.get(id) ?? [block.text.length, block.text.length];
+        const next = toggleFormat(block.text, start, end, kind);
+        updateBlock(id, { text: next.text });
+        selections.current.set(id, [next.start, next.end]);
+        requestAnimationFrame(() => {
+            const el = fieldRefs.current.get(id);
+            el?.focus();
+            el?.setSelectionRange(next.start, next.end);
+        });
+    }
+
+    // Ctrl/⌘ + B / I / U in a text field.
+    const formatKeys = (id: number) => (e: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+        if (!(e.metaKey || e.ctrlKey) || e.altKey || e.shiftKey) return;
+        const kind = ({ b: "b", i: "i", u: "u" } as Record<string, FormatKind>)[e.key.toLowerCase()];
+        if (!kind) return;
+        e.preventDefault();
+        const el = e.currentTarget;
+        selections.current.set(id, [el.selectionStart ?? el.value.length, el.selectionEnd ?? el.value.length]);
+        applyFormat(id, kind);
+    };
+
+    function insertLink() {
+        if (!linkForm) return;
+        const href = linkHref(linkForm.url);
+        if (!href) {
+            setLinkForm({ ...linkForm, error: "URL ไม่ถูกต้อง — ใช้ลิงก์ที่ขึ้นต้นด้วย http:// หรือ https://" });
+            return;
+        }
+        // Brackets and line breaks would end the [label] early.
+        const label = linkForm.text.replace(/[[\]\n]/g, " ").trim() || href;
+        const snippet = `[${label}](${href})`;
+        const block = blocks.find((b) => b.id === linkForm.blockId);
+        if (!block || !("text" in block)) return;
+        updateBlock(block.id, { text: block.text.slice(0, linkForm.start) + snippet + block.text.slice(linkForm.end) });
+        const caret = linkForm.start + snippet.length;
+        setLinkForm(null);
+        requestAnimationFrame(() => {
+            const el = fieldRefs.current.get(block.id);
+            el?.focus();
+            el?.setSelectionRange(caret, caret);
+        });
+    }
     const setPickError = (key: string, message: string | null) =>
         setPickErrors((prev) => {
             const next = { ...prev };
@@ -242,7 +360,12 @@ export default function BlogEditor({ initial }: {
     for (const b of blocks) {
         if (b.type === "image" && !b.src) blockErrors.set(b.id, "กรุณาเลือกรูปภาพ หรือลบส่วนนี้");
         else if (b.type === "image" && !b.alt.trim()) blockErrors.set(b.id, "กรุณาใส่คำอธิบายรูป (alt) สำหรับผู้ใช้โปรแกรมอ่านหน้าจอ");
-        else if (b.type !== "image" && !b.text.trim()) blockErrors.set(b.id, "ส่วนนี้ยังว่างอยู่ — กรอกข้อความหรือลบส่วนนี้");
+        else if (b.type === "link" && !b.url.trim()) blockErrors.set(b.id, "กรุณาใส่ URL ของลิงก์ หรือลบส่วนนี้");
+        else if (b.type === "link" && !linkHref(b.url)) blockErrors.set(b.id, "URL ไม่ถูกต้อง — ใช้ลิงก์ที่ขึ้นต้นด้วย http:// หรือ https:// เช่น https://www.tgo.or.th");
+        else if (b.type !== "image" && b.type !== "link" && !b.text.trim()) blockErrors.set(b.id, "ส่วนนี้ยังว่างอยู่ — กรอกข้อความหรือลบส่วนนี้");
+        else if (b.type !== "image" && b.type !== "link" && badInlineLinks(b.text).length) {
+            blockErrors.set(b.id, `ลิงก์ในข้อความไม่ถูกต้อง (${badInlineLinks(b.text)[0]}) — ใช้ URL ที่ขึ้นต้นด้วย http:// หรือ https://`);
+        }
     }
     const hasErrors = Object.keys(errors).length > 0 || blockErrors.size > 0;
     const show = (key: string) => attempted && errors[key] ? <div style={ERROR_STYLE}>{errors[key]}</div> : null;
@@ -274,6 +397,8 @@ export default function BlogEditor({ initial }: {
                 }
                 case "quote":
                     return { type: b.color === "green" ? "quote" : `quote-${b.color}`, text: b.text.trim() };
+                case "link":
+                    return { type: "link", url: linkHref(b.url), text: b.text.trim() || undefined };
                 default:
                     return { type: b.type, text: b.text.trim() };
             }
@@ -358,6 +483,13 @@ export default function BlogEditor({ initial }: {
                                 <div className="fw-bold" style={{ color: "#1a3d2b", fontSize: 15 }}>เนื้อหา</div>
                                 <div style={{ fontSize: 12, color: "#94a3b8" }}>{blocks.length} ส่วน</div>
                             </div>
+                            <div className="mb-3" style={{ fontSize: 12, color: "#5a7a65", background: "#f8fbf9", border: "1px solid #e6f0ea", borderRadius: 8, padding: "6px 10px" }}>
+                                <i className="bi bi-type me-1" />
+                                จัดรูปแบบในย่อหน้า หัวข้อ และข้อความเน้น: เลือกข้อความแล้วกด <b>B</b> <i>I</i> <u>U</u> หรือ แทรกลิงก์ —
+                                จะแสดงเป็น {["**ตัวหนา**", "*ตัวเอียง*", "__ขีดเส้นใต้__", "[ข้อความ](URL)"].map((m) => (
+                                    <code key={m} className="mx-1" style={{ color: "#1e7a47", fontSize: 11.5 }}>{m}</code>
+                                ))} · ดูผลจริงที่แท็บ &ldquo;ตัวอย่าง&rdquo;
+                            </div>
 
                             <div className="d-flex flex-column gap-3">
                                 {blocks.map((b, i) => (
@@ -367,6 +499,32 @@ export default function BlogEditor({ initial }: {
                                             <i className={`bi ${BLOCK_META[b.type].icon}`} style={{ color: "#1e7a47" }} />
                                             <span style={{ fontSize: 12.5, fontWeight: 600, color: "#5a7a65" }}>{BLOCK_META[b.type].label}</span>
                                             <div className="ms-auto d-flex gap-1">
+                                                {(b.type === "paragraph" || b.type === "heading" || b.type === "quote") && FORMAT_BUTTONS.map((f) => (
+                                                    <button
+                                                        key={f.kind}
+                                                        type="button"
+                                                        // mousedown keeps the field's selection
+                                                        onMouseDown={(e) => e.preventDefault()}
+                                                        onClick={() => applyFormat(b.id, f.kind)}
+                                                        style={{ ...ICON_BUTTON_STYLE, ...f.style, color: "#1a3d2b", fontSize: 13 }}
+                                                        title={f.title}
+                                                        aria-label={f.title}
+                                                    >
+                                                        {f.label}
+                                                    </button>
+                                                ))}
+                                                {(b.type === "paragraph" || b.type === "heading" || b.type === "quote") && (
+                                                    <button
+                                                        type="button"
+                                                        // mousedown keeps the field's selection for openLinkForm
+                                                        onMouseDown={(e) => e.preventDefault()}
+                                                        onClick={() => openLinkForm(b.id, b.text)}
+                                                        style={{ ...ICON_BUTTON_STYLE, width: "auto", padding: "0 9px", gap: 4, fontSize: 12, color: "#1e7a47" }}
+                                                        title="แทรกลิงก์ในข้อความ — เลือกข้อความก่อนเพื่อใช้เป็นข้อความของลิงก์"
+                                                    >
+                                                        <i className="bi bi-link-45deg" />แทรกลิงก์
+                                                    </button>
+                                                )}
                                                 <button type="button" style={ICON_BUTTON_STYLE} disabled={i === 0} onClick={() => moveBlock(b.id, -1)} aria-label="เลื่อนขึ้น" title="เลื่อนขึ้น">
                                                     <i className="bi bi-arrow-up" />
                                                 </button>
@@ -381,6 +539,9 @@ export default function BlogEditor({ initial }: {
 
                                         {b.type === "paragraph" && (
                                             <textarea
+                                                ref={fieldRef(b.id)}
+                                                onSelect={rememberSelection(b.id)}
+                                                onKeyDown={formatKeys(b.id)}
                                                 value={b.text}
                                                 onChange={(e) => updateBlock(b.id, { text: e.target.value })}
                                                 rows={4}
@@ -390,11 +551,41 @@ export default function BlogEditor({ initial }: {
                                         )}
                                         {b.type === "heading" && (
                                             <input
+                                                ref={fieldRef(b.id)}
+                                                onSelect={rememberSelection(b.id)}
+                                                onKeyDown={formatKeys(b.id)}
                                                 value={b.text}
                                                 onChange={(e) => updateBlock(b.id, { text: e.target.value })}
                                                 placeholder="เช่น ทำไมคาร์บอนเครดิตถึงสำคัญ?"
                                                 style={{ ...INPUT_STYLE, fontWeight: 700, fontSize: 16 }}
                                             />
+                                        )}
+                                        {b.type === "link" && (
+                                            <div className="row g-2">
+                                                <div className="col-sm-7">
+                                                    <div style={FIELD_LABEL_STYLE}>URL <Required /></div>
+                                                    <input
+                                                        type="url"
+                                                        inputMode="url"
+                                                        value={b.url}
+                                                        onChange={(e) => updateBlock(b.id, { url: e.target.value })}
+                                                        placeholder="https://www.tgo.or.th"
+                                                        style={INPUT_STYLE}
+                                                    />
+                                                </div>
+                                                <div className="col-sm-5">
+                                                    <div style={FIELD_LABEL_STYLE}>ข้อความที่แสดง</div>
+                                                    <input
+                                                        value={b.text}
+                                                        onChange={(e) => updateBlock(b.id, { text: e.target.value })}
+                                                        placeholder="ไม่บังคับ — ถ้าว่างจะแสดง URL"
+                                                        style={INPUT_STYLE}
+                                                    />
+                                                </div>
+                                                <div className="col-12" style={{ fontSize: 12, color: "#94a3b8" }}>
+                                                    <i className="bi bi-box-arrow-up-right me-1" />เปิดในแท็บใหม่เมื่อผู้อ่านคลิก
+                                                </div>
+                                            </div>
                                         )}
                                         {b.type === "quote" && (
                                             <>
@@ -419,6 +610,9 @@ export default function BlogEditor({ initial }: {
                                                     ))}
                                                 </div>
                                                 <textarea
+                                                    ref={fieldRef(b.id)}
+                                                onSelect={rememberSelection(b.id)}
+                                                onKeyDown={formatKeys(b.id)}
                                                     value={b.text}
                                                     onChange={(e) => updateBlock(b.id, { text: e.target.value })}
                                                     rows={2}
@@ -458,6 +652,52 @@ export default function BlogEditor({ initial }: {
                                                         <input value={b.caption} onChange={(e) => updateBlock(b.id, { caption: e.target.value })} placeholder="ไม่บังคับ" style={INPUT_STYLE} />
                                                     </div>
                                                 </div>
+                                            </div>
+                                        )}
+
+                                        {linkForm?.blockId === b.id && (
+                                            <div
+                                                className="mt-2 p-2"
+                                                style={{ border: "1px solid #cfe9db", background: "#f3fbf6", borderRadius: 10 }}
+                                                onKeyDown={(e) => {
+                                                    if (e.key === "Enter") { e.preventDefault(); insertLink(); }
+                                                    if (e.key === "Escape") setLinkForm(null);
+                                                }}
+                                            >
+                                                <div className="row g-2 align-items-end">
+                                                    <div className="col-sm-5">
+                                                        <div style={FIELD_LABEL_STYLE}>ข้อความของลิงก์</div>
+                                                        <input
+                                                            value={linkForm.text}
+                                                            onChange={(e) => setLinkForm({ ...linkForm, text: e.target.value })}
+                                                            placeholder="ถ้าว่างจะแสดง URL"
+                                                            style={INPUT_STYLE}
+                                                        />
+                                                    </div>
+                                                    <div className="col-sm-5">
+                                                        <div style={FIELD_LABEL_STYLE}>URL <Required /></div>
+                                                        <input
+                                                            type="url"
+                                                            inputMode="url"
+                                                            autoFocus
+                                                            value={linkForm.url}
+                                                            onChange={(e) => setLinkForm({ ...linkForm, url: e.target.value, error: null })}
+                                                            placeholder="https://www.tgo.or.th"
+                                                            style={INPUT_STYLE}
+                                                        />
+                                                    </div>
+                                                    <div className="col-sm-2 d-flex gap-1">
+                                                        <button type="button" onClick={insertLink} className="btn" style={{ background: "#1e7a47", color: "#fff", border: "none", borderRadius: 9, padding: "8px 12px", fontSize: "0.8rem", fontWeight: 600, width: "auto", flex: 1 }}>
+                                                            แทรก
+                                                        </button>
+                                                        <button type="button" onClick={() => setLinkForm(null)} aria-label="ยกเลิก" className="btn" style={{ ...ICON_BUTTON_STYLE, width: 36, height: 36 }}>
+                                                            <i className="bi bi-x-lg" />
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                                {linkForm.error
+                                                    ? <div style={ERROR_STYLE}>{linkForm.error}</div>
+                                                    : <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 4 }}>จะแทรกเป็น [ข้อความ](URL) — ผู้อ่านคลิกแล้วเปิดในแท็บใหม่ · กด &ldquo;ตัวอย่าง&rdquo; เพื่อดูผล</div>}
                                             </div>
                                         )}
 
@@ -570,7 +810,7 @@ export default function BlogEditor({ initial }: {
                             <span className="inline-block rounded-full px-3 py-1 text-xs font-medium" style={{ backgroundColor: badge.color, color: badge.ink }}>
                                 {categoryInfo?.label ?? "บทความ"}
                             </span>
-                            <h1 className="mt-3 mb-5 text-2xl leading-snug font-bold tracking-tight text-foreground md:text-4xl">
+                            <h1 className="mt-3 mb-5 text-2xl leading-snug font-bold tracking-tight text-foreground wrap-anywhere md:text-4xl">
                                 {title || <span className="text-muted-foreground">ยังไม่มีชื่อบทความ</span>}
                             </h1>
                             <div className="mb-6 flex items-center gap-3">
