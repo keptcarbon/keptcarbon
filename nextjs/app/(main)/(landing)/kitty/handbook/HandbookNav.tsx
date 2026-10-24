@@ -4,17 +4,19 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ChevronDown, ListTree } from "lucide-react";
-import { handbookGroups } from "./content";
+import { sectionIcon } from "../book";
+import type { OutlineSection } from "../book";
 
-/* Handbook table of contents — collapsible groups, numbered articles.
-   The group holding the current article starts open. */
-export default function HandbookNav({ onNavigate }: { onNavigate?: () => void }) {
+/* Handbook table of contents — collapsible groups, numbered articles, from
+   the published outline (tbl_kitty_section / tbl_kitty_page). The group
+   holding the current article starts open. */
+export default function HandbookNav({ outline, onNavigate }: { outline: OutlineSection[]; onNavigate?: () => void }) {
   const pathname = usePathname();
   /* trailingSlash (next.config) leaves a "/" on the end */
   const activeSlug = pathname.replace(/\/$/, "").split("/").pop();
 
-  const activeGroup = handbookGroups.find((g) =>
-    g.articles.some((a) => a.slug === activeSlug)
+  const activeGroup = outline.find((g) =>
+    g.pages.some((a) => a.slug === activeSlug)
   )?.title;
 
   const [open, setOpen] = useState<Set<string>>(
@@ -37,11 +39,12 @@ export default function HandbookNav({ onNavigate }: { onNavigate?: () => void })
 
   return (
     <nav aria-label="สารบัญคู่มือ" className="flex flex-col gap-1">
-      {handbookGroups.map(({ title, icon: Icon, articles }) => {
+      {outline.map(({ id, title, icon, pages: articles }) => {
+        const Icon = sectionIcon(icon);
         const isOpen = open.has(title);
         const hasActive = articles.some((a) => a.slug === activeSlug);
         return (
-          <div key={title}>
+          <div key={id}>
             <button
               type="button"
               aria-expanded={isOpen}
@@ -66,7 +69,7 @@ export default function HandbookNav({ onNavigate }: { onNavigate?: () => void })
                   return (
                     <li key={slug}>
                       <Link
-                        href={`/kitty/handbook/${slug}`}
+                        href={`/kitty/handbook/${slug}/`}
                         onClick={onNavigate}
                         aria-current={active ? "page" : undefined}
                         className={`relative block rounded-lg py-2 pr-3 pl-9 text-sm no-underline transition-colors ${active
@@ -89,7 +92,7 @@ export default function HandbookNav({ onNavigate }: { onNavigate?: () => void })
 }
 
 /* Below lg the table of contents folds into a toggle above the article. */
-export function HandbookMobileNav() {
+export function HandbookMobileNav({ outline }: { outline: OutlineSection[] }) {
   const [open, setOpen] = useState(false);
   return (
     <div className="mb-6 rounded-xl border border-border bg-card lg:hidden">
@@ -108,7 +111,7 @@ export function HandbookMobileNav() {
       </button>
       {open && (
         <div className="border-t border-border p-2">
-          <HandbookNav onNavigate={() => setOpen(false)} />
+          <HandbookNav outline={outline} onNavigate={() => setOpen(false)} />
         </div>
       )}
     </div>

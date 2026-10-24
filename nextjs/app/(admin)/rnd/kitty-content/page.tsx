@@ -5,14 +5,17 @@ import Link from "next/link";
 import { Card } from "@/app/components";
 import PublishSwitch from "./PublishSwitch";
 import { blogCategories, categoryOf, formatThaiDate } from "@/app/(main)/(landing)/kitty/blog/content";
-import { handbookGroups } from "@/app/(main)/(landing)/kitty/handbook/content";
-import { textbookChapters } from "@/app/(main)/(landing)/kitty/textbook/content";
+import { BOOKS, readingOrder } from "@/app/(main)/(landing)/kitty/book";
+import type { Book, OutlineSection } from "@/app/(main)/(landing)/kitty/book";
 
 // KITTY content overview — one tab per section. Blog posts come from
 // GET /api/rnd/blog (tbl_blog), each with a publish / hide switch
 // (PATCH /api/rnd/blog), edit (blog/[slug]/edit) and delete
 // (DELETE /api/rnd/blog/<slug>).
-// Handbook and textbook are read-only lists of their content.ts.
+// Handbook and textbook pages come from GET /api/rnd/kitty-book/<book>
+// (tbl_kitty_section / tbl_kitty_page), in reading order, with the same
+// switch / edit (book/<book>/<slug>/edit) / delete; their sections and
+// order are edited on book/<book>/outline.
 
 const HERO_BG =
     "radial-gradient(900px 420px at -5% -20%, rgba(45,158,95,0.16) 0%, rgba(45,158,95,0) 62%)," +
@@ -37,17 +40,11 @@ type BlogRow = {
     blocks: number;
     published: boolean;
 };
-const handbookRows = handbookGroups.flatMap((group) =>
-    group.articles.map((article, i) => ({ group: group.title, article, number: i + 1 }))
-);
-const textbookRows = textbookChapters.flatMap((chapter, c) =>
-    chapter.lessons.map((lesson, l) => ({
-        chapter: `บทที่ ${c + 1} ${chapter.title}`,
-        downloads: chapter.downloads?.length ?? 0,
-        lesson,
-        number: `${c + 1}.${l + 1}`,
-    }))
-);
+
+/** Something waiting on the delete dialog: a blog post or a book page. */
+type Deleting = { kind: "blog" | Book; slug: string; title: string };
+
+const isBookTab = (tab: TabKey): tab is Book => tab !== "blog";
 
 const TABS: { key: TabKey; label: string }[] = [
     { key: "blog", label: "Keppy Blog" },
@@ -82,8 +79,10 @@ const ACTION_STYLE: React.CSSProperties = {
 };
 
 // "Are you sure?" before deleting a post — its images go with it.
-function DeleteDialog({ title, busy, error, onCancel, onConfirm }: {
+function DeleteDialog({ title, noun, busy, error, onCancel, onConfirm }: {
     title: string;
+    /** "บทความ" or "บทเรียน". */
+    noun: string;
     busy: boolean;
     error: string | null;
     onCancel: () => void;
@@ -109,9 +108,9 @@ function DeleteDialog({ title, busy, error, onCancel, onConfirm }: {
                 <div className="d-flex align-items-center justify-content-center mb-3" style={{ width: 44, height: 44, borderRadius: 12, background: "#fdecec", color: "#c53030", fontSize: 20 }}>
                     <i className="bi bi-trash" />
                 </div>
-                <h2 id="delete-post-title" className="fw-bold mb-2" style={{ fontSize: 18, color: "#1a3d2b" }}>ลบบทความนี้?</h2>
+                <h2 id="delete-post-title" className="fw-bold mb-2" style={{ fontSize: 18, color: "#1a3d2b" }}>ลบ{noun}นี้?</h2>
                 <p className="mb-3" style={{ fontSize: 14, color: "#5a7a65" }}>
-                    &ldquo;{title}&rdquo; และรูปภาพทั้งหมดของบทความจะถูกลบถาวร ย้อนกลับไม่ได้
+                    &ldquo;{title}&rdquo; และรูปภาพทั้งหมดของ{noun}จะถูกลบถาวร ย้อนกลับไม่ได้
                 </p>
                 {error && (
                     <div className="mb-3" style={{ fontSize: 12.5, color: "#dc2626" }}>
@@ -123,7 +122,7 @@ function DeleteDialog({ title, busy, error, onCancel, onConfirm }: {
                         ยกเลิก
                     </button>
                     <button type="button" onClick={onConfirm} disabled={busy} autoFocus className="btn" style={{ ...ACTION_STYLE, padding: "8px 16px", fontSize: "0.85rem", fontWeight: 600, background: "#c53030", borderColor: "#c53030", color: "#fff" }}>
-                        {busy ? <><span className="spinner-border spinner-border-sm me-2" style={{ width: 14, height: 14 }} />กำลังลบ…</> : "ลบบทความ"}
+                        {busy ? <><span className="spinner-border spinner-border-sm me-2" style={{ width: 14, height: 14 }} />กำลังลบ…</> : `ลบ${noun}`}
                     </button>
                 </div>
             </div>
@@ -176,30 +175,84 @@ export default function KittyContentPage() {
     // Success banner: a post just created / edited (?created= / ?updated=
     // from the editor) or deleted here.
     const [notice, setNotice] = useState<string | null>(null);
-    // Post waiting on the delete dialog.
-    const [deleting, setDeleting] = useState<BlogRow | null>(null);
+    const [deleting, setDeleting] = useState<Deleting | null>(null);
+
+    // ── Handbook / textbook outlines (GET / PATCH /api/rnd/kitty-book/<book>). ──
+    const [books, setBooks] = useState<Record<Book, OutlineSection[] | null>>({ handbook: null, textbook: null });
+    const [bookErrors, setBookErrors] = useState<Record<Book, string | null>>({ handbook: null, textbook: null });
     const [deleteBusy, setDeleteBusy] = useState(false);
     const [deleteError, setDeleteError] = useState<string | null>(null);
 
     useEffect(() => {
         const params = new URLSearchParams(window.location.search);
+        const tab = params.get("tab");
+        // Back from a book editor: reopen its tab.
+        if (tab === "handbook" || tab === "textbook") setActiveTab(tab);
         const created = params.get("created");
         const updated = params.get("updated");
-        if (!created && !updated) return;
-        setNotice(created ? `บันทึกบทความ ${created} เรียบร้อยแล้ว` : `บันทึกการแก้ไขบทความ ${updated} เรียบร้อยแล้ว`);
-        window.history.replaceState(null, "", window.location.pathname);
+        if (created || updated) {
+            setNotice(created ? `บันทึก ${created} เรียบร้อยแล้ว` : `บันทึกการแก้ไข ${updated} เรียบร้อยแล้ว`);
+        } else if (params.get("outline")) {
+            setNotice("บันทึกสารบัญเรียบร้อยแล้ว");
+        }
+        if (params.size) window.history.replaceState(null, "", window.location.pathname);
     }, []);
+
+    useEffect(() => {
+        let cancelled = false;
+        for (const book of ["handbook", "textbook"] as const) {
+            fetch(`/api/rnd/kitty-book/${book}/`)
+                .then(async (res) => {
+                    const data = await res.json();
+                    if (!res.ok) throw new Error(data.error ?? "โหลดรายการไม่สำเร็จ");
+                    if (!cancelled) setBooks((prev) => ({ ...prev, [book]: data.sections as OutlineSection[] }));
+                })
+                .catch((err: Error) => {
+                    if (cancelled) return;
+                    setBookErrors((prev) => ({ ...prev, [book]: err.message }));
+                    setBooks((prev) => ({ ...prev, [book]: [] }));
+                });
+        }
+        return () => { cancelled = true; };
+    }, []);
+
+    async function setPagePublished(book: Book, slug: string, published: boolean) {
+        setSavingSlug(slug);
+        setBookErrors((prev) => ({ ...prev, [book]: null }));
+        try {
+            const res = await fetch(`/api/rnd/kitty-book/${book}/`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ slug, published }),
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error ?? "บันทึกสถานะไม่สำเร็จ");
+            setBooks((prev) => ({
+                ...prev,
+                [book]: prev[book]?.map((s) => ({ ...s, pages: s.pages.map((p) => (p.slug === slug ? { ...p, published } : p)) })) ?? null,
+            }));
+        } catch (err) {
+            setBookErrors((prev) => ({ ...prev, [book]: (err as Error).message }));
+        } finally {
+            setSavingSlug(null);
+        }
+    }
 
     async function confirmDelete() {
         if (!deleting) return;
         setDeleteBusy(true);
         setDeleteError(null);
         try {
-            const res = await fetch(`/api/rnd/blog/${encodeURIComponent(deleting.slug)}/`, { method: "DELETE" });
+            const { kind, slug } = deleting;
+            const url = kind === "blog"
+                ? `/api/rnd/blog/${encodeURIComponent(slug)}/`
+                : `/api/rnd/kitty-book/${kind}/pages/${encodeURIComponent(slug)}/`;
+            const res = await fetch(url, { method: "DELETE" });
             const data = await res.json().catch(() => ({}));
-            if (!res.ok) throw new Error(data.error ?? "ลบบทความไม่สำเร็จ");
-            setPosts((prev) => prev.filter((p) => p.slug !== deleting.slug));
-            setNotice(`ลบบทความ ${deleting.slug} แล้ว`);
+            if (!res.ok) throw new Error(data.error ?? "ลบไม่สำเร็จ");
+            if (kind === "blog") setPosts((prev) => prev.filter((p) => p.slug !== slug));
+            else setBooks((prev) => ({ ...prev, [kind]: prev[kind]?.map((s) => ({ ...s, pages: s.pages.filter((p) => p.slug !== slug) })) ?? null }));
+            setNotice(`ลบ ${slug} แล้ว`);
             setDeleting(null);
         } catch (err) {
             setDeleteError((err as Error).message);
@@ -246,8 +299,14 @@ export default function KittyContentPage() {
     const shownPosts = posts.filter(
         (p) => (!blogCategory || p.category === blogCategory) && has(p.title, p.slug)
     );
-    const shownHandbook = handbookRows.filter((r) => has(r.group, r.article.title, r.article.slug));
-    const shownTextbook = textbookRows.filter((r) => has(r.chapter, r.lesson.title, r.lesson.slug, r.number));
+    // Book pages in reading order, with their section label and number.
+    const bookRows = (book: Book) =>
+        readingOrder(book, books[book] ?? []).map(({ section, sectionNumber, page, number }) => ({
+            section: book === "textbook" ? `บทที่ ${sectionNumber} ${section.title}` : section.title,
+            page,
+            number,
+        }));
+    const pageCount = (book: Book) => (books[book] ?? []).reduce((n, s) => n + s.pages.length, 0);
 
     const emptyText = (total: number, shown: number, none: string) =>
         shown > 0 ? null : total === 0 ? none : "ไม่พบรายการที่ตรงกับเงื่อนไข";
@@ -302,7 +361,7 @@ export default function KittyContentPage() {
                             }}
                         >
                             {tab.key === "blog" ? (visibilityLoading ? "…" : posts.length)
-                                : tab.key === "handbook" ? handbookRows.length : textbookRows.length}
+                                : books[tab.key] ? pageCount(tab.key) : "…"}
                         </span>
                     </button>
                 ))}
@@ -346,6 +405,31 @@ export default function KittyContentPage() {
                         <i className="bi bi-plus-lg" />
                         สร้าง blog
                     </Link>
+                )}
+                {isBookTab(activeTab) && (
+                    <>
+                        <Link
+                            href={`/rnd/kitty-content/book/${activeTab}/outline/`}
+                            className="btn ms-auto"
+                            style={{ ...ACTION_STYLE, padding: "9px 12px", fontSize: "0.85rem", fontWeight: 600, flexShrink: 0 }}
+                        >
+                            <i className="bi bi-list-nested me-1" />
+                            จัดการสารบัญ
+                        </Link>
+                        <Link
+                            href={`/rnd/kitty-content/book/${activeTab}/new/`}
+                            className="btn"
+                            style={{
+                                background: "#1e7a47", color: "#fff", border: "none",
+                                borderRadius: 10, padding: "9px 12px", fontWeight: 600, fontSize: "0.85rem",
+                                display: "flex", alignItems: "center", gap: 6,
+                                width: "auto", flexShrink: 0, whiteSpace: "nowrap",
+                            }}
+                        >
+                            <i className="bi bi-plus-lg" />
+                            สร้าง{BOOKS[activeTab].pageLabel}
+                        </Link>
+                    </>
                 )}
             </div>
 
@@ -396,7 +480,7 @@ export default function KittyContentPage() {
                                                 </Link>
                                                 <button
                                                     type="button"
-                                                    onClick={() => { setDeleteError(null); setDeleting(p); }}
+                                                    onClick={() => { setDeleteError(null); setDeleting({ kind: "blog", slug: p.slug, title: p.title }); }}
                                                     className="btn btn-sm"
                                                     style={{ ...ACTION_STYLE, color: "#c53030" }}
                                                     aria-label={`ลบบทความ ${p.title}`}
@@ -412,52 +496,66 @@ export default function KittyContentPage() {
                 </Table>
             )}
 
-            {/* ── KeptCarbon Handbook ── */}
-            {activeTab === "handbook" && (
-                <Table
-                    headers={["หมวด", "บทความ", "ขั้นตอน"]}
-                    colSpan={4}
-                    empty={emptyText(handbookRows.length, shownHandbook.length, "ยังไม่มีบทความในคู่มือ")}
-                >
-                    {shownHandbook.map(({ group, article, number }) => (
-                        <tr key={article.slug}>
-                            <td className="px-4 py-3" style={{ color: "#5a7a65" }}>{group}</td>
-                            <td className="py-3">
-                                <div className="fw-semibold" style={{ color: "#1a3d2b" }}>{number}. {article.title}</div>
-                                <div style={{ fontSize: 12, color: MUTED }}>{article.slug}</div>
-                            </td>
-                            <td className="py-3"><Count n={article.steps.length} unit="ขั้นตอน" /></td>
-                            <td className="px-4 py-3 text-end"><ViewButton href={`/kitty/handbook/${article.slug}/`} /></td>
-                        </tr>
-                    ))}
-                </Table>
+            {/* ── KeptCarbon Handbook / Textbook ── */}
+            {isBookTab(activeTab) && bookErrors[activeTab] && (
+                <div className="mb-3" style={{ color: "#c53030", fontSize: 13 }}>
+                    <i className="bi bi-exclamation-circle me-1" />{bookErrors[activeTab]}
+                </div>
             )}
-
-            {/* ── KeptCarbon Textbook ── */}
-            {activeTab === "textbook" && (
-                <Table
-                    headers={["บท", "บทเรียน", "เนื้อหา", "เกร็ดความรู้", "เอกสารประกอบ"]}
-                    colSpan={6}
-                    empty={emptyText(textbookRows.length, shownTextbook.length, "ยังไม่มีบทเรียน")}
-                >
-                    {shownTextbook.map(({ chapter, downloads, lesson, number }) => (
-                        <tr key={lesson.slug}>
-                            <td className="px-4 py-3" style={{ color: "#5a7a65", maxWidth: 240 }}>{chapter}</td>
-                            <td className="py-3">
-                                <div className="fw-semibold" style={{ color: "#1a3d2b" }}>{number} {lesson.title}</div>
-                                <div style={{ fontSize: 12, color: MUTED }}>{lesson.slug}</div>
-                            </td>
-                            <td className="py-3"><Count n={lesson.body.length} unit="ส่วน" /></td>
-                            <td className="py-3" style={{ color: lesson.tip ? "#5a7a65" : MUTED }}>{lesson.tip ? "มี" : "ไม่มี"}</td>
-                            <td className="py-3"><Count n={downloads} unit="ไฟล์" /></td>
-                            <td className="px-4 py-3 text-end"><ViewButton href={`/kitty/textbook/${lesson.slug}/`} /></td>
-                        </tr>
-                    ))}
-                </Table>
-            )}
+            {isBookTab(activeTab) && (() => {
+                const book = activeTab;
+                const rows = bookRows(book);
+                const shown = rows.filter((r) => has(r.section, r.page.title, r.page.slug, r.number));
+                const { sectionLabel, pageLabel } = BOOKS[book];
+                return (
+                    <Table
+                        headers={[sectionLabel, pageLabel, "เนื้อหา", "สถานะ"]}
+                        colSpan={5}
+                        empty={books[book] === null ? "กำลังโหลด…" : emptyText(rows.length, shown.length, `ยังไม่มี${pageLabel} — เริ่มจาก "จัดการสารบัญ" แล้ว "สร้าง${pageLabel}"`)}
+                    >
+                        {shown.map(({ section, page, number }) => (
+                            <tr key={page.slug}>
+                                <td className="px-4 py-3" style={{ color: "#5a7a65", maxWidth: 240 }}>{section}</td>
+                                <td className="py-3" style={{ maxWidth: 380 }}>
+                                    <div className="fw-semibold" style={{ color: "#1a3d2b", overflowWrap: "anywhere" }}>{number} {page.title}</div>
+                                    <div style={{ fontSize: 12, color: MUTED }}>{page.slug}</div>
+                                </td>
+                                <td className="py-3"><Count n={page.blocks} unit="ส่วน" /></td>
+                                <td className="py-3">
+                                    <PublishSwitch
+                                        published={page.published}
+                                        disabled={savingSlug !== null}
+                                        onChange={(next) => setPagePublished(book, page.slug, next)}
+                                    />
+                                </td>
+                                <td className="px-4 py-3 text-end">
+                                    <div className="d-inline-flex align-items-center gap-1">
+                                        {page.published
+                                            ? <ViewButton href={`/kitty/${book}/${page.slug}/`} />
+                                            : <span className="me-1" style={{ fontSize: 12, color: MUTED }}>ซ่อนจากหน้าเว็บ</span>}
+                                        <Link href={`/rnd/kitty-content/book/${book}/${page.slug}/edit/`} className="btn btn-sm" style={ACTION_STYLE}>
+                                            <i className="bi bi-pencil me-1" />แก้ไข
+                                        </Link>
+                                        <button
+                                            type="button"
+                                            onClick={() => { setDeleteError(null); setDeleting({ kind: book, slug: page.slug, title: page.title }); }}
+                                            className="btn btn-sm"
+                                            style={{ ...ACTION_STYLE, color: "#c53030" }}
+                                            aria-label={`ลบ${pageLabel} ${page.title}`}
+                                        >
+                                            <i className="bi bi-trash me-1" />ลบ
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                        ))}
+                    </Table>
+                );
+            })()}
             {deleting && (
                 <DeleteDialog
                     title={deleting.title}
+                    noun={deleting.kind === "blog" ? "บทความ" : BOOKS[deleting.kind].pageLabel}
                     busy={deleteBusy}
                     error={deleteError}
                     onCancel={() => setDeleting(null)}

@@ -34,8 +34,12 @@ export const blogCategories: BlogCategory[] = [
 
 export type PostBlock =
   | { type: "paragraph"; text: string }
-  /** Section heading inside the post. */
-  | { type: "heading"; text: string }
+  /** Section heading inside the post — h2, or h3 for a sub-heading
+      (no level = 2, as every heading saved before levels existed). */
+  | { type: "heading"; text: string; level?: 2 | 3 }
+  /** Numbered (1. 2. 3.) or bulleted list; each item may hold inline
+      formatting and links like a paragraph. */
+  | { type: "list"; ordered: boolean; items: string[] }
   /** Highlighted quote box — "quote" is green; the others are coloured
       like the badges (see `accents`). */
   | {
@@ -110,7 +114,7 @@ export function linkHref(raw: string): string | null {
   }
 }
 
-/* ── Formatting inside text ── paragraphs, headings and quotes may contain
+/* ── Formatting inside text ── paragraphs, headings, list items and quotes may contain
      [ข้อความ](https://…)   link, opened in a new tab
      **ตัวหนา**  *ตัวเอียง*  __ขีดเส้นใต้__
    and they nest (***หนาและเอียง***, **[ลิงก์ตัวหนา](https://…)**). The text
@@ -218,11 +222,22 @@ export function sortPosts(posts: BlogPost[]) {
 /** "อ่าน N นาที" — Thai has no word spaces, so estimate from characters
     (~600 per minute), at least 1. */
 export function readingMinutes(post: BlogPost) {
-  const chars = post.body.reduce(
-    (n, b) => n + (b.type === "image" ? 0 : b.type === "link" ? (b.text ?? "").length : plainText(b.text).length),
-    0
-  );
+  const chars = post.body.reduce((n, b) => n + blockText(b).length, 0);
   return Math.max(1, Math.round(chars / 600));
+}
+
+/** The words a reader sees in a block (none for an image). */
+export function blockText(b: PostBlock): string {
+  switch (b.type) {
+    case "image":
+      return "";
+    case "link":
+      return b.text ?? "";
+    case "list":
+      return b.items.map(plainText).join("\n");
+    default:
+      return plainText(b.text);
+  }
 }
 
 /** Up to `limit` other posts from `posts` (the published ones), ranked by

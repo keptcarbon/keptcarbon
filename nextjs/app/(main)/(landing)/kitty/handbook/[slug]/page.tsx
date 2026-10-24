@@ -1,65 +1,51 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ChevronRight } from "lucide-react";
-import { allArticleSlugs, findArticle } from "../content";
-import HandbookSteps from "./HandbookSteps";
+import { getPublishedOutline, getPublishedPage } from "@/lib/kitty-book";
+import { locatePage } from "../../book";
+import { BookBody, BookBreadcrumb, BookPager } from "../../BookParts";
 
 type Props = { params: Promise<{ slug: string }> };
 
-/* Only the slugs in content.ts exist — anything else is a 404. */
-export const dynamicParams = false;
+/* Rendered per request so edits and the publish / hide switch show up at
+   once. Only published articles exist — anything else is a 404. */
+export const dynamic = "force-dynamic";
 
-export function generateStaticParams() {
-  return allArticleSlugs().map((slug) => ({ slug }));
+async function findArticle(slug: string) {
+  const [page, outline] = await Promise.all([getPublishedPage("handbook", slug), getPublishedOutline("handbook")]);
+  const place = page ? locatePage("handbook", outline, slug) : null;
+  return page && place ? { page, place } : null;
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const found = findArticle((await params).slug);
+  const found = await findArticle((await params).slug);
   if (!found) return {};
   return {
-    title: `${found.article.title} | KeptCarbon Handbook`,
-    description: found.article.description,
+    title: `${found.page.title} | KeptCarbon Handbook`,
+    description: found.page.description ?? found.place.section.title,
   };
 }
 
 export default async function HandbookArticlePage({ params }: Props) {
-  const found = findArticle((await params).slug);
+  const found = await findArticle((await params).slug);
   if (!found) notFound();
-  const { group, article, number, prev, next } = found;
+  const { page, place } = found;
 
   return (
-    <article className="mx-auto max-w-5xl">
-      {/* ── Breadcrumb ── */}
-      <nav aria-label="breadcrumb" className="mb-4">
-        <ol className="m-0 flex list-none flex-wrap items-center gap-1.5 p-0 text-xs text-muted-foreground">
-          <li>
-            <Link href="/kitty/" className="text-muted-foreground no-underline hover:text-primary">
-              Knowledge Center
-            </Link>
-          </li>
-          {["คู่มือการใช้งานระบบ", group.title].map((label) => (
-            <li key={label} className="flex items-center gap-1.5">
-              <ChevronRight className="size-3.5" aria-hidden="true" />
-              {label}
-            </li>
-          ))}
-          <li aria-current="page" className="flex items-center gap-1.5 font-semibold text-foreground">
-            <ChevronRight className="size-3.5 text-muted-foreground" aria-hidden="true" />
-            {article.title}
-          </li>
-        </ol>
-      </nav>
+    <article className="mx-auto max-w-4xl">
+      <BookBreadcrumb trail={["คู่มือการใช้งานระบบ", place.section.title]} current={page.title} />
 
       <h1 className="m-0 text-2xl font-bold tracking-tight text-foreground md:text-3xl">
-        {number}. {article.title}
+        {place.number} {page.title}
       </h1>
-      <p className="mt-2 mb-8 text-sm leading-relaxed text-muted-foreground md:text-base">
-        {article.description}
-      </p>
+      {page.description ? (
+        <p className="mt-2 mb-0 text-sm leading-relaxed text-muted-foreground md:text-base">{page.description}</p>
+      ) : null}
 
-      {/* key: a fresh stepper (back to step 1) on every article */}
-      <HandbookSteps key={article.slug} steps={article.steps} prev={prev} next={next} />
+      <div className="mt-8">
+        <BookBody body={page.body} />
+      </div>
+
+      <BookPager book="handbook" prev={place.prev} next={place.next} />
     </article>
   );
 }

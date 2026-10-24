@@ -4,21 +4,40 @@ import { quoteAccent } from "./content";
 import InlineText from "./InlineText";
 import type { PostBlock } from "./content";
 
-/* One body block of a Keppy Blog post — shared by the public post page and
-   the preview on /rnd/kitty-content/blog/new, so both look the same.
+/* One body block of a Keppy Blog post, handbook page or textbook lesson —
+   shared by the public pages and the editors' previews on
+   /rnd/kitty-content, so all of them look the same.
    `unoptimized` on images lets the editor preview local files (blob: URLs).
    Text: wrap-anywhere breaks long unbroken strings (URLs, repeated
    characters) instead of overflowing; pre-line keeps the author's Enter
    line breaks in paragraphs and quotes. [ข้อความ](https://…) in paragraphs,
-   headings and quotes becomes a link (InlineText). */
+   headings, list items and quotes becomes a link (InlineText). */
 export default function PostBlockView({ block }: { block: PostBlock }) {
   switch (block.type) {
     case "heading":
-      return (
+      return block.level === 3 ? (
+        <h3 className="mt-8 mb-3 text-lg font-bold tracking-tight text-foreground wrap-anywhere md:text-xl">
+          <InlineText text={block.text} />
+        </h3>
+      ) : (
         <h2 className="mt-10 mb-4 text-xl font-bold tracking-tight text-foreground wrap-anywhere md:text-2xl">
           <InlineText text={block.text} />
         </h2>
       );
+    case "list": {
+      const ListTag = block.ordered ? "ol" : "ul";
+      return (
+        <ListTag
+          className={`mt-0 mb-6 flex flex-col gap-2 pl-7 text-base leading-loose text-foreground/90 wrap-anywhere marker:font-semibold marker:text-primary ${block.ordered ? "list-decimal" : "list-disc"}`}
+        >
+          {block.items.map((item, i) => (
+            <li key={i} className="pl-1">
+              <InlineText text={item} />
+            </li>
+          ))}
+        </ListTag>
+      );
+    }
     case "quote":
     case "quote-green":
     case "quote-blue":

@@ -21,6 +21,7 @@ const MAX_IMAGE_WIDTH = 1600;
 const WEBP_QUALITY = 82;
 const MAX_BODY_BLOCKS = 200;
 const MAX_BODY_IMAGES = 99;
+const MAX_LIST_ITEMS = 100;
 export const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const QUOTE_TYPES = ["quote", "quote-green", "quote-blue", "quote-amber", "quote-red", "quote-yellow"];
 
@@ -37,7 +38,7 @@ function imageExtension(bytes: Buffer): "jpg" | "png" | "webp" | null {
 /** An upload, ready to store: WebP bytes and their pixel size. */
 export type UploadedImage = { data: Buffer; mime: "image/webp"; width: number; height: number };
 
-async function readImage(form: FormData, field: string, label: string): Promise<UploadedImage> {
+export async function readImage(form: FormData, field: string, label: string): Promise<UploadedImage> {
   const file = form.get(field);
   if (!(file instanceof File) || file.size === 0) throw new BadRequest(`ไม่พบไฟล์${label}`);
   if (file.size > MAX_IMAGE_BYTES) throw new BadRequest(`${label} มีขนาดเกิน 5 MB`);
@@ -78,11 +79,8 @@ export type ParsedBlogForm = {
 
 /**
  * Validates the editor form (everything except the slug) and reads every
- * uploaded image — before anything touches disk or the database.
- *
- * Body image blocks: {type: "image", file: "<form field>", alt, caption?}
- * for a new upload, or {type: "image", src, alt, caption?} to keep an image
- * the post already has (`existingImages`; editing only).
+ * uploaded image — before anything touches the database. Body: see
+ * parseBodyBlocks.
  */
 export async function parseBlogForm(
   form: FormData,
@@ -117,14 +115,47 @@ export async function parseBlogForm(
     tags.push(tag);
   }
 
-  // ── Body blocks ──
+  const blocks = await parseBodyBlocks(form, { existingImages: opts.existingImages, allowEmpty: false });
+
+  const hasCover = form.get("cover") instanceof File;
+  if (opts.requireCover && !hasCover) throw new BadRequest("ไม่พบไฟล์ภาพปก");
+  const cover = hasCover ? await readImage(form, "cover", "ภาพปก") : null;
+
+  return { title, category, date, author, published, tags, cover, blocks };
+}
+
+/** Text with valid inline links, or a BadRequest naming body block `n`. */
+function checkedText(raw: unknown, n: number, what = "ข้อความ"): string {
+  const t = typeof raw === "string" ? raw.trim() : "";
+  if (!t) throw new BadRequest(`ส่วนที่ ${n}: ${what}ว่างอยู่`);
+  const bad = badInlineLinks(t);
+  if (bad.length) {
+    throw new BadRequest(`ส่วนที่ ${n}: ลิงก์ในข้อความไม่ถูกต้อง (${bad[0]}) — ใช้ URL ที่ขึ้นต้นด้วย http:// หรือ https://`);
+  }
+  return t;
+}
+
+/**
+ * The form's "body" field — a JSON array of blocks, in order — validated,
+ * with every uploaded image read. Shared by blog posts and handbook /
+ * textbook pages (lib/kitty-book-write.ts).
+ *
+ * Image blocks: {type: "image", file: "<form field>", alt, caption?} for a
+ * new upload, or {type: "image", src, alt, caption?} to keep an image the
+ * page already has (`existingImages`; editing only).
+ */
+export async function parseBodyBlocks(
+  form: FormData,
+  opts: { existingImages?: Set<string>; allowEmpty: boolean }
+): Promise<PendingBlock[]> {
   let rawBody: unknown;
   try {
     rawBody = JSON.parse(formText(form, "body") || "[]");
   } catch {
     throw new BadRequest("รูปแบบเนื้อหาไม่ถูกต้อง");
   }
-  if (!Array.isArray(rawBody) || rawBody.length === 0) throw new BadRequest("กรุณาเพิ่มเนื้อหาอย่างน้อย 1 ส่วน");
+  if (!Array.isArray(rawBody)) throw new BadRequest("รูปแบบเนื้อหาไม่ถูกต้อง");
+  if (rawBody.length === 0 && !opts.allowEmpty) throw new BadRequest("กรุณาเพิ่มเนื้อหาอย่างน้อย 1 ส่วน");
   if (rawBody.length > MAX_BODY_BLOCKS) throw new BadRequest(`เนื้อหามีได้ไม่เกิน ${MAX_BODY_BLOCKS} ส่วน`);
 
   const blocks: PendingBlock[] = [];
@@ -151,25 +182,27 @@ export async function parseBlogForm(
       const label = typeof b.text === "string" ? b.text.trim() : "";
       if (label.length > 300) throw new BadRequest(`ส่วนที่ ${n}: ข้อความของลิงก์ยาวเกิน 300 ตัวอักษร`);
       blocks.push({ block: { type: "link", url, text: label || undefined } });
-    } else if (b?.type === "paragraph" || b?.type === "heading" || QUOTE_TYPES.includes(b?.type as string)) {
-      const t = typeof b.text === "string" ? b.text.trim() : "";
-      if (!t) throw new BadRequest(`ส่วนที่ ${n}: ข้อความว่างอยู่`);
-      const bad = badInlineLinks(t);
-      if (bad.length) {
-        throw new BadRequest(`ส่วนที่ ${n}: ลิงก์ในข้อความไม่ถูกต้อง (${bad[0]}) — ใช้ URL ที่ขึ้นต้นด้วย http:// หรือ https://`);
-      }
-      blocks.push({ block: { type: b.type, text: t } as PostBlock });
+    } else if (b?.type === "list") {
+      if (!Array.isArray(b.items) || b.items.length === 0) throw new BadRequest(`ส่วนที่ ${n}: รายการว่างอยู่`);
+      if (b.items.length > MAX_LIST_ITEMS) throw new BadRequest(`ส่วนที่ ${n}: รายการมีได้ไม่เกิน ${MAX_LIST_ITEMS} ข้อ`);
+      const items = b.items.map((item) => {
+        if (typeof item === "string" && item.includes("\n")) throw new BadRequest(`ส่วนที่ ${n}: แต่ละข้อต้องอยู่ในบรรทัดเดียว`);
+        return checkedText(item, n, "ข้อในรายการ");
+      });
+      blocks.push({ block: { type: "list", ordered: b.ordered === true, items } });
+    } else if (b?.type === "heading") {
+      if (b.level !== undefined && b.level !== 2 && b.level !== 3) throw new BadRequest(`ส่วนที่ ${n}: ระดับหัวข้อไม่ถูกต้อง`);
+      const text = checkedText(b.text, n);
+      // Level 2 is stored without `level`, like headings saved before levels.
+      blocks.push({ block: b.level === 3 ? { type: "heading", text, level: 3 } : { type: "heading", text } });
+    } else if (b?.type === "paragraph" || QUOTE_TYPES.includes(b?.type as string)) {
+      blocks.push({ block: { type: b.type, text: checkedText(b.text, n) } as PostBlock });
     } else {
       throw new BadRequest(`ส่วนที่ ${n}: ชนิดเนื้อหาไม่ถูกต้อง`);
     }
   }
   if (imageCount > MAX_BODY_IMAGES) throw new BadRequest(`รูปภาพในเนื้อหามีได้ไม่เกิน ${MAX_BODY_IMAGES} รูป`);
-
-  const hasCover = form.get("cover") instanceof File;
-  if (opts.requireCover && !hasCover) throw new BadRequest("ไม่พบไฟล์ภาพปก");
-  const cover = hasCover ? await readImage(form, "cover", "ภาพปก") : null;
-
-  return { title, category, date, author, published, tags, cover, blocks };
+  return blocks;
 }
 
 // ── Images (tbl_blog_image) ────────────────────────────────────────────

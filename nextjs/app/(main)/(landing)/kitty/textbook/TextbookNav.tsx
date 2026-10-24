@@ -4,17 +4,18 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { BookOpen, ChevronDown, ListTree, Search } from "lucide-react";
-import { textbookChapters } from "./content";
+import type { OutlineSection } from "../book";
 
 /* Textbook table of contents — topic search, collapsible chapters, and
-   numbered lessons. The chapter holding the current lesson starts open;
+   numbered lessons, from the published outline (tbl_kitty_section /
+   tbl_kitty_page). The chapter holding the current lesson starts open;
    while searching, every chapter with a match is shown open. */
-export default function TextbookNav({ onNavigate }: { onNavigate?: () => void }) {
+export default function TextbookNav({ outline, onNavigate }: { outline: OutlineSection[]; onNavigate?: () => void }) {
   const pathname = usePathname();
   /* trailingSlash (next.config) leaves a "/" on the end */
   const activeSlug = pathname.replace(/\/$/, "").split("/").pop();
-  const activeChapter = textbookChapters.findIndex((c) =>
-    c.lessons.some((l) => l.slug === activeSlug)
+  const activeChapter = outline.findIndex((c) =>
+    c.pages.some((l) => l.slug === activeSlug)
   );
 
   const [query, setQuery] = useState("");
@@ -37,11 +38,11 @@ export default function TextbookNav({ onNavigate }: { onNavigate?: () => void })
     });
 
   const q = query.trim().toLowerCase();
-  const chapters = textbookChapters
+  const chapters = outline
     .map((chapter, c) => ({
       ...chapter,
       index: c,
-      lessons: chapter.lessons
+      lessons: chapter.pages
         .map((lesson, l) => ({ ...lesson, number: `${c + 1}.${l + 1}` }))
         .filter(
           (lesson) =>
@@ -74,11 +75,11 @@ export default function TextbookNav({ onNavigate }: { onNavigate?: () => void })
         {chapters.length === 0 && (
           <p className="m-0 px-3 py-4 text-center text-sm text-muted-foreground">ไม่พบหัวข้อที่ค้นหา</p>
         )}
-        {chapters.map(({ title, index, lessons }) => {
+        {chapters.map(({ id, title, index, lessons }) => {
           const isOpen = q ? true : open.has(index);
           const hasActive = index === activeChapter;
           return (
-            <div key={title}>
+            <div key={id}>
               <button
                 type="button"
                 aria-expanded={isOpen}
@@ -134,7 +135,7 @@ export default function TextbookNav({ onNavigate }: { onNavigate?: () => void })
 }
 
 /* Below lg the table of contents folds into a toggle above the lesson. */
-export function TextbookMobileNav() {
+export function TextbookMobileNav({ outline }: { outline: OutlineSection[] }) {
   const [open, setOpen] = useState(false);
   return (
     <div className="mb-6 rounded-xl border border-border bg-card lg:hidden">
@@ -153,7 +154,7 @@ export function TextbookMobileNav() {
       </button>
       {open && (
         <div className="border-t border-border p-3">
-          <TextbookNav onNavigate={() => setOpen(false)} />
+          <TextbookNav outline={outline} onNavigate={() => setOpen(false)} />
         </div>
       )}
     </div>

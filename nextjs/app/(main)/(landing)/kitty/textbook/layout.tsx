@@ -1,9 +1,14 @@
 import { BookOpen } from "lucide-react";
+import { getPublishedOutline } from "@/lib/kitty-book";
 import TextbookNav, { TextbookMobileNav } from "./TextbookNav";
+
+/* Read per request, so edits on /rnd/kitty-content show up at once. */
+export const dynamic = "force-dynamic";
 
 /* Sidebar table of contents + lesson. Below lg the sidebar folds into a
    toggle above the lesson. */
-export default function TextbookLayout({ children }: { children: React.ReactNode }) {
+export default async function TextbookLayout({ children }: { children: React.ReactNode }) {
+  const outline = await getPublishedOutline("textbook");
   return (
     <div className="kc-tw bg-muted/60 pt-16">
       <div className="mx-auto flex max-w-9xl">
@@ -12,10 +17,10 @@ export default function TextbookLayout({ children }: { children: React.ReactNode
             <BookOpen className="size-5" aria-hidden="true" />
             สารบัญ
           </h2>
-          <TextbookNav />
+          <TextbookNav outline={outline} />
         </aside>
         <main className="min-w-0 flex-1 px-4 py-8 sm:px-6 md:py-10 lg:px-10">
-          <TextbookMobileNav />
+          <TextbookMobileNav outline={outline} />
           {children}
         </main>
       </div>
