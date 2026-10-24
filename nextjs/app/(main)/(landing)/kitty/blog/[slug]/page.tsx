@@ -17,10 +17,10 @@ import TagList from "../TagList";
 type Props = { params: Promise<{ slug: string }> };
 
 /* Rendered per request so a publish / hide switch shows up at once. Only
-   published posts in content.ts exist — anything else is a 404. */
+   published posts in tbl_blog exist — anything else is a 404. */
 export const dynamic = "force-dynamic";
 
-/** The published post with this slug (from content.ts or tbl_blog), plus
+/** The published post with this slug (tbl_blog), plus
     every published post for the related list. */
 async function findVisiblePost(slug: string) {
   const posts = await getPublishedPosts();

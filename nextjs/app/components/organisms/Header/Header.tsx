@@ -165,7 +165,7 @@ export default function Header() {
      /profile is a carve-out: admins may view it and it should still look
      like the admin area for them (they're confined there) — R&D users
      browse the main site normally, so /profile gets the general navbar. */
-  const manageDataHref = isRnd ? "/rnd/configuration" : "/admin/users";
+  const manageDataHref = isRnd ? "/rnd/data-management" : "/admin/users";
   const isAdminArea = pathname.startsWith("/admin") || (pathname.startsWith("/profile") && isAdmin);
   const isRndArea = pathname.startsWith("/rnd");
   const activeNavLinks = isRndArea ? rndNavLinks : isAdminArea ? adminNavLinks : navLinks;

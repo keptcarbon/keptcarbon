@@ -9,9 +9,9 @@ import { handbookGroups } from "@/app/(main)/(landing)/kitty/handbook/content";
 import { textbookChapters } from "@/app/(main)/(landing)/kitty/textbook/content";
 
 // KITTY content overview — one tab per section. Blog posts come from
-// GET /api/rnd/blog (content.ts + tbl_blog), each with a publish / hide
-// switch (PATCH /api/rnd/blog); editor posts can also be edited
-// (blog/[slug]/edit) and deleted (DELETE /api/rnd/blog/<slug>).
+// GET /api/rnd/blog (tbl_blog), each with a publish / hide switch
+// (PATCH /api/rnd/blog), edit (blog/[slug]/edit) and delete
+// (DELETE /api/rnd/blog/<slug>).
 // Handbook and textbook are read-only lists of their content.ts.
 
 const HERO_BG =
@@ -28,7 +28,7 @@ const MUTED = "#94a3b8";
 
 type TabKey = "blog" | "handbook" | "textbook";
 
-// GET /api/rnd/blog row. source: "file" = content.ts, "db" = tbl_blog.
+// GET /api/rnd/blog row.
 type BlogRow = {
     slug: string;
     title: string;
@@ -36,7 +36,6 @@ type BlogRow = {
     date: string;
     blocks: number;
     published: boolean;
-    source: "file" | "db";
 };
 const handbookRows = handbookGroups.flatMap((group) =>
     group.articles.map((article, i) => ({ group: group.title, article, number: i + 1 }))
@@ -370,7 +369,6 @@ export default function KittyContentPage() {
                                     <div className="fw-semibold" style={{ color: "#1a3d2b", overflowWrap: "anywhere" }}>{p.title}</div>
                                     <div style={{ fontSize: 12, color: MUTED }}>
                                         {p.slug}
-                                        {p.source === "file" && <span title="เขียนไว้ในโค้ด (content.ts) — แก้ไขผ่านหน้านี้ไม่ได้"> · ไฟล์ระบบ</span>}
                                     </div>
                                 </td>
                                 <td className="py-3">
@@ -392,8 +390,7 @@ export default function KittyContentPage() {
                                         {p.published
                                             ? <ViewButton href={`/kitty/blog/${p.slug}/`} />
                                             : <span className="me-1" style={{ fontSize: 12, color: MUTED }}>ซ่อนจากหน้าเว็บ</span>}
-                                        {p.source === "db" && (
-                                            <>
+                                        <>
                                                 <Link href={`/rnd/kitty-content/blog/${p.slug}/edit/`} className="btn btn-sm" style={ACTION_STYLE}>
                                                     <i className="bi bi-pencil me-1" />แก้ไข
                                                 </Link>
@@ -406,8 +403,7 @@ export default function KittyContentPage() {
                                                 >
                                                     <i className="bi bi-trash me-1" />ลบ
                                                 </button>
-                                            </>
-                                        )}
+                                        </>
                                     </div>
                                 </td>
                             </tr>

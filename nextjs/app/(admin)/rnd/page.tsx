@@ -7,7 +7,7 @@ export default function RndIndexPage() {
     const router = useRouter();
 
     useEffect(() => {
-        router.replace("/rnd/configuration");
+        router.replace("/rnd/data-management");
     }, [router]);
 
     return null;

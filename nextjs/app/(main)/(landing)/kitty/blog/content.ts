@@ -1,10 +1,9 @@
-/* ── Keppy Blog content ──────────────────────────────────────────────────
-   Categories + posts written in code. Posts written in the editor on
-   /rnd/kitty-content/blog/new are stored in tbl_blog instead;
-   lib/kitty-blog.ts merges both for the blog list, each post's page, and
-   the "บทความล่าสุด" block on /kitty.
-
-   No posts yet — the pages show an empty state until they're written. */
+/* ── Keppy Blog: types, categories, and display helpers ─────────────────
+   Posts themselves live only in the database (tbl_blog), written on
+   /rnd/kitty-content/blog/new; lib/kitty-blog.ts reads them for the blog
+   list, each post's page, and the "บทความล่าสุด" block on /kitty. This file
+   holds what both the pages and the editor share: the post shape, the
+   categories and accent colours, and the formatting / link helpers. */
 
 /* ── Accent colours ── shared by category badges and quote boxes.
    `ink` is the badge text colour: white on dark accents, dark ink on the
@@ -64,73 +63,6 @@ export type BlogPost = {
   image: string;
   body: PostBlock[];
 };
-
-export const blogPosts: BlogPost[] = [
-  {
-    slug: "what-is-carbon-credit",
-    title: "คาร์บอนเครดิต คืออะไร? ทำไมถึงสำคัญ?",
-    category: "carbon",               // news | activity | carbon | project
-    date: "2026-10-08",
-    image: "/assets/img/web-bg-2.webp",
-    body: [
-      { type: "paragraph", text: "คาร์บอนเครดิต (Carbon Credit) คือ ..." },
-      { type: "heading", text: "ทำไมคาร์บอนเครดิตถึงสำคัญ?" },
-      { type: "quote", text: "สวนยางพารา 1 ไร่ สามารถกักเก็บคาร์บอนได้..." },
-      { type: "paragraph", text: "คาร์บอนเครดิต (Carbon Credit) zxcvzxcvzxcvzคือ ..." },
-    ],
-  },
-  {
-    slug: "public-requement-for-keptcarbon",
-    title: "ประชุมชี้แจงข้อกำหนดสาธารณะสำหรับ KeptCarbon",
-    category: "activity",               // news | activity | carbon | project
-    date: "2026-08-12",
-    image: "/assets/img/web-bg-3.webp",
-    body: [
-      { type: "heading", text: "ทำไมคาร์บอนเครดิตถึงสำคัญ?" },
-      { type: "quote", text: "สวนยางพารา 1 ไร่ สามารถกักเก็บคาร์บอนได้..." },
-      { type: "paragraph", text: "คาร์บอนเครดิต (Carbon Credit) zxcvzxcvzxcvzคือ ..." },
-      { type: "heading", text: "ทำไมคาร์บอนเครดิตถึงสำคัญ?" },
-      { type: "quote-yellow", text: "สวนยางพารา 1 ไร่ สามารถกักเก็บคาร์บอนได้..." },
-      { type: "paragraph", text: "คาร์บอนเครดิต (Carbon Credit) zxcvzxcvzxcvzคือ ..." },
-    ],
-  },
-  {
-    slug: "keptcarbon-news",
-    title: "ประชุมชี้แจงข้อกำหนดสาธารณะสำหรับ KeptCarbon",
-    category: "news",               // news | activity | carbon | project
-    date: "2026-08-12",
-    image: "/assets/img/web-bg-3.webp",
-    body: [
-      { type: "heading", text: "ทำไมคาร์บอนเครดิตถึงสำคัญ?" },
-      { type: "quote", text: "สวนยางพารา 1 ไร่ สามารถกักเก็บคาร์บอนได้..." },
-      { type: "paragraph", text: "คาร์บอนเครดิต (Carbon Credit) zxcvzxcvzxcvzคือ ..." },
-      { type: "heading", text: "ทำไมคาร์บอนเครดิตถึงสำคัญ?" },
-      { type: "quote-amber", text: "สวนยางพารา 1 ไร่ สามารถกักเก็บคาร์บอนได้..." },
-      { type: "paragraph", text: "คาร์บอนเครดิต (Carbon Credit) zxcvzxcvzxcvzคือ ..." },
-    ],
-  },
-  { 
-    slug:"demo-0",
-    title:"DEMO ข่าว",
-    category:"news",
-    date:"2026-10-20",
-    image:"/assets/img/web-bg-1.webp",
-    body:[
-      {type:"quote",text:"DEMO quote สวนยางพารา 1 ไร่ สามารถกักเก็บคาร์บอนได้"},
-      {type:"quote-blue",text:"DEMO quote-blue สวนยางพารา 1 ไร่ สามารถกักเก็บคาร์บอนได้"},
-      {type:"quote-amber",text:"DEMO quote-amber สวนยางพารา 1 ไร่ สามารถกักเก็บคาร์บอนได้"},
-      {type:"quote-red",text:"DEMO quote-red สวนยางพารา 1 ไร่ สามารถกักเก็บคาร์บอนได้"},
-      {type:"quote-yellow",text:"DEMO quote-yellow สวนยางพารา 1 ไร่ สามารถกักเก็บคาร์บอนได้"}]
-    },
-    {
-      slug:"demo-1",
-      title:"DEMO กิจกรรม",
-      category:"activity",
-      date:"2026-10-18",
-      image:"/assets/img/web-bg-3.webp",
-      body:[]
-    },
-];
 
 /* ── Helpers ─────────────────────────────────────────────────────────── */
 const fallbackCategory: BlogCategory = { id: "", label: "บทความ", accent: "green" };
@@ -308,8 +240,3 @@ export function relatedPosts(post: BlogPost, posts: BlogPost[], limit = 3) {
     .map(({ p }) => p);
 }
 
-/** A post written in this file (not one saved from the editor — those are
-    in tbl_blog; see lib/kitty-blog.ts for both). */
-export function findPost(slug: string) {
-  return blogPosts.find((p) => p.slug === slug) ?? null;
-}

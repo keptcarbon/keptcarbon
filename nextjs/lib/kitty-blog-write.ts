@@ -1,6 +1,5 @@
-import { mkdir, unlink, writeFile } from "fs/promises";
-import path from "path";
 import type { PoolClient } from "pg";
+import sharp from "sharp";
 import { badInlineLinks, blogCategories, linkHref } from "@/app/(main)/(landing)/kitty/blog/content";
 import type { PostBlock } from "@/app/(main)/(landing)/kitty/blog/content";
 import { normalizeTag, tagProblem } from "@/app/(main)/(landing)/kitty/blog/tags";
@@ -10,17 +9,16 @@ import { normalizeTag, tagProblem } from "@/app/(main)/(landing)/kitty/blog/tags
  * (edit): reading the editor's multipart form, validating it, and
  * storing images and tags the same way for both.
  *
- * Uploaded images live in public/ so they're served like any other asset:
- * /assets/img/blog/<slug>-cover.jpg, <slug>-blog-img-01.png, … Production
- * keeps this folder on a volume (docker-compose.yml) and serves files added
- * after the build through /api/blog-images (next.config.ts). Only JPG, PNG
- * and WebP are accepted, judged by the file's bytes.
+ * Images are stored in the database (tbl_blog_image), not as files: each
+ * upload — JPG, PNG or WebP, judged by the file's bytes — is turned upright
+ * (EXIF), shrunk to at most MAX_IMAGE_WIDTH wide and saved as WebP, then
+ * served from /api/blog-images/<id>/. A post's cover_image / body image src
+ * hold those URLs.
  */
 
-export const IMAGE_DIR = path.join(process.cwd(), "public", "assets", "img", "blog");
-export const IMAGE_URL = "/assets/img/blog";
-
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+const MAX_IMAGE_WIDTH = 1600;
+const WEBP_QUALITY = 82;
 const MAX_BODY_BLOCKS = 200;
 const MAX_BODY_IMAGES = 99;
 export const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
@@ -36,16 +34,25 @@ function imageExtension(bytes: Buffer): "jpg" | "png" | "webp" | null {
   return null;
 }
 
-export type UploadedImage = { bytes: Buffer; ext: string };
+/** An upload, ready to store: WebP bytes and their pixel size. */
+export type UploadedImage = { data: Buffer; mime: "image/webp"; width: number; height: number };
 
 async function readImage(form: FormData, field: string, label: string): Promise<UploadedImage> {
   const file = form.get(field);
   if (!(file instanceof File) || file.size === 0) throw new BadRequest(`ไม่พบไฟล์${label}`);
   if (file.size > MAX_IMAGE_BYTES) throw new BadRequest(`${label} มีขนาดเกิน 5 MB`);
   const bytes = Buffer.from(await file.arrayBuffer());
-  const ext = imageExtension(bytes);
-  if (!ext) throw new BadRequest(`${label} ต้องเป็นไฟล์ JPG, PNG หรือ WebP`);
-  return { bytes, ext };
+  if (!imageExtension(bytes)) throw new BadRequest(`${label} ต้องเป็นไฟล์ JPG, PNG หรือ WebP`);
+  try {
+    const { data, info } = await sharp(bytes, { limitInputPixels: 50_000_000 })
+      .rotate() // honour the camera's EXIF orientation
+      .resize({ width: MAX_IMAGE_WIDTH, withoutEnlargement: true })
+      .webp({ quality: WEBP_QUALITY })
+      .toBuffer({ resolveWithObject: true });
+    return { data, mime: "image/webp", width: info.width, height: info.height };
+  } catch {
+    throw new BadRequest(`${label} อ่านไม่ได้ — ไฟล์อาจเสียหรือใหญ่เกินไป`);
+  }
 }
 
 export const formText = (form: FormData, field: string) => {
@@ -165,13 +172,14 @@ export async function parseBlogForm(
   return { title, category, date, author, published, tags, cover, blocks };
 }
 
-// ── Files ──────────────────────────────────────────────────────────────
+// ── Images (tbl_blog_image) ────────────────────────────────────────────
 
-/** The file on disk for one of our image URLs, or null for anything else. */
-export function imageFile(url: string): string | null {
-  if (!url.startsWith(`${IMAGE_URL}/`)) return null;
-  const name = url.slice(IMAGE_URL.length + 1);
-  return /^[a-z0-9-]+\.(jpg|png|webp)$/.test(name) ? path.join(IMAGE_DIR, name) : null;
+export const imageUrl = (id: number) => `/api/blog-images/${id}/`;
+
+/** The tbl_blog_image id in one of our image URLs, or null. */
+export function imageIdOf(url: string): number | null {
+  const m = /^\/api\/blog-images\/(\d+)\/?$/.exec(url);
+  return m ? Number(m[1]) : null;
 }
 
 /** Every image URL a post uses: its cover and body images. */
@@ -179,36 +187,30 @@ export function postImageUrls(cover: string, body: PostBlock[]) {
   return [cover, ...body.flatMap((b) => (b.type === "image" ? [b.src] : []))];
 }
 
-/** Writes `bytes` under a new name (never overwrites); returns the file path. */
-export async function writeNewImage(name: string, bytes: Buffer) {
-  await mkdir(IMAGE_DIR, { recursive: true });
-  const file = path.join(IMAGE_DIR, name);
-  await writeFile(file, bytes, { flag: "wx" });
-  return file;
+/** Stores an image for a post; returns its URL. */
+export async function insertImage(client: PoolClient, blogId: number, image: UploadedImage) {
+  const result = await client.query<{ id: number }>(
+    `INSERT INTO tbl_blog_image (blog_id, mime_type, data, width, height, byte_size)
+     VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
+    [blogId, image.mime, image.data, image.width, image.height, image.data.length]
+  );
+  return imageUrl(result.rows[0].id);
 }
 
-/** Writes a body image as <slug>-blog-img-NN.<ext>, taking the first free
-    number from `from` (an existing name wins — never overwritten). */
-export async function writeBodyImage(slug: string, image: UploadedImage, from: number) {
-  for (let n = from; n <= MAX_BODY_IMAGES; n++) {
-    const name = `${slug}-blog-img-${String(n).padStart(2, "0")}.${image.ext}`;
-    try {
-      return { file: await writeNewImage(name, image.bytes), url: `${IMAGE_URL}/${name}`, n };
-    } catch (err) {
-      if ((err as { code?: string }).code !== "EEXIST") throw err;
-    }
+/** Stores the post's new uploads and returns its body with their URLs. */
+export async function storeBodyImages(client: PoolClient, blogId: number, blocks: PendingBlock[]) {
+  const body: PostBlock[] = [];
+  for (const { block, image } of blocks) {
+    body.push(image && block.type === "image" ? { ...block, src: await insertImage(client, blogId, image) } : block);
   }
-  throw new BadRequest(`รูปภาพในเนื้อหามีได้ไม่เกิน ${MAX_BODY_IMAGES} รูป`);
+  return body;
 }
 
-/** Highest NN among a post's <slug>-blog-img-NN.* URLs (0 if none). */
-export function lastBodyImageNumber(slug: string, urls: string[]) {
-  const re = new RegExp(`^${IMAGE_URL}/${slug}-blog-img-(\\d{2})\\.`);
-  return urls.reduce((max, u) => Math.max(max, Number(re.exec(u)?.[1] ?? 0)), 0);
+/** Deletes a post's images that `urls` (its cover + body) no longer use. */
+export async function dropUnusedImages(client: PoolClient, blogId: number, urls: string[]) {
+  const keep = urls.map(imageIdOf).filter((id): id is number => id !== null);
+  await client.query("DELETE FROM tbl_blog_image WHERE blog_id = $1 AND NOT (id = ANY($2::int[]))", [blogId, keep]);
 }
-
-export const removeFiles = (files: string[]) =>
-  Promise.all(files.map((f) => unlink(f).catch(() => { /* already gone */ })));
 
 // ── Tags ───────────────────────────────────────────────────────────────
 

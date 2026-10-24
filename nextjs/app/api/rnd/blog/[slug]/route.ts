@@ -1,31 +1,21 @@
-import { randomBytes } from "crypto";
-import { rename } from "fs/promises";
-import path from "path";
 import { NextRequest, NextResponse } from "next/server";
 import { pool } from "@/lib/db";
 import { isAdminOrRnd } from "@/lib/auth-server";
 import { getRequesterId, withTransaction } from "@/lib/dataset-version";
 import {
   BadRequest,
-  IMAGE_DIR,
-  IMAGE_URL,
+  dropUnusedImages,
   dropUnusedTags,
-  imageFile,
-  lastBodyImageNumber,
+  insertImage,
   parseBlogForm,
   postImageUrls,
-  removeFiles,
   saveTags,
-  writeBodyImage,
-  writeNewImage,
+  storeBodyImages,
 } from "@/lib/kitty-blog-write";
-import { findPost } from "@/app/(main)/(landing)/kitty/blog/content";
 import type { PostBlock } from "@/app/(main)/(landing)/kitty/blog/content";
 
-// One editor post (tbl_blog) by slug: GET to load it into the editor, PUT
-// to save an edit, DELETE to remove it with its images. Posts written in
-// content.ts can't be edited or deleted here — only published / hidden
-// (PATCH /api/rnd/blog).
+// One blog post (tbl_blog) by slug: GET to load it into the editor, PUT to
+// save an edit, DELETE to remove it (its images and tag links go with it).
 
 type Ctx = { params: Promise<{ slug: string }> };
 
@@ -51,11 +41,8 @@ async function loadRow(slug: string): Promise<Row | null> {
   return result.rows[0] ?? null;
 }
 
-/** 404 for an unknown slug; 400 when it's a content.ts post (read-only). */
-function missing(slug: string) {
-  return findPost(slug)
-    ? NextResponse.json({ error: "บทความนี้เขียนไว้ในโค้ด (content.ts) — แก้ไขหรือลบผ่านหน้านี้ไม่ได้" }, { status: 400 })
-    : NextResponse.json({ error: "ไม่พบบทความนี้" }, { status: 404 });
+function missing() {
+  return NextResponse.json({ error: "ไม่พบบทความนี้" }, { status: 404 });
 }
 
 /** GET /api/rnd/blog/[slug] — the post as the editor needs it, with tags in order. */
@@ -66,7 +53,7 @@ export async function GET(request: NextRequest, { params }: Ctx) {
   const { slug } = await params;
   try {
     const row = await loadRow(slug);
-    if (!row) return missing(slug);
+    if (!row) return missing();
     const tags = await pool.query<{ name: string }>(
       `SELECT t.name FROM tbl_blog_tag_map m JOIN tbl_blog_tag t ON t.id = m.tag_id
        WHERE m.blog_id = $1 ORDER BY m.position, t.name`,
@@ -95,20 +82,18 @@ export async function GET(request: NextRequest, { params }: Ctx) {
  *   cover — a new cover file, or leave it out to keep the current one.
  *   body  — image blocks either upload a new file ({file: "<field>"}) or
  *           keep one the post already has ({src: "<its current URL>"}).
- * New body images get the next free <slug>-blog-img-NN number. A new cover
- * replaces <slug>-cover.<ext> once the row is saved. Images the post no
- * longer uses are deleted afterwards; so are tags no post uses any more.
+ * New images are added to tbl_blog_image; images the post no longer uses
+ * are deleted, and so are tags no post uses any more — all in one
+ * transaction with the update.
  */
 export async function PUT(request: NextRequest, { params }: Ctx) {
   if (!(await isAdminOrRnd(request))) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
   const { slug } = await params;
-
-  const written: string[] = [];
   try {
     const row = await loadRow(slug);
-    if (!row) return missing(slug);
+    if (!row) return missing();
 
     let form: FormData;
     try {
@@ -116,39 +101,15 @@ export async function PUT(request: NextRequest, { params }: Ctx) {
     } catch {
       throw new BadRequest("ข้อมูลที่ส่งมาไม่ถูกต้อง (ต้องเป็น multipart/form-data)");
     }
-    const oldUrls = postImageUrls(row.cover_image, row.body);
-    const existingImages = new Set(oldUrls.filter((u) => u !== row.cover_image));
+    // Body images may only "keep" URLs this post already uses.
+    const existingImages = new Set(postImageUrls(row.cover_image, row.body).filter((u) => u !== row.cover_image));
     const parsed = await parseBlogForm(form, { existingImages, requireCover: false });
 
-    // ── New cover: written beside the old one, swapped in after the save ──
-    let coverUrl = row.cover_image;
-    let coverSwap: { temp: string; final: string } | null = null;
-    if (parsed.cover) {
-      const finalName = `${slug}-cover.${parsed.cover.ext}`;
-      const temp = await writeNewImage(`${finalName}.${randomBytes(6).toString("hex")}.uploading`, parsed.cover.bytes);
-      written.push(temp);
-      coverSwap = { temp, final: path.join(IMAGE_DIR, finalName) };
-      coverUrl = `${IMAGE_URL}/${finalName}`;
-    }
-
-    // ── New body images: numbered after the highest one the post has had ──
-    let next = lastBodyImageNumber(slug, oldUrls) + 1;
-    const body: PostBlock[] = [];
-    for (const { block, image } of parsed.blocks) {
-      if (image && block.type === "image") {
-        const saved = await writeBodyImage(slug, image, next);
-        written.push(saved.file);
-        next = saved.n + 1;
-        body.push({ ...block, src: saved.url });
-      } else {
-        body.push(block);
-      }
-    }
-
-    // ── Save ──
     const { title, category, date, author, published, tags } = parsed;
     const userId = getRequesterId(request);
-    await withTransaction(async (client) => {
+    const { coverUrl, body } = await withTransaction(async (client) => {
+      const coverUrl = parsed.cover ? await insertImage(client, row.id, parsed.cover) : row.cover_image;
+      const body: PostBlock[] = await storeBodyImages(client, row.id, parsed.blocks);
       await client.query(
         `UPDATE tbl_blog
          SET title = $2, category = $3, published_date = $4, author = $5, cover_image = $6,
@@ -156,20 +117,14 @@ export async function PUT(request: NextRequest, { params }: Ctx) {
          WHERE id = $1`,
         [row.id, title, category, date, author, coverUrl, JSON.stringify(body), published, userId]
       );
+      await dropUnusedImages(client, row.id, postImageUrls(coverUrl, body));
       await saveTags(client, row.id, tags, userId);
       await dropUnusedTags(client);
+      return { coverUrl, body };
     });
-    written.length = 0; // saved — these files are the post's now
-
-    // ── Tidy up files: swap in the new cover, delete what's no longer used ──
-    if (coverSwap) await rename(coverSwap.temp, coverSwap.final);
-    const newUrls = new Set(postImageUrls(coverUrl, body));
-    const unused = oldUrls.filter((u) => !newUrls.has(u)).map(imageFile).filter((f): f is string => !!f);
-    await removeFiles(unused);
 
     return NextResponse.json({ slug, url: `/kitty/blog/${slug}/`, coverImage: coverUrl, body, tags });
   } catch (err) {
-    await removeFiles(written);
     if (err instanceof BadRequest) {
       return NextResponse.json({ error: err.message }, { status: 400 });
     }
@@ -178,8 +133,8 @@ export async function PUT(request: NextRequest, { params }: Ctx) {
   }
 }
 
-/** DELETE /api/rnd/blog/[slug] — remove the post, its tag links (and tags
-    nothing else uses), then its image files. */
+/** DELETE /api/rnd/blog/[slug] — remove the post; its images and tag links
+    go with it (ON DELETE CASCADE), then tags nothing else uses. */
 export async function DELETE(request: NextRequest, { params }: Ctx) {
   if (!(await isAdminOrRnd(request))) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
@@ -187,13 +142,11 @@ export async function DELETE(request: NextRequest, { params }: Ctx) {
   const { slug } = await params;
   try {
     const row = await loadRow(slug);
-    if (!row) return missing(slug);
+    if (!row) return missing();
     await withTransaction(async (client) => {
       await client.query("DELETE FROM tbl_blog WHERE id = $1", [row.id]);
       await dropUnusedTags(client);
     });
-    const files = postImageUrls(row.cover_image, row.body).map(imageFile).filter((f): f is string => !!f);
-    await removeFiles(files);
     return NextResponse.json({ slug, deleted: true });
   } catch (err) {
     console.error("DELETE /api/rnd/blog/[slug]", err);

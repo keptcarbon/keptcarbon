@@ -61,7 +61,7 @@ const sections: KittySection[] = [
 ];
 
 /* ── Content ─────────────────────────────────────────────────────────────
-   Latest posts come from the blog's content.ts. The recommended topics
+   Latest posts come from the blog (tbl_blog). The recommended topics
    are still empty — each block shows an empty state until filled. */
 type Topic = { label: string; href: string };
 

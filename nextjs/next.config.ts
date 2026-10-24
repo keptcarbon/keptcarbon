@@ -26,13 +26,6 @@ const nextConfig: NextConfig = {
   // Dev server is reverse-proxied under dev.keptcarbon.net (not localhost),
   // so it must be explicitly allowlisted or Next.js blocks HMR/RSC requests.
   allowedDevOrigins: ["dev.keptcarbon.net"],
-  // Blog images uploaded at runtime (POST /api/rnd/blog) aren't in the
-  // build's public/ snapshot, which the production server serves from — so
-  // when no build-time file matches, read them from disk via a route.
-  // (`next dev` serves public/ live and never reaches this.)
-  async rewrites() {
-    return [{ source: "/assets/img/blog/:name", destination: "/api/blog-images/:name" }];
-  },
   async headers() {
     const securityHeaders = [
       { key: "Strict-Transport-Security", value: "max-age=31536000; includeSubDomains" },

@@ -32,10 +32,6 @@ services:
       - FACEBOOK_CALLBACK_URL=${FACEBOOK_CALLBACK_URL}
       - GMAIL_USER=${GMAIL_USER}
       - GMAIL_APP_PASSWORD=${GMAIL_APP_PASSWORD}
-    volumes:
-      # Blog images uploaded on /rnd/kitty-content (POST /api/rnd/blog) —
-      # kept outside the image so they survive rebuilds/redeploys.
-      - blog_images:/app/public/assets/img/blog
     depends_on:
       postgis:
         condition: service_healthy
@@ -90,4 +86,3 @@ services:
 
 volumes:
   pgdata:
-  blog_images:

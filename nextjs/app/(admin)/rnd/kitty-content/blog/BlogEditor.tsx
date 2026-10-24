@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
 import { Card } from "@/app/components";
-import { accents, badInlineLinks, blogCategories, blogPosts, formatThaiDate, linkHref } from "@/app/(main)/(landing)/kitty/blog/content";
+import { accents, badInlineLinks, blogCategories, formatThaiDate, linkHref } from "@/app/(main)/(landing)/kitty/blog/content";
 import type { AccentName, PostBlock } from "@/app/(main)/(landing)/kitty/blog/content";
 import PostBlockView from "@/app/(main)/(landing)/kitty/blog/PostBlockView";
 import PublishSwitch from "../PublishSwitch";
@@ -163,11 +163,15 @@ function toggleFormat(text: string, start: number, end: number, kind: FormatKind
     };
 }
 
+/** Name shown on an image the post already has (stored in the database, so
+    it has no file name of its own). */
+const SAVED_IMAGE_LABEL = "รูปที่บันทึกไว้";
+
 /** A saved block back into an editable draft. */
 function toDraft(b: PostBlock, id: number): DraftBlock {
     switch (b.type) {
         case "image":
-            return { id, type: "image", src: b.src, file: null, fileName: b.src.split("/").pop() ?? "", alt: b.alt, caption: b.caption ?? "" };
+            return { id, type: "image", src: b.src, file: null, fileName: SAVED_IMAGE_LABEL, alt: b.alt, caption: b.caption ?? "" };
         case "link":
             return { id, type: "link", url: b.url, text: b.text ?? "" };
         case "paragraph":
@@ -216,7 +220,7 @@ export default function BlogEditor({ initial }: {
     const [tags, setTags] = useState<string[]>(initial?.tags ?? []);
     // file = null: the cover the post already has (kept unless replaced).
     const [cover, setCover] = useState<{ src: string; file: File | null; fileName: string } | null>(
-        initial ? { src: initial.coverImage, file: null, fileName: initial.coverImage.split("/").pop() ?? "" } : null
+        initial ? { src: initial.coverImage, file: null, fileName: SAVED_IMAGE_LABEL } : null
     );
     const [blocks, setBlocks] = useState<DraftBlock[]>(() =>
         initial?.body.length ? initial.body.map((b, i) => toDraft(b, i + 1)) : [newBlock(1, "paragraph")]
@@ -346,12 +350,10 @@ export default function BlogEditor({ initial }: {
         });
 
     // ── Validation ──
-    const slugTaken = !editing && blogPosts.some((p) => p.slug === slug);
     const errors: Record<string, string> = {};
     if (!title.trim()) errors.title = "กรุณากรอกชื่อบทความ";
     if (!slug) errors.slug = "กรุณากำหนด URL ของบทความ";
     else if (!SLUG_PATTERN.test(slug)) errors.slug = "ใช้ได้เฉพาะ a-z, 0-9 และขีด (-) เช่น carbon-credit-101";
-    else if (slugTaken) errors.slug = "URL นี้ถูกใช้แล้ว";
     if (!category) errors.category = "กรุณาเลือกหมวดหมู่";
     if (!date) errors.date = "กรุณาเลือกวันที่เผยแพร่";
     if (!cover) errors.cover = "กรุณาเลือกภาพปก";
