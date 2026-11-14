@@ -36,7 +36,7 @@ BEGIN
   ELSE RAISE NOTICE '010_backfill_plot_carbon_data .......... RUN after 009';  END IF;
 
   IF EXISTS (SELECT 1 FROM information_schema.columns
-             WHERE table_schema='public' AND table_name='tbl_plots' AND column_name='owner_name')
+             WHERE table_schema='public' AND table_name='tbl_plots' AND column_name IN ('owner_name', 'plot_note'))
   THEN RAISE NOTICE '011_add_plot_owner_name ................ DONE';
   ELSE RAISE NOTICE '011_add_plot_owner_name ................ RUN';  END IF;
 
