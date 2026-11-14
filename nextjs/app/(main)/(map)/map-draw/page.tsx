@@ -480,15 +480,44 @@ function MapDrawContent() {
    * than cached: a guest's "start over" soft-deletes their project moments
    * before.
    */
-  const blockNewProject = async (): Promise<boolean> => {
+  const blockNewProject = async (retry?: () => void): Promise<boolean> => {
     const isNewProject =
       !searchParams?.get("project") && !activeDbProjectId &&
       drawnParcels.length === 0 && hiddenProjectPlots.length === 0;
     if (!isNewProject) return false;
     const q = await fetchQuota();
     if (!q || q.maxProjects === null || q.projectCount < q.maxProjects) return false;
+    guestStartOverRetryRef.current = retry ?? null;
     if (user) setProjectLimitPopup(true); else setGuestLimitPopup("projects");
     return true;
+  };
+
+  // What blockNewProject blocked, re-run once a guest discards their old
+  // project via GuestLimitPopup's "start over" (null = nothing to resume).
+  const guestStartOverRetryRef = useRef<(() => void) | null>(null);
+
+  /**
+   * GuestLimitPopup "start over": soft-deletes every active project of this
+   * browser's guest_user_id (DELETE /api/plots), which is otherwise stuck --
+   * the key survives in localStorage across visits, and guests have no
+   * my-plots to delete the old project from.
+   */
+  const handleGuestStartOver = async () => {
+    let guestId: string | null = null;
+    try { guestId = localStorage.getItem("guest_user_id"); } catch { /* unavailable */ }
+    if (guestId) {
+      try {
+        const res = await fetch(`/api/plots?guest_user_id=${encodeURIComponent(guestId)}`, { method: "DELETE" });
+        if (!res.ok) return;
+      } catch {
+        return;
+      }
+    }
+    await fetchQuota();
+    setGuestLimitPopup(false);
+    const retry = guestStartOverRetryRef.current;
+    guestStartOverRetryRef.current = null;
+    retry?.();
   };
 
   /** A save/claim came back 403 from lib/quota.ts -- show what blocked it. */
@@ -2190,7 +2219,7 @@ function MapDrawContent() {
     // start a new project past the project limit. Runs on every click, so
     // the popup re-appears each time after closing.
     if (blockPlotCount(drawnParcels.length + hiddenProjectPlots.length + 1)) return;
-    if (await blockNewProject()) return;
+    if (await blockNewProject(() => void startDrawFlow())) return;
     const map = mapRef.current;
     if (!map) return;
     navMarkerRef.current?.remove();
@@ -4000,6 +4029,7 @@ function MapDrawContent() {
         onClose={() => setGuestLimitPopup(false)}
         onLogin={() => { stashGuestDrawSnapshot(); setGuestLimitPopup(false); openLogin(); }}
         onRegister={() => { stashGuestDrawSnapshot(); setGuestLimitPopup(false); openRegister(); }}
+        onStartOver={user ? undefined : handleGuestStartOver}
       />
       <PlotLimitPopup
         open={plotLimitPopup}
