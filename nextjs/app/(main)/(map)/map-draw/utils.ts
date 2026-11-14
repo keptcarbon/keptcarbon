@@ -1,14 +1,13 @@
 import maplibregl from "maplibre-gl";
+import { MAP_DRAW_ANIMATION_DURATION } from "@/lib/map-utils";
 
 export type Tab = "draw" | "shp";
 
-export const REGIONS_DATA = [
-  { name: "ภาคตะวันออกเฉียงเหนือ", provinces: ["บึงกาฬ"] },
-  { name: "ภาคตะวันออก", provinces: ["ระยอง"] },
-  { name: "ภาคใต้", provinces: ["สุราษฎร์ธานี"] },
-];
-
-export const zoomToGeoJSONFeatures = (features: GeoJSON.Feature[], map: maplibregl.Map) => {
+export const zoomToGeoJSONFeatures = (
+  features: GeoJSON.Feature[],
+  map: maplibregl.Map,
+  duration: number = MAP_DRAW_ANIMATION_DURATION,
+) => {
   if (!features || !features.length || !map) return;
   let minLng = 180, maxLng = -180, minLat = 90, maxLat = -90;
   let hasCoords = false;
@@ -38,10 +37,17 @@ export const zoomToGeoJSONFeatures = (features: GeoJSON.Feature[], map: maplibre
     if (minLat === maxLat) { minLat -= 0.01; maxLat += 0.01; }
     map.fitBounds([[minLng, minLat], [maxLng, maxLat]], {
       padding: 60,
-      duration: 2500, // Slower, smoother animation
+      duration,
       essential: true
     });
   }
+};
+
+// Thailand's extent (lng/lat) — the "country level" view
+export const THAILAND_BOUNDS: [[number, number], [number, number]] = [[97.34, 5.61], [105.64, 20.47]];
+
+export const zoomToThailand = (map: maplibregl.Map, duration: number = MAP_DRAW_ANIMATION_DURATION) => {
+  map.fitBounds(THAILAND_BOUNDS, { padding: 60, duration, essential: true });
 };
 
 export const AMPHOE_DATA: Record<string, string[]> = {

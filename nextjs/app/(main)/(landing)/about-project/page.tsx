@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import ContactForm from "../ContactForm";
 import Reveal from "./Reveal";
+import { partners } from "@/app/components/organisms/Footer/partners";
 
 export const metadata: Metadata = {
   title: "เกี่ยวกับโครงการ | KeptCarbon",
@@ -22,12 +23,12 @@ const objectives = [
   {
     label: "Platform Development",
     heading: "พัฒนาและสาธิตระบบ KeptCarbon Platform",
-    body: "ประยุกต์ใช้เทคโนโลยีภูมิสารสนเทศและปัญญาประดิษฐ์ เพื่อสร้างฐานข้อมูลสวนยางพารารายแปลง พร้อมฟังก์ชันการพยากรณ์อายุยางพารา การประเมินศักยภาพคาร์บอนเครดิต และการแสดงผลเชิงพื้นที่และเวลา สำหรับสนับสนุนการทำงานของเจ้าหน้าที่และหน่วยงานภาครัฐที่เกี่ยวข้อง",
+    body: "ประยุกต์ใช้เทคโนโลยีภูมิสารสนเทศและปัญญาประดิษฐ์ เพื่อสร้างฐานข้อมูลสวนยางพารารายแปลง พร้อมฟังก์ชันการพยากรณ์อายุยางพารา การประเมินศักยภาพคาร์บอนกักเก็บ และการแสดงผลเชิงพื้นที่และเวลา สำหรับสนับสนุนการทำงานของเจ้าหน้าที่และหน่วยงานภาครัฐที่เกี่ยวข้อง",
   },
   {
     label: "Policy Decision Support",
     heading: "พัฒนาระบบสนับสนุนการตัดสินใจเชิงนโยบาย",
-    body: "ใช้ข้อมูลคาดการณ์คาร์บอนเครดิตและโครงสร้างอายุยางพาราในหลายระดับพื้นที่ (รายแปลง–อำเภอ–จังหวัด–ภูมิภาค) เพื่อช่วยผู้กำหนดนโยบายจำลองสถานการณ์ วางแผน และบริหารจัดการสวนยางพาราอย่างยั่งยืน",
+    body: "ใช้ข้อมูลคาดการณ์คาร์บอนกักเก็บและโครงสร้างอายุยางพาราในหลายระดับพื้นที่ (รายแปลง–อำเภอ–จังหวัด–ภูมิภาค) เพื่อช่วยผู้กำหนดนโยบายจำลองสถานการณ์ วางแผน และบริหารจัดการสวนยางพาราอย่างยั่งยืน",
   },
   {
     label: "Training & Capacity Building",
@@ -198,10 +199,10 @@ export default function AboutProjectPage() {
                 <p className="mt-0 mb-5 text-base leading-relaxed text-foreground/90 md:text-lg">
                   โครงการวิจัยนี้พัฒนา <strong>KeptCarbon Platform</strong>{" "}
                   โดยใช้เทคโนโลยีภูมิสารสนเทศ (Geospatial) ร่วมกับปัญญาประดิษฐ์
-                  (GeoAI) เพื่อพยากรณ์อายุยางพาราและประเมินศักยภาพคาร์บอนเครดิตในระดับรายแปลง
+                  (GeoAI) เพื่อพยากรณ์อายุยางพาราและประเมินศักยภาพคาร์บอนกักเก็บในระดับรายแปลง
                   พร้อมนำเสนอข้อมูลเชิงพื้นที่และเวลาในรูปแบบที่เข้าใจง่าย
-                  ช่วยให้เกษตรกรเห็นภาพรายได้ระยะยาว ลดความเสี่ยงในการตัดสินใจ
-                  และสนับสนุนการสื่อสารเชิงนโยบายได้อย่างมีประสิทธิภาพ
+                  ช่วยให้เกษตรกรเห็นภาพรายได้ระยะยาว ประเมินความเสี่ยง สนับสนุนการตัดสินใจ
+                  และเป็นเครื่องมือสื่อสารเชิงนโยบายได้อย่างมีประสิทธิภาพ
                 </p>
               </Reveal>
 
@@ -215,7 +216,7 @@ export default function AboutProjectPage() {
                   <strong>KeptCarbon</strong> หมายถึง{" "}
                   <em>&ldquo;การเก็บและรักษาคาร์บอน&rdquo;</em>{" "}
                   สะท้อนแนวคิดการกักเก็บคาร์บอนในสวนยางพารา
-                  การรักษามูลค่าทางเศรษฐกิจของคาร์บอนเครดิต
+                  การรักษามูลค่าทางเศรษฐกิจของคาร์บอนกักเก็บ
                   และการพัฒนาระบบข้อมูลที่ต่อเนื่องและยั่งยืน
                 </p>
               </Reveal>
@@ -276,19 +277,24 @@ export default function AboutProjectPage() {
             <SectionHeading title="หน่วยงานร่วมโครงการ" />
           </Reveal>
           <Reveal delay={100} className="grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-4">
-            {[1, 2, 3, 4].map((n) => (
-              <div
-                key={n}
+            {partners.map(({ name, logo, href }) => (
+              <a
+                key={href}
+                href={href}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label={name}
+                title={name}
                 className="group flex items-center justify-center rounded-xl border border-border bg-card p-6 transition-all duration-300 hover:-translate-y-1 hover:border-primary/40 hover:shadow-md"
               >
                 <Image
-                  src={`/assets/img/clients/client-${n}.png`}
-                  alt={`หน่วยงานร่วมโครงการ ${n}`}
+                  src={logo}
+                  alt={name}
                   width={220}
                   height={120}
                   className="h-20 w-auto object-contain transition-all duration-300 group-hover:opacity-100 group-hover:grayscale-0 md:h-24"
                 />
-              </div>
+              </a>
             ))}
           </Reveal>
         </div>
@@ -520,8 +526,19 @@ export default function AboutProjectPage() {
             </div>
           </Reveal>
 
-          {/* Send Message Form (existing client component, legacy-styled) */}
-          <ContactForm />
+          {/* Send Message Form + illustration */}
+          <div className="grid grid-cols-1 items-stretch gap-6 lg:grid-cols-2">
+            <ContactForm />
+            <div className="relative min-h-64 overflow-hidden rounded-xl border border-border lg:min-h-full">
+              <Image
+                src="/assets/img/web-bg-2.webp"
+                alt=""
+                fill
+                sizes="(min-width: 1024px) 50vw, 100vw"
+                className="object-cover"
+              />
+            </div>
+          </div>
         </div>
       </section>
     </div>

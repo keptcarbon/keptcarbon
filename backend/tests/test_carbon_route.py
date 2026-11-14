@@ -98,12 +98,13 @@ async def test_assess_service_error_returns_500(app, mock_service):
 
 
 @pytest.mark.asyncio
-async def test_assess_missing_selected_lu_classes_returns_422(app):
-    # selected_lu_classes is a required field on CarbonAssessRequest
-    bad_payload = [{k: v for k, v in GOOD_PAYLOAD[0].items() if k != "selected_lu_classes"}]
+async def test_assess_without_selected_lu_classes_is_accepted(app):
+    # selected_lu_classes is deprecated (the geometry is the assessment area),
+    # so omitting it must not fail validation.
+    payload = [{k: v for k, v in GOOD_PAYLOAD[0].items() if k != "selected_lu_classes"}]
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
-        resp = await ac.post("/api/v1/carbon/assess", json=bad_payload)
-    assert resp.status_code == 422
+        resp = await ac.post("/api/v1/carbon/assess", json=payload)
+    assert resp.status_code != 422
 
 
 @pytest.mark.asyncio

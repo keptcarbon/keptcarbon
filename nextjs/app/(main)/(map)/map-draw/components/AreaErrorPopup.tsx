@@ -1,3 +1,5 @@
+import { formatArea } from "@/lib/utils";
+
 export type AreaError = { rai: number; sqm: number; tooSmall?: boolean };
 
 export function AreaErrorPopup({ error, onClose }: { error: AreaError | null; onClose: () => void }) {
@@ -11,7 +13,7 @@ export function AreaErrorPopup({ error, onClose }: { error: AreaError | null; on
         <div className="mds-area-popup-content">
           <h3>{error.tooSmall ? "พื้นที่แปลงเล็กเกินไป" : "พื้นที่แปลงใหญ่เกินไป"}</h3>
           <p>
-            ขนาดแปลงที่วาดคือ <strong>{error.rai.toFixed(2)} ไร่</strong> ({Math.round(error.sqm).toLocaleString()} ตร.ม.)
+            ขนาดแปลงที่วาดคือ <strong>{formatArea(error.rai)} ไร่</strong> ({formatArea(error.sqm)} ตร.ม.)
             {error.tooSmall
               ? <> ซึ่งน้อยกว่าเกณฑ์ขั้นต่ำ <strong>1 ไร่</strong></>
               : <> ซึ่งเกินกว่าเกณฑ์สูงสุด <strong>500 ไร่</strong></>

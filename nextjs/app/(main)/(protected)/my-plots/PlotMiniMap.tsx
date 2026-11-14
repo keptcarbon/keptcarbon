@@ -5,6 +5,7 @@ import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import type { SavedPlot } from "./types";
 import styles from "./PlotMiniMap.module.css";
+import { MAP_VIEW_ANIMATION_DURATION } from "@/lib/map-utils";
 
 function getLuColor(luClass: string): string {
   if (luClass.startsWith("A302")) return "#84cc16";
@@ -75,13 +76,13 @@ export function PlotMiniMap({ plot, isMobile, index }: { plot: SavedPlot; isMobi
         version: 8,
         glyphs: "https://fonts.openmaptiles.org/{fontstack}/{range}.pbf",
         sources: {
-          sat: { type: "raster", tiles: ["https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}"], tileSize: 256, maxzoom: 18 }
+          sat: { type: "raster", tiles: ["https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}"], tileSize: 256, maxzoom: 18, attribution: "Map data © Google" }
         },
         layers: [{ id: "sat", type: "raster", source: "sat" }]
       },
       center: [101.258, 13.5],
       zoom: 14,
-      attributionControl: false,
+      attributionControl: { compact: true },
     });
     mapRef.current = map;
 
@@ -129,7 +130,7 @@ export function PlotMiniMap({ plot, isMobile, index }: { plot: SavedPlot; isMobi
           }
 
           if (!bounds.isEmpty()) {
-            this._map.fitBounds(bounds, { padding: isMobile ? 30 : 40, duration: 800 });
+            this._map.fitBounds(bounds, { padding: isMobile ? 30 : 40, duration: MAP_VIEW_ANIMATION_DURATION, essential: true });
           }
         };
         this._container.appendChild(btn);
@@ -252,7 +253,7 @@ export function PlotMiniMap({ plot, isMobile, index }: { plot: SavedPlot; isMobi
             คำอธิบาย
           </div>
           <div className={`${styles.legendCaption} ${isMobile ? styles.legendCaptionMobile : ""}`}>
-            *พื้นที่ที่เลือกใช้ในการประมวลผล
+            พื้นที่ที่เลือกใช้ในการประมวลผล
           </div>
           {legendItems.map(item => (
             <div key={item.code} className={`${styles.legendItem} ${isMobile ? styles.legendItemMobile : ""}`}>

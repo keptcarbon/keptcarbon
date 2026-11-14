@@ -7675,3 +7675,4 @@ ALTER TABLE ONLY public.geo_subdistrict
     ADD CONSTRAINT geo_subdistrict_pkey PRIMARY KEY (id);
 
 CREATE INDEX geo_subdistrict_geom_idx ON public.geo_subdistrict USING gist (geom);
+CREATE INDEX geo_subdistrict_province_th_idx ON public.geo_subdistrict (province_th);

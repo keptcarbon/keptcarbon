@@ -47,6 +47,9 @@ export default function ProfilePage() {
     const [showConfirmNewPassword, setShowConfirmNewPassword] = useState(false);
     const [pwdErrors, setPwdErrors] = useState<{ currentPassword?: string; password?: string; confirmPassword?: string }>({});
     const [pwdLoading, setPwdLoading] = useState(false);
+    // pictureUrl that failed to load — fall back to the initial avatar.
+    // Tracked by URL so a changed picture recovers on its own.
+    const [brokenAvatarUrl, setBrokenAvatarUrl] = useState<string | null>(null);
     const [pwdMessage, setPwdMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
     const pwdStrength = strengthFor(newPassword.length);
 
@@ -138,11 +141,12 @@ export default function ProfilePage() {
                     {/* Left: identity rail */}
                     <div style={{ width: "100%", flexShrink: 0, background: "#ffffff", border: "1px solid #e6f0ea", borderRadius: 16, boxShadow: "0 1px 2px rgba(16,40,28,0.04)", overflow: "hidden", alignSelf: "stretch" }} className="mx-auto mx-md-0 md:max-w-[300px]">
                         <div style={{ padding: "28px 20px 22px", textAlign: "center", borderBottom: "1px solid #e6f0ea" }}>
-                            {user.pictureUrl ? (
+                            {user.pictureUrl && brokenAvatarUrl !== user.pictureUrl ? (
                                 <img
                                     src={user.pictureUrl}
                                     alt={user.displayName}
                                     referrerPolicy="no-referrer"
+                                    onError={() => setBrokenAvatarUrl(user.pictureUrl ?? null)}
                                     style={{ width: 88, height: 88, borderRadius: "50%", objectFit: "cover", boxShadow: "0 0 0 4px #ffffff, 0 0 0 6px #d7ede1", marginBottom: 14 }}
                                 />
                             ) : (
@@ -150,10 +154,10 @@ export default function ProfilePage() {
                                     width: 88, height: 88, borderRadius: "50%", margin: "0 auto 14px",
                                     background: "#1e7a47",
                                     display: "flex", alignItems: "center", justifyContent: "center",
-                                    color: "white", fontSize: 38,
+                                    color: "white", fontSize: 38, fontWeight: 700,
                                     boxShadow: "0 0 0 4px #ffffff, 0 0 0 6px #d7ede1",
                                 }}>
-                                    <i className="bi bi-person-fill"></i>
+                                    {(user.displayName?.[0] || user.email?.[0] || user.username?.[0] || "?").toUpperCase()}
                                 </div>
                             )}
                             <div className="fw-bold" style={{ letterSpacing: "-0.01em", color: "#1a3d2b", fontSize: 19, lineHeight: 1.3 }}>{user.displayName || "ผู้ใช้งาน"}</div>
@@ -208,19 +212,19 @@ export default function ProfilePage() {
                         <form onSubmit={handleSubmit}>
                             <div className="row g-4 mb-4">
                                 <div className="col-md-4">
-                                    <label className="fw-medium mb-2 d-block" style={{ fontSize: 14, color: "#1a3d2b" }}>
+                                    <label className="fw-medium mb-2 d-block" style={{ fontSize: 14, color: "#1a3d2b", minHeight: 42 }}>
                                         ชื่อ <span style={{ color: "#ef4444" }}>*</span>
                                     </label>
                                     <input type="text" style={INPUT_STYLE} value={firstname} onChange={(e) => setFirstname(e.target.value)} placeholder="กรอกชื่อ" required />
                                 </div>
                                 <div className="col-md-4">
-                                    <label className="fw-medium mb-2 d-block" style={{ fontSize: 14, color: "#1a3d2b" }}>
+                                    <label className="fw-medium mb-2 d-block" style={{ fontSize: 14, color: "#1a3d2b", minHeight: 42 }}>
                                         นามสกุล
                                     </label>
                                     <input type="text" style={INPUT_STYLE} value={lastname} onChange={(e) => setLastname(e.target.value)} placeholder="กรอกนามสกุล" />
                                 </div>
                                 <div className="col-md-4">
-                                    <label className="fw-medium mb-2 d-block" style={{ fontSize: 14, color: "#1a3d2b" }}>เบอร์โทรศัพท์</label>
+                                    <label className="fw-medium mb-2 d-block" style={{ fontSize: 14, color: "#1a3d2b", minHeight: 42 }}>เบอร์โทรศัพท์</label>
                                     <input type="tel" inputMode="numeric" maxLength={12} style={INPUT_STYLE} value={phone} onChange={(e) => setPhone(formatThaiPhone(e.target.value))} placeholder="090-xxxx-xxxx" />
                                 </div>
                             </div>
@@ -271,7 +275,7 @@ export default function ProfilePage() {
                                 <form onSubmit={handlePasswordSubmit}>
                                     <div className="row g-4 mb-4">
                                         <div className="col-md-4">
-                                            <label className="fw-medium mb-2 d-block" style={{ fontSize: 14, color: "#1a3d2b" }}>
+                                            <label className="fw-medium mb-2 d-block" style={{ fontSize: 14, color: "#1a3d2b", minHeight: 42 }}>
                                                 รหัสผ่านปัจจุบัน <span style={{ color: "#ef4444" }}>*</span>
                                             </label>
                                             <div style={{ position: "relative" }}>
@@ -294,7 +298,7 @@ export default function ProfilePage() {
                                             {pwdErrors.currentPassword && <div className="mt-1" style={{ fontSize: 12, color: "#ef4444" }}>{pwdErrors.currentPassword}</div>}
                                         </div>
                                         <div className="col-md-4">
-                                            <label className="fw-medium mb-2 d-block" style={{ fontSize: 14, color: "#1a3d2b" }}>
+                                            <label className="fw-medium mb-2 d-block" style={{ fontSize: 14, color: "#1a3d2b", minHeight: 42 }}>
                                                 รหัสผ่านใหม่ <span style={{ color: "#ef4444" }}>*</span>
                                             </label>
                                             <div style={{ position: "relative" }}>
@@ -321,7 +325,7 @@ export default function ProfilePage() {
                                             {pwdErrors.password && <div className="mt-1" style={{ fontSize: 12, color: "#ef4444" }}>{pwdErrors.password}</div>}
                                         </div>
                                         <div className="col-md-4">
-                                            <label className="fw-medium mb-2 d-block" style={{ fontSize: 14, color: "#1a3d2b" }}>
+                                            <label className="fw-medium mb-2 d-block" style={{ fontSize: 14, color: "#1a3d2b", minHeight: 42 }}>
                                                 ยืนยันรหัสผ่านใหม่ <span style={{ color: "#ef4444" }}>*</span>
                                             </label>
                                             <div style={{ position: "relative" }}>

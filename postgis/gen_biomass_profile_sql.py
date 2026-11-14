@@ -17,7 +17,10 @@ verified against row 0 of every file):
 
 Only whole-year Age rows are kept -- most files are quarter-year steps
 (0, 0.25, 0.5, ...) but tbl_biomass_profile.age is INTEGER by design (see
-that file's header comment); cubic_poly's CSVs are already yearly-only.
+that file's header comment).
+
+growth_model is stored as 'anchored_' + the filename segment (migration 032);
+the cubic_poly CSVs are no longer loaded.
 
 Run (no extra deps beyond the stdlib):
 
@@ -29,20 +32,19 @@ from pathlib import Path
 
 P_CODE = "RAY"
 CLONE = "RRIM 600"
+VERSION = "v1"  # first import batch/vintage of these lookup CSVs
 LOOKUP_DIR = Path(__file__).resolve().parent.parent / "backend" / "app" / "data" / "lookup_tables"
 
 # filename growth-model segment -> (allometry segment, allometry column, AGB cols, BGB cols)
 FILES = [
     ("chapman_richards", "chiarawipa", "chiarawipa_2012", ("Stem", "Branch", "Leaf"), ("Root",)),
-    ("chapman_richards", "hytonen", "hytonen_2018", ("Leaf", "LeaflessAGB"), ("StumpRoot",)),
-    ("cubic_poly", "chiarawipa", "chiarawipa_2012", ("Stem", "Branch", "Leaf"), ("Root",)),
-    ("cubic_poly", "hytonen", "hytonen_2018", ("Leaf", "LeaflessAGB"), ("StumpRoot",)),
+    ("chapman_richards", "hytonen", "hytönen_2018", ("Leaf", "LeaflessAGB"), ("StumpRoot",)),
     ("gompertz", "chiarawipa", "chiarawipa_2012", ("Stem", "Branch", "Leaf"), ("Root",)),
-    ("gompertz", "hytonen", "hytonen_2018", ("Leaf", "LeaflessAGB"), ("StumpRoot",)),
+    ("gompertz", "hytonen", "hytönen_2018", ("Leaf", "LeaflessAGB"), ("StumpRoot",)),
     ("schumacher", "chiarawipa", "chiarawipa_2012", ("Stem", "Branch", "Leaf"), ("Root",)),
-    ("schumacher", "hytonen", "hytonen_2018", ("Leaf", "LeaflessAGB"), ("StumpRoot",)),
+    ("schumacher", "hytonen", "hytönen_2018", ("Leaf", "LeaflessAGB"), ("StumpRoot",)),
     ("weibull", "chiarawipa", "chiarawipa_2012", ("Stem", "Branch", "Leaf"), ("Root",)),
-    ("weibull", "hytonen", "hytonen_2018", ("Leaf", "LeaflessAGB"), ("StumpRoot",)),
+    ("weibull", "hytonen", "hytönen_2018", ("Leaf", "LeaflessAGB"), ("StumpRoot",)),
 ]
 
 
@@ -59,7 +61,7 @@ def main():
         "-- " + "=" * 76,
         "",
         "INSERT INTO tbl_biomass_profile",
-        "  (p_code, clone, growth_model, allometry, age, dbh_est, agb, bgb, biomass_est, ci, biomass_ci_lower, biomass_ci_upper)",
+        "  (p_code, clone, growth_model, allometry, age, dbh_est, agb, bgb, biomass_est, ci, biomass_ci_lower, biomass_ci_upper, version)",
         "VALUES",
     ]
 
@@ -75,9 +77,9 @@ def main():
                 agb = sum(float(r[c]) for c in agb_cols)
                 bgb = sum(float(r[c]) for c in bgb_cols)
                 rows.append(
-                    f"  ({esc(P_CODE)}, {esc(CLONE)}, {esc(growth_model)}, {esc(allometry_db)}, "
+                    f"  ({esc(P_CODE)}, {esc(CLONE)}, {esc('anchored_' + growth_model)}, {esc(allometry_db)}, "
                     f"{int(age)}, {r['DBH_Est']}, {agb}, {bgb}, {r['Biomass_Est']}, {r['CI']}, "
-                    f"{r['Biomass_CI_Lower']}, {r['Biomass_CI_Upper']})"
+                    f"{r['Biomass_CI_Lower']}, {r['Biomass_CI_Upper']}, {esc(VERSION)})"
                 )
                 total += 1
 

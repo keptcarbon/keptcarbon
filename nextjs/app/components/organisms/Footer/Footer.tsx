@@ -1,6 +1,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { Mail } from "lucide-react";
+import { partners } from "./partners";
 
 type IconProps = { className?: string };
 
@@ -12,6 +13,8 @@ function FacebookIcon({ className }: IconProps) {
   );
 }
 
+/* Hidden until real X / LINE accounts exist — icons + links disabled so
+   nothing shows and nothing is clickable.
 function XIcon({ className }: IconProps) {
   return (
     <svg viewBox="0 0 24 24" fill="currentColor" className={className} aria-hidden="true">
@@ -27,39 +30,68 @@ function LineIcon({ className }: IconProps) {
     </svg>
   );
 }
+*/
 
 const navLinks = [
   { label: "หน้าแรก", href: "/" },
   { label: "เกี่ยวกับโครงการ", href: "/about-project" },
+  { label: "แดชบอร์ด", href: "/dashboard/carbon-stock" },
   { label: "ประเมินคาร์บอน", href: "/map-draw" },
-  { label: "แดชบอร์ด", href: "/dashboard" },
+  { label: "KITTY", href: "/kitty" },
 ] as const;
 
 const socialLinks = [
   { label: "Facebook", href: "https://www.facebook.com/profile.php?id=61591328554670", icon: FacebookIcon },
-  { label: "X", href: "#", icon: XIcon },
-  { label: "LINE", href: "#", icon: LineIcon },
+  // Hidden until real accounts exist — do not show or allow clicks.
+  // { label: "X", href: "#", icon: XIcon },
+  // { label: "LINE", href: "#", icon: LineIcon },
 ] as const;
 
-const year = new Date().getFullYear();
+const year =new Date().getFullYear();
 
 export default function Footer() {
   return (
     <footer id="footer" className="border-t border-border bg-white">
       <div className="mx-auto max-w-8xl px-6 py-8 md:py-12">
         {/* Main grid */}
-        <div className="grid grid-cols-2 gap-x-6 gap-y-10 md:grid-cols-4 md:gap-8">
+        <div className="grid grid-cols-1 gap-y-10 sm:grid-cols-2 sm:gap-x-6 md:grid-cols-4 md:gap-8">
           {/* Brand */}
-          <div className="col-span-2">
-            <Link href="/" className="inline-flex items-center gap-2.5 no-underline">
-              <Image
-                src="/assets/img/keptcarbon-logo.png"
-                alt="KeptCarbon"
-                width={56}
-                height={56}
-                className="h-14 w-auto"
-              />
-            </Link>
+          <div className="sm:col-span-2">
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
+              <Link href="/" className="inline-flex items-center gap-2.5 no-underline">
+                <Image
+                  src="/assets/img/keptcarbon-logo.png"
+                  alt="KeptCarbon"
+                  width={56}
+                  height={56}
+                  className="h-14 w-auto"
+                />
+              </Link>
+
+              {/* Partner organisations (same logos as about-project page) */}
+              <span className="hidden h-10 w-px bg-border sm:block" aria-hidden="true" />
+              <div className="flex flex-wrap items-center gap-3">
+                {partners.map(({ name, logo, href }) => (
+                  <a
+                    key={href}
+                    href={href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label={name}
+                    title={name}
+                    className="transition-opacity hover:opacity-80"
+                  >
+                    <Image
+                      src={logo}
+                      alt={name}
+                      width={110}
+                      height={60}
+                      className="h-10 w-auto object-contain"
+                    />
+                  </a>
+                ))}
+              </div>
+            </div>
             <p className="mt-4 max-w-md text-base leading-relaxed text-slate-500">
               แพลตฟอร์มภูมิสารสนเทศและปัญญาประดิษฐ์
               เพื่อการจัดการสวนยางพาราอย่างยืดหยุ่นต่อการเปลี่ยนแปลงสภาพภูมิอากาศ
@@ -110,7 +142,7 @@ export default function Footer() {
               <li>
                 <a
                   href="mailto:keptcarbon@gmail.com"
-                  className="flex items-center gap-2.5 text-base text-slate-500 no-underline transition-colors hover:text-emerald-600"
+                  className="flex items-center gap-1.5 sm:gap-2.5 text-sm sm:text-base text-slate-500 no-underline transition-colors hover:text-emerald-600"
                 >
                   <Mail className="size-4 shrink-0" aria-hidden="true" />
                   keptcarbon@gmail.com

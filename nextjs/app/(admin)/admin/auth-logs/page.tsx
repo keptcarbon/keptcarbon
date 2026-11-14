@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useDeferredValue, useEffect, useMemo, useState } from "react";
 import { Alert, Card } from "@/app/components";
 
 type AuthLog = {
@@ -17,6 +17,9 @@ type AuthLog = {
 };
 
 const PAGE_SIZE = 15;
+// Cap the search box so a pasted wall of text can't blow out the table
+// layout or make filtering churn on every keystroke.
+const SEARCH_MAX = 200;
 
 // Minimal brand green hero — aligned with the other admin pages
 const HERO_BG =
@@ -46,6 +49,9 @@ export default function AuthLogsPage() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [search, setSearch] = useState("");
+    // Filter off a deferred copy so typing stays snappy and the list
+    // re-renders at a lower priority — no freeze/stutter on fast input.
+    const deferredSearch = useDeferredValue(search);
     const [providerFilter, setProviderFilter] = useState("all");
     const [eventTypeFilter, setEventTypeFilter] = useState("all");
     const [page, setPage] = useState(1);
@@ -72,7 +78,7 @@ export default function AuthLogsPage() {
     }
 
     const filteredLogs = useMemo(() => {
-        const q = search.trim().toLowerCase();
+        const q = deferredSearch.trim().toLowerCase().slice(0, SEARCH_MAX);
         return logs.filter((l) => {
             if (providerFilter !== "all" && l.provider !== providerFilter) return false;
             if (eventTypeFilter !== "all" && l.eventType !== eventTypeFilter) return false;
@@ -84,12 +90,12 @@ export default function AuthLogsPage() {
                 (l.ipAddress || "").toLowerCase().includes(q)
             );
         });
-    }, [logs, search, providerFilter, eventTypeFilter]);
+    }, [logs, deferredSearch, providerFilter, eventTypeFilter]);
 
     // Reset to page 1 whenever a filter narrows/widens the result set.
     useEffect(() => {
         setPage(1);
-    }, [search, providerFilter, eventTypeFilter]);
+    }, [deferredSearch, providerFilter, eventTypeFilter]);
 
     const totalPages = Math.max(1, Math.ceil(filteredLogs.length / PAGE_SIZE));
     const paginatedLogs = filteredLogs.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
@@ -104,6 +110,24 @@ export default function AuthLogsPage() {
 
     return (
         <>
+            {/* Search field: full width on mobile (matches the dropdown row
+                that sits below it), capped like the other admin pages on md+.
+                The filter <select>s get an explicit focus style so the border
+                colour is identical on mobile and desktop (mobile browsers
+                otherwise paint their own accent-coloured ring). */}
+            <style>{`
+                @media (min-width: 768px) {
+                    .al-search-field { max-width: 380px; }
+                }
+                .al-filter-select:focus,
+                .al-filter-select:focus-visible {
+                    outline: none;
+                    /* !important — beats the inline border set on the element */
+                    border-color: #2d9e5f !important;
+                    box-shadow: 0 0 0 3px rgba(45, 158, 95, 0.15);
+                }
+            `}</style>
+
             {/* ── Hero card ── */}
             <Card className="border-0 shadow-sm mb-4 overflow-hidden">
                 <div className="p-4 p-md-5" style={{ background: HERO_BG, borderBottom: "1px solid rgba(0,0,0,0.06)" }}>
@@ -124,13 +148,16 @@ export default function AuthLogsPage() {
                 </Alert>
             )}
 
-            {/* ── Filter toolbar ── */}
-            <div className="d-flex flex-wrap align-items-center gap-2 mb-3">
-                <div style={{ position: "relative", flex: "1 1 260px", maxWidth: 380 }}>
+            {/* ── Filter toolbar ──
+                 Mobile: stacked — search on its own row, then both dropdowns
+                 side-by-side on the next row. Desktop (md+): single row. */}
+            <div className="d-flex flex-column flex-md-row flex-wrap align-items-stretch align-items-md-center gap-2 mb-3">
+                <div className="al-search-field position-relative flex-md-grow-1">
                     <i className="bi bi-search" style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "#94a3b8", fontSize: 14 }} />
                     <input
                         value={search}
-                        onChange={(e) => setSearch(e.target.value)}
+                        onChange={(e) => setSearch(e.target.value.slice(0, SEARCH_MAX))}
+                        maxLength={SEARCH_MAX}
                         placeholder="ค้นหาชื่อ อีเมล หรือ IP…"
                         style={{ width: "100%", borderRadius: 12, border: "1px solid #e6f0ea", background: "#fff", padding: "10px 14px 10px 38px", fontSize: 14, outline: "none", color: "#1a3d2b" }}
                     />
@@ -144,27 +171,31 @@ export default function AuthLogsPage() {
                         </button>
                     )}
                 </div>
-                <select
-                    value={eventTypeFilter}
-                    onChange={(e) => setEventTypeFilter(e.target.value)}
-                    style={{ borderRadius: 12, border: "1px solid #e6f0ea", background: "#fff", padding: "10px 14px", fontSize: 14, color: "#1a3d2b" }}
-                >
-                    <option value="all">ทุกประเภท</option>
-                    <option value="login">เข้าสู่ระบบ</option>
-                    <option value="logout">ออกจากระบบ</option>
-                </select>
-                <select
-                    value={providerFilter}
-                    onChange={(e) => setProviderFilter(e.target.value)}
-                    style={{ borderRadius: 12, border: "1px solid #e6f0ea", background: "#fff", padding: "10px 14px", fontSize: 14, color: "#1a3d2b" }}
-                >
-                    <option value="all">ทุกช่องทาง</option>
-                    <option value="local">อีเมล</option>
-                    <option value="line">LINE</option>
-                    <option value="google">Google</option>
-                    <option value="facebook">Facebook</option>
-                </select>
-                <div className="ms-auto" style={{ fontSize: 13, color: "#5a7a65" }}>
+                <div className="d-flex gap-2">
+                    <select
+                        value={eventTypeFilter}
+                        onChange={(e) => setEventTypeFilter(e.target.value)}
+                        className="al-filter-select flex-fill flex-md-grow-0"
+                        style={{ minWidth: 0, borderRadius: 12, border: "1px solid #e6f0ea", background: "#fff", padding: "10px 14px", fontSize: 14, color: "#1a3d2b" }}
+                    >
+                        <option value="all">ทุกประเภท</option>
+                        <option value="login">เข้าสู่ระบบ</option>
+                        <option value="logout">ออกจากระบบ</option>
+                    </select>
+                    <select
+                        value={providerFilter}
+                        onChange={(e) => setProviderFilter(e.target.value)}
+                        className="al-filter-select flex-fill flex-md-grow-0"
+                        style={{ minWidth: 0, borderRadius: 12, border: "1px solid #e6f0ea", background: "#fff", padding: "10px 14px", fontSize: 14, color: "#1a3d2b" }}
+                    >
+                        <option value="all">ทุกช่องทาง</option>
+                        <option value="local">อีเมล</option>
+                        <option value="line">LINE</option>
+                        <option value="google">Google</option>
+                        <option value="facebook">Facebook</option>
+                    </select>
+                </div>
+                <div className="ms-md-auto" style={{ fontSize: 13, color: "#5a7a65" }}>
                     แสดง <span style={{ fontWeight: 700, color: "#1a3d2b" }}>{filteredLogs.length}</span> จาก {logs.length} รายการ
                 </div>
             </div>

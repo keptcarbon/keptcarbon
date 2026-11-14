@@ -1,35 +1,28 @@
 """
-Land-use classification / clipping via PostGIS (geo_landuse table).
+Land-use classification / clipping via PostGIS (tbl_landuse table).
 
 Replaces the old in-memory geopandas + LU_RYG_2567.gpkg sindex lookup. The
-drawn polygon is intersected against geo_landuse (GiST-indexed, filtered by
+drawn polygon is intersected against tbl_landuse (GiST-indexed, filtered by
 p_code + the latest lu_year ingested for that province), clipped to the
 polygon, grouped by a derived class key, and dissolved -- all server-side.
 
 group_key mirrors the original _determine_group(): LUL1_CODE for U/F/M/W,
 the finer LU_CODE for agriculture ("A"), else "OTHER".
 
-CRS is NOT uniform across the two methods -- this matches the original
-service exactly, not an arbitrary choice:
-  - find_lu_class_area's returned geometries are reprojected to the
-    caller's output_crs (default WGS84) for API/display consumption; area
-    is computed on the geography type (CRS-independent).
-  - find_rubber_cultivation_area's A302_geometry MUST stay in EPSG:32647:
-    SpatialUtils.calculate_area() and AgeMapService's rasterio.mask() both
-    consume it directly assuming UTM-metre coordinates (the age/tree
-    rasters are themselves stored in EPSG:32647), with no reprojection of
-    their own. Its area is likewise the planar UTM area of the *unioned*
-    per-group geometries, summed per group (not the area of the final
-    cross-group union) -- reproducing the original's dissolve-by-group-then-
-    sum-of-group-areas behaviour, including its quirk of double-counting an
-    area if two different classes' clipped slivers happen to overlap.
+Used only while the user draws a plot (/plots/info): the overlaps help them
+pick which parts of the drawn area are their rubber plot. /carbon/assess does
+NOT consult tbl_landuse -- it measures the merged area the user selected (see
+CarbonService.measure_assessment_area), so a saved plot's result never
+depends on which LU version is active later.
+
+find_lu_class_area's geometries are reprojected to the caller's output_crs
+(default WGS84) for display; area is geodesic (geography type).
 """
 import json
 import re
 
 from fastapi import HTTPException
 
-from app.core.constants import REGION_CONFIG
 from app.core.database import get_pool
 
 
@@ -59,7 +52,7 @@ class LanduseService:
                 g.lu_des_th,
                 g.lu_des_en,
                 ST_Intersection(g.geom, target.geom) AS clipped_geom
-            FROM geo_landuse g, target
+            FROM tbl_landuse g, target
             WHERE g.p_code = $2
               AND g.lu_year = $3::integer
               AND ST_Intersects(g.geom, target.geom)
@@ -85,93 +78,24 @@ class LanduseService:
         FROM dissolved
     """
 
-    # $4 = selected_lu_classes (text[]). geom kept in EPSG:32647 -- see module
-    # docstring; area is the planar UTM sum of per-group unions (not the
-    # union of the final cross-group geometry), matching the original.
-    _RUBBER_AREA_QUERY = f"""
-        WITH target AS (
-            SELECT ST_SetSRID(ST_GeomFromGeoJSON($1), 4326) AS geom
-        ),
-        clipped AS (
-            SELECT
-                {_GROUP_KEY_SQL} AS group_key,
-                ST_Intersection(g.geom, target.geom) AS clipped_geom
-            FROM geo_landuse g, target
-            WHERE g.p_code = $2
-              AND g.lu_year = $3::integer
-              AND ST_Intersects(g.geom, target.geom)
-        ),
-        nonempty AS (
-            SELECT * FROM clipped WHERE NOT ST_IsEmpty(clipped_geom)
-        ),
-        selected AS (
-            SELECT * FROM nonempty WHERE group_key = ANY($4::text[])
-        ),
-        per_group AS (
-            SELECT group_key, ST_Transform(ST_Union(clipped_geom), 32647) AS geom
-            FROM selected
-            GROUP BY group_key
-        )
-        SELECT
-            ST_AsGeoJSON(ST_Union(geom)) AS geometry_json,
-            SUM(ST_Area(geom)) AS area_m2
-        FROM per_group
-    """
-
     @staticmethod
-    def _latest_lu_year(p_code: str) -> int | None:
-        version = REGION_CONFIG.get(p_code, {}).get("LU_MAP_VERSION")
-        return int(version) if version is not None else None
-
-    # ── Existing endpoint (/api/carbon/assess) ─────────────────────────────────────
-
-    async def find_rubber_cultivation_area(self, poly_data: dict) -> dict:
-        """Filter A302 rubber parcels intersecting the drawn polygon."""
-        p_code = poly_data.get("province_code")
-        lu_year = self._latest_lu_year(p_code)
-
-        if lu_year is None:
-            poly_data["A302_geometry"] = None
-            poly_data["status"] = {
-                "status": "error", "status_code": "E02",
-                "message": (
-                    "LAND USE DATA NOT AVAILABLE FOR THE SPECIFIED "
-                    f"PROVINCE. (P_CODE: {p_code})"
-                )
-            }
-            return poly_data
-
+    async def _latest_lu_year(p_code: str) -> int | None:
         try:
             pool = get_pool()
             async with pool.acquire() as conn:
-                row = await conn.fetchrow(
-                    self._RUBBER_AREA_QUERY,
-                    json.dumps(poly_data["geometry"]),
-                    p_code,
-                    lu_year,
-                    poly_data["selected_lu_classes"],
+                version = await conn.fetchval(
+                    "SELECT lu_version FROM tbl_region_config WHERE p_code = $1", p_code
                 )
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Landuse filtering failed: {str(e)}")
-
-        # No intersecting parcel, or none matched selected_lu_classes -- an
-        # empty GeometryCollection (not None) so downstream raster code, which
-        # already handles the "nothing selected" case, sees the same shape.
-        if row["geometry_json"] is None:
-            poly_data["A302_geometry"] = {"type": "GeometryCollection", "geometries": []}
-            poly_data["A302_area_m2"] = 0.0
-            return poly_data
-
-        poly_data["A302_geometry"] = json.loads(row["geometry_json"])
-        poly_data["A302_area_m2"] = round(row["area_m2"], 4)
-        return poly_data
+            raise HTTPException(status_code=500, detail=f"Failed to load region config: {str(e)}")
+        return int(version) if version is not None else None
 
     # ── New endpoint (/api/v1/plots/info) ────────────────────────────────
 
     async def find_lu_class_area(self, poly_data: dict) -> dict:
         """Classify all land use types within the drawn polygon using spatial indexing."""
         p_code = poly_data.get("province_code")
-        lu_year = self._latest_lu_year(p_code)
+        lu_year = await self._latest_lu_year(p_code)
 
         if lu_year is None:
             poly_data["lu_polygon"] = []

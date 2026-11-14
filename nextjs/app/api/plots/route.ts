@@ -2,13 +2,29 @@ import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "crypto";
 import { pool } from "@/lib/db";
 import { verifyToken, AUTH_COOKIE } from "@/lib/jwt";
+import { carbon2, ciCarbon2 } from "@/lib/utils";
 import { getUserUuid, generateGuestKey, rowToProjectFromNormalized } from "@/lib/carbon-projects";
-import { upsertProjectAndPlots, softDeleteProjectsByOwner } from "@/lib/normalized-plots";
+import {
+  upsertProjectAndPlots,
+  softDeleteProjectsByOwner,
+  transferProjectToUser,
+  ProjectNameConflictError,
+} from "@/lib/normalized-plots";
+import {
+  assertPlotCount,
+  assertProjectSlots,
+  quotaErrorResponse,
+  requireCallerQuota,
+  QuotaError,
+  type ProjectOwner,
+} from "@/lib/quota";
 
 function generateGuestProjectName(): string {
-  // Just a display label (not a credential like generateGuestKey), so a
-  // short hex suffix is fine — e.g. "Guest-77a345c76d1d".
-  return `Guest-${randomUUID().replace(/-/g, "").slice(0, 8)}`;
+  // A default display label the user is expected to rename (shown in the
+  // project-name box after a claim / post-login auto-save). Not a credential
+  // like generateGuestKey — the hex suffix is only there to keep it unique
+  // against the per-owner unique index. e.g. "โครงการใหม่ 77a345c7".
+  return `โครงการใหม่ ${randomUUID().replace(/-/g, "").slice(0, 8)}`;
 }
 
 const CURRENT_YEAR_BE = new Date().getFullYear() + 543;
@@ -29,6 +45,8 @@ function luCheckedFromSelected(selectedLuClasses: string[] | null): Record<strin
  *  reimplemented here rather than importing that component file into an API
  *  route. */
 function yearlyRowsToBarPoints(rows: any[], baseAge: number) {
+  const base = rows.find((row) => (row.year_at ?? 0) === 0) ?? rows[0];
+  const baseStock = carbon2(Number(base?.stock_value ?? 0));
   return rows.map((row) => {
     const yearAt = row.year_at ?? 0;
     const hasAge = row.age !== null && row.age !== undefined;
@@ -37,13 +55,13 @@ function yearlyRowsToBarPoints(rows: any[], baseAge: number) {
       age,
       yearBE: row.year + 543,
       year_at: yearAt,
-      co2: row.stock_value,
-      ci: row.stock_ci,
-      gainValue: row.gain_value,
-      gainCi: row.gain_ci,
+      co2: carbon2(Number(row.stock_value)),
+      ci: ciCarbon2(Number(row.stock_ci)),
+      gainValue: carbon2(carbon2(Number(row.stock_value)) - baseStock),
+      gainCi: ciCarbon2(Number(row.gain_ci)),
       cycle: Math.floor(yearAt / 7),
       cycleAge: age,
-      errorMargin: row.stock_ci,
+      errorMargin: ciCarbon2(Number(row.stock_ci)),
       isAgeValid: hasAge,
     };
   });
@@ -105,28 +123,83 @@ export async function GET(request: NextRequest) {
       `;
       params = [guestUserId];
     } else {
-      return NextResponse.json({ plots: [] });
+      return NextResponse.json({ plots: [], projects: [] });
     }
 
     const projectResult = await pool.query(query, params);
 
-    // Filter by project name if ?name= is provided
+    // Filter by project name if ?name= is provided, or by db id if ?id= is provided
     const projName = searchParams.get("name");
-    const projectRows = projName
+    const projIdParam = searchParams.get("id");
+    const projId = projIdParam ? Number(projIdParam) : null;
+    const projectRows = projId
+      ? projectResult.rows.filter(row => row.id === projId)
+      : projName
       ? projectResult.rows.filter(row => row.project_name === projName)
       : projectResult.rows;
 
     if (projectRows.length === 0) {
-      return NextResponse.json({ plots: [] });
+      return NextResponse.json({ plots: [], projects: [] });
     }
 
     const projectById = new Map(projectRows.map(row => [row.id, row]));
     const projectIds = projectRows.map(row => row.id);
 
+    // ?summary=true — lightweight listing for the my-plots table view (project
+    // name, plot count, total area only). Skips the geometry/assessment/yearly
+    // joins below so opening the list doesn't pull every plot's full payload.
+    if (searchParams.get("summary") === "true") {
+      const summaryResult = await pool.query(
+        // Area per plot = the assessed area (the selected land-use classes the
+        // carbon/tree count was calculated on) once assessed, else the plot's
+        // own area -- same rule as plotDisplayArea() on the plot pages.
+        `SELECT p.project_id, COUNT(*) AS plot_count,
+                SUM(COALESCE((a.assess_parameters->>'area_m2')::float8, p.area_m2)) AS total_area_m2,
+                MAX(p.province_code) AS province_code,
+                COUNT(a.id) AS processed_count
+         FROM tbl_plots p
+         LEFT JOIN tbl_plot_assessments a ON a.plot_id = p.id AND a.is_current = TRUE
+         WHERE p.project_id = ANY($1) AND p.deleted_at IS NULL
+         GROUP BY p.project_id`,
+        [projectIds]
+      );
+      const summaryByProjectId = new Map(summaryResult.rows.map(row => [row.project_id, row]));
+
+      // Project owner = the account (tbl_plots.plot_note is per-plot free-text
+      // plot info, not the account holder).
+      const ownerUuids = [...new Set(projectRows.map(row => row.user_uuid).filter(Boolean))];
+      const ownersResult = ownerUuids.length
+        ? await pool.query(`SELECT uuid, display_name FROM tbl_users WHERE uuid = ANY($1)`, [ownerUuids])
+        : { rows: [] as any[] };
+      const displayNameByUuid = new Map(ownersResult.rows.map(row => [row.uuid, row.display_name]));
+
+      const projects = projectRows
+        .map(row => {
+          const s = summaryByProjectId.get(row.id);
+          if (!s) return null; // no active plots left -> hide, matches prior grouping behavior
+          return {
+            dbProjectId: row.id,
+            projectName: row.project_name,
+            plotCount: Number(s.plot_count),
+            totalArea: s.total_area_m2 != null ? Number(s.total_area_m2) / 1600 : 0,
+            updatedAt: row.updated_at,
+            ownerName: (row.user_uuid && displayNameByUuid.get(row.user_uuid)) || "",
+            province: s.province_code ?? "",
+            processed: Number(s.processed_count) === Number(s.plot_count),
+          };
+        })
+        .filter((p): p is NonNullable<typeof p> => p !== null);
+
+      return NextResponse.json({ projects });
+    }
+
     const plotsResult = await pool.query(
       `SELECT id, project_id, polygon_id, ST_AsGeoJSON(geometry)::json AS geometry,
               area_m2, province_code, year_of_planting, rubber_clone, tree_count,
-              spacing_system, project_type, selected_lu_classes, owner_name, updated_at
+              spacing_system, project_type, selected_lu_classes, plot_note,
+              growth_model, allometry, province_th, district_th, subdistrict_th,
+              ST_AsGeoJSON(assessment_geometry)::json AS assessment_geometry,
+              updated_at
        FROM tbl_plots
        WHERE project_id = ANY($1) AND deleted_at IS NULL`,
       [projectIds]
@@ -179,6 +252,8 @@ export async function GET(request: NextRequest) {
     const plots = plotRows.map((pl) => {
       const project = projectById.get(pl.project_id);
       const assessment = assessmentByPlotId.get(pl.id);
+      const assessedAreaM2 = typeof assessment?.assess_parameters?.area_m2 === "number"
+        ? assessment.assess_parameters.area_m2 : null;
       const yearly = assessment ? (yearlyByAssessmentId.get(assessment.id) ?? []) : [];
 
       const plantYearBE = pl.year_of_planting ? pl.year_of_planting + 543 : 0;
@@ -202,6 +277,9 @@ export async function GET(request: NextRequest) {
         dbProjectId: pl.project_id,
         name: project?.project_name ?? "",
         areaRai: pl.area_m2 != null ? pl.area_m2 / 1600 : 0,
+        // Area the current assessment was calculated on (selected land-use
+        // classes, geodesic). Pages show this instead of areaRai once assessed.
+        selectedAreaRai: assessedAreaM2 != null ? assessedAreaM2 / 1600 : undefined,
         carbonTotal: currentYearly?.stock_value ?? 0,
         rubberAge,
         plantYearBE,
@@ -210,11 +288,15 @@ export async function GET(request: NextRequest) {
         spacing: pl.spacing_system ?? "",
         luChecked,
         plantStatus: pl.project_type ?? "",
-        ownerName: pl.owner_name ?? "",
+        plotNote: pl.plot_note ?? "",
         province: pl.province_code ?? "",
+        provinceName: pl.province_th ?? "",
+        district: pl.district_th ?? "",
+        subdistrict: pl.subdistrict_th ?? "",
         date: (assessment?.created_at ?? pl.updated_at) as unknown as string,
         geojson: pl.geometry,
         boundaryGeojson: null,
+        assessmentGeojson: pl.assessment_geometry ?? null,
         carbonProfile: yearlyRowsToBarPoints(yearly, rubberAge),
         processed: !!assessment,
         backendData: {
@@ -231,6 +313,9 @@ export async function GET(request: NextRequest) {
             treeCount: pl.tree_count != null ? String(pl.tree_count) : "",
             variety: pl.rubber_clone ?? "",
             spacing: pl.spacing_system ?? "",
+            plotNote: pl.plot_note ?? "",
+            growthModel: pl.growth_model ?? "",
+            allometry: pl.allometry ?? "",
             luChecked,
           },
         },
@@ -281,6 +366,15 @@ export async function POST(request: NextRequest) {
     try {
       await client.query("BEGIN");
 
+      // Quota (lib/quota.ts): the caller's role applies even to a logged-in
+      // user's forceGuest draft. Whose project slots a save can take: the
+      // user's on a real Save, the guest_key's for a plain guest. A draft
+      // takes none -- it's checked when it's saved/claimed into the account.
+      const quota = await requireCallerQuota(client, payload);
+      const quotaOwner: ProjectOwner | null = userUuid
+        ? { userUuid }
+        : payload ? null : { guestUuid: guestKey as string };
+
       // Check if project already exists (match on the owner that applies)
       const ownerClause = userUuid
         ? "user_uuid = $1"
@@ -295,7 +389,41 @@ export async function POST(request: NextRequest) {
 
       let savedRow;
 
-      if ((existing.rowCount ?? 0) > 0) {
+      // In-place claim: a logged-in user doing a real Save who also passes a
+      // guest_key from a draft this session (body.userId) — adopt that exact
+      // guest row instead of spawning a fresh user row beside it (which would
+      // leave the draft orphaned as guest_uuid-owned). Only when they don't
+      // already have a project of this name.
+      if (userUuid && (existing.rowCount ?? 0) === 0 && !body.forceGuest && body.userId) {
+        const guestRow = await client.query(
+          `SELECT id FROM tbl_projects
+           WHERE guest_uuid = $1 AND project_name = $2 AND status = 'active'`,
+          [body.userId, projectName]
+        );
+        if ((guestRow.rowCount ?? 0) > 0) {
+          const adoptId = guestRow.rows[0].id;
+          await assertProjectSlots(client, quota, { userUuid });
+          try {
+            await transferProjectToUser(client, { projectId: adoptId, userUuid });
+            const reread = await client.query(
+              `SELECT * FROM tbl_projects WHERE id = $1`,
+              [adoptId]
+            );
+            savedRow = reread.rows[0];
+          } catch (e) {
+            if (!(e instanceof ProjectNameConflictError)) throw e;
+            // Fall through to the normal user-owned upsert below; the stray
+            // guest draft gets cleaned by the client's follow-up claim.
+          }
+        }
+      }
+
+      if (savedRow) {
+        // adopted above — nothing more to do for the header
+      } else if ((existing.rowCount ?? 0) > 0) {
+        if (quotaOwner) {
+          await assertProjectSlots(client, quota, quotaOwner, { projectId: existing.rows[0].id });
+        }
         // Update existing record (updated_at handled by trigger)
         const updateResult = await client.query(
           `UPDATE tbl_projects SET updated_at = NOW() WHERE id = $1 RETURNING *`,
@@ -303,6 +431,7 @@ export async function POST(request: NextRequest) {
         );
         savedRow = updateResult.rows[0];
       } else {
+        if (quotaOwner) await assertProjectSlots(client, quota, quotaOwner);
         // Insert new record
         const insertResult = await client.query(
           `INSERT INTO tbl_projects (user_uuid, guest_uuid, project_name, status)
@@ -312,6 +441,8 @@ export async function POST(request: NextRequest) {
         );
         savedRow = insertResult.rows[0];
       }
+
+      await assertPlotCount(client, quota, savedRow.id, body.frontendPlots);
 
       await upsertProjectAndPlots(
         client,
@@ -330,6 +461,7 @@ export async function POST(request: NextRequest) {
           polygonsPayload: body.polygonsPayload,
           backendResponses: body.backendResponses,
           frontendPlots: body.frontendPlots,
+          staleAssessmentPolygonIds: body.staleAssessmentPolygonIds,
         }
       );
 
@@ -341,6 +473,7 @@ export async function POST(request: NextRequest) {
       });
     } catch (err) {
       await client.query("ROLLBACK");
+      if (err instanceof QuotaError) return quotaErrorResponse(err);
       throw err;
     } finally {
       client.release();

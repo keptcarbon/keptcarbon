@@ -1,6 +1,14 @@
 from fastapi import APIRouter, HTTPException
 from typing import List
-from app.schemas.plots import CarbonAssessRequest, CarbonAssessResponse
+from app.schemas.carbon import (
+    CarbonAssessRequest,
+    CarbonAssessResponse,
+    CarbonSimulationRequest,
+    CarbonSimulationResponse,
+    CarbonEconomicsRequest,
+    CarbonEconomicsResponse,
+)
+from app.schemas.plots import StatusMessage
 from app.services.carbon_service import CarbonService
 
 router = APIRouter()
@@ -29,3 +37,41 @@ async def assess_carbon(polygons: List[CarbonAssessRequest]):
             )
 
     return results
+
+
+@router.post("/carbon/sim", response_model=CarbonSimulationResponse)
+async def simulation_carbon(sim_data: List[CarbonSimulationRequest]):
+    try:
+        # Pass the whole batch of rows through in one call -- the service
+        # computes each row's central/upper/lower vectors independently, then
+        # sums them by index into one final profile for the batch (e.g.
+        # multiple cohorts/plantings on the same plot).
+        payload = [item.model_dump() for item in sim_data]
+
+        result = await service.get_carbon_simulation(payload)
+
+    except HTTPException:
+        # Preserve service-raised status codes (e.g. 422 for unknown
+        # biomass profile / spacing, or rotation_year > 35).
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error processing simulation payload: {str(e)}"
+        )
+
+    return result
+
+
+@router.post("/carbon/economics", response_model=CarbonEconomicsResponse)
+async def economics_carbon(req: CarbonEconomicsRequest):
+    try:
+        return await service.get_carbon_economics(req.model_dump())
+    except HTTPException:
+        # 422 for unknown biomass profile / spacing, as in /carbon/sim.
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error processing economics payload: {str(e)}"
+        )

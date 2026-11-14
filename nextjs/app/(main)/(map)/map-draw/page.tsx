@@ -15,31 +15,49 @@ import {
   detectUtmZoneAuto,
   sanitizePolygonForApi,
   generatePolygonId,
+  MAP_DRAW_ANIMATION_DURATION,
 } from "@/lib/map-utils";
-import { getPlotsInfo, getPlotsNav } from "@/lib/carbon-api";
+import { getPlotsInfo, getPlotsLocate } from "@/lib/carbon-api";
 import { ParcelResultsPanel } from "@/app/components/organisms";
 import type { PlotFormData } from "@/app/components/organisms/ParcelResultsPanel/utils";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import {
   type Tab,
-  REGIONS_DATA,
   zoomToGeoJSONFeatures,
+  zoomToThailand,
   AMPHOE_DATA,
   utmToLatLng,
   cursorAddNode,
   SNAP_PX,
 } from "./utils";
 import { useMapInit } from "./useMapInit";
+
+/** GET /api/service-provinces row: a province with a tbl_region_config row. */
+type ServiceProvince = { pCode: string; provinceTh: string; regionTh: string };
 import { useBoundarySelection } from "./useBoundarySelection";
+import { useLocationTour, boundsToPolygon } from "./useLocationTour";
 import { NodeWarningPopup } from "./components/NodeWarningPopup";
 import { AreaErrorPopup } from "./components/AreaErrorPopup";
 import { ErrorPopup } from "./components/ErrorPopup";
 import { StepWarningPopup } from "./components/StepWarningPopup";
 import { GuestLimitPopup } from "./components/GuestLimitPopup";
+import { PlotLimitPopup } from "./components/PlotLimitPopup";
+import { ProjectLimitPopup } from "./components/ProjectLimitPopup";
+import { ClaimSuccessPopup } from "./components/ClaimSuccessPopup";
 import { setPostAuthRedirect } from "@/lib/post-auth-redirect";
+import { formatArea } from "@/lib/utils";
 
-/** Guests (not logged in) may draw at most this many plots. */
-const GUEST_PLOT_LIMIT = 5;
+/** Guest plot cap used only until GET /api/quota answers (tbl_role_quota is the real source). */
+const GUEST_PLOT_LIMIT_FALLBACK = 5;
+
+/** GET /api/quota response. Limits null = unlimited. */
+type QuotaInfo = {
+  role: string;
+  allowed: boolean;
+  maxProjects: number | null;
+  maxPlotsPerProject: number | null;
+  projectCount: number;
+};
 
 /** sessionStorage key holding a guest's drawn plots across the auth flow. */
 const MAP_DRAW_RESUME_KEY = "mapDrawResume";
@@ -49,12 +67,14 @@ const MAP_DRAW_RESUME_KEY = "mapDrawResume";
 const MAP_DRAW_RESUME_TTL_MS = 5 * 60 * 1000;
 
 function MapDrawContent() {
-  const { user, openLogin, openRegister } = useAuth();
+  const { user, openLogin, openRegister, modal } = useAuth();
 
   const [locationMethod, setLocationMethod] = useState<"area" | "coord">("area");
   const [coordMode, setCoordMode] = useState<"latlng" | "utm">("latlng");
   const [coordLat, setCoordLat] = useState("");
   const [coordLng, setCoordLng] = useState("");
+  // Single "lat, lng" box in the map's ค้นหาจากพิกัด card
+  const [coordLatLngText, setCoordLatLngText] = useState("");
   const [coordUtmZone, setCoordUtmZone] = useState<47 | 48>(47);
   const [coordE, setCoordE] = useState("");
   const [coordN, setCoordN] = useState("");
@@ -81,24 +101,15 @@ function MapDrawContent() {
   const refPlotsLoadedRef = useRef(false);
 
   const searchParams = useSearchParams();
+  const router = useRouter();
 
-  const projNameParam = useMemo(() => {
-    let pName = searchParams?.get("project");
-    if (!pName && typeof window !== "undefined") {
-      const params = new URLSearchParams(window.location.search);
-      pName = params.get("project");
-    }
-    return pName || "";
-  }, [searchParams]);
+  // Read the query only from useSearchParams. Don't fall back to
+  // window.location.search: after router.replace() the new searchParams render
+  // runs before Next commits the history update, so window.location still holds
+  // the old ?plotId= and the stale value would get memoized.
+  const projNameParam = useMemo(() => searchParams?.get("project") || "", [searchParams]);
 
-  const isEditingPlotParam = useMemo(() => {
-    let pId = searchParams?.get("plotId");
-    if (!pId && typeof window !== "undefined") {
-      const params = new URLSearchParams(window.location.search);
-      pId = params.get("plotId");
-    }
-    return !!pId;
-  }, [searchParams]);
+  const isEditingPlotParam = useMemo(() => !!searchParams?.get("plotId"), [searchParams]);
 
   const handleExitProject = useCallback(() => {
     window.location.href = "/map-draw";
@@ -116,7 +127,9 @@ function MapDrawContent() {
   // Tab + UI
   const [tab, setTab] = useState<Tab>("draw");
   const [basemapOpen, setBasemapOpen] = useState(false);
-  const [basemap, setBasemap] = useState<"hybrid" | "sat" | "street" | "topo">("hybrid");
+  const [areaPickerOpen, setAreaPickerOpen] = useState(false);
+  const [coordPickerOpen, setCoordPickerOpen] = useState(false);
+  const [basemap, setBasemap] = useState<"hybrid" | "sat" | "groad" | "gterrain" | "street" | "topo">("hybrid");
   const [status, setStatus] = useState("🇹🇭 แผนที่ประเทศไทย — เลือกภาค จังหวัด อำเภอ หรือตำบล แล้วกด \"เริ่มวาดแปลง\"");
   const [mapLoaded, setMapLoaded] = useState(false);
 
@@ -129,6 +142,26 @@ function MapDrawContent() {
     tambonsFromDb,
     tambonsLoading,
   } = useBoundarySelection({ mapRef, mapLoadedRef, mapLoaded, suppressAutoZoomRef: suppressBoundaryZoomRef });
+
+  // Staged zoom (province → district → plot/point) for the
+  // my-plots deep links and lat/long search.
+  const { startTour, playTour, cancelTour } = useLocationTour({
+    mapRef,
+    suppressAutoZoomRef: suppressBoundaryZoomRef,
+    selection: { province: selectedProvince, amphoe: selectedAmphoe, tambon: selectedTambon },
+    setSelectedRegion,
+    setSelectedProvince,
+    setSelectedAmphoe,
+    setSelectedTambon,
+  });
+
+  // A manual pick from the เลือกพื้นที่ dropdowns: stop any running location tour and
+  // re-enable the boundary fit-to-bounds zoom (a tour, coordinate search or guest
+  // restore leaves it suppressed), so every level zooms to the chosen area.
+  const beginAreaPick = useCallback(() => {
+    cancelTour();
+    suppressBoundaryZoomRef.current = false;
+  }, [cancelTour]);
 
   // SHP state
   const [shpFile, setShpFile] = useState<File | null>(null);
@@ -232,16 +265,67 @@ function MapDrawContent() {
     }
   };
 
+  // Served provinces (GET /api/service-provinces = tbl_region_config) -- the
+  // only ภาค / จังหวัด the เลือกพื้นที่ dropdowns offer. null = still loading.
+  const [serviceProvinces, setServiceProvinces] = useState<ServiceProvince[] | null>(null);
+  const serviceProvincesRef = useRef<ServiceProvince[] | null>(null);
+  const serviceRegions = useMemo(
+    () => Array.from(new Set((serviceProvinces ?? []).map((p) => p.regionTh))),
+    [serviceProvinces]
+  );
+
+  // Default area selection (the first served province, e.g. Eastern region →
+  // Rayong), staggered so the map zooms to the region first and then the
+  // province. Used on first load and again when the user starts a new area
+  // from step 2. Requested before the province list has loaded -> deferred.
+  const defaultAreaTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const defaultAreaPendingRef = useRef(false);
+  const clearDefaultAreaTimers = useCallback(() => {
+    defaultAreaTimersRef.current.forEach(clearTimeout);
+    defaultAreaTimersRef.current = [];
+  }, []);
+  const selectDefaultArea = useCallback(() => {
+    clearDefaultAreaTimers();
+    const list = serviceProvincesRef.current;
+    if (list === null) {
+      defaultAreaPendingRef.current = true;
+      return;
+    }
+    defaultAreaPendingRef.current = false;
+    const first = list[0];
+    if (!first) return;
+    defaultAreaTimersRef.current = [
+      setTimeout(() => setSelectedRegion(first.regionTh), 250),
+      setTimeout(() => setSelectedProvince(first.provinceTh), 250 + MAP_DRAW_ANIMATION_DURATION + 250),
+    ];
+  }, [clearDefaultAreaTimers, setSelectedRegion, setSelectedProvince]);
+  useEffect(() => clearDefaultAreaTimers, [clearDefaultAreaTimers]);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/service-provinces/")
+      .then((res) => (res.ok ? res.json() : Promise.reject(res)))
+      .then((data) => data.provinces ?? [])
+      .catch(() => [])
+      .then((list: ServiceProvince[]) => {
+        if (cancelled) return;
+        serviceProvincesRef.current = list;
+        setServiceProvinces(list);
+        if (defaultAreaPendingRef.current) selectDefaultArea();
+      });
+    return () => { cancelled = true; };
+  }, [selectDefaultArea]);
+
   useEffect(() => {
     if (projNameParam || isEditingPlotParam) return;
     // Returning from the guest-limit auth flow: the restore effect will zoom
     // to the stashed plots — skip the default province auto-select, whose
-    // delayed boundary zoom (Rayong) would override that fit.
+    // delayed boundary zoom (default province) would override that fit.
     //
     // Only skip for a *fresh* stash. A real OAuth round-trip lands back here in
     // seconds; if the guest tapped login/register but then abandoned auth, the
     // key is never consumed (the restore effect needs a logged-in user) and
-    // would otherwise disable the default Eastern region/Rayong auto-select for the
+    // would otherwise disable the default province auto-select for the
     // rest of the tab session. Treat a stale key as abandoned: clear it and
     // fall through to the default.
     try {
@@ -253,9 +337,8 @@ function MapDrawContent() {
         sessionStorage.removeItem(MAP_DRAW_RESUME_KEY);
       }
     } catch { /* storage unavailable — fall through to default */ }
-    const tRegion = setTimeout(() => setSelectedRegion("ภาคตะวันออก"), 250);
-    const tProvince = setTimeout(() => setSelectedProvince("ระยอง"), 2600);
-    return () => { clearTimeout(tRegion); clearTimeout(tProvince); };
+    selectDefaultArea();
+    return clearDefaultAreaTimers;
   }, []);
 
   // Area Validation State
@@ -267,7 +350,10 @@ function MapDrawContent() {
   const [projectType, setProjectType] = useState<"replanting" | "existing" | null>(null);
   const [projectName, setProjectName] = useState(projNameParam || "");
   const [stepWarningPopup, setStepWarningPopup] = useState<boolean>(false);
-  const [guestLimitPopup, setGuestLimitPopup] = useState<boolean>(false);
+  const [guestLimitPopup, setGuestLimitPopup] = useState<false | "plots" | "projects">(false);
+  const [plotLimitPopup, setPlotLimitPopup] = useState<boolean>(false);
+  const [projectLimitPopup, setProjectLimitPopup] = useState<boolean>(false);
+  const [claimSuccessPopup, setClaimSuccessPopup] = useState<boolean>(false);
   const [plotsSaved, setPlotsSaved] = useState(false);
   // Tracks the currently active DB project for this drawing session (set once
   // the guest's first assessment/save writes a row), so it can be soft-deleted
@@ -320,13 +406,100 @@ function MapDrawContent() {
     setActiveDbProjectId(null);
     setActiveGuestKey(null);
     setResetProjectToken(t => t + 1);
+    cancelTour();
+    setExistingProjectPlots([]);
+    setHiddenProjectPlots([]);
+    setEditingPlotId(null);
+    refPlotsLoadedRef.current = false;
     clearDraw();
     setCurrentStep(1);
     setProjectName("");
+    // Arrived via a deep-link (?project=…&action=calc&plotId=…, e.g. "แก้ไขขอบเขต"
+    // from my-plots): drop it, otherwise isEditingPlotParam stays true and keeps
+    // "เริ่มวาดแปลง" disabled for the new area.
+    if (searchParams?.get("project") || searchParams?.get("action") || searchParams?.get("plotId")) {
+      router.replace("/map-draw");
+    }
+    // Start over like a fresh page load: clear the area selection (the map was
+    // parked on the previous plot, and an unchanged province wouldn't re-zoom),
+    // then replay the default province selection.
+    suppressBoundaryZoomRef.current = false;
+    setSelectedTambon("");
+    setSelectedAmphoe("");
+    setSelectedProvince("");
+    setSelectedRegion("");
+    selectDefaultArea();
   };
 
   // Multi-parcel support
   const [drawnParcels, setDrawnParcels] = useState<GeoJSON.Feature[]>([]);
+
+  // ===== QUOTA (tbl_role_quota via GET /api/quota) =====
+  // The server enforces every limit on save (lib/quota.ts); these checks only
+  // stop the user before they draw work that couldn't be saved.
+  const [quota, setQuota] = useState<QuotaInfo | null>(null);
+  // Guest key whose claim was refused for lack of a project slot -- retried
+  // once the user deletes a project in ProjectLimitPopup.
+  const pendingClaimKeyRef = useRef<string | null>(null);
+
+  const fetchQuota = useCallback(async (): Promise<QuotaInfo | null> => {
+    let guestId: string | null = null;
+    if (!user) {
+      try { guestId = localStorage.getItem("guest_user_id"); } catch { /* unavailable */ }
+    }
+    try {
+      const res = await fetch(
+        guestId ? `/api/quota?guest_user_id=${encodeURIComponent(guestId)}` : "/api/quota",
+        { cache: "no-store" }
+      );
+      if (!res.ok) return null;
+      const q: QuotaInfo = await res.json();
+      setQuota(q);
+      return q;
+    } catch {
+      return null;
+    }
+  }, [user]);
+
+  useEffect(() => { void fetchQuota(); }, [fetchQuota]);
+
+  // Until /api/quota answers, guests keep the old cap; users are left to the server.
+  const plotLimit: number | null = quota ? quota.maxPlotsPerProject : (user ? null : GUEST_PLOT_LIMIT_FALLBACK);
+
+  /** Shows the right popup and returns true when a project of `count` plots is over the plot limit. */
+  const blockPlotCount = (count: number): boolean => {
+    if (plotLimit === null || count <= plotLimit) return false;
+    if (user) setPlotLimitPopup(true); else setGuestLimitPopup("plots");
+    return true;
+  };
+
+  /**
+   * When this drawing would start a NEW project (nothing drawn or loaded
+   * yet), re-reads the quota and returns true (with the right popup) if the
+   * caller already holds their maximum number of projects. Re-read rather
+   * than cached: a guest's "start over" soft-deletes their project moments
+   * before.
+   */
+  const blockNewProject = async (): Promise<boolean> => {
+    const isNewProject =
+      !searchParams?.get("project") && !activeDbProjectId &&
+      drawnParcels.length === 0 && hiddenProjectPlots.length === 0;
+    if (!isNewProject) return false;
+    const q = await fetchQuota();
+    if (!q || q.maxProjects === null || q.projectCount < q.maxProjects) return false;
+    if (user) setProjectLimitPopup(true); else setGuestLimitPopup("projects");
+    return true;
+  };
+
+  /** A save/claim came back 403 from lib/quota.ts -- show what blocked it. */
+  const handleQuotaError = (code: string) => {
+    void fetchQuota();
+    if (code === "project_limit") {
+      if (user) setProjectLimitPopup(true); else setGuestLimitPopup("projects");
+    } else if (code === "plot_limit") {
+      if (user) setPlotLimitPopup(true); else setGuestLimitPopup("plots");
+    }
+  };
   const drawnParcelsRef = useRef<GeoJSON.Feature[]>([]);
   // Mirrors ParcelResultsPanel's plotForms (plantStatus/"ปลูกมาแล้ว" etc.) — that
   // state lives entirely in the child and never writes back into drawnParcels,
@@ -442,6 +615,17 @@ function MapDrawContent() {
         // Land-use polygons from plantation-info (A302 etc.) — shown in the
         // panel as luFeatures; without them the restore says "ไม่พบข้อมูล" (No data found)
         luFeatures: parcelFeatures,
+        // Per-parcel plantation-info the post-login auto-save needs (mainly
+        // province_code, which isn't on the luFeatures above). Geometry is
+        // dropped — it's already in parcels/luFeatures — to stay well under the
+        // sessionStorage quota.
+        rawPlantationInfo: (Array.isArray(rawPlantationInfo) ? rawPlantationInfo : []).map((r: any) => ({
+          polygon_id: r?.polygon_id,
+          province_code: r?.province_code,
+          area_m2: r?.area_m2,
+          total_area_m2: r?.total_area_m2,
+          status: r?.status,
+        })),
         // The guest's region/province/district/subdistrict picks. The OAuth redirect reloads the
         // page and wipes this React state, so without stashing it the dropdowns
         // come back empty when the user steps back to step 1 after logging in.
@@ -454,84 +638,210 @@ function MapDrawContent() {
     setPostAuthRedirect("/map-draw");
   };
 
-  // Restore stashed guest plots after login/register. The snapshot only exists
-  // when the guest chose to auth from the limit popup, so normal visits are
-  // unaffected. Waits for the map + session user, then drops the restored
-  // plots straight into step 2 (the user is now authed — no limit).
-  const resumeLoadedRef = useRef(false);
+  // GuestLimitPopup's onLogin/onRegister call stashGuestDrawSnapshot()
+  // directly, but that's only reachable at the >GUEST_PLOT_LIMIT wall. A
+  // guest under the limit who opens the header's plain "เข้าสู่ระบบ"/
+  // "สมัครสมาชิก" button (openLogin/openRegister with no stash) had their
+  // plots silently dropped by the OAuth full-page redirect — this modal-open
+  // watcher stashes for that case too, so ANY login/register while plots are
+  // drawn on this page is covered, not just the limit-triggered one.
   useEffect(() => {
-    if (!mapLoaded || !user || resumeLoadedRef.current) return;
-    let raw: string | null = null;
-    try {
-      raw = sessionStorage.getItem(MAP_DRAW_RESUME_KEY);
-      if (raw) sessionStorage.removeItem(MAP_DRAW_RESUME_KEY);
-    } catch { /* storage unavailable */ }
-    if (!raw) return;
-    resumeLoadedRef.current = true;
-    try {
-      const data = JSON.parse(raw);
-      const feats: GeoJSON.Feature[] = Array.isArray(data?.parcels) ? data.parcels : [];
-      if (feats.length === 0) return;
-      const luFeats: GeoJSON.Feature[] = Array.isArray(data?.luFeatures) ? data.luFeatures : [];
-      setDrawnParcels(feats);
-      setCurrentStep(2);
-      setIsPanelOpen(true);
-      setSearchCount(feats.length);
-      setStatus("เข้าสู่ระบบสำเร็จ — แปลงที่วาดไว้ถูกกู้คืนแล้ว");
+    if (!user && (modal === "login" || modal === "register") && drawnParcels.length > 0) {
+      stashGuestDrawSnapshot();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [modal]);
 
-      // Re-apply the guest's region/province/district/subdistrict so stepping back to step 1
-      // shows them again. Suppress the boundary hook's auto-zoom for this window
-      // so it doesn't pull the camera off the zoom-to-plots fit below.
-      if (data?.region) {
-        suppressBoundaryZoomRef.current = true;
-        setSelectedRegion(data.region);
-        if (data?.province) setSelectedProvince(data.province);
-        if (data?.amphoe) setSelectedAmphoe(data.amphoe);
-        if (data?.tambon) setSelectedTambon(data.tambon);
-      }
+  // Reconcile a guest's work into the account, once, after login on this page.
+  //  - Path A (guest clicked "ประมวลผล" before logging in → a guest_uuid
+  //    project row is already in the DB, flagged by localStorage guest_user_id):
+  //    flip it to this account IN PLACE via /api/plots/claim (no clone, no
+  //    soft-delete), then load it fresh via ?project= — no forced re-assess.
+  //  - Path B (guest only drew, never assessed → nothing in the DB, just the
+  //    sessionStorage snapshot): restore the plots into step 2 and auto-save
+  //    them as a real user-owned project so they survive leaving the page.
+  // auth-context skips its own claim while we're on /map-draw, so this is the
+  // sole reconcile here.
+  const reconcileRanRef = useRef(false);
 
-      // Zoom to the restored plots (not the default province view)
-      const map = mapRef.current;
-      if (luFeats.length > 0) {
-        setParcelFeatures(luFeats);
-        // Repaint the land-use overlay on the map (same as the edit flow)
-        const luSrc = map?.getSource("matched-parcels") as maplibregl.GeoJSONSource | undefined;
-        if (luSrc) luSrc.setData({ type: "FeatureCollection", features: luFeats });
-      }
-      if (map) {
-        const bounds = new maplibregl.LngLatBounds();
-        feats.forEach(f => {
-          const geom = f.geometry as any;
-          const coords = geom.type === 'Polygon'
-            ? geom.coordinates[0]
-            : geom.coordinates[0][0];
-          coords.forEach((coord: any) => bounds.extend(coord));
-        });
-        if (!bounds.isEmpty()) {
-          // The panel opens in this same commit and resizes the map canvas —
-          // fitting immediately computes the view against stale dimensions and
-          // crops some plots out. Wait for the layout to settle, resize, then
-          // glide in slowly enough to keep the whole group in view.
-          window.setTimeout(() => {
-            map.resize();
-            const isMob = typeof window !== "undefined" && window.innerWidth < 768;
-            // Desktop: the panel is a fixed ~300px overlay on the right, so the
-            // visible map is the area left of it. Reserving 300px + an equal
-            // margin on both sides (left 90 / right 390 = 300 + 90) centers the
-            // group in that visible area. Tighter top/bottom + a higher maxZoom
-            // let the 5 plots fill more of the frame.
-            const pad = isMob
-              ? { top: 50, bottom: 320, left: 50, right: 50 }
-              : { top: 56, bottom: 56, left: 90, right: 390 };
-            try {
-              map.fitBounds(bounds, { padding: pad, duration: 2400, maxZoom: 17, essential: true });
-            } catch {
-              map.fitBounds(bounds, { padding: 60, duration: 2400, maxZoom: 17, essential: true });
-            }
-          }, 450);
+  // Path A's claim. A 403 project_limit (no free project slot in the account)
+  // leaves the guest rows and guest_user_id as they are and opens
+  // ProjectLimitPopup; deleting a project there retries this claim.
+  const claimGuestDraft = async (guestKey: string) => {
+    try {
+      const res = await fetch("/api/plots/claim", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ guestKey }),
+      });
+      if (res.ok) {
+        pendingClaimKeyRef.current = null;
+        // Claimed — drop the key so auth-context doesn't re-claim off-page.
+        try { localStorage.removeItem("guest_user_id"); } catch { /* unavailable */ }
+        void fetchQuota();
+        const d = await res.json();
+        const name: string | undefined = d.projects?.[0]?.projectName;
+        if (name) {
+          setProjectName(name);
+          setClaimSuccessPopup(true);
+          router.replace(`/map-draw?project=${encodeURIComponent(name)}`);
         }
+      } else if (res.status === 403) {
+        const d = await res.json().catch(() => ({}));
+        if (d.error === "project_limit") pendingClaimKeyRef.current = guestKey;
+        handleQuotaError(d.error);
       }
-    } catch { /* corrupted snapshot — ignore */ }
+      // On other failures, guest_user_id stays put: auth-context retries it
+      // on the next page it loads on.
+    } catch { /* non-fatal */ }
+  };
+
+  useEffect(() => {
+    if (!mapLoaded || !user || reconcileRanRef.current) return;
+
+    let guestKey: string | null = null;
+    let snapRaw: string | null = null;
+    try { guestKey = localStorage.getItem("guest_user_id"); } catch { /* unavailable */ }
+    try { snapRaw = sessionStorage.getItem(MAP_DRAW_RESUME_KEY); } catch { /* unavailable */ }
+    if (!guestKey && !snapRaw) return;
+
+    reconcileRanRef.current = true;
+    try { sessionStorage.removeItem(MAP_DRAW_RESUME_KEY); } catch { /* unavailable */ }
+
+    // ── Path A ──────────────────────────────────────────────────────────────
+    if (guestKey) {
+      void claimGuestDraft(guestKey);
+      return;
+    }
+
+    // ── Path B ──────────────────────────────────────────────────────────────
+    let data: any;
+    try { data = JSON.parse(snapRaw as string); } catch { return; }
+    const feats: GeoJSON.Feature[] = Array.isArray(data?.parcels) ? data.parcels : [];
+    if (feats.length === 0) return;
+    const luFeats: GeoJSON.Feature[] = Array.isArray(data?.luFeatures) ? data.luFeatures : [];
+
+    setDrawnParcels(feats);
+    setCurrentStep(2);
+    setIsPanelOpen(true);
+    setSearchCount(feats.length);
+    setStatus("เข้าสู่ระบบสำเร็จ — แปลงที่วาดไว้ถูกกู้คืนแล้ว");
+    if (Array.isArray(data?.rawPlantationInfo)) setRawPlantationInfo(data.rawPlantationInfo);
+
+    // Re-apply the guest's region/province/district/subdistrict so stepping back to step 1
+    // shows them again. Suppress the boundary hook's auto-zoom for this window
+    // so it doesn't pull the camera off the zoom-to-plots fit below.
+    if (data?.region) {
+      suppressBoundaryZoomRef.current = true;
+      setSelectedRegion(data.region);
+      if (data?.province) setSelectedProvince(data.province);
+      if (data?.amphoe) setSelectedAmphoe(data.amphoe);
+      if (data?.tambon) setSelectedTambon(data.tambon);
+    }
+
+    // Zoom to the restored plots (not the default province view)
+    const map = mapRef.current;
+    if (luFeats.length > 0) {
+      setParcelFeatures(luFeats);
+      const luSrc = map?.getSource("matched-parcels") as maplibregl.GeoJSONSource | undefined;
+      if (luSrc) luSrc.setData({ type: "FeatureCollection", features: luFeats });
+    }
+    if (map) {
+      const bounds = new maplibregl.LngLatBounds();
+      feats.forEach(f => {
+        const geom = f.geometry as any;
+        const coords = geom.type === 'Polygon'
+          ? geom.coordinates[0]
+          : geom.coordinates[0][0];
+        coords.forEach((coord: any) => bounds.extend(coord));
+      });
+      if (!bounds.isEmpty()) {
+        window.setTimeout(() => {
+          map.resize();
+          const isMob = typeof window !== "undefined" && window.innerWidth < 768;
+          const pad = isMob
+            ? { top: 50, bottom: 320, left: 50, right: 50 }
+            : { top: 56, bottom: 56, left: 90, right: 390 };
+          try {
+            map.fitBounds(bounds, { padding: pad, duration: MAP_DRAW_ANIMATION_DURATION, maxZoom: 17, essential: true });
+          } catch {
+            map.fitBounds(bounds, { padding: 60, duration: MAP_DRAW_ANIMATION_DURATION, maxZoom: 17, essential: true });
+          }
+        }, 450);
+      }
+    }
+
+    // Persist as a user-owned project directly from the snapshot (POST /api/plots
+    // with the auth cookie → owned by user_uuid, server-generated name). Doing
+    // it here rather than driving the panel's save avoids depending on the
+    // panel having mounted and its plotForms having synced.
+    (async () => {
+      try {
+        const polygonsPayload = feats.map((f) => {
+          const props = (f.properties || {}) as any;
+          const form = props.backendData?.form || {};
+          const beYear = form.plantYear ? parseInt(String(form.plantYear), 10) : 0;
+          return {
+            id: props.id,
+            geometry: f.geometry,
+            year_of_planting: beYear > 0 ? beYear - 543 : null,
+            rubber_clone: form.variety || null,
+            tree_count: form.treeCount ? (parseInt(String(form.treeCount), 10) || null) : null,
+            spacing_system: form.spacing || null,
+            project_type: props.plantStatus || form.plantStatus || null,
+            selected_lu_classes: [] as string[],
+          };
+        });
+        const rpi: any[] = Array.isArray(data?.rawPlantationInfo) ? data.rawPlantationInfo : [];
+        const plantationInfo = feats.map((f, i) => {
+          const props = (f.properties || {}) as any;
+          const info = rpi[i] || {};
+          return {
+            polygon_id: props.id,
+            province_code: info.province_code || props.province || null,
+            area_m2: info.area_m2 ?? info.total_area_m2 ?? (props.rai ? props.rai * 1600 : null),
+            geometry: f.geometry,
+            status: info.status || { status: "success", status_code: "S02", message: "" },
+            lu_polygon: [] as any[],
+          };
+        });
+        const frontendPlots = feats.map((f, i) => {
+          const props = (f.properties || {}) as any;
+          return {
+            id: props.id,
+            name: "",
+            geojson: f.geometry,
+            province: plantationInfo[i].province_code || "",
+            plantStatus: props.plantStatus || "",
+            plotNote: props.plotNote || props.backendData?.form?.plotNote || "",
+          };
+        });
+
+        const res = await fetch("/api/plots", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ frontendPlots, polygonsPayload, plantationInfo, backendResponses: [] }),
+        });
+        if (res.ok) {
+          const d = await res.json();
+          const name: string | undefined = d.project?.projectName;
+          if (d.project?.id) setActiveDbProjectId(d.project.id);
+          if (name) {
+            setProjectName(name);
+            // Converge on the same "load the user-owned project by name" path as
+            // Path A so the panel picks up its dbProjectId for later saves.
+            router.replace(`/map-draw?project=${encodeURIComponent(name)}`);
+          }
+          setClaimSuccessPopup(true);
+          void fetchQuota();
+        } else if (res.status === 403) {
+          // At the project limit: the plots stay restored in step 2, so after
+          // deleting a project in the popup the user can Save them.
+          const d = await res.json().catch(() => ({}));
+          handleQuotaError(d.error);
+        }
+      } catch { /* non-fatal — the user can still Save manually */ }
+    })();
   }, [user, mapLoaded]);
 
   // Hide vertex nodes when not on step 1 (not editable at step 2/3)
@@ -1168,17 +1478,9 @@ function MapDrawContent() {
     const map = mapRef.current;
     if (!map || !mapLoaded || !user) return;
 
-    let projName = searchParams?.get("project");
-    let action = searchParams?.get("action");
-    let plotId = searchParams?.get("plotId");
-
-    // Fallback in case searchParams is not available
-    if (!projName && typeof window !== 'undefined') {
-      const params = new URLSearchParams(window.location.search);
-      projName = params.get("project") || projName;
-      action = params.get("action") || action;
-      plotId = params.get("plotId") || plotId;
-    }
+    const projName = searchParams?.get("project");
+    const action = searchParams?.get("action");
+    const plotId = searchParams?.get("plotId");
 
     // Add-plot mode: project specified but no action/plotId — load existing plots into step 2
     if (projName && !action && !plotId && !refPlotsLoadedRef.current) {
@@ -1266,15 +1568,7 @@ function MapDrawContent() {
                 coords.forEach((coord: any) => bounds.extend(coord));
               });
               if (!bounds.isEmpty()) {
-                const isMob = typeof window !== "undefined" && window.innerWidth < 768;
-                const pad = isMob
-                  ? { top: 60, bottom: 350, left: 60, right: 60 }
-                  : { top: 80, bottom: 80, left: 80, right: 420 };
-                try {
-                  refMap.fitBounds(bounds, { padding: pad, duration: 700, maxZoom: 17 });
-                } catch (e) {
-                  refMap.fitBounds(bounds, { padding: 60, duration: 700, maxZoom: 17 });
-                }
+                startTour(boundsToPolygon(bounds), { kind: "bounds", bounds });
               }
             }
           }
@@ -1297,23 +1591,6 @@ function MapDrawContent() {
           const projectPlots = allProjectPlots;
 
           if (projectPlots.length > 0) {
-            // action=calc with no plotId only happens on the post-login
-            // guest-project claim redirect (auth-context.tsx). That redirect
-            // can follow a full-page OAuth round-trip, which wipes the
-            // in-memory region/province selection — so the boundary polygon
-            // the guest had on screen before logging in would otherwise stay
-            // blank. Re-derive it from the claimed plot's own saved province
-            // instead of relying on state that may no longer exist.
-            if (action && !plotId && !selectedProvince) {
-              const claimedProvince = projectPlots[0]?.province;
-              if (claimedProvince) {
-                const claimedRegion = REGIONS_DATA.find(r => r.provinces.includes(claimedProvince))?.name;
-                suppressBoundaryZoomRef.current = true;
-                if (claimedRegion) setSelectedRegion(claimedRegion);
-                setSelectedProvince(claimedProvince);
-              }
-            }
-
             const feats: GeoJSON.Feature[] = projectPlots.map((p: any, i: number) => ({
               type: "Feature",
               geometry: p.geojson,
@@ -1396,6 +1673,15 @@ function MapDrawContent() {
             setIsPanelOpen(true);
             setStatus(`เตรียมประมวลผลคาร์บอนสำหรับโครงการ: ${projName}`);
 
+            // action=calc with no plotId only happens on the post-login
+            // guest-project claim redirect (auth-context.tsx), which only
+            // navigates here after POST /api/plots/claim returned 200 — so
+            // reaching this branch already means the claim succeeded. Confirm
+            // it on screen once the claimed plots have actually loaded.
+            if (action && !plotId) {
+              setClaimSuccessPopup(true);
+            }
+
             const map = mapRef.current;
             if (map) {
               if (map.getSource("matched-parcels")) {
@@ -1413,21 +1699,17 @@ function MapDrawContent() {
                 coords.forEach((coord: any) => bounds.extend(coord));
               });
               if (!bounds.isEmpty()) {
-                const isMob = typeof window !== "undefined" && window.innerWidth < 768;
-                const pad = isMob
-                  ? { top: 60, bottom: 350, left: 60, right: 60 }
-                  : { top: 80, bottom: 80, left: 80, right: 420 };
-                // action=calc with no plotId only happens on the post-login
-                // guest-project claim redirect (auth-context.tsx) — match the
-                // >5-plot popup restore's slower reveal there. The My Plots
-                // "edit a plot" deep link always pairs action with plotId and
-                // keeps the snappier duration since that's a deliberate click.
-                const duration = action && !plotId ? 2400 : 700;
-                try {
-                  map.fitBounds(bounds, { padding: pad, duration, maxZoom: 17 });
-                } catch (e) {
-                  map.fitBounds(bounds, { padding: 60, duration, maxZoom: 17 });
-                }
+                // Staged zoom down to the plot(s). It also sets region /
+                // province / district, which restores the boundary after the
+                // guest-claim redirect (action=calc, no plotId) — a full-page
+                // OAuth round-trip wipes that selection.
+                // One plot: locate the plot itself, so a plot near a
+                // district border isn't pushed up to province level by its
+                // bounding box.
+                const locateGeom = visibleFeats.length === 1 && visibleFeats[0].geometry
+                  ? visibleFeats[0].geometry
+                  : boundsToPolygon(bounds);
+                startTour(locateGeom, { kind: "bounds", bounds });
               }
             }
           }
@@ -1527,7 +1809,8 @@ function MapDrawContent() {
       ],
       {
         padding: { top: 60, bottom: 60, left: 60, right: 60 },
-        duration: 900,
+        duration: MAP_DRAW_ANIMATION_DURATION,
+        essential: true,
         pitch: 0,
       },
     );
@@ -1588,7 +1871,7 @@ function MapDrawContent() {
     });
     needsPlantationSearchRef.current = true;
 
-    setDrawPreview(`${rai.toFixed(2)} ไร่ · ${verts.length} จุด`);
+    setDrawPreview(`${formatArea(rai)} ไร่ · ${verts.length} จุด`);
     setDrawDone(true);
     setHasGeom(true);
     setStatus(`✓ วาดแปลงเสร็จ — กำลังเข้าสู่ขั้นตอนกรอกข้อมูล`);
@@ -1607,10 +1890,10 @@ function MapDrawContent() {
           : { top: 60, bottom: 60, left: 60, right: 380 };
 
         try {
-          map.fitBounds(bounds, { padding: pad, duration: 700, maxZoom: 17 });
+          map.fitBounds(bounds, { padding: pad, duration: MAP_DRAW_ANIMATION_DURATION, maxZoom: 17, essential: true });
         } catch (e) {
           // fallback if padding exceeds container dimensions
-          map.fitBounds(bounds, { padding: 40, duration: 700, maxZoom: 17 });
+          map.fitBounds(bounds, { padding: 40, duration: MAP_DRAW_ANIMATION_DURATION, maxZoom: 17, essential: true });
         }
       }
     }
@@ -1902,13 +2185,12 @@ function MapDrawContent() {
   }, []);
 
   const startDrawFlow = async () => {
-    // Guests can draw at most GUEST_PLOT_LIMIT plots. Block starting another
-    // draw once they hit the cap and prompt them to log in / register.
-    // Runs on every click, so the popup re-appears each time after closing.
-    if (!user && drawnParcels.length >= GUEST_PLOT_LIMIT) {
-      setGuestLimitPopup(true);
-      return;
-    }
+    // Quota: block starting another draw once the project is at its plot
+    // limit (guests are prompted to log in / register), or when this would
+    // start a new project past the project limit. Runs on every click, so
+    // the popup re-appears each time after closing.
+    if (blockPlotCount(drawnParcels.length + hiddenProjectPlots.length + 1)) return;
+    if (await blockNewProject()) return;
     const map = mapRef.current;
     if (!map) return;
     navMarkerRef.current?.remove();
@@ -1928,7 +2210,7 @@ function MapDrawContent() {
         if (coordMode === "latlng") {
           const la = parseFloat(coordLat.replace(/,/g, '')), lo = parseFloat(coordLng.replace(/,/g, ''));
           if (!isNaN(la) && !isNaN(lo) && la >= -90 && la <= 90 && lo >= -180 && lo <= 180) {
-            map.flyTo({ center: [lo, la], zoom: 15, duration: 2400, essential: true });
+            map.flyTo({ center: [lo, la], zoom: 15, duration: MAP_DRAW_ANIMATION_DURATION, essential: true });
           }
         } else {
           const ev = parseFloat(coordE.replace(/,/g, '')), nv = parseFloat(coordN.replace(/,/g, ''));
@@ -1936,7 +2218,7 @@ function MapDrawContent() {
             try {
               const { lat: la, lng: lo } = utmToLatLng(ev, nv, coordUtmZone, true);
               if (la >= -90 && la <= 90 && lo >= -180 && lo <= 180) {
-                map.flyTo({ center: [lo, la], zoom: 15, duration: 2400, essential: true });
+                map.flyTo({ center: [lo, la], zoom: 15, duration: MAP_DRAW_ANIMATION_DURATION, essential: true });
               }
             } catch { /* ignore invalid coords */ }
           }
@@ -1945,22 +2227,43 @@ function MapDrawContent() {
     }
   };
 
-  // "ค้นหาแปลงจากพิกัด" (Search plot by coordinates) — check the lat/lng against /plots/nav, then zoom + drop a marker if serviced
+  // "ค้นหาจากพิกัด" (Search by coordinates) — "lat, lng" or UTM X/Y; locate the point via /plots/locate,
+  // then tour down to it + drop a marker if serviced. Closes the map card on success.
   const handleCoordSearch = async () => {
     const map = mapRef.current;
-    const la = parseFloat(coordLat.replace(/,/g, '')), lo = parseFloat(coordLng.replace(/,/g, ''));
+    let la: number, lo: number;
+    if (coordMode === "utm") {
+      const ev = parseFloat(coordE.replace(/,/g, '')), nv = parseFloat(coordN.replace(/,/g, ''));
+      if (isNaN(ev) || isNaN(nv)) {
+        setNavError("กรุณากรอกพิกัด X (E) และ Y (N) ให้ถูกต้อง");
+        return;
+      }
+      try {
+        ({ lat: la, lng: lo } = utmToLatLng(ev, nv, coordUtmZone, true));
+      } catch {
+        setNavError("กรุณากรอกพิกัด X (E) และ Y (N) ให้ถูกต้อง");
+        return;
+      }
+    } else {
+      // "12.7869, 101.2564" — comma and/or whitespace between the two numbers
+      const parts = coordLatLngText.trim().split(/[\s,]+/).filter(Boolean);
+      la = parts.length === 2 ? Number(parts[0]) : NaN;
+      lo = parts.length === 2 ? Number(parts[1]) : NaN;
+    }
 
     if (isNaN(la) || isNaN(lo) || la < -90 || la > 90 || lo < -180 || lo > 180) {
-      setNavError("กรุณากรอกพิกัด Latitude/Longitude ให้ถูกต้อง");
+      setNavError(coordMode === "utm" ? "กรุณากรอกพิกัด X (E) และ Y (N) ให้ถูกต้อง" : "กรุณากรอกพิกัดในรูปแบบ ละติจูด, ลองจิจูด เช่น 12.7869, 101.2564");
       return;
     }
 
     setNavSearching(true);
     setNavError(null);
     try {
-      const result = await getPlotsNav({ lat: la, lon: lo });
+      const [result] = await getPlotsLocate([
+        { id: "nav-point", geometry: { type: "Point", coordinates: [lo, la] } },
+      ]);
 
-      if (!result.supported) {
+      if (!result?.supported) {
         setNavError("พิกัดนี้ไม่อยู่ในพื้นที่จังหวัดที่ให้บริการ");
         navMarkerRef.current?.remove();
         navMarkerRef.current = null;
@@ -1968,7 +2271,9 @@ function MapDrawContent() {
       }
 
       if (map) {
-        map.flyTo({ center: [lo, la], zoom: 17, duration: 2400, essential: true });
+        // Don't let the page-load default (ภาคตะวันออก → ระยอง) land mid-tour.
+        clearDefaultAreaTimers();
+        playTour(result, { kind: "point", center: [lo, la], zoom: 17 });
 
         if (!navMarkerRef.current) {
           const el = document.createElement("div");
@@ -1977,8 +2282,9 @@ function MapDrawContent() {
         }
         navMarkerRef.current.setLngLat([lo, la]).addTo(map);
       }
+      setCoordPickerOpen(false);
     } catch (err) {
-      console.error("plots/nav search failed:", err);
+      console.error("plots/locate search failed:", err);
       setNavError("เกิดข้อผิดพลาดในการค้นหาพิกัด กรุณาลองใหม่อีกครั้ง");
     } finally {
       setNavSearching(false);
@@ -2028,6 +2334,7 @@ function MapDrawContent() {
     setProjectType(null);
     setCoordLat("");
     setCoordLng("");
+    setCoordLatLngText("");
     setCoordE("");
     setCoordN("");
     setCoordUtmZone(47);
@@ -2044,6 +2351,40 @@ function MapDrawContent() {
     setIsPanelOpen(true);
     zoomToSelectedProvince();
   };
+
+  // Logging out mid-session: the in-progress project belongs to the account
+  // that just left, so keep drawing against it and every save/assess 403s
+  // (PATCH /api/plots/<id> with no auth). Wipe the drawing session back to a
+  // fresh-page-load state — detach the DB project, clear drawn plots + the
+  // stashed guest snapshot, and drop the ?project=/?action= deep-link so it
+  // isn't re-loaded.
+  const prevUserRef = useRef(user);
+  useEffect(() => {
+    const justLoggedOut = !!prevUserRef.current && !user;
+    prevUserRef.current = user;
+    if (!justLoggedOut) return;
+
+    cancelTour();
+    setActiveDbProjectId(null);
+    setActiveGuestKey(null);
+    setResetProjectToken(t => t + 1); // → ParcelResultsPanel drops dbProjectId/guestUserId
+    setExistingProjectPlots([]);
+    setHiddenProjectPlots([]);
+    setEditingPlotId(null);
+    setRawPlantationInfo([]);
+    setProjectName("");
+    try {
+      sessionStorage.removeItem(MAP_DRAW_RESUME_KEY);
+      localStorage.removeItem("guest_user_id");
+    } catch { /* storage unavailable */ }
+    reconcileRanRef.current = false;
+    refPlotsLoadedRef.current = false;
+    clearDraw();
+    if (searchParams?.get("project") || searchParams?.get("action") || searchParams?.get("plotId")) {
+      router.replace("/map-draw");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
 
   const deleteParcel = useCallback((idx: number) => {
     setDrawnParcels(prev => {
@@ -2090,7 +2431,7 @@ function MapDrawContent() {
     // Cancelling a "draw more" pass with existing plots should return to
     // those plots, not zoom all the way back out to the step-1 region.
     if (drawnParcels.length > 0 && map) {
-      zoomToGeoJSONFeatures(drawnParcels, map);
+      zoomToGeoJSONFeatures(drawnParcels, map, MAP_DRAW_ANIMATION_DURATION);
     } else {
       zoomToSelectedProvince();
     }
@@ -2289,7 +2630,7 @@ function MapDrawContent() {
             if (!bounds.isEmpty()) {
               map.fitBounds(bounds, {
                 padding: 60,
-                duration: 2400,
+                duration: MAP_DRAW_ANIMATION_DURATION,
                 easing: (t) => t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t
               });
             }
@@ -2307,7 +2648,7 @@ function MapDrawContent() {
               if (!bounds.isEmpty()) {
                 map.fitBounds(bounds, {
                   padding: 60,
-                  duration: 2400,
+                  duration: MAP_DRAW_ANIMATION_DURATION,
                   easing: (t) => t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t
                 });
               }
@@ -2449,6 +2790,19 @@ function MapDrawContent() {
       );
       if (!polyFeats.length) throw new Error("ไม่พบ Polygon");
 
+      // Quota: each polygon (MultiPolygon parts count separately, as they're
+      // flattened into plots below) is one plot of a new project.
+      const plotCountInFile = polyFeats.reduce(
+        (n, f) => n + (f.geometry.type === "MultiPolygon" ? (f.geometry as GeoJSON.MultiPolygon).coordinates.length : 1),
+        0,
+      );
+      if (blockPlotCount(plotCountInFile)) {
+        throw new Error(`ไฟล์มี ${plotCountInFile} แปลง เกินจำนวนสูงสุด ${plotLimit} แปลงต่อโครงการ`);
+      }
+      if (await blockNewProject()) {
+        throw new Error("จำนวนโครงการครบตามที่กำหนดแล้ว");
+      }
+
       // Merge all rings into one MultiPolygon for the search query
       const allRings: GeoJSON.Position[][][] = [];
       for (const f of polyFeats) {
@@ -2520,11 +2874,11 @@ function MapDrawContent() {
   };
 
   // ===== BASEMAP SWITCH =====
-  const switchBasemap = (mode: "hybrid" | "sat" | "street" | "topo") => {
+  const switchBasemap = (mode: "hybrid" | "sat" | "groad" | "gterrain" | "street" | "topo") => {
     setBasemap(mode);
     const map = mapRef.current;
     if (!map) return;
-    (["hybrid", "sat", "street", "topo"] as const).forEach((m) => {
+    (["hybrid", "sat", "groad", "gterrain", "street", "topo"] as const).forEach((m) => {
       if (map.getLayer(m)) {
         map.setLayoutProperty(m, "visibility", m === mode ? "visible" : "none");
       }
@@ -2562,7 +2916,8 @@ function MapDrawContent() {
         center: [parseFloat(item.lon), parseFloat(item.lat)],
         zoom: 12,
         pitch: 0,
-        duration: 2500,
+        duration: MAP_DRAW_ANIMATION_DURATION,
+        essential: true,
       });
     }
     setSearchValue(item.display_name);
@@ -2595,7 +2950,7 @@ function MapDrawContent() {
     const lats = coords.map(([, y]) => y);
     map.fitBounds(
       [[Math.min(...lngs), Math.min(...lats)], [Math.max(...lngs), Math.max(...lats)]],
-      { padding: 80, duration: 2400, maxZoom: 18, easing: (t) => t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t },
+      { padding: 80, duration: MAP_DRAW_ANIMATION_DURATION, essential: true, maxZoom: 18, easing: (t) => t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t },
     );
   }, []);
 
@@ -2645,6 +3000,180 @@ function MapDrawContent() {
           )}
         </div>
 
+        {/* Area picker: region → province → amphoe → tambon */}
+        {!drawing && (
+          <div className="mds-area-picker">
+            <button
+              type="button"
+              className={`mds-area-picker-btn${areaPickerOpen ? " open" : ""}`}
+              onClick={() => { setAreaPickerOpen((v) => !v); setCoordPickerOpen(false); }}
+              title="เลือกพื้นที่"
+            >
+              <i className="bi bi-pin-map" />
+              <span className="mds-area-picker-label">
+                {selectedTambon || selectedAmphoe || selectedProvince || selectedRegion || "เลือกพื้นที่"}
+              </span>
+              <i className={`bi bi-chevron-${areaPickerOpen ? "up" : "down"}`} style={{ fontSize: 12 }} />
+            </button>
+            {areaPickerOpen && (
+              <div className="mds-area-picker-card">
+                <div className="mds-basemap-header">
+                  <span><i className="bi bi-pin-map me-1" /> เลือกพื้นที่</span>
+                  <i className="bi bi-x" style={{ cursor: "pointer", fontSize: 18 }} onClick={() => setAreaPickerOpen(false)} />
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {/* ภาค (Region) */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+              <select className="prp-input" style={{ padding: "8px 5px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: 15, background: "#fff", width: "100%" }} value={selectedRegion} onChange={(e) => { beginAreaPick(); setSelectedRegion(e.target.value); setSelectedProvince(""); setSelectedAmphoe(""); setSelectedTambon(""); if (!e.target.value && mapRef.current) zoomToThailand(mapRef.current); }}>
+                <option value="">เลือกภาค...</option>
+                {serviceRegions.map(r => <option key={r} value={r}>{r}</option>)}
+              </select>
+            </div>
+
+            {/* Province / Amphoe / Tambon */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 8 }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                <select className="prp-input" style={{ padding: "8px 5px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: 15, background: selectedRegion ? "#fff" : "#f8fafc", color: selectedRegion ? "#0f172a" : "#94a3b8", width: "100%" }} value={selectedProvince} onChange={(e) => { beginAreaPick(); setSelectedProvince(e.target.value); setSelectedAmphoe(""); setSelectedTambon(""); }} disabled={!selectedRegion}>
+                  <option value="">เลือกจังหวัด...</option>
+                  {selectedRegion && (serviceProvinces ?? []).filter(p => p.regionTh === selectedRegion).map(p => <option key={p.pCode} value={p.provinceTh}>{p.provinceTh}</option>)}
+                </select>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                {amphoesFromDb.length > 0 ? (
+                  <select className="prp-input" style={{ padding: "8px 5px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: 15, background: selectedProvince ? "#fff" : "#f8fafc", color: selectedProvince ? "#0f172a" : "#94a3b8", width: "100%" }} value={selectedAmphoe} onChange={(e) => { beginAreaPick(); setSelectedAmphoe(e.target.value); setSelectedTambon(""); }} disabled={!selectedProvince}>
+                    <option value="">เลือกอำเภอ...</option>
+                    {amphoesFromDb.map(a => <option key={a} value={a}>{a}</option>)}
+                  </select>
+                ) : AMPHOE_DATA[selectedProvince] ? (
+                  <select className="prp-input" style={{ padding: "8px 5px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: 15, background: selectedProvince ? "#fff" : "#f8fafc", color: selectedProvince ? "#0f172a" : "#94a3b8", width: "100%" }} value={selectedAmphoe} onChange={(e) => { beginAreaPick(); setSelectedAmphoe(e.target.value); setSelectedTambon(""); }} disabled={!selectedProvince}>
+                    <option value="">เลือกอำเภอ...</option>
+                    {AMPHOE_DATA[selectedProvince].map(a => <option key={a} value={a}>{a}</option>)}
+                  </select>
+                ) : (
+                  <select className="prp-input" style={{ padding: "8px 5px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: 15, background: "#f8fafc", color: "#94a3b8", width: "100%" }} disabled>
+                    <option value="">{selectedProvince ? "กำลังโหลด..." : "เลือกจังหวัดก่อน"}</option>
+                  </select>
+                )}
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                {tambonsLoading ? (
+                  <select className="prp-input" style={{ padding: "8px 5px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: 15, background: "#f8fafc", color: "#94a3b8", width: "100%" }} disabled>
+                    <option value="">กำลังโหลด...</option>
+                  </select>
+                ) : tambonsFromDb.length > 0 ? (
+                  <select className="prp-input" style={{ padding: "8px 5px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: 15, background: selectedAmphoe ? "#fff" : "#f8fafc", color: selectedAmphoe ? "#0f172a" : "#94a3b8", width: "100%" }} value={selectedTambon} onChange={e => { beginAreaPick(); setSelectedTambon(e.target.value); }} disabled={!selectedAmphoe}>
+                    <option value="">เลือกตำบล...</option>
+                    {tambonsFromDb.map(t => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                ) : selectedAmphoe ? (
+                  <input className="prp-input" style={{ padding: "8px 5px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: 15, width: "100%", boxSizing: "border-box" }} placeholder="ตำบล..." value={selectedTambon} onChange={e => { beginAreaPick(); setSelectedTambon(e.target.value); }} />
+                ) : (
+                  <select className="prp-input" style={{ padding: "8px 5px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: 15, background: "#f8fafc", color: "#94a3b8", width: "100%" }} disabled>
+                    <option value="">เลือกอำเภอก่อน</option>
+                  </select>
+                )}
+              </div>
+            </div>
+                  {!selectedRegion || !selectedProvince ? (
+                    <div style={{ color: "#f59e0b", fontSize: 12, fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
+                      <i className="bi bi-exclamation-circle-fill" /> กรุณาเลือกภาคและจังหวัดเพื่อดำเนินการต่อ
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+            )}
+
+            <button
+              type="button"
+              className={`mds-area-picker-btn${coordPickerOpen ? " open" : ""}`}
+              onClick={() => { setCoordPickerOpen((v) => !v); setAreaPickerOpen(false); setNavError(null); }}
+              title="ค้นหาจากพิกัด"
+            >
+              <i className="bi bi-crosshair" />
+              <span className="mds-area-picker-label">ค้นหาจากพิกัด</span>
+              <i className={`bi bi-chevron-${coordPickerOpen ? "up" : "down"}`} style={{ fontSize: 12 }} />
+            </button>
+            {coordPickerOpen && (
+              <form
+                className="mds-area-picker-card mds-coord-card"
+                onSubmit={(e) => { e.preventDefault(); if (!navSearching) handleCoordSearch(); }}
+              >
+                <div className="mds-coord-head">
+                  <div className="mds-coord-tabs">
+                    {(["latlng", "utm"] as const).map((m) => (
+                      <button
+                        key={m}
+                        type="button"
+                        className={coordMode === m ? "active" : ""}
+                        onClick={() => { setCoordMode(m); setNavError(null); }}
+                      >
+                        {m === "latlng" ? "Lat / Long" : "UTM X, Y"}
+                      </button>
+                    ))}
+                  </div>
+                  <i className="bi bi-x" style={{ cursor: "pointer", fontSize: 22, color: "#64748b" }} onClick={() => setCoordPickerOpen(false)} />
+                </div>
+
+                {coordMode === "latlng" ? (
+                  <>
+                    <input
+                      className="mds-coord-input"
+                      autoFocus
+                      inputMode="decimal"
+                      placeholder="12.7869, 101.2564"
+                      value={coordLatLngText}
+                      onChange={(e) => setCoordLatLngText(e.target.value)}
+                    />
+                    <div className="mds-coord-hint">องศาทศนิยม คั่นด้วยจุลภาค</div>
+                  </>
+                ) : (
+                  <>
+                    <div className="mds-coord-utm">
+                      <select
+                        className="mds-coord-input"
+                        value={coordUtmZone}
+                        onChange={(e) => setCoordUtmZone(Number(e.target.value) as 47 | 48)}
+                      >
+                        <option value={47}>47N</option>
+                        <option value={48}>48N</option>
+                      </select>
+                      <input
+                        className="mds-coord-input"
+                        autoFocus
+                        inputMode="decimal"
+                        placeholder="X (E)"
+                        value={coordE}
+                        onChange={(e) => setCoordE(e.target.value)}
+                      />
+                      <input
+                        className="mds-coord-input"
+                        inputMode="decimal"
+                        placeholder="Y (N)"
+                        value={coordN}
+                        onChange={(e) => setCoordN(e.target.value)}
+                      />
+                    </div>
+                    <div className="mds-coord-hint">ประเทศไทยฝั่งตะวันตกใช้โซน 47N, ฝั่งตะวันออกใช้โซน 48N</div>
+                  </>
+                )}
+
+                {navError && (
+                  <div style={{ color: "#dc2626", fontSize: 13, fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
+                    <i className="bi bi-exclamation-circle-fill" /> {navError}
+                  </div>
+                )}
+
+                <button type="submit" className="mds-coord-go" disabled={navSearching}>
+                  {navSearching
+                    ? <div className="spinner-border spinner-border-sm" role="status" style={{ width: 16, height: 16, borderWidth: 2 }} />
+                    : <i className="bi bi-search" />}
+                  ไปยังตำแหน่ง
+                </button>
+              </form>
+            )}
+          </div>
+        )}
+
         {/* Layer switcher button */}
         <div className="mds-map-controls">
           <button
@@ -2659,19 +3188,23 @@ function MapDrawContent() {
         {/* Basemap card */}
         <div className={`mds-basemap-card${basemapOpen ? " open" : ""}`}>
           <div className="mds-basemap-header">
-            <span><i className="bi bi-layers me-1" /> แผนที่</span>
+            <span><i className="bi bi-layers me-1" /> แผนที่ฐาน</span>
             <i className="bi bi-x" style={{ cursor: "pointer", fontSize: 18 }} onClick={() => setBasemapOpen(false)} />
           </div>
-          {(["hybrid", "sat", "street", "topo"] as const).map((m) => (
+          {(["hybrid", "sat", "groad", "gterrain", "street", "topo"] as const).map((m) => (
             <div
               key={m}
               className={`mds-basemap-option${basemap === m ? " active" : ""}`}
               onClick={() => switchBasemap(m)}
             >
-              <i className={(m === "hybrid" || m === "sat") ? "bi bi-globe-asia-australia" : m === "street" ? "bi bi-map" : "bi bi-tree"} />
+              <i className={(m === "hybrid" || m === "sat") ? "bi bi-globe-asia-australia" : (m === "groad" || m === "street") ? "bi bi-map" : "bi bi-tree"} />
               {m === "hybrid" ? (
-                <span>ดาวเทียม <br />(Google map)</span>
-              ) : m === "sat" ? "ดาวเทียม (ดั้งเดิม)" : m === "street" ? "ถนน " : "ภูมิประเทศ"}
+                <span>ดาวเทียม + ป้ายกำกับ</span>
+              ) : m === "sat" ? "ดาวเทียม"
+                : m === "groad" ? "ถนน (Google)"
+                : m === "gterrain" ? "ภูมิประเทศ (Google)"
+                : m === "street" ? "ถนน (OSM)"
+                : "ภูมิประเทศ (Esri)"}
             </div>
           ))}
         </div>
@@ -2951,7 +3484,7 @@ function MapDrawContent() {
               <div className="mds-stepper-fill" style={{ width: `${(currentStep - 1) * 50}%` }} />
             </div>
             {([
-              { n: 1 as const, label: "เริ่มกำหนดพื้นที่" },
+              { n: 1 as const, label: "กำหนดพื้นที่แปลง" },
               { n: 2 as const, label: "กรอกข้อมูล" },
               { n: 3 as const, label: "ประเมิน/บันทึก" },
             ]).map(({ n, label }) => {
@@ -3011,7 +3544,7 @@ function MapDrawContent() {
 
                     <h2 className="mds-s1-title" style={{ marginBottom: 12 }}>กำหนดขอบเขตแปลง</h2>
                     <p className="mds-s1-sub">
-                      วาดแปลงบนแผนที่เพื่อกำหนดพื้นที่ประเมินคาร์บอนเครดิต
+                      วาดแปลงบนแผนที่เพื่อกำหนดพื้นที่ประเมินคาร์บอนกักเก็บ
                     </p>
                   </div>
                 </div>
@@ -3054,100 +3587,16 @@ function MapDrawContent() {
 
                           {locationMethod === "area" ? (
                             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                              {/* ภาค (Region) */}
-                              <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-                                <label style={{ fontSize: 14, fontWeight: 600, color: "#64748b" }}>ภาค</label>
-                                <select className="prp-input" style={{ padding: "8px 5px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: 15, background: "#fff", width: "100%" }} value={selectedRegion} onChange={(e) => { suppressBoundaryZoomRef.current = false; setSelectedRegion(e.target.value); setSelectedProvince(""); setSelectedAmphoe(""); setSelectedTambon(""); }}>
-                                  <option value="">เลือกภาค...</option>
-                                  {REGIONS_DATA.filter(r => r.name === "ภาคตะวันออก").map(r => <option key={r.name} value={r.name}>{r.name}</option>)}
-                                </select>
-                              </div>
-
-                              {/* 3-column: Province / Amphoe / Tambon */}
-                              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6 }}>
-                                <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-                                  <label style={{ fontSize: 14, fontWeight: 600, color: "#64748b" }}>จังหวัด</label>
-                                  <select className="prp-input" style={{ padding: "8px 5px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: 15, background: selectedRegion ? "#fff" : "#f8fafc", color: selectedRegion ? "#0f172a" : "#94a3b8", width: "100%" }} value={selectedProvince} onChange={(e) => { suppressBoundaryZoomRef.current = false; setSelectedProvince(e.target.value); setSelectedAmphoe(""); setSelectedTambon(""); }} disabled={!selectedRegion}>
-                                    <option value="">เลือกจังหวัด...</option>
-                                    {selectedRegion && REGIONS_DATA.find(r => r.name === selectedRegion)?.provinces.filter(p => p === "ระยอง").map(p => <option key={p} value={p}>{p}</option>)}
-                                  </select>
-                                </div>
-                                <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-                                  <label style={{ fontSize: 14, fontWeight: 600, color: "#64748b" }}>อำเภอ</label>
-                                  {amphoesFromDb.length > 0 ? (
-                                    <select className="prp-input" style={{ padding: "8px 5px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: 15, background: selectedProvince ? "#fff" : "#f8fafc", color: selectedProvince ? "#0f172a" : "#94a3b8", width: "100%" }} value={selectedAmphoe} onChange={(e) => { setSelectedAmphoe(e.target.value); setSelectedTambon(""); }} disabled={!selectedProvince}>
-                                      <option value="">เลือกอำเภอ...</option>
-                                      {amphoesFromDb.map(a => <option key={a} value={a}>{a}</option>)}
-                                    </select>
-                                  ) : AMPHOE_DATA[selectedProvince] ? (
-                                    <select className="prp-input" style={{ padding: "8px 5px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: 15, background: selectedProvince ? "#fff" : "#f8fafc", color: selectedProvince ? "#0f172a" : "#94a3b8", width: "100%" }} value={selectedAmphoe} onChange={(e) => { setSelectedAmphoe(e.target.value); setSelectedTambon(""); }} disabled={!selectedProvince}>
-                                      <option value="">เลือกอำเภอ...</option>
-                                      {AMPHOE_DATA[selectedProvince].map(a => <option key={a} value={a}>{a}</option>)}
-                                    </select>
-                                  ) : (
-                                    <select className="prp-input" style={{ padding: "8px 5px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: 15, background: "#f8fafc", color: "#94a3b8", width: "100%" }} disabled>
-                                      <option value="">{selectedProvince ? "กำลังโหลด..." : "เลือกจังหวัดก่อน"}</option>
-                                    </select>
-                                  )}
-                                </div>
-                                <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-                                  <label style={{ fontSize: 14, fontWeight: 600, color: "#64748b" }}>ตำบล</label>
-                                  {tambonsLoading ? (
-                                    <select className="prp-input" style={{ padding: "8px 5px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: 15, background: "#f8fafc", color: "#94a3b8", width: "100%" }} disabled>
-                                      <option value="">กำลังโหลด...</option>
-                                    </select>
-                                  ) : tambonsFromDb.length > 0 ? (
-                                    <select className="prp-input" style={{ padding: "8px 5px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: 15, background: selectedAmphoe ? "#fff" : "#f8fafc", color: selectedAmphoe ? "#0f172a" : "#94a3b8", width: "100%" }} value={selectedTambon} onChange={e => setSelectedTambon(e.target.value)} disabled={!selectedAmphoe}>
-                                      <option value="">เลือกตำบล...</option>
-                                      {tambonsFromDb.map(t => <option key={t} value={t}>{t}</option>)}
-                                    </select>
-                                  ) : selectedAmphoe ? (
-                                    <input className="prp-input" style={{ padding: "8px 5px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: 15, width: "100%", boxSizing: "border-box" }} placeholder="ตำบล..." value={selectedTambon} onChange={e => setSelectedTambon(e.target.value)} />
-                                  ) : (
-                                    <select className="prp-input" style={{ padding: "8px 5px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: 15, background: "#f8fafc", color: "#94a3b8", width: "100%" }} disabled>
-                                      <option value="">เลือกอำเภอก่อน</option>
-                                    </select>
-                                  )}
-                                </div>
-                              </div>
-
                               {!selectedRegion || !selectedProvince ? (
-                                <div style={{ color: "#f59e0b", fontSize: 11, fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
-                                  <i className="bi bi-exclamation-circle-fill" /> กรุณาเลือกภาคและจังหวัดเพื่อดำเนินการต่อ
-                                </div>
-                              ) : null}
-
-                              {/* ── grey divider ── */}
-                              <div style={{ height: 1, background: "#e2e8f0", margin: "14px 0 10px" }} />
-
-                              {/* Latitude / Longitude / ค้นหา (optional) */}
-                              <label style={{ fontSize: 15, fontWeight: 600, color: "#64748b" }}>ค้นหาแปลงจากพิกัด</label>
-                              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr auto", gap: 6, alignItems: "end" }}>
-                                <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-                                  <label style={{ fontSize: 14, fontWeight: 600, color: "#64748b" }}>Latitude</label>
-                                  <input className="prp-input" style={{ padding: "8px 5px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: 15, width: "100%", boxSizing: "border-box", transform: "none" }} placeholder="เช่น 15.8700" value={coordLat} onChange={e => setCoordLat(e.target.value)} />
-                                </div>
-                                <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-                                  <label style={{ fontSize: 14, fontWeight: 600, color: "#64748b" }}>Longitude</label>
-                                  <input className="prp-input" style={{ padding: "8px 5px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: 15, width: "100%", boxSizing: "border-box", transform: "none" }} placeholder="เช่น 100.9925" value={coordLng} onChange={e => setCoordLng(e.target.value)} />
-                                </div>
                                 <button
                                   type="button"
-                                  onClick={handleCoordSearch}
-                                  disabled={navSearching}
-                                  style={{ padding: "8px 14px", borderRadius: 8, border: "none", background: "#1e7a47", color: "#fff", fontSize: 15, fontWeight: 700, cursor: navSearching ? "not-allowed" : "pointer", opacity: navSearching ? 0.7 : 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, whiteSpace: "nowrap", height: 38 }}
+                                  onClick={() => { setAreaPickerOpen(true); setCoordPickerOpen(false); }}
+                                  style={{ color: "#f59e0b", fontSize: 13, fontWeight: 600, display: "flex", alignItems: "center", gap: 4, background: "none", border: "none", padding: 0, cursor: "pointer", textAlign: "left" }}
                                 >
-                                  {navSearching
-                                    ? <div className="spinner-border spinner-border-sm" role="status" style={{ width: 14, height: 14, borderWidth: 2, color: "#fff" }} />
-                                    : <i className="bi bi-search" />}
-                                  {" "}ค้นหา
+                                  <i className="bi bi-exclamation-circle-fill" /> กรุณาเลือกภาคและจังหวัดจากปุ่ม &quot;เลือกพื้นที่&quot; บนแผนที่เพื่อดำเนินการต่อ
                                 </button>
-                              </div>
-                              {navError && (
-                                <div style={{ color: "#dc2626", fontSize: 12, fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
-                                  <i className="bi bi-exclamation-circle-fill" /> {navError}
-                                </div>
-                              )}
+                              ) : null}
+
                             </div>
                           ) : (
                             <div style={{ padding: "10px 12px", background: "#f8fbf9", border: "1px solid rgba(5,150,105,0.18)", borderRadius: 10, display: "flex", flexDirection: "column", gap: 8 }}>
@@ -3291,12 +3740,23 @@ function MapDrawContent() {
                       <>
                         {drawnParcels.length === 0 && (
                           <ol className="mds-instr-list">
+                            <li>
+                              <span>คลิกปุ่ม</span>
+                              <button
+                                type="button"
+                                onClick={() => { setAreaPickerOpen(true); setCoordPickerOpen(false); }}
+                                style={{ display: "inline-flex", alignItems: "center", gap: 4, margin: "0 5px", background: "rgba(5,150,105,0.12)", color: "#047857", padding: "2px 9px", borderRadius: "6px", border: "none", fontWeight: 700, fontSize: "12px", whiteSpace: "nowrap", cursor: "pointer" }}
+                              >
+                                <i className="bi bi-pin-map" /> เลือกพื้นที่
+                              </button>
+                              <span>ที่เมนูบนแผนที่</span>
+                            </li>
                             <li>คลิกปุ่ม <strong>&ldquo;เริ่มวาดแปลง&rdquo;</strong></li>
                             <li>คลิกบนแผนที่เพื่อเพิ่มจุดขอบเขต (≥ 3 จุด)</li>
                             <li>
                               <span>จบการวาดด้วย</span>
                               <span style={{ display: "inline-flex", flexWrap: "wrap", alignItems: "center", gap: "5px", marginLeft: "5px" }}>
-                                <span style={{ background: "rgba(5,150,105,0.12)", color: "#047857", padding: "2px 9px", borderRadius: "6px", fontWeight: 700, fontSize: "12px", whiteSpace: "nowrap" }}>เสร็จสิ้น</span>
+                                <span style={{ background: "rgba(5,150,105,0.12)", color: "#047857", padding: "2px 9px", borderRadius: "6px", fontWeight: 700, fontSize: "12px", whiteSpace: "nowrap" }}>กดปุ่ม"เสร็จสิ้น"</span>
                                 <span style={{ color: "#cbd5e1", fontWeight: 400 }}>·</span>
                                 <span style={{ background: "rgba(5,150,105,0.12)", color: "#047857", padding: "2px 9px", borderRadius: "6px", fontWeight: 700, fontSize: "12px", whiteSpace: "nowrap" }}>คลิกขวา</span>
                                 <span style={{ color: "#cbd5e1", fontWeight: 400 }}>·</span>
@@ -3419,7 +3879,6 @@ function MapDrawContent() {
                 parcelFeatures={drawnParcels}
                 luFeatures={parcelFeatures}
                 rawPlantationInfo={rawPlantationInfo}
-                userDisplayName={user?.displayName ?? ""}
                 drawnGeometry={drawnGeometry}
                 onFlyTo={flyToFeature}
                 onReset={clearDraw}
@@ -3450,9 +3909,12 @@ function MapDrawContent() {
                 onProjectNameChange={setProjectName}
                 autoProcessTrigger={autoProcessTrigger}
                 onSave={() => setPlotsSaved(true)}
-                onProjectSaved={({ projectId, guestKey }) => {
+                onQuotaError={handleQuotaError}
+                onProjectSaved={({ projectId, projectName: savedName, guestKey }) => {
+                  void fetchQuota();
                   setActiveDbProjectId(projectId);
                   setActiveGuestKey(guestKey);
+                  if (savedName && !projectName.trim()) setProjectName(savedName);
                 }}
                 resetProjectToken={resetProjectToken}
                 existingProjectPlots={existingProjectPlots}
@@ -3505,7 +3967,7 @@ function MapDrawContent() {
                           f.geometry.coordinates[0][0].forEach((coord: any) => bounds.extend(coord));
                         }
                       });
-                      if (!bounds.isEmpty()) map.fitBounds(bounds, { padding: 50 });
+                      if (!bounds.isEmpty()) map.fitBounds(bounds, { padding: 50, duration: MAP_DRAW_ANIMATION_DURATION, essential: true });
                     }
 
                     setTimeout(() => {
@@ -3532,14 +3994,33 @@ function MapDrawContent() {
 
       <NodeWarningPopup open={nodeWarningPopup} onClose={() => setNodeWarningPopup(false)} />
       <GuestLimitPopup
-        open={guestLimitPopup}
-        limit={GUEST_PLOT_LIMIT}
+        open={guestLimitPopup !== false}
+        kind={guestLimitPopup || "plots"}
+        limit={(guestLimitPopup === "projects" ? quota?.maxProjects : plotLimit) ?? GUEST_PLOT_LIMIT_FALLBACK}
         onClose={() => setGuestLimitPopup(false)}
         onLogin={() => { stashGuestDrawSnapshot(); setGuestLimitPopup(false); openLogin(); }}
         onRegister={() => { stashGuestDrawSnapshot(); setGuestLimitPopup(false); openRegister(); }}
       />
+      <PlotLimitPopup
+        open={plotLimitPopup}
+        limit={plotLimit ?? 0}
+        onClose={() => setPlotLimitPopup(false)}
+      />
+      <ProjectLimitPopup
+        open={projectLimitPopup}
+        limit={quota?.maxProjects ?? null}
+        onClose={() => { setProjectLimitPopup(false); pendingClaimKeyRef.current = null; }}
+        onFreed={() => {
+          setProjectLimitPopup(false);
+          void fetchQuota();
+          const key = pendingClaimKeyRef.current;
+          if (key) void claimGuestDraft(key);
+        }}
+      />
 
       <AreaErrorPopup error={areaError} onClose={() => setAreaError(null)} />
+
+      <ClaimSuccessPopup open={claimSuccessPopup} onClose={() => setClaimSuccessPopup(false)} />
 
       <ErrorPopup popup={errorPopup} onClose={() => setErrorPopup(null)} />
 

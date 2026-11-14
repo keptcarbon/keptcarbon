@@ -13,11 +13,20 @@ export type SavedPlot = {
   variety?: string;
   spacing?: string;
   userId?: string;
-  ownerName?: string;
+  plotNote?: string;
+  /** geo_thailand.p_code, e.g. "RAY". */
   province?: string;
+  /** จังหวัด / อำเภอ / ตำบล the plot lies in (tbl_plots.province_th /
+   *  district_th / subdistrict_th — all from the same lookup, so consistent). */
+  provinceName?: string;
+  district?: string;
+  subdistrict?: string;
   date: string;
   geojson?: unknown;
   boundaryGeojson?: unknown;
+  /** The plot's assessment area: the LU parts selected when it was drawn,
+   *  merged (tbl_plots.assessment_geometry). Re-assessments send it as-is. */
+  assessmentGeojson?: unknown;
 
   carbonProfile?: BarPoint[];
   plantStatus?: string;
@@ -33,4 +42,18 @@ export type SavedPlot = {
     form?: any;
     lu_polygon?: GeoJSON.Feature[];
   };
+};
+
+/** Lightweight per-project row for the my-plots table list — no plot geometry/
+ *  carbon data, only what's needed to render one table row. */
+export type ProjectSummary = {
+  dbProjectId: number;
+  projectName: string;
+  plotCount: number;
+  totalArea: number;
+  updatedAt: string;
+  ownerName?: string;
+  province?: string;
+  /** true when every active plot in the project has a current assessment. */
+  processed: boolean;
 };

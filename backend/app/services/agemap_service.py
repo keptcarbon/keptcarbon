@@ -4,7 +4,6 @@ from datetime import datetime
 from fastapi import HTTPException
 from shapely.geometry import shape
 
-from app.core.constants import REGION_CONFIG
 from app.core.database import get_pool
 from app.services.tree_service import TreeService
 
@@ -13,16 +12,24 @@ class AgeMapService:
     def __init__(self):
         self.tree_svc = TreeService()
 
-    # $1 = plantation geometry (GeoJSON, EPSG:32647 -- matches geo_establishment_year's
-    # SRID, no reprojection needed, see landuse_service module docstring for why
-    # A302_geometry/merged_geometry stay in UTM). $2 = p_code, $3 = year.
+    # $1 = plantation geometry (GeoJSON, WGS84 / EPSG:4326), $2 = p_code,
+    # $3 = year. The raster keeps the CRS it was imported in (a province's
+    # GeoTIFF is in one UTM zone, 47N or 48N), so the geometry is reprojected
+    # into that raster's own SRID -- read from its tiles, not configured.
     _VALUE_COUNT_QUERY = """
-        WITH target AS (
-            SELECT ST_SetSRID(ST_GeomFromGeoJSON($1), 32647) AS geom
+        WITH raster_srid AS (
+            SELECT ST_SRID(rast) AS srid
+            FROM tbl_planting_year
+            WHERE p_code = $2 AND year = $3::integer
+            LIMIT 1
+        ),
+        target AS (
+            SELECT ST_Transform(ST_SetSRID(ST_GeomFromGeoJSON($1), 4326), raster_srid.srid) AS geom
+            FROM raster_srid
         ),
         clipped AS (
             SELECT ST_Clip(ST_Union(g.rast, 1), (SELECT geom FROM target), true) AS band
-            FROM geo_establishment_year g
+            FROM tbl_planting_year g
             WHERE g.p_code = $2
               AND g.year = $3::integer
               AND ST_Intersects(g.rast, (SELECT geom FROM target))
@@ -34,19 +41,28 @@ class AgeMapService:
     """
 
     @staticmethod
-    def _latest_year(p_code: str) -> int | None:
-        version = REGION_CONFIG.get(p_code, {}).get("ESTABLISHMENT_YEAR_MAP_VERSION")
+    async def _latest_year(p_code: str) -> int | None:
+        try:
+            pool = get_pool()
+            async with pool.acquire() as conn:
+                version = await conn.fetchval(
+                    "SELECT planting_year_version FROM tbl_region_config WHERE p_code = $1", p_code
+                )
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to load region config: {str(e)}")
         return int(version) if version is not None else None
 
     async def get_plantation_year_count(self, poly_data: dict) -> dict:
         p_code = poly_data.get("province_code")
-        year = self._latest_year(p_code)
+        year = await self._latest_year(p_code)
 
+        # No planting-year map configured for this province (tbl_region_config.
+        # planting_year_version NULL): no raster counts -- the assessment then
+        # needs a user-input year of planting (CarbonService returns E04).
+        poly_data["planting_year_raster_available"] = year is not None
         if year is None:
-            raise HTTPException(
-                status_code=400,
-                detail=f"AGE RASTER NOT AVAILABLE FOR PROVINCE: {p_code}"
-            )
+            poly_data["_cached_year_counts"] = []
+            return poly_data
 
         try:
             pool = get_pool()
@@ -89,7 +105,7 @@ class AgeMapService:
 
         result = [None] * len(counts)
         for idx, (yr, count) in enumerate(counts):
-            tree_info = self.tree_svc.get_tree_count_raster_pixel(poly_data, int(count), total_pixels)
+            tree_info = await self.tree_svc.get_tree_count_raster_pixel(poly_data, int(count), total_pixels)
             result[idx] = {
                 "age": int(current_year - yr),
                 "pixel_count": int(count),

@@ -1,4 +1,4 @@
-import { AuthGuard } from "@/app/components";
+import { AuthGuard, Footer } from "@/app/components";
 
 export default function DashboardLayout({
   children,
@@ -10,6 +10,7 @@ export default function DashboardLayout({
       <main className="db-layout">
         {children}
       </main>
+      <Footer />
     </AuthGuard>
   );
 }

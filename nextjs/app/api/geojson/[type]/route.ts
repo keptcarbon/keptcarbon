@@ -109,7 +109,8 @@ export async function GET(
               'type', 'Feature',
               'geometry', ST_AsGeoJSON(geom)::json,
               'properties', json_build_object(
-                'amphoe_t', name_th, 'prov_nam_t', province_th
+                'amphoe_t', name_th, 'prov_nam_t', province_th,
+                'cen_lon', cen_lon, 'cen_lat', cen_lat
               )
             ))
           ) AS geojson
@@ -125,13 +126,31 @@ export async function GET(
               'type', 'Feature',
               'geometry', ST_AsGeoJSON(geom)::json,
               'properties', json_build_object(
-                'amphoe_t', name_th, 'prov_nam_t', province_th
+                'amphoe_t', name_th, 'prov_nam_t', province_th,
+                'cen_lon', cen_lon, 'cen_lat', cen_lat
               )
             ))
           ) AS geojson
           FROM geo_district WHERE name_th = $1;
         `;
         queryParams = [district];
+      } else if (province && searchParams.get('shape') === 'polygon') {
+        // Full district polygons of one province (dashboard map boundaries).
+        query = `
+          SELECT json_build_object(
+            'type', 'FeatureCollection',
+            'features', json_agg(json_build_object(
+              'type', 'Feature',
+              'geometry', ST_AsGeoJSON(geom)::json,
+              'properties', json_build_object(
+                'amphoe_t', name_th, 'prov_nam_t', province_th,
+                'cen_lon', cen_lon, 'cen_lat', cen_lat
+              )
+            ))
+          ) AS geojson
+          FROM geo_district WHERE province_th = $1;
+        `;
+        queryParams = [province];
       } else if (province) {
         query = `
           SELECT json_build_object(
@@ -156,7 +175,8 @@ export async function GET(
               'type', 'Feature',
               'geometry', ST_AsGeoJSON(geom)::json,
               'properties', json_build_object(
-                'amphoe_t', name_th, 'prov_nam_t', province_th
+                'amphoe_t', name_th, 'prov_nam_t', province_th,
+                'cen_lon', cen_lon, 'cen_lat', cen_lat
               )
             ))
           ) AS geojson

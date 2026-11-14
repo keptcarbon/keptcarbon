@@ -1,0 +1,118 @@
+import { NextRequest, NextResponse } from "next/server";
+import { pool } from "@/lib/db";
+import { isAdminOrRnd } from "@/lib/auth-server";
+import { getRequesterId, recordImport, withTransaction } from "@/lib/dataset-version";
+import { ImportValidationError, assertRasterCoversProvince } from "@/lib/import-checks";
+
+// Matches the tiling already used by the table's existing rows (equivalent
+// to `raster2pgsql -t 100x100`) — one huge single-row raster is slow to
+// query/index compared to many small tiles.
+const TILE_SIZE = 100;
+
+/**
+ * GET /api/rnd/planting-year?pCode=...&year=...
+ * Existence check used to block re-importing a province+year combination
+ * that's already in the table.
+ */
+export async function GET(request: NextRequest) {
+  if (!(await isAdminOrRnd(request))) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  const { searchParams } = new URL(request.url);
+  const pCode = searchParams.get("pCode");
+  const yearRaw = searchParams.get("year");
+
+  if (!pCode || !yearRaw || !/^\d+$/.test(yearRaw)) {
+    return NextResponse.json({ error: "ต้องระบุ pCode และ year" }, { status: 400 });
+  }
+
+  const result = await pool.query(
+    "SELECT 1 FROM tbl_planting_year WHERE p_code = $1 AND year = $2 LIMIT 1",
+    [pCode, Number(yearRaw)]
+  );
+
+  return NextResponse.json({ exists: result.rows.length > 0 });
+}
+
+/**
+ * POST /api/rnd/planting-year
+ * Imports a GeoTIFF (multipart "file") into tbl_planting_year, keyed by
+ * "pCode" (province code from geo_thailand) and "year" (integer). The raster
+ * is decoded server-side by PostGIS's ST_FromGDALRaster (SRID read straight
+ * from the file's own embedded projection), then split into 100×100-pixel
+ * tiles via ST_Tile — one row per tile, not one row for the whole raster.
+ * Before committing, the tiles must be in UTM 47N/48N and cover the province.
+ * The import is logged as a 'draft' version in tbl_dataset_version.
+ */
+export async function POST(request: NextRequest) {
+  if (!(await isAdminOrRnd(request))) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  try {
+    const formData = await request.formData();
+    const file = formData.get("file");
+    const pCode = formData.get("pCode");
+    const yearRaw = formData.get("year");
+
+    if (!(file instanceof File)) {
+      return NextResponse.json({ error: "ต้องแนบไฟล์ .tif" }, { status: 400 });
+    }
+    if (typeof pCode !== "string" || !pCode.trim()) {
+      return NextResponse.json({ error: "ต้องระบุ p_code" }, { status: 400 });
+    }
+    if (typeof yearRaw !== "string" || !/^\d+$/.test(yearRaw.trim())) {
+      return NextResponse.json({ error: "year ต้องเป็นตัวเลขปี" }, { status: 400 });
+    }
+    const year = Number(yearRaw);
+
+    const province = await pool.query("SELECT 1 FROM geo_thailand WHERE p_code = $1", [pCode]);
+    if (province.rows.length === 0) {
+      return NextResponse.json({ error: `ไม่พบ p_code "${pCode}" ใน geo_thailand` }, { status: 400 });
+    }
+
+    const existing = await pool.query(
+      "SELECT 1 FROM tbl_planting_year WHERE p_code = $1 AND year = $2 LIMIT 1",
+      [pCode, year]
+    );
+    if (existing.rows.length > 0) {
+      return NextResponse.json({ error: `มีข้อมูลของจังหวัด "${pCode}" ปี ${year} อยู่แล้วในระบบ` }, { status: 409 });
+    }
+
+    const buffer = Buffer.from(await file.arrayBuffer());
+
+    const userId = getRequesterId(request);
+
+    const tileCount = await withTransaction(async (client) => {
+      const result = await client.query(
+        `INSERT INTO tbl_planting_year (p_code, year, rast)
+         SELECT $1, $2, tile
+         FROM ST_Tile(ST_FromGDALRaster($3), $4, $4) AS tile
+         RETURNING rid`,
+        [pCode, year, buffer, TILE_SIZE]
+      );
+      await assertRasterCoversProvince(client, pCode, year);
+      await recordImport(client, {
+        category: "planting_year_map", pCode, version: String(year),
+        fileName: file.name, rowCount: result.rowCount ?? 0, userId,
+      });
+      return result.rowCount;
+    });
+
+    return NextResponse.json({ tileCount, pCode, year, status: "draft" });
+  } catch (err) {
+    if (err instanceof ImportValidationError) {
+      return NextResponse.json({ error: err.message }, { status: 400 });
+    }
+    console.error("planting-year import error:", err);
+    const message = err instanceof Error ? err.message : "Internal Server Error";
+    // ST_FromGDALRaster throws a Postgres error (not our own validation) when
+    // the bytes aren't a raster GDAL can decode — surface that as a 400.
+    const isRasterDecodeError = /raster|gdal/i.test(message);
+    return NextResponse.json(
+      { error: isRasterDecodeError ? "ไม่สามารถอ่านไฟล์เป็นข้อมูล raster ได้ — ตรวจสอบว่าเป็นไฟล์ GeoTIFF ที่ถูกต้อง" : "Internal Server Error" },
+      { status: isRasterDecodeError ? 400 : 500 }
+    );
+  }
+}

@@ -61,8 +61,8 @@
 -- needs the raster2pgsql CLI binary, not plain SQL):
 --
 --   docker compose exec -T postgis \
---     raster2pgsql -s 32647 -t 100x100 -a -I /rasters/establishment_year_rayong.tif \
---       public.geo_establishment_year \
+--     raster2pgsql -s 32647 -t 100x100 -a -I /rasters/planting_year_rayong.tif \
+--       public.geo_planting_year \
 --   | docker compose exec -T postgis psql -U postgres -d keptcarbon -v ON_ERROR_STOP=1
 --
 -- (requires the postgis service built from postgis/Dockerfile so
@@ -381,7 +381,7 @@ BEGIN
 END $$;
 
 -- ============================================================================
--- STEP 8 — 007_geo_establishment_year.sql (schema only — raster load is a
+-- STEP 8 — 007_geo_planting_year.sql (schema only — raster load is a
 --   separate manual step documented in the file header above; it cannot be
 --   embedded in plain SQL)
 -- ============================================================================
@@ -390,25 +390,25 @@ DO $$
 BEGIN
   IF EXISTS (
     SELECT 1 FROM information_schema.tables
-    WHERE table_schema = 'public' AND table_name = 'geo_establishment_year'
+    WHERE table_schema = 'public' AND table_name = 'geo_planting_year'
   ) THEN
-    RAISE EXCEPTION 'geo_establishment_year already exists -- migration 007 already applied, aborting.';
+    RAISE EXCEPTION 'geo_planting_year already exists -- migration 007 already applied, aborting.';
   END IF;
 END $$;
 
-CREATE TABLE public.geo_establishment_year (
+CREATE TABLE public.geo_planting_year (
     rid   serial PRIMARY KEY,
     p_code text NOT NULL DEFAULT 'RAY',
     year  integer NOT NULL DEFAULT 2026,
     rast  raster
 );
 
-CREATE INDEX geo_establishment_year_p_code_year_idx
-    ON public.geo_establishment_year (p_code, year);
+CREATE INDEX geo_planting_year_p_code_year_idx
+    ON public.geo_planting_year (p_code, year);
 
 DO $$
 BEGIN
-  RAISE NOTICE '[step 8/14] geo_establishment_year table created (EMPTY — raster2pgsql load still required, see file header)';
+  RAISE NOTICE '[step 8/14] geo_planting_year table created (EMPTY — raster2pgsql load still required, see file header)';
 END $$;
 
 -- ============================================================================
@@ -831,7 +831,7 @@ DO $$
 BEGIN
   RAISE NOTICE '=============================================================';
   RAISE NOTICE 'Bootstrap complete. Schema now matches dev (001-012 + gaps A/B/C).';
-  RAISE NOTICE 'REMINDER: geo_establishment_year is EMPTY -- run the raster2pgsql';
+  RAISE NOTICE 'REMINDER: geo_planting_year is EMPTY -- run the raster2pgsql';
   RAISE NOTICE 'load step from this file''s header comment before deploying app';
   RAISE NOTICE 'code that depends on plantation age-map lookups.';
   RAISE NOTICE '=============================================================';

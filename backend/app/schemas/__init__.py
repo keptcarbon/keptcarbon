@@ -1,1 +1,2 @@
-from .plots import CarbonAssessRequest, CarbonAssessResponse, StatusMessage, YearlyAssess, LUPolygon, PlotsInfoResponse
+from .plots import StatusMessage, LUPolygon, PlotsInfoResponse
+from .carbon import CarbonAssessRequest, CarbonAssessResponse, YearlyAssess

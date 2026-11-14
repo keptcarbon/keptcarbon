@@ -113,9 +113,11 @@ export function LoginModal() {
           closeModal();
           // Always consume so a stale cookie doesn't leak into a later login.
           const target = consumePostAuthRedirect();
-          // If refresh() already redirected to a freshly-claimed guest
-          // project, don't clobber it with the fallback target.
-          if (!claimRedirected) router.push(target ?? "/");
+          // Skip the nav when we're already on the target page — the map-draw
+          // post-login reconcile sets its own ?project= URL and this push
+          // (fired ~800ms later) would strip it.
+          const onTarget = !!target && typeof window !== "undefined" && window.location.pathname === target;
+          if (!claimRedirected && !onTarget) router.push(target ?? "/");
         }, 800);
       } else {
         setAlert({ type: "error", msg: data.error || "เข้าสู่ระบบไม่สำเร็จ" });
@@ -355,9 +357,11 @@ export function RegisterModal() {
           closeModal();
           // Always consume so a stale cookie doesn't leak into a later login.
           const target = consumePostAuthRedirect();
-          // If refresh() already redirected to a freshly-claimed guest
-          // project, don't clobber it with the fallback target.
-          if (!claimRedirected) router.push(target ?? "/");
+          // Skip the nav when we're already on the target page — the map-draw
+          // post-login reconcile sets its own ?project= URL and this push
+          // would strip it.
+          const onTarget = !!target && typeof window !== "undefined" && window.location.pathname === target;
+          if (!claimRedirected && !onTarget) router.push(target ?? "/");
         }, 900);
       } else {
         setAlert({ type: "error", msg: data.error || "สมัครสมาชิกไม่สำเร็จ" });

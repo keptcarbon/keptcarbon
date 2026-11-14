@@ -150,6 +150,11 @@
   color: #dc2626;
 }
 
+.iconSuccess {
+  background: rgba(30, 122, 71, 0.1);
+  color: #1e7a47;
+}
+
 .title {
   font-size: 18px;
   font-weight: 800;
@@ -204,6 +209,15 @@
 
 .buttonError {
   background: #ef4444;
+}
+
+.buttonSuccess {
+  composes: button;
+  background: #1e7a47;
+}
+
+.buttonSuccess:hover {
+  background: #17603a;
 }
 
 .buttonRow {

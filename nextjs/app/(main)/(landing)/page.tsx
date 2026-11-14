@@ -8,19 +8,20 @@ import {
 import { Button } from "@/components/ui/button";
 import { Reveal } from "@/components/ui/reveal";
 import { LazyVideo } from "@/components/ui/lazy-video";
+import PreliminaryAssessment from "./PreliminaryAssessment";
 
 const benefits = [
   {
     icon: Clock,
     title: "ประหยัดเวลาและต้นทุน",
     description:
-      "ลดการลงพื้นที่สำรวจทุกต้นด้วยการวิเคราะห์ผ่านภาพถ่ายดาวเทียม และ GeoAI",
+      "ลดการลงสำรวจพื้นที่ด้วยการประมาณการผ่านข้อมูลภูมิสารสนเทศ ภาพถ่ายดาวเทียม และ GeoAI",
   },
   {
     icon: Target,
     title: "ความแม่นยำระดับสูง",
     description:
-      "อัลกอริทึม GeoAI ช่วยระบุขอบเขตแปลง ระบุอายุยางพาราและประเมินคาร์บอนได้อย่างมีประสิทธิภาพ",
+      "อัลกอริทึม GeoAI ช่วยระบุขอบเขตแปลง ประมาณการอายุยางพารา และประเมินคาร์บอนได้อย่างมีประสิทธิภาพ",
   },
   {
     icon: ShieldCheck,
@@ -81,16 +82,46 @@ export default function Home() {
           <div className="mt-9 flex flex-col items-center gap-3 sm:flex-row">
             <Button
               nativeButton={false}
-              render={<Link href="/map-draw" />}
+              render={<Link href="#cta" />}
               className="h-12 rounded-xl px-8 text-base font-semibold no-underline shadow-sm"
             >
-              ประเมินคาร์บอน
+              เริ่มประเมินคาร์บอน
             </Button>
           </div>
         </div>
       </section>
 
-      {/* ── Section B: Platform Highlights ──────────────────────────── */}
+      {/* ── Section B: Benefits ─────────────────────────────────────── */}
+      <section className="border-t border-border bg-muted/30 px-4 py-16 sm:px-6 md:py-24 lg:px-8">
+        <div className="mx-auto w-full max-w-7xl">
+          <Reveal className="mx-auto mb-12 max-w-2xl text-center">
+            <h2 className="mt-0 mb-3 text-2xl font-bold tracking-tight text-foreground md:text-3xl">
+              ทำไมต้อง KeptCarbon?
+            </h2>
+            <p className="m-0 text-base text-muted-foreground">
+              ยกระดับการจัดการคาร์บอนเครดิตด้วยเทคโนโลยีที่แม่นยำและกระบวนการเชื่อถือได้
+            </p>
+          </Reveal>
+
+          <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 md:grid-cols-3 md:gap-10">
+            {benefits.map(({ icon: Icon, title, description }, i) => (
+              <Reveal
+                key={title}
+                delay={i * 120}
+                className="flex flex-col items-center px-2 text-center"
+              >
+                <div className="mb-4 flex size-12 items-center justify-center rounded-full bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400">
+                  <Icon className="size-10" aria-hidden="true" />
+                </div>
+                <h3 className="mb-2 text-lg font-semibold text-foreground">{title}</h3>
+                <p className="text-sm leading-relaxed text-muted-foreground">{description}</p>
+              </Reveal>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── Section D: Platform Demo ──────────────────────────── */}
       <section className="border-t border-border bg-muted/50 px-4 py-16 sm:px-6 md:py-24 lg:px-8">
         <div className="mx-auto w-full max-w-7xl">
           <div className="mx-auto mb-10 max-w-2xl text-center md:mb-14">
@@ -119,72 +150,43 @@ export default function Home() {
               {/* ── Real product demo recording ──────────────────────── */}
               <LazyVideo
                 className="absolute inset-0 size-full object-cover object-top"
-                src="/assets/video/map-draw-demo.mp4"
-                poster="/assets/video/map-draw-demo-poster.webp"
+                src="/assets/video/keptcarbon-demo.mp4"
+                poster="/assets/video/keptcarbon-demo-poster.webp"
               />
             </div>
           </Reveal>
         </div>
-      </section>
-
-      {/* ── Section D: Benefits ─────────────────────────────────────── */}
-      <section className="border-t border-border bg-muted/30 px-4 py-16 sm:px-6 md:py-24 lg:px-8">
-        <div className="mx-auto w-full max-w-7xl">
-          <Reveal className="mx-auto mb-12 max-w-2xl text-center">
-            <h2 className="mt-0 mb-3 text-2xl font-bold tracking-tight text-foreground md:text-3xl">
-              ทำไมต้องเลือก KeptCarbon?
-            </h2>
-            <p className="m-0 text-base text-muted-foreground">
-              ยกระดับการจัดการคาร์บอนเครดิตด้วยเทคโนโลยีที่แม่นยำและเชื่อถือได้
-            </p>
-          </Reveal>
-
-          <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 md:grid-cols-3 md:gap-10">
-            {benefits.map(({ icon: Icon, title, description }, i) => (
-              <Reveal
-                key={title}
-                delay={i * 120}
-                className="flex flex-col items-center px-2 text-center"
-              >
-                <div className="mb-4 flex size-12 items-center justify-center rounded-full bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400">
-                  <Icon className="size-10" aria-hidden="true" />
-                </div>
-                <h3 className="mb-2 text-lg font-semibold text-foreground">{title}</h3>
-                <p className="text-sm leading-relaxed text-muted-foreground">{description}</p>
-              </Reveal>
-            ))}
-          </div>
-        </div>
-      </section>
+      </section>      
 
       {/* ── Section E: CTA Banner ────────────────────────────────────── */}
-      <section className="w-full border-t border-border bg-background px-4 py-16 text-center sm:px-6 md:py-24 lg:px-8">
-        <Reveal className="mx-auto w-full max-w-4xl">
+      <section id="cta" className="w-full border-t border-border bg-background px-4 py-16 text-center sm:px-6 md:py-24 lg:px-8">
+        <Reveal className="mx-auto w-full max-w-5xl">
           <div className="mx-auto mb-5 flex size-12 items-center justify-center rounded-full bg-secondary text-primary">
             <Leaf className="size-10" aria-hidden="true" />
           </div>
           <h2 className="mt-0 mb-3 text-3xl font-bold tracking-tight text-foreground md:text-3xl">
-            พร้อมประเมินศักยภาพคาร์บอนเครดิตสวนยางของคุณหรือยัง?
+            พร้อมประเมินศักยภาพการกักเก็บคาร์บอนในสวนยางของคุณหรือยัง?
           </h2>
           <p className="mx-auto mb-8 max-w-2xl text-sm text-muted-foreground md:text-base">
             เริ่มต้นใช้งาน KeptCarbon Platform วันนี้ เพื่อเตรียมความพร้อมสู่ตลาดคาร์บอนเครดิตในอนาคต
           </p>
-          <div className="flex flex-col items-center justify-center gap-3 sm:flex-row">
+          <PreliminaryAssessment />
+          <div className="mx-auto grid w-full max-w-2xl grid-cols-1 gap-3 sm:grid-cols-2">
             <Button
               nativeButton={false}
               render={<Link href="/map-draw" />}
-              className="h-12 rounded-xl px-8 text-base font-semibold no-underline shadow-sm"
+              className="h-12 w-full rounded-xl px-8 text-base font-semibold no-underline shadow-sm"
             >
-              เริ่มประเมินคาร์บอนฟรี
+              เริ่มประเมินคาร์บอนในพื้นที่ของคุณ
               <ArrowRight className="ml-2 size-4" aria-hidden="true" />
             </Button>
             <Button
               nativeButton={false}
-              render={<Link href="/about-project" />}
+              render={<Link href="/kitty" />}
               variant="outline"
-              className="h-12 rounded-xl px-8 text-base font-medium no-underline"
+              className="h-12 w-full rounded-xl border-[1px] border-primary px-8 text-base font-medium no-underline"
             >
-              อ่านรายละเอียดเพิ่มเติม
+              เรียนรู้เพิ่มเติมเกี่ยวกับคาร์บอนเครดิต
             </Button>
           </div>
         </Reveal>

@@ -4,6 +4,14 @@ export function emptyFC(): GeoJSON.FeatureCollection {
   return { type: "FeatureCollection", features: [] };
 }
 
+// Durations (ms) for animated map camera moves — zooming in/out and flying to
+// a location.
+// map-draw: every move. The plot tour (province → district → plot) chains
+// three of these, so each step is kept short.
+export const MAP_DRAW_ANIMATION_DURATION = 1800;
+// Dashboard and My Plots (แปลงของฉัน) maps, e.g. jumping back to a plot.
+export const MAP_VIEW_ANIMATION_DURATION = 2500;
+
 export function isMobile() {
   return typeof window !== "undefined" && window.innerWidth <= 768;
 }
@@ -20,9 +28,20 @@ export function generatePolygonId(): string {
   return id;
 }
 
-// Equal-area-ish polygon area in m^2 (matches the original map-draw.html algorithm).
+// Polygon area in m^2 on the WGS84 ellipsoid -- matches PostGIS
+// ST_Area(geom::geography), which is what tbl_plots.area_m2 and the backend's
+// areas use, so the area shown while drawing is the area that gets saved.
+// Local planar shoelace on a sphere (R = 6,371 km), then scaled by the
+// ellipsoid's local area factor M*N/R^2 at the ring's mean latitude: the bare
+// sphere overstated area by ~0.39% at Rayong's latitude (e.g. 86.72 vs 86.39
+// rai); with the factor it agrees with PostGIS to ~4 decimals for plot-sized
+// polygons.
+const WGS84_A = 6378137;
+const WGS84_E2 = 0.00669437999014;
 export function polygonAreaM2(coords: LngLat[]): number {
+  if (coords.length < 3) return 0;
   let a = 0;
+  let latSum = 0;
   const R = 6371000;
   for (let i = 0; i < coords.length; i++) {
     const [lo1, la1] = coords[i];
@@ -32,8 +51,16 @@ export function polygonAreaM2(coords: LngLat[]): number {
     const x2 = ((lo2 * Math.PI) / 180) * R * Math.cos((la2 * Math.PI) / 180);
     const y2 = ((la2 * Math.PI) / 180) * R;
     a += x1 * y2 - x2 * y1;
+    latSum += la1;
   }
-  return Math.abs(a) / 2;
+  const sphereArea = Math.abs(a) / 2;
+
+  // Meridional (M) and prime-vertical (N) radii of curvature at the mean latitude.
+  const lat = ((latSum / coords.length) * Math.PI) / 180;
+  const w = 1 - WGS84_E2 * Math.sin(lat) ** 2;
+  const M = (WGS84_A * (1 - WGS84_E2)) / w ** 1.5;
+  const N = WGS84_A / Math.sqrt(w);
+  return sphereArea * ((M * N) / (R * R));
 }
 
 export function carbonForAge(age: number, trees: number) {
