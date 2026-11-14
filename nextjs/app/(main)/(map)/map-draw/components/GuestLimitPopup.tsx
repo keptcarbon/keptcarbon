@@ -42,7 +42,7 @@ export function GuestLimitPopup({
 
   return (
     <div className={styles.overlay} onClick={onClose}>
-      <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
+      <div className={styles.modal} style={{ maxWidth: 370 }} onClick={(e) => e.stopPropagation()}>
         <button
           onClick={onClose}
           className={styles.closeBtn}

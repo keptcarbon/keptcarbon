@@ -1,7 +1,9 @@
 import type { Metadata, Viewport } from "next";
 import { Noto_Sans_Thai } from "next/font/google";
 import { AuthProvider } from "@/lib/auth-context";
-import { AuthModals, Header, CondolenceLightbox } from "@/app/components/organisms";
+import { AuthModals, Header } from "@/app/components/organisms";
+// Condolence popup disabled -- re-enable by restoring this import and <CondolenceLightbox /> below.
+// import { CondolenceLightbox } from "@/app/components/organisms";
 import "./globals.css";
 
 const notoSansThai = Noto_Sans_Thai({
@@ -58,7 +60,7 @@ export default function RootLayout({
           <Header />
           {children}
           <AuthModals />
-          <CondolenceLightbox />
+          {/* <CondolenceLightbox /> */}
         </AuthProvider>
       </body>
     </html>
