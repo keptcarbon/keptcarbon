@@ -1,3 +1,4 @@
+import { useState } from "react";
 import styles from "./Popup.module.css";
 
 /**
@@ -6,6 +7,11 @@ import styles from "./Popup.module.css";
  * kind "projects" -- already holds the allowed number of projects and tried
  * to start another. Prompts them to log in or register to continue.
  * Re-appears every time the guest clicks "วาดแปลงเพิ่ม" while at the limit.
+ *
+ * kind "projects" + onStartOver: a guest can't see or delete their earlier
+ * project (no my-plots without an account), and it outlives the visit via
+ * localStorage guest_user_id -- so offer to discard it and start a new one.
+ * Logging in instead claims it into the account.
  */
 export function GuestLimitPopup({
   open,
@@ -14,6 +20,7 @@ export function GuestLimitPopup({
   onClose,
   onLogin,
   onRegister,
+  onStartOver,
 }: {
   open: boolean;
   limit: number;
@@ -21,8 +28,18 @@ export function GuestLimitPopup({
   onClose: () => void;
   onLogin: () => void;
   onRegister: () => void;
+  onStartOver?: () => Promise<void>;
 }) {
+  const [busy, setBusy] = useState(false);
   if (!open) return null;
+  const canStartOver = kind === "projects" && !!onStartOver;
+
+  const handleStartOver = async () => {
+    if (!onStartOver || busy) return;
+    setBusy(true);
+    try { await onStartOver(); } finally { setBusy(false); }
+  };
+
   return (
     <div className={styles.overlay} onClick={onClose}>
       <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
@@ -47,16 +64,27 @@ export function GuestLimitPopup({
         <p className={styles.desc}>
           {kind === "plots"
             ? "กรุณาเข้าสู่ระบบหรือสมัครสมาชิกเพื่อวาดแปลงเพิ่ม"
-            : "กรุณาเข้าสู่ระบบหรือสมัครสมาชิกเพื่อสร้างโครงการเพิ่ม"}
+            : canStartOver
+              ? <>
+                  คุณมีโครงการที่ประเมินไว้ก่อนหน้านี้ เข้าสู่ระบบหรือสมัครสมาชิกเพื่อเก็บโครงการเดิมไว้ในบัญชี
+                  หรือเริ่มโครงการใหม่
+                  <span className={styles.warningText}>การเริ่มโครงการใหม่จะลบโครงการเดิม</span>
+                </>
+              : "กรุณาเข้าสู่ระบบหรือสมัครสมาชิกเพื่อสร้างโครงการเพิ่ม"}
         </p>
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          <button onClick={onLogin} className={styles.buttonPrimary}>
+          <button onClick={onLogin} className={styles.buttonPrimary} disabled={busy}>
             เข้าสู่ระบบ
           </button>
-          <button onClick={onRegister} className={styles.buttonOutline}>
+          <button onClick={onRegister} className={styles.buttonOutline} disabled={busy}>
             สมัครสมาชิก
           </button>
-          <button onClick={onClose} className={styles.buttonText}>
+          {canStartOver && (
+            <button onClick={handleStartOver} className={styles.buttonOutline} disabled={busy}>
+              {busy ? "กำลังลบโครงการเดิม..." : "ลบโครงการเดิมและเริ่มใหม่"}
+            </button>
+          )}
+          <button onClick={onClose} className={styles.buttonText} disabled={busy}>
             ยกเลิก
           </button>
         </div>
