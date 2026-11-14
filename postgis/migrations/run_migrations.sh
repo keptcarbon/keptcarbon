@@ -33,7 +33,7 @@ set -euo pipefail
 
 DB=keptcarbon
 CONTAINER=keptcarbon-postgis
-PGUSER_NAME=postgres
+PGUSER_NAME=keptcarbon
 DRY_RUN=0
 ASSUME_YES=0
 DO_BACKUP=1
