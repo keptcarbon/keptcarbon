@@ -3,7 +3,7 @@ import {
   MapPin, Leaf,
   Clock, Target, BarChart3,
   Users, Building, ShieldCheck,
-  ArrowRight,
+  ArrowRight, ArrowUp,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Reveal } from "@/components/ui/reveal";
@@ -171,14 +171,23 @@ export default function Home() {
             เริ่มต้นใช้งาน KeptCarbon Platform วันนี้ เพื่อเตรียมความพร้อมสู่ตลาดคาร์บอนเครดิตในอนาคต
           </p>
           <PreliminaryAssessment />
-          <div className="mx-auto grid w-full max-w-2xl grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="mx-auto grid w-full max-w-4xl grid-cols-1 gap-3 lg:grid-cols-3">
+            <Button
+              nativeButton={false}
+              render={<Link href="#cta" />}
+              variant="outline"
+              className="h-12 w-full rounded-xl border-[1px] border-primary px-8 text-base font-medium no-underline"
+            >
+              กลับไปประเมินใหม่
+              <ArrowUp className="ml-2 size-4" aria-hidden="true" />
+            </Button>
             <Button
               nativeButton={false}
               render={<Link href="/map-draw" />}
               className="h-12 w-full rounded-xl px-8 text-base font-semibold no-underline shadow-sm"
             >
               เริ่มประเมินคาร์บอนในพื้นที่ของคุณ
-              <ArrowRight className="ml-2 size-4" aria-hidden="true" />
+              <MapPin className="ml-2 size-4" aria-hidden="true" />
             </Button>
             <Button
               nativeButton={false}
@@ -187,6 +196,7 @@ export default function Home() {
               className="h-12 w-full rounded-xl border-[1px] border-primary px-8 text-base font-medium no-underline"
             >
               เรียนรู้เพิ่มเติมเกี่ยวกับคาร์บอนเครดิต
+              <ArrowRight className="ml-2 size-4" aria-hidden="true" />
             </Button>
           </div>
         </Reveal>

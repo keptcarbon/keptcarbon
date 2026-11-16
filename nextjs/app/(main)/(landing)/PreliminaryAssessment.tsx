@@ -622,7 +622,7 @@ export default function PreliminaryAssessment() {
         </div>
       </div>
 
-      <p className="mt-3 mb-0 px-1 text-xs text-muted-foreground">
+      <p className="mt-3 mb-0 px-1 text-[13px] text-muted-foreground">
         <span className="text-destructive">*</span> จำเป็นต้องกรอก — ระบุพื้นที่ หรือ จำนวนต้น อย่างน้อยหนึ่งอย่าง
       </p>
 
