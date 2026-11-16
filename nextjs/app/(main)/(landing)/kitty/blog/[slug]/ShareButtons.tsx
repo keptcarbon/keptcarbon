@@ -31,6 +31,7 @@ export default function ShareButtons() {
         className={pill}
         onClick={() => open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url())}`)}
       >
+        <i className="bi bi-facebook text-[14px] leading-none text-[#1877f2]" aria-hidden="true" />
         Facebook
       </button>
       <button
@@ -38,6 +39,7 @@ export default function ShareButtons() {
         className={pill}
         onClick={() => open(`https://social-plugins.line.me/lineit/share?url=${encodeURIComponent(url())}`)}
       >
+        <i className="bi bi-line text-[14px] leading-none text-[#06C755]" aria-hidden="true" />
         LINE
       </button>
       <button type="button" className={pill} onClick={copy} aria-live="polite">

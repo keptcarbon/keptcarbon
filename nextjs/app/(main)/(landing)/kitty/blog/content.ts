@@ -93,6 +93,16 @@ export function formatThaiDate(iso: string) {
   });
 }
 
+/** "2026-03-08" → "2026, March 8" (APA 7 reference date) */
+export function formatApaDate(iso: string) {
+  const monthDay = new Date(`${iso}T00:00:00+07:00`).toLocaleDateString("en-US", {
+    month: "long",
+    day: "numeric",
+    timeZone: "Asia/Bangkok",
+  });
+  return `${iso.slice(0, 4)}, ${monthDay}`;
+}
+
 /** Does the search text match the post's title or one of its tags?
     Ignores case and a leading "#" (so "#ยางพารา" finds the tag). */
 export function postMatches(post: BlogPost, query: string) {

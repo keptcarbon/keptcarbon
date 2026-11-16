@@ -1,17 +1,20 @@
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
+import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { getPublishedPosts } from "@/lib/kitty-blog";
 import {
   categoryOf,
+  formatApaDate,
   formatThaiDate,
   readingMinutes,
   relatedPosts,
 } from "../content";
 import PostBlockView from "../PostBlockView";
 import ShareButtons from "./ShareButtons";
+import CopyCitationButton from "./CopyCitationButton";
 import TagList from "../TagList";
 
 type Props = { params: Promise<{ slug: string }> };
@@ -44,6 +47,12 @@ export default async function BlogPostPage({ params }: Props) {
   const { post, posts } = found;
   const { label, color, ink } = categoryOf(post);
   const related = relatedPosts(post, posts);
+
+  // APA 7 "webpage within a website": Author. (Date). *Title*. Site. URL --
+  // with no named author the site is the author, and the site name is dropped.
+  const h = await headers();
+  const pageUrl = `${h.get("x-forwarded-proto") ?? "https"}://${h.get("host")}/kitty/blog/${post.slug}/`;
+  const citeAuthor = post.author ? post.author.replace(/\.$/, "") : "KeptCarbon";
 
   return (
     <div className="kc-tw bg-muted/60 px-4 pt-24 pb-16 sm:px-6 md:pt-28 md:pb-24 lg:px-8">
@@ -125,7 +134,23 @@ export default async function BlogPostPage({ params }: Props) {
               </p>
             )}
 
-            <div className="mt-12 flex justify-center border-t border-border pt-8">
+            <div className="mt-12 rounded-2xl border border-border bg-card p-5">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <h2 className="m-0 text-base font-bold text-foreground">How to cite this page:</h2>
+                <CopyCitationButton
+                  before={`${citeAuthor}. (${formatApaDate(post.date)}). `}
+                  title={post.title}
+                  after={`.${post.author ? " KeptCarbon." : ""} ${pageUrl}`}
+                />
+              </div>
+              <p className="m-0 pl-8 -indent-8 text-sm leading-relaxed text-foreground wrap-anywhere">
+                {citeAuthor}. ({formatApaDate(post.date)}). <i>{post.title}</i>.{" "}
+                {post.author && "KeptCarbon."}{" "}
+                {pageUrl}
+              </p>
+            </div>
+
+            <div className="mt-8 flex justify-center border-t border-border pt-8">
               <Link
                 href="/kitty/blog/"
                 className="group inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-5 py-2.5 text-sm font-medium text-foreground no-underline transition-colors hover:border-primary/30 hover:bg-secondary"
