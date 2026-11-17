@@ -31,6 +31,9 @@ services:
       - /app/node_modules
     environment:
       - WATCHPACK_POLLING=true
+      # Keep the V8 heap below the container cap so `next dev` GCs
+      # harder instead of growing until the host OOM killer fires.
+      - NODE_OPTIONS=--max-old-space-size=1024
       - DATABASE_URL=${DEV_DATABASE_URL}
       - LINE_CHANNEL_ID=${LINE_CHANNEL_ID}
       - LINE_CHANNEL_SECRET=${LINE_CHANNEL_SECRET}
@@ -49,6 +52,13 @@ services:
     depends_on:
       postgis:
         condition: service_healthy
+    # `next dev` grew to ~2.8 GB with no cap and was repeatedly
+    # OOM-killed on the shared 4 GB server, taking Postgres with it.
+    # With a cap, Docker restarts only this container instead.
+    deploy:
+      resources:
+        limits:
+          memory: 1280M
     restart: unless-stopped
 
   backend-dev:
@@ -75,5 +85,5 @@ services:
     deploy:
       resources:
         limits:
-          memory: 4G
+          memory: 1G
     restart: unless-stopped

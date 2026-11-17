@@ -58,6 +58,10 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+    # Make the kernel OOM killer pick other processes first. If a
+    # Postgres backend is killed, the postmaster restarts every
+    # session and enters recovery, which drops all app connections.
+    oom_score_adj: -800
     restart: unless-stopped
 
   backend:
@@ -78,10 +82,12 @@ services:
       - '${BACKEND_HOST_PORT:-8000}:8000'
     volumes:
       - ./backend:/app
+    # Must stay well under the 4 GB host total, or one runaway job
+    # can push the whole server into the OOM killer.
     deploy:
       resources:
         limits:
-          memory: 4G
+          memory: 1536M
     restart: unless-stopped
 
 volumes:
