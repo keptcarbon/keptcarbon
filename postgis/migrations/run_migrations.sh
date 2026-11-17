@@ -102,6 +102,11 @@ STEPS=(
   "036_drop_superseded_carbon_yearly.sql|pg_temp.q('SELECT EXISTS (SELECT 1 FROM tbl_plot_carbon_yearly y JOIN tbl_plot_assessments a ON a.id = y.assessment_id WHERE NOT a.is_current)')"
   "037_geo_subdistrict_province_th_idx.sql|to_regclass('public.geo_subdistrict_province_th_idx') IS NULL"
   "038_tbl_role_quota.sql|NOT pg_temp.has_tbl('tbl_role_quota') OR NOT pg_temp.has_tbl('tbl_role_quota_history')"
+  "040_tbl_kitty_blog_visibility.sql|NOT pg_temp.has_tbl('tbl_kitty_blog_visibility')"
+  "041_tbl_blog.sql|NOT pg_temp.has_tbl('tbl_blog')"
+  "042_tbl_blog_tag.sql|NOT pg_temp.has_tbl('tbl_blog_tag') OR NOT pg_temp.has_tbl('tbl_blog_tag_map')"
+  "043_tbl_blog_image.sql|NOT pg_temp.has_tbl('tbl_blog_image')"
+  "044_tbl_kitty_book.sql|NOT pg_temp.has_tbl('tbl_kitty_section') OR NOT pg_temp.has_tbl('tbl_kitty_page') OR NOT pg_temp.has_tbl('tbl_kitty_page_image')"
 )
 
 HELPERS=$(cat <<'SQL'
@@ -147,7 +152,9 @@ DECLARE missing text[] := '{}'; t text; c text[];
 BEGIN
   FOREACH t IN ARRAY ARRAY['tbl_landuse','tbl_planting_year','tbl_tree_density','tbl_region_config',
     'tbl_rubber_clone','tbl_planting_year_dist','tbl_dataset_version','tbl_dataset_import',
-    'tbl_region_config_history','tbl_role_quota','tbl_role_quota_history'] LOOP
+    'tbl_region_config_history','tbl_role_quota','tbl_role_quota_history',
+    'tbl_kitty_blog_visibility','tbl_blog','tbl_blog_tag','tbl_blog_tag_map','tbl_blog_image',
+    'tbl_kitty_section','tbl_kitty_page','tbl_kitty_page_image'] LOOP
     IF NOT pg_temp.has_tbl(t) THEN missing := missing || t; END IF;
   END LOOP;
   FOREACH c SLICE 1 IN ARRAY ARRAY[

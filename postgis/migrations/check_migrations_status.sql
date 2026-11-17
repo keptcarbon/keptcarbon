@@ -164,6 +164,27 @@ BEGIN
   THEN RAISE NOTICE '038_tbl_role_quota .................... DONE';
   ELSE RAISE NOTICE '038_tbl_role_quota .................... RUN (before deploying quota code)';  END IF;
 
+  IF to_regclass('public.tbl_kitty_blog_visibility') IS NOT NULL
+  THEN RAISE NOTICE '040_tbl_kitty_blog_visibility ......... DONE';
+  ELSE RAISE NOTICE '040_tbl_kitty_blog_visibility ......... RUN (before deploying KITTY blog code)';  END IF;
+
+  IF to_regclass('public.tbl_blog') IS NOT NULL
+  THEN RAISE NOTICE '041_tbl_blog .......................... DONE';
+  ELSE RAISE NOTICE '041_tbl_blog .......................... RUN (before deploying KITTY blog code)';  END IF;
+
+  IF to_regclass('public.tbl_blog_tag') IS NOT NULL AND to_regclass('public.tbl_blog_tag_map') IS NOT NULL
+  THEN RAISE NOTICE '042_tbl_blog_tag ...................... DONE';
+  ELSE RAISE NOTICE '042_tbl_blog_tag ...................... RUN (after 041)';  END IF;
+
+  IF to_regclass('public.tbl_blog_image') IS NOT NULL
+  THEN RAISE NOTICE '043_tbl_blog_image .................... DONE';
+  ELSE RAISE NOTICE '043_tbl_blog_image .................... RUN (after 041)';  END IF;
+
+  IF to_regclass('public.tbl_kitty_section') IS NOT NULL AND to_regclass('public.tbl_kitty_page') IS NOT NULL
+     AND to_regclass('public.tbl_kitty_page_image') IS NOT NULL
+  THEN RAISE NOTICE '044_tbl_kitty_book .................... DONE';
+  ELSE RAISE NOTICE '044_tbl_kitty_book .................... RUN (before deploying KITTY handbook/textbook code)';  END IF;
+
   -- geo_landuse / geo_planting_year were renamed to tbl_landuse /
   -- tbl_planting_year (SQL given in chat 2026-10-09, no migration file).
   IF to_regclass('public.geo_landuse') IS NOT NULL OR to_regclass('public.geo_planting_year') IS NOT NULL
